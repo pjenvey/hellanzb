@@ -5,7 +5,7 @@
 "Simple-ish XML parser for .nzb files."
 
 from xml.sax import make_parser
-from xml.sax.handler import ContentHandler, feature_namespaces
+from xml.sax.handler import ContentHandler, feature_external_ges, feature_namespaces
 
 from WrapPost import WrapPost
 
@@ -17,6 +17,7 @@ def ParseNZB(filename, servers):
         
         # No XML namespaces here
         parser.setFeature(feature_namespaces, 0)
+        parser.setFeature(feature_external_ges, 0)
         
         # Dicts to shove things into
         newsgroups = {}

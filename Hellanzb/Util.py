@@ -2,38 +2,70 @@
 Util - hellanzb misc functions
 
 """
-import Hellanzb, os, string, sys, xmlrpclib
+import os, popen2, pty, string, sys, thread, threading, time, xmlrpclib, Hellanzb, StringIO
 from distutils import spawn
+from threading import RLock, Thread
+from Logging import *
 
 __id__ = '$Id$'
 
 class FatalError(Exception):
     """ An error that will cause the program to exit """
     def __init__(self, message):
+        self.args = [message]
         self.message = message
 
-def warn(message):
-    """ Log a message at the warning level """
-    sys.stderr.write('Warning: ' + message + '\n')
+class Ptyopen(popen2.Popen3):
+    def __init__(self, cmd, capturestderr=False, bufsize=-1):
+        """ Popen3 class (isn't this actually Popen4, capturestderr = False?) that uses ptys
+instead of pipes, to allow inline reading (instead of potential i/o buffering) of output
+from the child process. It also stores the cmd it's running (as a string) and the thread
+that created the object, for later use """
+        # NOTE: this is all stolen from Popen minus the openpty calls
+        popen2._cleanup()
+        self.cmd = cmd
+        self.thread = threading.currentThread()
+        p2cread, p2cwrite = pty.openpty()
+        c2pread, c2pwrite = pty.openpty()
+        if capturestderr:
+            errout, errin = pty.openpty()
+        self.pid = os.fork()
+        if self.pid == 0:
+            # Child
+            os.dup2(p2cread, 0)
+            os.dup2(c2pwrite, 1)
+            if capturestderr:
+                os.dup2(errin, 2)
+            self._run_child(cmd)
+        os.close(p2cread)
+        self.tochild = os.fdopen(p2cwrite, 'w', bufsize)
+        os.close(c2pwrite)
+        self.fromchild = os.fdopen(c2pread, 'r', bufsize)
+        if capturestderr:
+            os.close(errin)
+            self.childerr = os.fdopen(errout, 'r', bufsize)
+        else:
+            self.childerr = None
+        popen2._active.append(self)
 
-def error(message):
-    """ Log a message at the error level """
-    sys.stderr.write('Error: ' + message + '\n')
-
-def info(message):
-    """ Log a message at the info level """
-    print message
-
-def debug(message):
-    if Hellanzb.DEBUG_MODE:
-        print message
-
+def getLocalClassName(klass):
+    """ Get the local name (no package/module information) of the specified class instance """
+    klass = str(klass)
+    
+    lastDot = klass.rfind('.')
+    if lastDot > -1:
+        klass = klass[lastDot + 1:]
+        
+    return klass    
+    
 def assertIsExe(exe):
     """ Abort the program if the specified file is not in our PATH and executable """
     if len(exe) > 0:
-        exe = exe.split()[0]
-        if spawn.find_executable(exe) == None or os.access(exe, os.X_OK):
-            raise FatalError('Cannot continue program, required executable not in path: ' + exe)
+        exe = os.path.basename(exe.split()[0])
+        fullPath = spawn.find_executable(exe)
+        if fullPath != None and os.access(fullPath, os.X_OK):
+            return
+    raise FatalError('Cannot continue program, required executable not in path: ' + exe)
 
 def dirHasFileType(dirName, fileExtension):
     return dirHasFileTypes(dirName, [ fileExtension ])
@@ -54,26 +86,6 @@ def getFileExtension(fileName):
     if len(fileName) > 1 and fileName.find('.') > -1:
         return string.lower(os.path.splitext(fileName)[1][1:])
 
-def growlNotify(type, title, description, sticky):
-    """ send a message to the growl daemon via an xmlrpc proxy """
-    # FIXME: should validate the server information on startup, and catch connection
-    # refused errors here
-    if not Hellanzb.ENABLE_GROWL_NOTIFY:
-        return
-
-    # NOTE: we probably want this in it's own thread to be safe, i can see this easily
-    # deadlocking for a bit on say gethostbyname()
-    # AND we could have a LOCAL_GROWL option for those who might run hellanzb on os x
-    serverUrl = 'http://' + Hellanzb.SERVER + '/'
-    server = xmlrpclib.Server(serverUrl)
-
-    # If for some reason, the XMLRPC server ain't there no more, this will blow up
-    # so we put it in a try/except block
-    try:
-        server.notify(type, title, description, sticky)
-    except:
-        return
-
 def stringEndsWith(string, match):
     matchLen = len(match)
     if len(string) >= matchLen and string[-matchLen:] == match:
@@ -86,3 +98,34 @@ does not exist. """
     fd = os.open(fileName, os.O_WRONLY | os.O_CREAT, 0666)
     os.close(fd)
     os.utime(fileName, None)
+
+def archiveName(dirName):
+    """ Extract the name of the archive from the archive's absolute path, or it's .nzb file
+name """
+    # pop off separator and basename
+    while dirName[len(dirName) - 1] == os.sep:
+        dirName = dirName[0:len(dirName) - 1]
+    name = os.path.basename(dirName)
+
+    # Strip the msg_id and .nzb extension from an nzb file name
+    if len(name) > 3 and name[-3:].lower == 'nzb':
+        name = re.sub(r'msgid_.*?_', r'', name)
+        name = re.sub(r'\.nzb$', r'', name)
+
+    return name
+
+def checkShutdown(message = 'Shutting down..'):
+    """ Shutdown is a special exception """
+    try:
+        if Hellanzb.shutdown:
+            debug(message)
+            raise SystemExit(Hellanzb.SHUTDOWN_CODE)
+        return False
+    
+    except (AttributeError, NameError):
+        # typical during app shutdown
+        raise SystemExit(Hellanzb.SHUTDOWN_CODE)
+    
+    except Exception, e:
+        print 'Error in Util.checkShutdown' + str(e)
+        raise SystemExit(Hellanzb.SHUTDOWN_CODE)

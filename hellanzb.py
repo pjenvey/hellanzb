@@ -15,43 +15,38 @@ o skip downloading par2 files unless they're needed:
    
    obviously both those files need the correct headers/footers too.
 
-o better signal handling (especially re the threads -- they ignore ctrl-c)
-  # module-thread.html says:
-  # Caveats:
-  # Threads interact strangely with interrupts: the KeyboardInterrupt exception will be
-  # received by an arbitrary thread. (When the signal module is available, interrupts
-  # always go to the main thread.)
-OR threads have a daemon mode, utilize this
-
 @author pjenvey, bbangert
 
 """
 
-import optparse, os, sys, Hellanzb, Hellanzb.Troll, Hellanzb.Ziplick
+import optparse, os, signal, sys, threading, Hellanzb, Hellanzb.PostProcessor, Hellanzb.Ziplick
+from distutils import spawn
+from threading import Lock
+from Hellanzb.Logging import *
+from Hellanzb.PostProcessorUtil import defineMusicType
 from Hellanzb.Util import *
-from Hellanzb.Troll import defineMusicType
 
 __id__ = '$Id$'
 
-def usage():
-    pass
-
 def findAndLoadConfig(optionalConfigFile):
     """ Load the configuration file """
-    # Lame. But I'd rather do this then make an etc dir in os x's Python.framework directory
-    (sysname, nodename, release, version, machine) = os.uname()
-    if sysname == "Darwin":
-        confDirs = [ '/opt/local/etc', os.getcwd() + os.sep + 'etc', os.getcwd() ]
-    else:
-        confDirs = [ sys.prefix + os.sep + 'etc', os.getcwd() + os.sep + 'etc', os.getcwd() ]
-
     if optionalConfigFile != None:
         if loadConfig(optionalConfigFile):
             return
         else:
             error('Unable to load specified config file: ' + optionalConfigFile)
             sys.exit(1)
-    
+
+
+    # look for conf in this order: sys.prefix, ./, or ./etc/
+    confDirs = [ sys.prefix + os.sep + 'etc', os.getcwd() + os.sep + 'etc', os.getcwd() ]
+
+    # hard coding preferred Darwin config file location, kind of lame. but I'd rather do
+    # this then make an etc dir in os x's Python.framework directory
+    (sysname, nodename, release, version, machine) = os.uname()
+    if sysname == "Darwin":
+        confDirs[0] = '/opt/local/etc'
+
     foundConfig = False
     for dir in confDirs:
         file = dir + os.sep + 'hellanzb.conf'
@@ -77,58 +72,147 @@ def loadConfig(fileName):
         return True
     
     except FatalError, fe:
-        error('A problem occurred while reading the config file: ' + fe.message)
-        sys.exit(1)
-    except Exception, e:
-        error('An unexpected error occurred while reading the config file: ' + str(e.__class__) + ': ' +
-              str(e))
+        error('A problem occurred while reading the config file', fe)
         raise
-
-def runDaemon():
-    """ start the daemon """
-    daemon = Hellanzb.Ziplick.Ziplick()
-
-    daemon.start()
-
-def runTroll(archiveDir):
-    """ run troll as a cmd line app """
-    try:
-        Hellanzb.Troll.init()
-        Hellanzb.Troll.troll(archiveDir)
-
-    except FatalError, fe:
-        Hellanzb.Troll.cleanUp(archiveDir)
-        error('An unexpected problem occurred: ' + fe.message)
-        sys.exit(1)
-
     except Exception, e:
-        Hellanzb.Troll.cleanUp(archiveDir)
-        error('An unexpected problem occurred: ' + str(e.__class__) + ': ' + str(e))
-        raise
-    
-if __name__ == '__main__':
-    
-    parser = optparse.OptionParser()
-    # TODO: the Usage output should show Troll.version
-    parser.add_option('-c', '--config', type='string', dest='configFile',
-                      help='specify the configuration file')
-    parser.add_option('-p', '--process-dir', type='string', dest='processDir',
-                      help='don\'t run the daemon: process the specified dir and exit')
-    options, args = parser.parse_args()
+        msg = 'An unexpected error occurred while reading the config file'
+        error(msg, e)
+        raise FatalError(msg)
+
+def signalHandler(signum, frame):
+    """ The main and only signal handler. Handle cleanup/managing child processes before
+exiting """
+
+    # CTRL-C
+    if signum == signal.SIGINT:
+        # lazily notify everyone they should stop immediately
+        Hellanzb.shutdown = True
+        
+        info('Caught interrupt, exiting..')
+        # we expect immediate gratification from a CTRL-C
+        sys.stdout.flush()
+
+        # If there aren't any proceses to wait for exit immediately
+        if len(popen2._active) == 0:
+            shutdown(Hellanzb.SHUTDOWN_CODE)
+
+        # The idea here is to 'cheat' again to exit the program ASAP if all the processes
+        # are associated with the main thread (the processes would have already gotten the
+        # signal. I'm not exactly sure why)
+        threadsOutsideMain = False
+        for popen in popen2._active:
+            # signal guarantees us to be within the main thread
+            if popen.thread != threading.currentThread():
+                thredsOutsideMain = True
+
+        if not threadsOutsideMain:
+            shutdown(Hellanzb.SHUTDOWN_CODE)
+
+        # We couldn't cheat our way out of the program, tell the user the processes
+        # (threads) we're waiting on, and wait for another signal
+        if not 'stopSignalCount' in dir(Hellanzb):
+            # NOTE: initiazing this HERE means we'll run through the above block of code
+            # after the second signal. this is preferable because it gives quicker
+            # feedback after the CTRL-C, and all the threads might have gone away right
+            # before/after the second CTRL-C
+            Hellanzb.stopSignalCount = 0
+
+        Hellanzb.stopSignalCount = Hellanzb.stopSignalCount + 1
+
+        if Hellanzb.stopSignalCount < 2:
+            msg = 'Caught CTRL-C, waiting for the child processes to finish:\n'
+            for popen in popen2._active:
+                msg = msg + ' '*4 + popen.cmd + '\n'
+            msg = msg + '(Press CTRL-C again to kill them and exit immediately)..'
+            warn(msg)
+            sys.stdout.flush()
+            
+        else:
+            # Simply kill anything. If any processes are lying around after a kill -9,
+            # it's either an o/s problem (we don't care) or a bug in hellanzb (we aren't
+            # allowing the process to exit/still reading from it)
+            warn('Killing children (wait a second..)')
+            for popen in popen2._active:
+                try:
+                    os.kill(popen.pid, signal.SIGKILL)
+                except OSError, ose:
+                    error('Unexpected problem while kill -9ing process' + popen.cmd, ose)
+
+            shutdown(Hellanzb.SHUTDOWN_CODE)
+
+def init(options):
+    """ initialize the app """
+    # Troll threads
+    Hellanzb.postProcessors = []
+    Hellanzb.postProcessorLock = Lock()
+
+    # doppelganger
+    for exe in [ 'rar', 'unrar' ]:
+        if spawn.find_executable(exe):
+            Hellanzb.UNRAR_CMD = exe
+    assertIsExe(Hellanzb.UNRAR_CMD)
+
+    # One and only signal handler
+    signal.signal(signal.SIGINT, signalHandler)
 
     findAndLoadConfig(options.configFile)
 
-    # By default run the daemon, otherwise process the specified dir and exit
-    if options.processDir:
-        if not os.path.isdir(options.processDir):
-            error('Unable to process, not a directory: ' + options.processDir)
-            sys.exit(1)
+    Hellanzb.Logging.initLogFile()
+    
+    Hellanzb.SHUTDOWN_CODE = 20
 
-        if not os.access(options.processDir, os.R_OK):
-            error('Unable to process, no read access to directory: ' + options.processDir)
-            sys.exit(1)
-            
-        runTroll(options.processDir)
+def shutdown(returnCode = 0):
+    Hellanzb.shutdown = True
+
+    # wakeup the doofus scroll interrupter thread (to die) if it's waiting
+    ScrollInterrupter.pendingMonitor.acquire()
+    ScrollInterrupter.pendingMonitor.notify()
+    ScrollInterrupter.pendingMonitor.release()
+    
+    sys.exit(returnCode)
+
+if __name__ == '__main__':
+
+    parser = optparse.OptionParser(version = Hellanzb.version)
+    parser.add_option('-c', '--config', type='string', dest='configFile',
+                      help='specify the configuration file')
+    # run troll as a cmd line app
+    parser.add_option('-p', '--post-process-dir', type='string', dest='postProcessDir',
+                      help='don\'t run the daemon: post-process the specified dir and exit')
+    options, args = parser.parse_args()
+
+    # Whether or not the app is in the process of shutting down
+    Hellanzb.shutdown = False
+    
+    Hellanzb.Logging.init()
+
+    try:
+        init(options)
+    
+        # By default run the daemon, otherwise process the specified dir and exit
+        if options.postProcessDir:
+            if not os.path.isdir(options.postProcessDir):
+                error('Unable to process, not a directory: ' + options.postProcessDir)
+                sys.exit(1)
+
+            if not os.access(options.postProcessDir, os.R_OK):
+                error('Unable to process, no read access to directory: ' + options.postProcessDir)
+                sys.exit(1)
+
+            troll = Hellanzb.PostProcessor.PostProcessor(options.postProcessDir, background = False)
+            troll.start()
+            troll.join()
+            shutdown()
         
-    else:
-        runDaemon()
+        else:
+            daemon = Hellanzb.Ziplick.Ziplick()
+
+    except FatalError, fe:
+        error('Exiting', fe)
+        sys.exit(fe.returnCode)
+    except SystemExit, se:
+        # sys.exit throws this. collect $200
+        pass
+    except Exception, e:
+        error('An unexpected problem occurred, exiting', e)
+        raise

@@ -16,6 +16,9 @@ Hellanzb.PROCESSED_SUBDIR = 'processed'
 
 Hellanzb.PASSWORDS_DIR = Hellanzb.PREFIX_DIR + 'nzb/daemon.passwords/'
 
+# Also log output to this file
+Hellanzb.LOG_FILE = '/var/tmp/hellanzb.log'
+
 # max files we should decompress at the same time
 Hellanzb.MAX_DECOMPRESSION_THREADS = 2
 

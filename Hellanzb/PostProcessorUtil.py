@@ -1,31 +1,13 @@
 """
-troll - verify/repair/unarchive/decompress files downloaded with nzbget
-
-TODO
-o More work on passwords. Ideally troll should be able to determine some common rar
-archive passwords on it's own
-o the decompressor isn't thread safe. we'll have to convert this to a Decompressor class
-to prevent this. Ziplink should be able to spawn a troll thread on it's own, while it goes
-back to monitoring the queue
+PostProcessorUtil - support functions for the PostProcessor
 
 @author pjenvey
 """
-import Hellanzb, os, popen2, re
-from distutils import spawn
-from threading import Thread, Condition
+import Hellanzb, os, popen2, signal, re
+from threading import Thread
 from Util import *
 
 __id__ = '$Id$'
-
-def init():
-    """ initialization """
-    global UNRAR_CMD
-    debug('Troll Init')
-    
-    # doppelganger
-    for exe in [ 'rar', 'unrar' ]:
-        if spawn.find_executable(exe):
-            UNRAR_CMD = exe
 
 # FIXME: this class should be a KnownFileType class, or something. file types other than
 # music might want to be decompressed
@@ -55,11 +37,13 @@ decompress the music (to wav, generally) if it comes across this type of file ""
 class DecompressionThread(Thread):
     """ decompress a file in a separate thread """
 
-    def __init__(self):
+    def __init__(self, parent):
         self.file = DecompressionThread.musicFiles[0]
         DecompressionThread.musicFiles.remove(self.file)
 
         self.type = getMusicType(self.file)
+        
+        self.parent = parent
 
         Thread.__init__(self)
         
@@ -70,17 +54,14 @@ class DecompressionThread(Thread):
             decompressMusicFile(self.file, self.type)
         except Exception, e:
             error('There was an unexpected problem while decompressing the musc file: ' + \
-                  os.path.basename(self.file) + ': ' + str(e.__class__) + ': ' + str(e))
+                  os.path.basename(self.file), e)
 
         # Decrement the thread count AND immediately notify the caller
-        DecompressionThread.cv.acquire()
-        DecompressionThread.pool.remove(self)
-        DecompressionThread.cv.notify()
-        DecompressionThread.cv.release()
+        self.parent.removeDecompressor(self)
     
     def start(self):
         """ add ourself to the active pool """
-        DecompressionThread.pool.append(self)
+        self.parent.addDecompressor(self)
 
         Thread.start(self)
 
@@ -206,47 +187,6 @@ def getMusicType(fileName):
             return musicType
     return False
 
-def decompressMusicFiles(dirName):
-    """ Assume the integrity of the files in the specified directory have been
-verified. Iterate through the music files, and decompres them when appropriate in multiple
-threads """
-
-    # Determine the music files to decompress
-    DecompressionThread.musicFiles = []
-    for file in os.listdir(dirName):
-        absPath = dirName + os.sep + file
-        if os.path.isfile(absPath) and getMusicType(file) and getMusicType(file).shouldDecompress():
-            DecompressionThread.musicFiles.append(absPath)
-
-    if len(DecompressionThread.musicFiles) == 0:
-        return
-            
-    info('Decompressing ' + str(len(DecompressionThread.musicFiles)) + ' files via ' +
-         str(Hellanzb.MAX_DECOMPRESSION_THREADS) + ' threads..')
-
-    # Maintain a pool of threads of the specified size until we've exhausted the
-    # musicFiles list
-    DecompressionThread.pool = []
-    DecompressionThread.cv = Condition()
-    while len(DecompressionThread.musicFiles) > 0:
-
-        # Block the pool until we're done spawning
-        DecompressionThread.cv.acquire()
-        
-        if len(DecompressionThread.pool) < Hellanzb.MAX_DECOMPRESSION_THREADS:
-            decompressor = DecompressionThread() # will pop the next music file off the
-                                                 # list
-            decompressor.start()
-
-        else:
-            # Unblock and wait until we're notified of a thread's completition before
-            # doing anything else
-            DecompressionThread.cv.wait()
-            
-        DecompressionThread.cv.release()
-
-    info('Finished Decompressing')
-
 def decompressMusicFile(fileName, musicType):
     """ Decompress the specified file according to it's musicType """
     cmd = musicType.decompressor.replace('<FILE>', '"' + fileName + '"')
@@ -256,7 +196,7 @@ def decompressMusicFile(fileName, musicType):
     
     info('Decompressing music file: ' + os.path.basename(fileName) \
          + ' to file: ' + os.path.basename(destFileName))
-    cmd = cmd.replace('<DESTFILE>', '"' + destFileName+ '"')
+    cmd = cmd.replace('<DESTFILE>', '"' + destFileName + '"')
         
     p = popen2.Popen4(cmd)
     output = p.fromchild.readlines()
@@ -269,8 +209,8 @@ def decompressMusicFile(fileName, musicType):
                   os.path.basename(fileName))
     
     elif returnCode > 0:
-        pass
-        # FIXME - propagate this to parent
+        error('There was a problem while decompressing music file: ' + os.path.basename(fileName))
+        # FIXME - could propagate this to parent
         # see threading.thread.interrupt_main()
         #raise FatalError("Unable to decompress music file: " + fileName)
 
@@ -298,7 +238,7 @@ def processRars(dirName, rarPassword):
 
     # First, list the contents of the rar, if any filenames are preceeded with *, the rar
     # is passworded
-    listCmd = UNRAR_CMD + ' l -y ' + ' "' + firstRar + '"'
+    listCmd = Hellanzb.UNRAR_CMD + ' l -y ' + ' "' + firstRar + '"'
     p = popen2.Popen4(listCmd)
     output = p.fromchild.readlines()
     p.fromchild.close()
@@ -326,14 +266,14 @@ def processRars(dirName, rarPassword):
             withinFiles = True
 
     if isPassworded and rarPassword == None:
-        growlNotify('Archive Error', 'hellanzb Archive requires password:', archiveNameFromDirName(dirName),
+        growlNotify('Archive Error', 'hellanzb Archive requires password:', archiveName(dirName),
                     True)
         raise FatalError('Cannot continue, this archive requires a RAR password and there is none set')
 
     if isPassworded:
-        cmd = UNRAR_CMD + ' x -y -p' + rarPassword + ' "' + firstRar + '"'
+        cmd = Hellanzb.UNRAR_CMD + ' x -y -p' + rarPassword + ' "' + firstRar + '"'
     else:
-        cmd = UNRAR_CMD + ' x -y ' + ' "' + firstRar + '"'
+        cmd = Hellanzb.UNRAR_CMD + ' x -y ' + ' "' + firstRar + '"'
     
     info('Unraring..')
     p = popen2.Popen4(cmd)
@@ -405,7 +345,7 @@ there are not enough recovery blocks, raise a fatal exception """
 
         # The archive is only totally broken when we're missing required files
         if len(damagedAndRequired) > 0:
-            growlNotify('Error', 'hellanzb Cannot par repair:', archiveNameFromDirName(dirName) +
+            growlNotify('Error', 'hellanzb Cannot par repair:', archiveName(dirName) +
                         '\nNeed ' + neededBlocks + ' more recovery blocks', True)
             raise FatalError('Unable to par repair: there are not enough recovery blocks, need: ' +
                              neededBlocks + 'more')
@@ -463,101 +403,18 @@ this state is done """
     # before calling the process function. but this is more explicit, and could be used to
     # show the overall status on the webapp
     touch(dirName + os.sep + Hellanzb.PROCESSED_SUBDIR + os.sep + '.' + processStateName + '_done')
-    
-def trollmain(dirName):
-    """ main, mayn """
-    
-    # exit the program if we lack required binaries
-    assertIsExe('par2')
 
-    # Put files we've processed and no longer need (like pars rars) in this dir
-    processedDir = dirName + os.sep + Hellanzb.PROCESSED_SUBDIR
-    
-    if not os.path.exists(dirName) or not os.path.isdir(dirName):
-        raise FatalError('Directory does not exist: ' + dirName)
-                          
-    if not os.path.exists(processedDir):
-        os.mkdir(processedDir)
-    elif not os.path.isdir(processedDir):
-        raise FatalError('Unable to create processed directory, a non directory already exists there')
+def getRarPassword(msgId):
+    """ Get the specific rar password set for the specified msgId """
+    if os.path.isdir(Hellanzb.PASSWORDS_DIR):
+                     
+        for file in os.listdir(Hellanzb.PASSWORDS_DIR):
+            if file == msgId:
 
-    # First, find broken files, in prep for repair. Grab the msg id and nzb
-    # file names while we're at it
-    msgId = None
-    nzbFile = None
-    brokenFiles = []
-    files = os.listdir(dirName)
-    for file in files:
-        absoluteFile = dirName + os.sep + file
-        if os.path.isfile(absoluteFile):
-            if stringEndsWith(file, '_broken'):
-                # Keep track of the broken files
-                brokenFiles.append(absoluteFile)
-                
-            elif file[0:len('.msgid_')] == '.msgid_':
-                msgId = file[len('.msgid_'):]
+                absPath = Hellanzb.PASSWORDS_DIR + os.sep + msgId
+                if not os.access(absPath, os.R_OK):
+                    raise FatalError('Refusing to continue: unable to read rar password (no read access)')
+            
+            msgIdFile = open(absPath)
+            return msgIdFile.read().rstrip()
 
-            elif getFileExtension(file).lower() == 'nzb':
-                nzbFile = file
-
-    # If there are required broken files and we lack pars, punt
-    if len(brokenFiles) > 0 and containsRequiredFiles(brokenFiles) and not dirHasPars(dirName):
-        errorMessage = 'Unable to process directory: ' + dirName + '\n' + ' '*4 + \
-            'This directory has the following broken files: '
-        for brokenFile in brokenFiles:
-            errorMessage += '\n' + ' '*8 + brokenFile
-            errorMessage += '\n    and contains no par2 files for repair'
-        raise FatalError(errorMessage)
-
-    if dirHasPars(dirName):
-        processPars(dirName)
-
-    # grab the rar password if one exists
-    if dirHasRars(dirName):
-        rarPassword = None
-        if os.path.isdir(Hellanzb.PASSWORDS_DIR):
-                         
-            for file in os.listdir(Hellanzb.PASSWORDS_DIR):
-                if file == msgId:
-
-                    absPath = Hellanzb.PASSWORDS_DIR + os.sep + msgId
-                    if not os.access(absPath, os.R_OK):
-                        raise FatalError('Refusing to continue: unable to read rar password (no read access)')
-                
-                msgIdFile = open(absPath)
-                rarPassword = msgIdFile.read().rstrip()
-        
-        processRars(dirName, rarPassword)
-    
-    if dirHasMusicFiles(dirName):
-        decompressMusicFiles(dirName)
-
-    # Move other cruft out of the way
-    deleteDuplicates(dirName)
-    if os.path.isfile(dirName + os.sep + nzbFile) and os.access(dirName + os.sep + nzbFile, os.R_OK):
-        os.rename(dirName + os.sep + nzbFile, dirName + os.sep + Hellanzb.PROCESSED_SUBDIR + os.sep + nzbFile)
-
-    # We're done
-    info("Finished processing: " + archiveNameFromDirName(dirName))
-    growlNotify('Archive Success', 'hellanzb Done Processing:', archiveNameFromDirName(dirName),
-                True)
-
-def troll(dirName,archiveName):
-    try:
-        trollmain(dirName)
-    except FatalError, fe:
-        cleanUp(dirName)
-        error('An unexpected problem occurred for archive: ' +
-              archiveName + ', problem: ' + fe.message)
-    except Exception, e:
-        cleanUp(dirName)
-        error('An unexpected problem occurred for archive: ' +
-              archiveName + ': ' + str(e.__class__) + ': ' + str(e))
-
-
-def archiveNameFromDirName(dirName):
-    """ Extract the name of the archive from the archive's absolute path """
-    # pop off separator and basename
-    while dirName[len(dirName) - 1] == os.sep:
-        dirName = dirName[0:len(dirName) - 1]
-    return os.path.basename(dirName)

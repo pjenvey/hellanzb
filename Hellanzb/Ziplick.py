@@ -5,26 +5,24 @@ Date: 9/26/04
 
 version 0.2
 
-# FIXME: ziplick, now that it's a thread, (all hellanzb threads actually) aren't handling
-# keyboard interrupts, they need to detect them and notify their parent
-
 # TODO: the queue daemon should also monitor files in the final directory, for those that
 # require a rar password. when a password is found it will recall Troll to finish
 # extracting
 """
 
-import Hellanzb, os, re, Troll
+import Hellanzb, os, re, PostProcessor
 from time import sleep
 from threading import Thread
+from Logging import *
 from Util import *
 
 __id__ = '$Id$'
 
-class Ziplick(Thread):
+class Ziplick:
 
     def __init__(self):
         self.ensureDirs()
-        Thread.__init__(self)
+        self.run()
 
     def ensureDirs(self):
         """ Ensure that all the required directories exist, otherwise attempt to create them """
@@ -37,18 +35,17 @@ class Ziplick(Thread):
                     except IOError:
                         raise FatalError("Unable to create Hellanzb DIRs")
 
-    def archiveNameFromNzb(self, nzbFileName):
-        """ Strip the msg_id and .nzb extension from an nzb file name """
-        nzbFileName = re.sub(r'msgid_.*?_',r'',nzbFileName)
-        return re.sub(r'\.nzb$',r'',nzbFileName)
-                
     def run(self):
         self.queued_nzbs = []
         self.current_nzbs = [x for x in os.listdir(Hellanzb.CURRENT_DIR) if re.search(r'\.nzb$',x)]
 
+        # Intermittently check if the app is in the process of shutting down when it's
+        # safe (in between long processes)
+        checkShutdown()
+        
         info('hellanzb - Now monitoring queue...')
         growlNotify('Queue', 'hellanzb', 'Now monitoring queue..', False)
-        while 1:
+        while 1 and not checkShutdown():
             # See if we're resuming a nzb fetch
             if not self.current_nzbs:
                 
@@ -61,8 +58,8 @@ class Ziplick(Thread):
                     self.queued_nzbs.sort()
                     for nzb in new_nzbs:
                         msg = 'Found new nzb:'
-                        info(msg + self.archiveNameFromNzb(nzb))
-                        growlNotify('Queue', 'hellanzb ' + msg,self.archiveNameFromNzb(nzb), False)
+                        info(msg + archiveName(nzb))
+                        growlNotify('Queue', 'hellanzb ' + msg,archiveName(nzb), False)
                 
                 # Nothing to do, lets wait 5 seconds and start over
                 if not self.queued_nzbs:
@@ -73,6 +70,7 @@ class Ziplick(Thread):
                 del self.queued_nzbs[0]
                 
                 # Fix the filename
+                # NOTE: this shouldn't be necessary with Ptyopen
                 newname = re.sub(r'[\[|\]|\(|\)]',r'',nzbfilename)
                 os.rename(Hellanzb.QUEUE_DIR+nzbfilename,Hellanzb.QUEUE_DIR+newname)
                 nzbfilename = newname
@@ -82,13 +80,29 @@ class Ziplick(Thread):
                 os.spawnlp(os.P_WAIT, 'mv', 'mv', nzbfile, Hellanzb.CURRENT_DIR)
             else:
                 nzbfilename = self.current_nzbs[0]
-                growlNotify('Queue', 'hellanzb Resuming:', self.archiveNameFromNzb(nzbfilename), False)
+                info('Resuming: ' + archiveName(nzbfilename))
+                growlNotify('Queue', 'hellanzb Resuming:', archiveName(nzbfilename), False)
                 del self.current_nzbs[0]
             nzbfile = Hellanzb.CURRENT_DIR + nzbfilename
-                
-            # Run nzbget to fetch the current nzbfile
-            result = os.spawnlp(os.P_WAIT, 'nzbget', 'nzbget', nzbfile)
-                
+
+            # Run nzbget. Pipe it's output through the logging system via the special
+            # scroll level
+            p = Ptyopen('nzbget "' + nzbfile + '"')
+            p.tochild.close()
+
+            scrollBegin()
+            while p.poll() == -1:
+                try:
+                    scroll(p.fromchild.readline().rstrip())
+                except Exception, e:
+                    pass
+            p.fromchild.close()
+            statusCode = p.wait()
+            nzbgetReturnCode = os.WEXITSTATUS(statusCode)
+            scrollEnd()
+            
+            checkShutdown()
+            
             # Make our new directory, minus the .nzb
             newdir = Hellanzb.DEST_DIR + nzbfilename
                         
@@ -96,16 +110,16 @@ class Ziplick(Thread):
             msgId = re.sub(r'.*msgid_', r'', newdir)
             msgId = re.sub(r'_.*', r'', msgId)
                                        
-            newdir = self.archiveNameFromNzb(newdir)
+            newdir = archiveName(newdir)
                 
             # Take care of the unfortunate case that we coredumped
             coreFucked = False
-            if os.WCOREDUMP(result):
+            if os.WCOREDUMP(statusCode):
                 coreFucked = True
                 newdir = newdir + '_corefucked'
-                error('Archive: ' + self.archiveNameFromNzb(nzbfilename) + ' is core fucked :(')
+                error('Archive: ' + archiveName(nzbfilename) + ' is core fucked :(')
                 growlNotify('Error', 'hellanzb Archive is core fucked',
-                            self.archiveNameFromNzb(nzbfilename) + '\n:(', True)
+                            archiveName(nzbfilename) + '\n:(', True)
                 
             # Move our nzb contents to their new location, clear out the temp dir
             # FIXME: rename actually sucks here -- it blows up if you're
@@ -115,7 +129,13 @@ class Ziplick(Thread):
             os.spawnlp(os.P_WAIT, 'mv', 'mv', nzbfile, newdir)
             os.mkdir(Hellanzb.WORKING_DIR)
 
-            # Finally unarchive/process the directory
-            if not coreFucked:
-                Troll.init()
-                Troll.troll(newdir,self.archiveNameFromNzb(nzbfilename))
+            # FIXME: if this ctrl-c is caught we will never bother Trolling the newdir. If
+            # we were signaled after the last shutdown check, we would have wanted the
+            # previous code block to have completed. But we definitely don't want to
+            # proceed to processing
+            
+            # Finally unarchive/process the directory in another thread, and continue
+            # nzbing
+            if not coreFucked and not checkShutdown():
+                troll = PostProcessor.PostProcessor(newdir)
+                troll.start()

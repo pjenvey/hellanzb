@@ -64,12 +64,14 @@ class Controller:
 
             # Build our connections
             success = 0
-            nntpPool = ClientCreator(reactor,NewzSlurper)
+            auth = {}
+            stat = {'pending' : {}}
+            nntpPool = ClientCreator(reactor,NewzSlurper,auth,stat)
             # Iterate through the hosts
             for server in serverInfo['hosts']:
                 host, port = server.split(':')
-                USERNAME = serverInfo['username']
-                PASSWORD = serverInfo['password']
+                auth['username'] = serverInfo['username']
+                auth['password'] = serverInfo['password']
 
                 # Setup the amount of connections to this host specified
                 for i in range(num_connects):
@@ -92,7 +94,9 @@ class Controller:
         if connections == 0:
             ShowError('failed to open any server connections!')
         else:
-            reactor.run()
+            while stat['pending']:
+                reactor.iterate()
+            print 'got here'
 
 
     def process(self, nzbfile):

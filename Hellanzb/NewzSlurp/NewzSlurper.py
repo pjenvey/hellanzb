@@ -5,6 +5,7 @@ from twisted.internet import reactor
 from twisted.news.news import UsenetClientFactory
 from twisted.protocols.nntp import NNTPClient
 from twisted.python import log
+from random import randint
 from Hellanzb.Logging import *
 
 __id__ = '$Id$'
@@ -25,24 +26,24 @@ class NewzSlurperFactory(UsenetClientFactory):
 
 class NewzSlurper(NNTPClient):
     
-    def __init__(self):
+    def __init__(self,auth,stat):
         """ """
         NNTPClient.__init__(self)
-        self.passwords = []
+        self.auth = auth
+        self.stat = stat
+        self.id = reduce(lambda x,y:str(x)+str(y), [randint(10,99) for x in range(14)])
+        self.stat['pending'][self.id] = True
         self.lineCount = 0 # FIXME:
 
-    def authInfo(self, username, password):
+    def authInfo(self):
         """ """
-        info('username is ' + username)
-        self.sendLine('AUTHINFO USER ' + username)
+        self.sendLine('AUTHINFO USER ' + self.auth['username'])
         self._newState(None, self.authInfoFailed, self._authInfoUserResponse)
-        self.passwords.append(password)
 
     def _authInfoUserResponse(self, (code, message)):
         """ """
         if code == 381:
-            self.sendLine('AUTHINFO PASS ' + self.passwords[0])
-            del self.passwords[0]
+            self.sendLine('AUTHINFO PASS ' + self.auth['password'])
             self._newState(None, self.authInfoFailed, self._authInfoPassResponse)
         else:
             self.authInfoFailed('%d %s' % (code, message))
@@ -51,28 +52,35 @@ class NewzSlurper(NNTPClient):
     def _authInfoPassResponse(self, (code, message)):
         """ """
         if code == 281:
-            self._authInfoOk('%d %s' % (code, message))
+            self.gotauthInfoOk(self._endState())
         else:
-            self._newState(None, self.authInfoFailed, self.authInfoFailed)
-        self._endState()
+            self.authInfoFailed(self._endState())
 
-    def _authInfoOk(self, line):
+    def gotauthInfoOk(self, message):
         "Override for notification when authInfo() action is successful"
-        print 'sweet bitch we logged in: ' + line
+        print 'sweet bitch we logged in'
+        del self.stat['pending'][self.id]
 
-        self._newState(self.gotIdle,None)
+    def _stateIdle(self, line):
+        if line != '.':
+            self._newLine(filter(None, line.strip().split()), 0)
+        else:
+            self.gotIdle(self._endState())
+
+    def getIdleFailed(self, error):
+        "Override for getIdleFailed"
+        
+    def fetchIdle(self):
+        self.sendLine('HELP')
+        self._newState(self._stateIdle, self.getIdleFailed)
 
     def authInfoFailed(self, error):
         "Override for notification when authInfoFailed() action fails"
         print 'we didn\'t log in wtfs??: ' + str(error)
 
     def connectionMade(self):
-        global USERNAME
-        global PASSWORD
-        print 'got connection made'
         NNTPClient.connectionMade(self)
-        
-        self.authInfo(USERNAME, PASSWORD)
+        self.authInfo()
 
     def gotHead(self, head):
         print 'huh huh i got head'
@@ -97,11 +105,9 @@ class NewzSlurper(NNTPClient):
         sys.stdout.flush()
         NNTPClient.lineReceived(self, line)
 
-    def gotIdle(self):
-        '''Were idle, which means we need to see if theres anything to
-        retrieve, and ensure we are in the right group.'''
+    def gotIdle(self, idle):
         print 'idling'
-        self.newState(self.gotIdle,None)
+        self.fetchIdle()
         
 
 

@@ -1,0 +1,12 @@
+hellanzb 
+--------------------------------------------------
+
+Building:
+
+To do an actual build you need access to the svn repository
+
+simply run:
+
+build.py
+
+http://groovie.org/

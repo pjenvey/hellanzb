@@ -54,7 +54,7 @@ lock. If it fails to acquire the lock it will throw away the scroll record. """
         return rv
 
     def emitSynchronized(self, record):
-        """ Write a log message atomically """
+        """ Write a log message atomically. Normal python logging Handler behavior """
         self.acquire()
         try:
             self.emit(record)
@@ -146,12 +146,14 @@ scroll and already added the spaces """
         try:
             self.waitLoop()
         except (AttributeError, NameError), e:
-            # this happens during shutdown
+            # this can occur during shutdown
             pass
         except SystemExit:
             # FIXME: Can I safely raise here instead?
             pass
         except Exception, e:
+            # Fatal logging problems should avoid printing via actual Hellanzb.Logging
+            # methods
             print 'Error in ScrollInterrupter: ' + str(e)
 
     def lockScrollOutput(self):

@@ -127,6 +127,12 @@ def isPar(fileName):
         return True
     return False
 
+def isDuplicate(fileName):
+    """ Determine if the specified file is a duplicate """
+    if stringEndsWith(fileName, '_duplicate') or re.match(r'.*_duplicate\d{0,4}', fileName):
+        return True
+    return False
+
 def isAlbumCoverArchive(fileName):
     """ determine if the archive (zip or rar) file likely contains album cover art, which
 requires special handling """
@@ -172,8 +178,9 @@ def defineMusicType(extension, decompressor, decompressToType):
     MusicType.musicTypes.append(MusicType(extension, decompressor, decompressToType))
 
 def deleteDuplicates(dirName):
+    """ Delete _duplicate files """
     for file in os.listdir(dirName):
-        if stringEndsWith(file, '_duplicate') and os.access(file, os.W_OK):
+        if isDuplicate(file) and os.access(file, os.W_OK):
             os.remove(file)
 
 def cleanUp(dirName):
@@ -245,7 +252,12 @@ def processRars(dirName, rarPassword):
     for file in files:
         absPath = os.path.normpath(dirName + os.sep + file)
         
-        if isRar(absPath) and not isAlbumCoverArchive(absPath) and absPath not in processedRars:
+        # Sometimes nzbget leaves .1 files lying around. I'm not sure why, or if it will
+        # leave more than just the .1
+        if isRar(absPath) and \
+                not isDuplicate(absPath) and not stringEndsWith(absPath, '.1') and \
+                not stringEndsWith(absPath, '_broken') and not isAlbumCoverArchive(absPath) and \
+                absPath not in processedRars:
             processedRars.extend(unrar(absPath, rarPassword))
     
     processComplete(dirName, 'rar',
@@ -377,6 +389,12 @@ there are not enough recovery blocks, raise a fatal exception """
             
     elif returnCode > 1:
         # Repair required and impossible
+
+        # FIXME: catch return code 4:
+        # The PAR2 files did not contain sufficient
+        # information about the data files to be able
+        # to verify them.
+        # don't bother checking the output in that case, just fail
 
         # First, if the repair is not possible, double check the output for what files are
         # missing or damaged (a missing file is considered as damaged in this case). they

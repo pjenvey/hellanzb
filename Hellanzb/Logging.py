@@ -10,6 +10,7 @@ looking into python's logging system. Hoho.
 import logging, logging.handlers, os.path, sys, time, xmlrpclib
 from logging import StreamHandler
 from threading import Condition, Lock, Thread
+from Growl import *
 from Util import *
 
 __id__ = '$Id$'
@@ -263,21 +264,27 @@ def growlNotify(type, title, description, sticky):
     
     # FIXME: should validate the server information on startup, and catch connection
     # refused errors here
-    if not Hellanzb.ENABLE_GROWL_NOTIFY:
+    if not Hellanzb.GROWL_NOTIFY:
         return
 
-    # NOTE: we probably want this in it's own thread to be safe, i can see this easily
-    # deadlocking for a bit on say gethostbyname()
-    # AND we could have a LOCAL_GROWL option for those who might run hellanzb on os x
-    serverUrl = 'http://' + Hellanzb.SERVER + '/'
-    server = xmlrpclib.Server(serverUrl)
+    addr = (Hellanzb.GROWL_SERVER, GROWL_UDP_PORT)
+    s = socket(AF_INET,SOCK_DGRAM)
 
-    # If for some reason, the XMLRPC server ain't there no more, this will blow up
-    # so we put it in a try/except block
-    try:
-        server.notify(type, title, description, sticky)
-    except:
-        return
+    p = GrowlRegistrationPacket(application="hellanzb", password=Hellanzb.GROWL_PASSWORD)
+    p.addNotification("Archive Error", enabled=True)
+    p.addNotification("Archive Success", enabled=True)
+    p.addNotification("Error", enabled=True)
+    p.addNotification("Queue", enabled=True)
+    s.sendto(p.payload(), addr)
+    
+    p = GrowlNotificationPacket(application="hellanzb",
+                                notification=type, title=title,
+                                description=description, priority=1,
+                                sticky=sticky)
+    s.sendto(p.payload(),addr)
+    s.close()
+
+    return
     
 def scrollBegin():
     """ Let the logger know we're beginning to scroll """

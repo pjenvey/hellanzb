@@ -4,7 +4,9 @@ Util - hellanzb misc functions
 """
 import os, popen2, pty, re, string, threading, time, Hellanzb
 from distutils import spawn
+from heapq import heappop, heappush
 from Logging import *
+from Queue import Queue
 
 __id__ = '$Id$'
 
@@ -126,7 +128,31 @@ that created the object, for later use """
         os.close(c2pwrite)
         self.fromchild = os.fdopen(c2pread, 'r', bufsize)
         #popen2._active.append(self)
+
+# Future optimization: Faster way to init this from xml files would be to set the entire
+# list backing the queue in one operation (instead of putting 20k times)
+# can heapq.heapify(list) help?
+class PriorityQueue(Queue):
+    """ Thread safe priority queue. This is the easiest way to do it (Queue.Queue providing the thread safety
+    and heapq providing priority). We may be able to get better performance by using something other than
+    heapq, but hellanzb use of pqueues is limited -- so performance is not so important. Notes on performance:
     
+    o An O(1) priority queue is always preferable, but I'm not sure that's even feasible w/ this collection 
+      type and/or python.
+    o From various google'd python hacker benchmarks it looks like python lists backed pqueues & bisect give
+      you pretty good performance, and you probably won't benefit from heap based pqueues unless you're
+      dealing with > 10k items. And dicts don't actually seem to help
+    """
+    def _put(self, item):
+        """ Assume Queue is backed by a list. Add the new item to the list, taking into account
+            priority via heapq """
+        heappush(self.queue, item)
+
+    def _get(self):
+        """ Assume Queue is backed by a list. Pop off the first item, taking into account priority
+            via heapq """
+        return heappop(self.queue)
+
 
 def getLocalClassName(klass):
     """ Get the local name (no package/module information) of the specified class instance """

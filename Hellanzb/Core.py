@@ -11,7 +11,7 @@ from Hellanzb.Util import *
 
 __id__ = '$Id$'
 
-def findAndLoadConfig(optionalConfigFile):
+def findAndLoadConfig(optionalConfigFile = None):
     """ Load the configuration file """
     if optionalConfigFile != None:
         if loadConfig(optionalConfigFile):
@@ -63,7 +63,7 @@ def loadConfig(fileName):
 
 def signalHandler(signum, frame):
     """ The main and only signal handler. Handle cleanup/managing child processes before
-exiting """
+    exiting """
 
     # CTRL-C
     if signum == signal.SIGINT:
@@ -124,7 +124,7 @@ exiting """
 
             shutdownNow(Hellanzb.SHUTDOWN_CODE)
 
-def init(options):
+def init(options = {}):
     """ initialize the app """
     # Whether or not the app is in the process of shutting down
     Hellanzb.shutdown = False
@@ -149,9 +149,15 @@ def init(options):
     # One and only signal handler
     signal.signal(signal.SIGINT, signalHandler)
 
-    findAndLoadConfig(options.configFile)
+    if hasattr(options, 'configFile'):
+        findAndLoadConfig(options.configFile)
+    else:
+        findAndLoadConfig()
 
-    Hellanzb.Logging.initLogFile(options.logFile)
+    if hasattr(options, 'logFile'):
+        Hellanzb.Logging.initLogFile(options.logFile)
+    else:
+        Hellanzb.Logging.initLogFile()
 
 def shutdown():
     """ turn the knob that tells all parts of the program we're shutting down """

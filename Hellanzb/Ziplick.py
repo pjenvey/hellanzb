@@ -15,7 +15,7 @@ from shutil import move
 from time import sleep
 from Logging import *
 from Util import *
-from Hellanzb.NewzSlurp.Controller import Controller
+#from Hellanzb.NewzSlurp.Controller import Controller
 
 __id__ = '$Id$'
 
@@ -23,6 +23,8 @@ class Ziplick:
 
     def __init__(self):
         self.ensureDirs()
+        from Hellanzb.NewzSlurp import initNewzSlurp
+        initNewzSlurp()
 
     def ensureDirs(self):
         """ Ensure that all the required directories exist, otherwise attempt to create them """
@@ -90,8 +92,12 @@ class Ziplick:
             statusCode = None
             
             # Initialize our nntp client
-            slurp = Controller()
-            slurp.process(nzbfile)
+            #slurp = Controller()
+            #slurp.process(nzbfile)
+            Hellanzb.queue.parseNZB(nzbfile)
+            Hellanzb.nzbfileDone.acquire()
+            Hellanzb.nzbfileDone.wait()
+            Hellanzb.nzbfileDone.release()
 
             scrollEnd()
 

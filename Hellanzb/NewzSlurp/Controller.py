@@ -44,6 +44,18 @@ class Controller:
     def __init__(self):
         self._incomplete_threshold = 90
 
+        # thread safe list of pendingMessages
+        # What are the message objects? can they be twisted nntp Articles?
+        # need to store:
+        
+        # message id, probably need group, filename
+
+        # how about instead:
+        # have a list of files->messageIds
+        # also store group info
+
+        # AND thread safe map of filenames -> list of decoded chunks
+
         # Work out our servers. First we sort by priority, then name.
         servers = []
         for id in Hellanzb.SERVERS:

@@ -348,7 +348,7 @@ def initLogging():
     scrollInterrupter = ScrollInterrupter()
     scrollInterrupter.start()
 
-def initLogFile(logFile):
+def initLogFile(logFile = None):
     """ Initialize the log file. This has to be done after the config is loaded """
 
     class LogFileFilter(logging.Filter):

@@ -61,6 +61,7 @@ RUN_DEPENDS=	nzbget:${POSTDIR}/news/nzbget \
 		rar:${POSTDIR}/archivers/rar \
 		flac:${POSTDIR}/audio/flac \
 		mac:${POSTDIR}/audio/mac
+		#twisted:${POSTDIR}/audio/mac
 
 MAINTAINER=	pjenvey@groovie.org
 COMMENT?=	Hands free usenet file retrieval via nzb files

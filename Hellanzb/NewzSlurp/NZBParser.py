@@ -6,6 +6,10 @@
 
 from xml.sax import make_parser
 from xml.sax.handler import ContentHandler, feature_external_ges, feature_namespaces
+# <DEBUGGING>
+import sys
+sys.path.append('/home/pjenvey/src/hellanzb-asynchella')
+# </DEBUGGING>
 
 
 # ---------------------------------------------------------------------------
@@ -123,4 +127,60 @@ class NZBParser(ContentHandler):
 
 if __name__ == '__main__':
         import sys
-        ParseNZB(sys.argv[1], [1, 2])
+        #(newsgroups, posts) = ParseNZB(sys.argv[1], [1, 2])
+        (newsgroups, posts) = ParseNZB(sys.argv[1])
+        for n in newsgroups:
+                print "n: " + n
+        print 'l: ' + str(len(posts))
+        total = 0
+        from Hellanzb.Util import PriorityQueue
+        pq = PriorityQueue()
+        NZB_CONTENT_P = 25
+        from time import time
+        start = time()
+        for p in posts:
+                print "p: " + p
+                print "contents: " + posts[p].__repr__()
+                total += posts[p].numparts
+                for part in posts[p].parts:
+                        pq.put((NZB_CONTENT_P, posts[p].parts[part], True))
+
+        elapsed = time() - start
+        print 'elapsed: ' + str(elapsed)
+        print 'total: ' + str(total)
+
+        #while 1:
+        #        print 'p:' + str(pq.get(True)[1])
+
+        
+
+from xml.sax import make_parser
+from xml.sax.handler import ContentHandler, feature_external_ges, feature_namespaces
+# <DEBUGGING>
+#import sys
+#sys.path.append('/home/pjenvey/src/hellanzb-asynchella')
+# </DEBUGGING>
+from Hellanzb.Util import PriorityQueue
+class NZBQueue(PriorityQueue):
+    def parseNZB(self, fileName):
+        # Create a parser
+        parser = make_parser()
+        
+        # No XML namespaces here
+        parser.setFeature(feature_namespaces, 0)
+        parser.setFeature(feature_external_ges, 0)
+        
+        # Dicts to shove things into
+        newsgroups = {}
+        posts = {}
+        
+        # Create the handler
+        dh = NZBParser(newsgroups, posts)
+        
+        # Tell the parser to use it
+        parser.setContentHandler(dh)
+        
+        # Parse the input
+        parser.parse(filename)
+        
+        return (newsgroups, posts)                

@@ -16,9 +16,15 @@ DISTNAME=	${PORTNAME}-${PORTVERSION}
 PLIST_FILES=	bin/hellanzb.py \
 		etc/hellanzb.conf.sample \
 		share/doc/hellanzb/README \
-		%%PYTHON_SITELIBDIR%%/Hellanzb/Troll.py \
-		%%PYTHON_SITELIBDIR%%/Hellanzb/Troll.pyc \
-		%%PYTHON_SITELIBDIR%%/Hellanzb/Troll.pyo \
+		%%PYTHON_SITELIBDIR%%/Hellanzb/PostProcessor.py \
+		%%PYTHON_SITELIBDIR%%/Hellanzb/PostProcessor.pyc \
+		%%PYTHON_SITELIBDIR%%/Hellanzb/PostProcessor.pyo \
+		%%PYTHON_SITELIBDIR%%/Hellanzb/PostProcessorUtil.py \
+		%%PYTHON_SITELIBDIR%%/Hellanzb/PostProcessorUtil.pyc \
+		%%PYTHON_SITELIBDIR%%/Hellanzb/PostProcessorUtil.pyo \
+		%%PYTHON_SITELIBDIR%%/Hellanzb/Logging.py \
+		%%PYTHON_SITELIBDIR%%/Hellanzb/Logging.pyc \
+		%%PYTHON_SITELIBDIR%%/Hellanzb/Logging.pyo \
 		%%PYTHON_SITELIBDIR%%/Hellanzb/Util.py \
 		%%PYTHON_SITELIBDIR%%/Hellanzb/Util.pyc \
 		%%PYTHON_SITELIBDIR%%/Hellanzb/Util.pyo \

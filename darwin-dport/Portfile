@@ -32,6 +32,8 @@ destroot.destdir --prefix=${destroot}${prefix}
 
 set sys_python_prefix /System/Library/Frameworks/Python.framework/Versions/Current
 
+# FIXME: uninstall should kill the Hellanzb symlink
+
 post-activate {
         # copy over the sample conf file if neccessary
         if { ![file exists ${prefix}/etc/${name}.conf] } {
@@ -44,6 +46,7 @@ post-activate {
              [file type ${sys_python_prefix}/lib/python2.3/site-packages/Hellanzb] == "link" } {
              file delete -force ${sys_python_prefix}/lib/python2.3/site-packages/Hellanzb
         }
+        # FIXME: this is broken!!!!!!!!
         file link ${sys_python_prefix}/lib/python2.3/site-packages/Hellanzb \
              ${prefix}/lib/python2.3/site-packages/Hellanzb
 }

@@ -155,6 +155,7 @@ try:
 
     versionLine = re.sub(r'^.*\ \'', r'', versionLine)
     version = re.sub(r'\'', r'', versionLine)
+    newVersion = version
 
     if stringEndsWith(version, '-HEAD'):
         if not options.head:
@@ -174,10 +175,10 @@ try:
         if not options.head:
             # Append -HEAD back to the number and check in bump
             newVersion = version + '-HEAD'
-            writeVersion(version)
+            writeVersion(newVersion)
         
         if not options.local:
-            print 'Checking in new version number: ' + version
+            print 'Checking in new version number: ' + newVersion
             os.system('svn ci -m "New build, version: ' + version + '" ' + VERSION_FILENAME)
             
             print 'Deploying new build to host: ' + UPLOAD_HOST

@@ -1,8 +1,7 @@
-# <DEBUGGING>
-import sys
-sys.path.append('/home/pjenvey/src/hellanzb-asynchella')
-# </DEBUGGING>
+"""
+NZBModel -
 
+"""
 import shutil, re, time
 from sets import Set
 from threading import Lock, RLock
@@ -26,7 +25,6 @@ def needsDownload(object):
     tempFileNames """
     # We need to ensure that we're not in the process of renaming from a temp file
     # name, so we have to lock.
-    object.doh('entry')
     isSegment = isinstance(object, NZBSegment)
     if isSegment:
         filename = object.nzbFile.filename
@@ -41,37 +39,14 @@ def needsDownload(object):
 
     if os.path.isfile(object.getDestination()):
         tempFileNameLock.release()
-        object.doh('isfile')
         return False
 
-    #elif os.path.isfile(object.getDestination()):
-    #    object.nzbFile.tempFileNameLock.release()
-    #    object.doh('isfile segment')
-    #    return False
-
-    #elif object.nzbFile.filename == None:
-
     elif filename == None:
-        object.doh('no filename')
         # We only know about the temp filename. In that case, fall back to matching
         # filenames in our subject line
         from Hellanzb import WORKING_DIR
         for file in os.listdir(WORKING_DIR):
             ext = getFileExtension(file)
-
-            #object.doh(file)
-            if re.match(r'^segment\d{4}$', ext):
-                pass
-                #object.doh('matched')
-            else:
-                pass
-                #object.doh('nomatched')
-                if file == 'ps-ncsg38b.r00':
-                    if isSegment:
-                        subject = object.nzbFile.subject
-                    else:
-                        subject = object.subject
-                    #object.doh('subject: ' + subject)
 
             # Segment Match
             if isSegment and ext != None and re.match(r'^segment\d{4}$', ext):
@@ -85,7 +60,6 @@ def needsDownload(object):
                 # Strip the segment suffix, and if that filename is in our subject,
                 # we've found a match
                 prefix = file[0:-len('.segmentXXXX')]
-                #if re.match(r'.*' + prefix + r'.*', object.nzbFile.subject):
                 if object.nzbFile.subject.find(prefix) > -1:
                     
                     # HACK: filename is None. so we only have the temporary name in
@@ -94,28 +68,17 @@ def needsDownload(object):
                     # filesystem. In the case where this happens, and we are segment #1,
                     # we've figured out the real filename (hopefully!)
                     if object.number == 1:
-                        #debug('DELICIOUS HACK: ((((((((((((((((((((((((((((((((((((((((((((((((((' + prefix)
+                        #debug('needsDownload: GOT real file name from PREFIX! ')
                         setRealFileName(object, prefix)
 
                     tempFileNameLock.release()
-                    object.doh('none segment file mismatch')
                     return False
-                    #return True
 
             # Whole file match
-            #elif re.match(r'.*' + file + r'.*', object.nzbFile.subject):
             elif subject.find(file) > -1:
                 tempFileNameLock.release()
-                object.doh('none file')
-                #return True
                 return False
-            
-        # Looks like none of the files in WORKING_DIR are ours so we need to be
-        # downloaded
-        #object.nzbFile.tempFileNameLock.release()
-        #return True
 
-    object.doh('final')
     tempFileNameLock.release()
     return True
 
@@ -133,25 +96,29 @@ class NZBFile:
         self.subject = str(subject)
         self.date = date
         self.poster = poster
-        # Name of the actual nzb file this <file> is part of
+        
+        # Parent NZB
         self.nzb = nzb
+        
         # FIXME: thread safety?
         self.nzb.nzbFileElements.append(self)
+        
         self.number = len(self.nzb.nzbFileElements)
         self.groups = []
         self.nzbSegments = []
 
-        self.decodedNzbSegments = []
-        # FIXME:FIXME:FIXME: ridiculous amount of Lock() spamming what is this for
-        # again???
-        self.decodedNzbSegmentsLock = Lock()
+        # FIXME: file needs a destination. if None, we overwrite it with WORKING_DIR
+        #self.destination = None
 
+        # The real filename, determined from the actual decoded articleData
         self.filename = None
+        # The filename used temporarily until the real filename is determined
         self.tempFilename = None
 
         # FIXME: BLAH!
         self.tempFileNameLock = RLock()
 
+        
         self.totalBytes = 0
 
         self.downloadStartTime = None
@@ -198,15 +165,6 @@ class NZBFile:
         name on hand """
         return 'hellanzb-tmp-' + self.nzb.archiveName + '.file' + str(self.number).zfill(4)
 
-    hi = """
-    def isAssembled(self):
-        #We should only write the finished file if we completely assembled
-        if self.filename != None and os.path.isfile(self.getDestination()):
-            return True
-        #elif 
-        return False
-        """
-
     def isAllSegmentsDecoded(self):
         """ Determine whether all these file's segments have been decoded """
         start = time.time()
@@ -224,17 +182,12 @@ class NZBFile:
         # (segments)
         if len(decodedSegmentFiles) == 0:
             finish = time.time() - start
-            debug('isAllSegmentsDecoded (True) took: ' + str(finish) + ' ' + self.getDestination())
+            #debug('isAllSegmentsDecoded (True) took: ' + str(finish) + ' ' + self.getDestination())
             return True
 
         finish = time.time() - start
-        debug('isAllSegmentsDecoded (False) took: ' + str(finish) + ' ' + self.getDestination())
-        #debug(self.getDestination() + 'isAllSegmentsDecoded (False) took: ' + str(finish) + \
-        #      ' left: ' + str(decodedSegmentFiles))
+        #debug('isAllSegmentsDecoded (False) took: ' + str(finish) + ' ' + self.getDestination())
         return False
-
-    def doh(self, m):
-        pass
 
     def __repr__(self):
         # FIXME
@@ -252,6 +205,8 @@ class NZBSegment:
 
         # Reference to the parent NZBFile this segment belongs to
         self.nzbFile = nzbFile
+
+        # This segment belongs to the parent nzbFile
         self.nzbFile.nzbSegments.append(self)
         self.nzbFile.totalBytes += self.bytes
 
@@ -287,11 +242,6 @@ class NZBSegment:
             raise FatalError('Could not getFilenameFromArticleData, file:' + str(self.nzbFile) +
                              ' segment: ' + str(self))
 
-    def doh(self, m):
-        #if True:
-        #    debug('>>>>' + m)
-        pass
-
     def __repr__(self):
         # FIXME
         return 'messageId: ' + str(self.messageId) + ' number: ' + str(self.number) + ' bytes: ' + \
@@ -305,8 +255,11 @@ class NZBQueue(PriorityQueue):
 
     def __init__(self, fileName = None):
         PriorityQueue.__init__(self)
-        # Set is much faster for _put
+
+        # Maintain a collection of the known nzbFiles belonging to the segments in this
+        # queue. Set is much faster for _put & __contains__
         self.nzbFiles = Set()
+        self.nzbFilesLock = Lock()
         
         if fileName is not None:
             self.parseNZB(fileName)
@@ -325,6 +278,14 @@ class NZBQueue(PriorityQueue):
             if item.nzbFile not in self.nzbFiles:
                 self.nzbFiles.add(item.nzbFile)
             PriorityQueue._put(self, item)
+
+    def fileDone(self, nzbFile):
+        """ Notify the queue a file is done. This is called after assembling a file into it's
+        final contents. Segments are really stored independantly of individual Files in
+        the queue, hence this function """
+        self.nzbFilesLock.acquire()
+        self.nzbFiles.remove(nzbFile)
+        self.nzbFilesLock.release()
 
     def parseNZB(self, fileName):
         """ Initialize the queue from the specified nzb file """
@@ -410,7 +371,6 @@ class NZBParser(ContentHandler):
                 
         elif name == 'group':
             newsgroup = ''.join(self.chars)
-            #debug('group: ' + newsgroup)
 
             self.file.groups.append(newsgroup)
                         

@@ -11,7 +11,9 @@ import logging, os.path, sys, time, types, xmlrpclib
 from logging import StreamHandler
 from logging.handlers import RotatingFileHandler
 from threading import Condition, Lock, Thread
+from traceback import print_exc
 from Growl import *
+from StringIO import StringIO
 from Util import *
 
 __id__ = '$Id$'
@@ -288,6 +290,13 @@ def error(message, exception = None):
     if exception != None:
         if isinstance(exception, Exception):
             message += ': ' + getLocalClassName(exception.__class__) + ': ' + str(exception)
+            
+            if not isinstance(exception, FatalError):
+                # Unknown/unexpected exception -- also show the stack trace
+                stackTrace = StringIO()
+                print_exc(file=stackTrace)
+                stackTrace = stackTrace.getvalue()
+                message += '\n' + stackTrace
         
     Hellanzb.logger.error(message + '\n')
 

@@ -273,6 +273,7 @@ def assembleNZBFile(nzbFile):
         os.remove(nzbSegment.getDestination())
 
     file.close()
+    Hellanzb.queue
     debug('Assembled file: ' + nzbFile.getDestination() + ' from segment files: ' + \
           str([ nzbSegment.getDestination() for nzbSegment in nzbFile.nzbSegments ]))
 

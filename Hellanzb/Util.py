@@ -185,3 +185,14 @@ def defineServer(**args):
     
     for var in (args):
         exec 'Hellanzb.SERVERS[id][\'' + var + '\'] = args[\'' + var + '\']'
+
+def truncate(str, length = 60):
+    """ Truncate a string to certain length. Appends '...' to the string if truncated -- and
+those three periods are included in the specified length"""
+    if str == None:
+        return str
+    
+    if len(str) > int(length):
+        return str[0:int(length) - 3] + '...'
+    
+    return str

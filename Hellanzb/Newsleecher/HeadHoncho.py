@@ -15,6 +15,7 @@ import time
 
 import Hellanzb
 from Hellanzb.Logging import *
+from Hellanzb.Util import *
 
 from zlib import crc32
 
@@ -353,7 +354,7 @@ class HeadHoncho:
                                                                 speed = file_raw_bytes / elapsed / 1024.0
                                                                 #eta = Nice_Time((size - got - resumed) / 1024.0 / speed)
                                                                 
-                                                                print '\r* Decoding %s - %2d%% @ %.1fKB/s' % (filename, percent, speed),
+                                                                print '\r* Decoding %s - %2d%% @ %.1fKB/s' % (truncate(filename), percent, speed),
                                                                 sys.stdout.flush()
                                                 
                                                 # Still more to do

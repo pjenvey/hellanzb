@@ -24,6 +24,10 @@ class Ziplick:
     def __init__(self):
         self.ensureDirs()
 
+        # We only want one instance of the news leecher (with the same pool persisted
+        # throughout the life of the daemon. We'll set the jobs later
+        self.newsleecher = HeadHoncho(jobs = None)
+
     def ensureDirs(self):
         """ Ensure that all the required directories exist, otherwise attempt to create them """
         for arg in dir(Hellanzb):
@@ -86,8 +90,8 @@ class Ziplick:
             os.chdir(Hellanzb.WORKING_DIR)
 
             scrollBegin()
-            hh = HeadHoncho([nzbfile])
-            hh.main_loop()
+            self.newsleecher.jobs = [nzbfile]
+            self.newsleecher.main_loop()
             scrollEnd()
 
             os.chdir(oldDir)

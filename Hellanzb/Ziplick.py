@@ -105,7 +105,7 @@ class Ziplick(Thread):
                 		os.spawnlp(os.P_WAIT, 'mv', 'mv', nzbfile, Hellanzb.CURRENT_DIR)
                 	else:
                 		nzbfilename = self.current_nzbs[0]
-                                growlNotify('Queue', 'hellanzb Resuming:', self.archiveNameFromNzb(nzb))
+                                growlNotify('Queue', 'hellanzb Resuming:', self.archiveNameFromNzb(nzbfilename))
                 		del self.current_nzbs[0]
                 	nzbfile = Hellanzb.CURRENT_DIR + nzbfilename
                 

@@ -2,9 +2,8 @@
 Util - hellanzb misc functions
 
 """
-import os, popen2, pty, re, string, sys, thread, threading, time, xmlrpclib, Hellanzb, StringIO
+import os, popen2, pty, re, string, threading, Hellanzb
 from distutils import spawn
-from threading import RLock, Thread
 from Logging import *
 
 __id__ = '$Id$'

@@ -103,6 +103,7 @@ exiting """
         for popen in popen2._active:
             # signal guarantees us to be within the main thread
             if popen.thread != threading.currentThread():
+                # FIXME: only Ptyopen has a popen.thread
                 threadsOutsideMain = True
 
         if not threadsOutsideMain:

@@ -1,15 +1,15 @@
 """
 
 Logging - hellanzb's logging facility. Ties in with python's logging system, with a bunch
-of added locks to support interrupting nzbget scroll with other log messages. This is is
+of added locks to support interrupting nzbget scroll with other log messages. This is
 pretty elaborate for a basic app like hellanzb, but I felt like playing with threads and
 looking into python's logging system. Hoho.
 
 @author pjenvey
 """
-import logging, logging.handlers, sys
+import logging, logging.handlers, sys, xmlrpclib
 from logging import StreamHandler
-from threading import Condition, Lock
+from threading import Condition, Lock, Thread
 from Util import *
 
 class ScrollableHandler(StreamHandler):
@@ -25,38 +25,39 @@ lock. If it fails to acquire the lock it will throw away the scroll record. """
         rv = self.filter(record)
         if rv:
 
-            if record.levelno != ScrollableHandler.SCROLL:
-                
-                # If scroll isn't on, just log the message atomically
-                if not ScrollableHandler.scrollFlag:
-                    self.acquire()
-                    try:
-                        self.emit(record)
-                    finally:
-                        self.release()
-                        
-                else:
-                    # Otherwise queue the message for the ScrollInterrupter (don't even
-                    # bother locking the Handler)
-                    self.queueScrollInterrupt(record)
-            else:
+            if record.levelno == ScrollableHandler.SCROLL:
                 # Only print scroll if we can immediately acquire the scroll lock
-                if not ScrollableHandler.scrollLock.acquire(False):
-                    # no scroll for you
-                    return rv
+                if ScrollableHandler.scrollLock.acquire(False):
 
-                # ok we got the lock -- scroll is now on and no longer interrupted
-                if ScrollableHandler.scrollInterrupted:
+                    # got the lock -- scroll is now on and no longer interrupted
                     ScrollableHandler.scrollInterrupted = False
 
-                self.acquire()
-                try:
-                    self.emit(record)
-                finally:
-                    ScrollableHandler.scrollLock.release()
-                    self.release()
+                    try:
+                        self.emitSynchronized(record)
+                    finally:
+                        ScrollableHandler.scrollLock.release()
+
+                else:
+                    # no scroll for you
+                    return rv
+            else:
+                # If scroll is on, queue the message for the ScrollInterrupter
+                if ScrollableHandler.scrollFlag:
+                    self.queueScrollInterrupt(record)
+
+                else:
+                    # otherwise if scroll isn't on, just log the message normally
+                    self.emitSynchronized(record)
                             
         return rv
+
+    def emitSynchronized(self, record):
+        """ Write a log message atomically """
+        self.acquire()
+        try:
+            self.emit(record)
+        finally:
+            self.release()
 
     def queueScrollInterrupt(self, record):
         """ Lock the list of pending interrupt records, then notify the interrupter it has work to
@@ -157,7 +158,14 @@ scroll and already added the spaces """
     def releaseScrollOutput(self):
         """ Continue scroll output """
         ScrollableHandler.scrollLock.release()
-        
+
+    # FIXME: change self.wait to self.waitForRecord
+    # make the wait(timeout) use the same function. shouldn't i just acquire the pending
+    # monitor lock at the beginning and never release it?
+
+    # FIXME: problem with this function is, you can definitely have a case where you were
+    # notified and weren't wait()ing. you sort of have to manually look for any pending
+    # records at the beginning of the loop or if i can never release the lock
     def waitLoop(self):
         """ wait for scroll interrupts, then break the scroll to print them """
         # hadQuickWait explained below. basically toggles whether or not we release the

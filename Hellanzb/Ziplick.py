@@ -13,7 +13,6 @@ version 0.2
 import Hellanzb, os, re, PostProcessor
 from shutil import move
 from time import sleep
-from threading import Thread
 from Logging import *
 from Util import *
 

@@ -3,7 +3,7 @@ PostProcessorUtil - support functions for the PostProcessor
 
 @author pjenvey
 """
-import Hellanzb, os, popen2, signal, re
+import Hellanzb, os, popen2, re
 from threading import Thread
 from Logging import *
 from Util import *

@@ -65,7 +65,7 @@ class Controller:
             # Build our connections
             success = 0
             auth = {}
-            stat = {'pending' : {}}
+            stat = {'pending' : {},'file_parts' : [], 'group' : None, 'posts' : None}
             nntpPool = ClientCreator(reactor,NewzSlurper,auth,stat)
             # Iterate through the hosts
             for server in serverInfo['hosts']:
@@ -96,8 +96,10 @@ class Controller:
         else:
             while stat['pending']:
                 reactor.iterate()
-            print 'got here'
-
+            self.auth = auth
+            self.stat = stat
+            self.reactor = reactor
+            self.nntpPool = nntpPool
 
     def process(self, nzbfile):
         # Make sure the file exists first
@@ -120,27 +122,16 @@ class Controller:
 
         if posts:
             slurp_posts = posts
-            #asyncore.loop(self.dmap)
+            self.newsgroups = newsgroups
+            self.get_bodies(posts)
 
 
     # ---------------------------------------------------------------------------
-    # Retrieve a set of bodies with multiple connections, arggh
+    # Retrieve a set of bodies with multiple connections
     def get_bodies(self, posts):
         # Function shortcuts
-        _select = select.select
-        _sleep = time.sleep
-        _time = time.time
 
-        # Initialise some variables
-        active = []
-        ready = []
-
-        for swrap in self.Servers:
-            for fd, nwrap in swrap.Conns.items():
-                nwrap.setblocking(0)
-                ready.append(fd)
-
-        leech_start = _time()
+        leech_start = time.time()
         leech_raw_bytes = 0
         leech_files = 0
 
@@ -156,12 +147,10 @@ class Controller:
             for file in os.listdir(os.getcwd()):
                 if file == '.' or file == '..' or file[0] == '.':
                     continue
-
                 if subject.find(file.decode('latin-1')) > -1 and \
                    pwrap.totalbytes == os.path.getsize(os.getcwd() + os.sep + file):
                     alreadyDownloaded = True
                     print '\r* Skipping %s, already complete  ' % file
-                    self.super_anti_idle()
 
             if alreadyDownloaded:
                 continue
@@ -184,11 +173,18 @@ class Controller:
 
             file_dec_bytes = 0
             file_raw_bytes = 0
-            file_start = _time()
+            file_start = time.time()
 
             file_parts = []
             file_type = None
 
+            self.stat['file_parts'] = []
+            self.stat['posts'] = pwrap
+            self.stat['group'] = self.newsgroups.keys()[0]
+
+            while self.stat['posts'].parts:
+                self.reactor.iterate()
+            
             # Grab the bits!
             while 1:
                 if ready:

@@ -31,6 +31,7 @@ class NewzSlurper(NNTPClient):
         NNTPClient.__init__(self)
         self.auth = auth
         self.stat = stat
+        self.group = None
         self.id = reduce(lambda x,y:str(x)+str(y), [randint(10,99) for x in range(14)])
         self.stat['pending'][self.id] = True
         self.lineCount = 0 # FIXME:
@@ -59,19 +60,23 @@ class NewzSlurper(NNTPClient):
     def gotauthInfoOk(self, message):
         "Override for notification when authInfo() action is successful"
         print 'sweet bitch we logged in'
-        del self.stat['pending'][self.id]
+        sys.stdout.flush()
 
-    def _stateIdle(self, line):
-        if line != '.':
-            self._newLine(filter(None, line.strip().split()), 0)
-        else:
-            self.gotIdle(self._endState())
+        del self.stat['pending'][self.id]
+#        self.fetchIdle()
+
+    def _stateIdle(self):
+        print 'the group is: %s' % stat['group']
+
+        if self.group != stat['group']:
+            self._endState()
+            self.fetchGroup(stat['group'])
 
     def getIdleFailed(self, error):
         "Override for getIdleFailed"
+        print 'uhhh, something bad happened....'
         
     def fetchIdle(self):
-        self.sendLine('HELP')
         self._newState(self._stateIdle, self.getIdleFailed)
 
     def authInfoFailed(self, error):
@@ -80,6 +85,7 @@ class NewzSlurper(NNTPClient):
 
     def connectionMade(self):
         NNTPClient.connectionMade(self)
+        self.setStream()
         self.authInfo()
 
     def gotHead(self, head):
@@ -97,6 +103,10 @@ class NewzSlurper(NNTPClient):
     def gotBodyFailed(self, error):
         print 'didn\'t get body'
         print 'error: ' + error
+
+    def gotGroup(self, group):
+        print 'Changed group to %s' % group
+        self.fetchIdle()
 
     def lineReceived(self, line):
         self.lineCount += 1

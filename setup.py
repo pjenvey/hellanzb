@@ -11,6 +11,8 @@ assert sys.version >= '2', "Install Python 2.0 or greater" # don't know of this 
 from distutils.core import setup, Extension
 import Hellanzb
 
+__id__ = '$Id$'
+
 # Put this here, so we can overwrite it in build.py
 version = Hellanzb.version
 

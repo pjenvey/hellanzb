@@ -209,12 +209,12 @@ if __name__ == '__main__':
             info('\nStarting queue daemon')
             daemon = Hellanzb.Ziplick.Ziplick()
 
-    except FatalError, fe:
-        error('Exiting', fe)
-        sys.exit(fe.returnCode)
     except SystemExit, se:
         # sys.exit throws this. collect $200
         pass
+    except FatalError, fe:
+        error('Exiting', fe)
+        shutdown(1)
     except Exception, e:
         error('An unexpected problem occurred, exiting', e)
-        raise
+        shutdown(1)

@@ -142,6 +142,13 @@ class PostProcessor(Thread):
                     os.access(self.dirName + os.sep + self.nzbFile, os.R_OK):
                 os.rename(self.dirName + os.sep + self.nzbFile,
                           self.dirName + os.sep + Hellanzb.PROCESSED_SUBDIR + os.sep + self.nzbFile)
+
+        # Move out anything else that is tagged as not required
+        for file in os.listdir(self.dirName):
+            ext = getFileExtension(file)
+            if len(ext) > 0 and ext in Hellanzb.NOT_REQUIRED_FILE_TYPES:
+                os.rename(self.dirName + os.sep + file,
+                          self.dirName + os.sep + Hellanzb.PROCESSED_SUBDIR + os.sep + file)
     
         # We're done
         info("Finished processing: " + archiveName(self.dirName))

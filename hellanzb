@@ -11,7 +11,7 @@ lie in /etc). ideally most of those settings could be overwritten via the cmd li
 
 """
 
-import os, sys, Hellanzb.Troll, Hellanzb.Ziplick
+import os, sys, Hellanzb, Hellanzb.Troll, Hellanzb.Ziplick
 from Hellanzb.Troll import debug, defineMusicType, error, FatalError
 
 __id__ = "$Id"
@@ -49,10 +49,10 @@ def runTroll():
             usage()
             sys.exit(1)
                 
-        incomingDir = sys.argv[1]
+        archiveDir = sys.argv[1]
 
         Hellanzb.Troll.init()
-        Hellanzb.Troll.troll(incomingDir)
+        Hellanzb.Troll.troll(archiveDir)
 
     except FatalError, fe:
         Hellanzb.Troll.cleanUp(incomingDir)
@@ -63,9 +63,8 @@ def runTroll():
 if __name__ == '__main__':
 
     loadConfig()
-    
-    exe = os.path.basename(sys.argv[0])
 
+    exe = os.path.basename(sys.argv[0])
     if exe == "hellanzb":
         runDaemon()
         

@@ -130,11 +130,12 @@ def dirHasPars(dirName):
 
 def dirHasMusicFiles(dirName):
     """ Determine if the specified directory contains any known music files """
+    # FIXME this should be a case insensitive match
     return dirHasFileTypes(dirName, getMusicTypeExtensions())
 
 def dirHasFileType(dirName, getFileExtension):
     return dirHasFileTypes(dirName, [ getFileExtension ])
-    
+
 def dirHasFileTypes(dirName, getFileExtensionList):
     """ Determine if the specified directory contains any files of the specified type -- that
 type being defined by it's filename extension """
@@ -449,7 +450,7 @@ there are not enough recovery blocks, raise a fatal exception """
         p = popen2.Popen4(repairCmd)
         output = p.fromchild.readlines()
         p.fromchild.close()
-        repairReturnCode = os.WEXITSTATUS(pipe.wait())
+        repairReturnCode = os.WEXITSTATUS(p.wait())
 
         if repairReturnCode == 0:
             # Repaired
@@ -525,7 +526,9 @@ def troll(dirName):
     elif not os.path.isdir(processedDir):
         raise FatalError("Unable to create processed directory, a non directory already exists there")
 
-    # First, find and rename broken files, in prep for repair
+    # First, find and rename broken files, in prep for repair. Grab the msg id while we're
+    # at it
+    msgId = None
     files = os.listdir(dirName)
     for file in files:
         absoluteFile = dirName + os.sep + file
@@ -536,6 +539,9 @@ def troll(dirName):
                 # Keep track of the broken files
                 brokenFiles.append(absoluteFile)
                 renameBrokenFile(absoluteFile)
+                
+            elif file[0:len('.msgid_')] == '.msgid_':
+                msgId = file[len('.msgid_'):]
 
     # If there are required broken files and we lack pars, punt
     if len(brokenFiles) > 0 and containsRequiredFiles(brokenFiles) and not dirHasPars(dirName):
@@ -556,11 +562,21 @@ def troll(dirName):
 
     # grab the rar password if one exists
     # FIXME:
-    rarPassword = None
+    if dirHasRars(dirName):
+        rarPassword = None
+        if os.path.isdir(Hellanzb.PASSWORDS_DIR):
+                         
+            for file in os.listdir(Hellanzb.PASSWORDS_DIR):
+                if file == msgId:
+
+                    absPath = Hellanzb.PASSWORDS_DIR + os.sep + msgId
+                    if not os.access(absPath, os.R_OK):
+                        raise FatalError("Refusing to continue: unable to read rar password (no read access)")
+                
+                msgIdFile = open(absPath)
+                rarPassword = msgIdFile.read().rstrip()
         
-    # Continue the unarchive process
-    # FIXME: dirHasRars check probably belongs here
-    processRars(dirName, rarPassword)
+        processRars(dirName, rarPassword)
     
     if dirHasMusicFiles(dirName):
         decompressMusicFiles(dirName)
@@ -570,7 +586,7 @@ def troll(dirName):
     # We're done
     if dirName[len(dirName) - 1] == os.sep:
         dirName = dirName[0:len(dirName) - 2]
-    growlNotify('Archive', 'Done Processing nzb:', os.path.basename(dirName))
+    growlNotify('Archive', 'hellanzb Done Processing:', os.path.basename(dirName))
 
 # FIXME: this function and a number of others should be moved out into a Util package
 def growlNotify(type, title, description):
@@ -582,6 +598,7 @@ def growlNotify(type, title, description):
 
     # NOTE: we probably want this in it's own thread to be safe, i can see this easily
     # deadlocking for a bit on say gethostbyname()
+    # AND we could have a LOCAL_GROWL option for those who might run hellanzb on os x
     serverUrl = 'http://' + Hellanzb.SERVER + '/'
     server = xmlrpclib.Server(serverUrl)
     server.notify(type, title, description)

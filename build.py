@@ -54,17 +54,17 @@ try:
         writeVersion(newVersion)
 
         # Build
-        print "Building version: " + newVersion
+        print 'Building version: ' + newVersion
         buildDist()
 
         # Append -HEAD back to the number and check in bump
         newVersion = newVersion + '-HEAD'
-        print "Checking in new version number: " + newVersion
+        print 'Checking in new version number: ' + newVersion
         writeVersion(newVersion)
-        os.system("svn ci " + VERSION_FILENAME)
+        os.system('svn ci -m "New build, version: ' + newVersion '" ' + VERSION_FILENAME)
 
     else:
-        print "Error: Version number: " + version + " is not HEAD!"
+        print 'Error: Version number: ' + version + ' is not HEAD!'
         sys.exit(1)
     
 except IndexError:

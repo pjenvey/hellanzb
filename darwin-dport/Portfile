@@ -1,0 +1,26 @@
+# $Id$
+
+PortSystem 1.0
+PortGroup python 1.0
+
+name             hellanzb
+version          ____VERSION____
+categories       net python
+maintainers      #kgb
+description      hella nzbs
+long_description \
+	hella nzbs. \
+	hella.
+homepage         http://www.hellanzb.com
+platforms        darwin
+
+master_sites     http://groovie.org/~pjenvey/
+distname         hellanzb-${version}
+#checksums        md5 b854f25a33289565bcaeaded04955c1a
+
+post-install {
+        if { ![file exists ${prefix}/etc/${name}.conf] } {
+                file copy ${prefix}/etc/${name}.conf.sample \
+                        ${prefix}/etc/${name}.conf
+        }
+}

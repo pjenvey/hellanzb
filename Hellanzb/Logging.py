@@ -149,7 +149,7 @@ scroll and already added the spaces """
             # this happens during shutdown
             pass
         except SystemExit:
-	    # FIXME: Can I safely raise here instead?
+            # FIXME: Can I safely raise here instead?
             pass
         except Exception, e:
             print 'Error in ScrollInterrupter: ' + str(e)
@@ -233,7 +233,7 @@ def error(message, exception = None):
     
     if exception != None:
         if isinstance(exception, Exception):
-            message = message + ': ' + getLocalClassName(exception.__class__) + ': ' + str(exception)
+            message += ': ' + getLocalClassName(exception.__class__) + ': ' + str(exception)
         
     Hellanzb.logger.error(message)
 

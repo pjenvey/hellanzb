@@ -137,7 +137,7 @@ class Ziplick:
             coreFucked = False
             if Hellanzb.NEWSLEECHER_IS_BUGGY and os.WCOREDUMP(statusCode):
                 coreFucked = True
-                newdir = newdir + '_corefucked'
+                newdir += '_corefucked'
                 error('Archive: ' + archiveName(nzbfilename) + ' is core fucked :(')
                 growlNotify('Error', 'hellanzb Archive is core fucked',
                             archiveName(nzbfilename) + '\n:(', True)

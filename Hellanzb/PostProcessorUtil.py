@@ -53,12 +53,12 @@ class DecompressionThread(Thread):
         # Catch exceptions here just in case, to ensure notify() will finally be called
         archive = archiveName(os.path.dirname(self.file))
         try:
-	    if not decompressMusicFile(self.file, self.type):
-		# There was a problem decompressing -- let the parent
-		# know
-		self.parent.failedLock.acquire()
-		self.parent.failedToProcesses.append(self.file)
-		self.parent.failedLock.release()
+            if not decompressMusicFile(self.file, self.type):
+                # There was a problem decompressing -- let the parent
+                # know
+                self.parent.failedLock.acquire()
+                self.parent.failedToProcesses.append(self.file)
+                self.parent.failedLock.release()
 
         except Exception, e:
             error(archive + ': There was an unexpected problem while decompressing the musc file: ' + \
@@ -228,7 +228,7 @@ def decompressMusicFile(fileName, musicType):
         msg = 'There was a problem while decompressing music file: ' + os.path.basename(fileName) + \
             ' output:\n'
         for line in output:
-            msg = msg + line
+            msg += line
         error(msg)
         
         return False
@@ -311,10 +311,10 @@ def unrar(fileName, rarPassword = None, pathToExtract = None):
         growlNotify('Archive Error', 'hellanzb Archive requires password:', archiveName(dirName),
                     True)
         raise FatalError('Cannot continue, this archive requires a RAR password and there is none set')
-	
+        
     if isPassworded:
         cmd = Hellanzb.UNRAR_CMD + ' x -y -p' + rarPassword + ' "' + fileName + '" "' + \
-	    pathToExtract + '"'
+            pathToExtract + '"'
     else:
         cmd = Hellanzb.UNRAR_CMD + ' x -y' + ' "' + fileName + '" "' + pathToExtract + '"'
     
@@ -353,7 +353,7 @@ there are not enough recovery blocks, raise a fatal exception """
     
     info(archiveName(dirName) + ': Verifying via pars..')
 
-    dirName = dirName + os.sep
+    dirName += os.sep
     repairCmd = 'par2 r "' + dirName + '*.PAR2" "' + dirName + '*.par2" "' + dirName + '*_broken"'
 
     p = Ptyopen(repairCmd)

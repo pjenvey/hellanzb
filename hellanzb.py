@@ -126,8 +126,8 @@ exiting """
         if Hellanzb.stopSignalCount < 2:
             msg = 'Caught CTRL-C, waiting for the child processes to finish:\n'
             for popen in popen2._active:
-                msg = msg + ' '*4 + popen.cmd + '\n'
-            msg = msg + '(Press CTRL-C again to kill them and exit immediately)..'
+                msg += ' '*4 + popen.cmd + '\n'
+            msg += '(Press CTRL-C again to kill them and exit immediately)..'
             warn(msg)
             sys.stdout.flush()
             

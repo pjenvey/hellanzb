@@ -139,7 +139,7 @@ def createTarBall(workingDir, dirName, fileName):
 try:
     parser = optparse.OptionParser()
     parser.add_option('-l', '--local', action='store_true', dest='local',
-                      help='Do a local build (don\'t commit version changes')
+                      help='Do a local build (don\'t commit version changes)')
     parser.add_option('-t', '--trunk', action='store_true', dest='head',
                       help='Assume this is a trunk (HEAD) build, and do not bump the version number')
     options, args = parser.parse_args()

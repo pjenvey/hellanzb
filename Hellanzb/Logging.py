@@ -237,6 +237,7 @@ scroll and already added the spaces """
             for record in records:
                 self.handle(record)
                 
+            self.checkShutdown()
             # Now that we've printed the log messages, we want to continue blocking the
             # scroll output for a few seconds. However if we're notified of a new pending
             # log (scroll interrupt) messages, we want to print it immediately, and

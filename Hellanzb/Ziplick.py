@@ -104,6 +104,9 @@ class Ziplick:
 
             scrollEnd()
 
+            # Append \n
+            info('')
+
             os.chdir(oldDir)
             
             checkShutdown()

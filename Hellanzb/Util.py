@@ -143,6 +143,12 @@ class PriorityQueue(Queue):
       you pretty good performance, and you probably won't benefit from heap based pqueues unless you're
       dealing with > 10k items. And dicts don't actually seem to help
     """
+    def __init__(self):
+        """ Python 2.4 replaces the list backed queue with a collections.deque, so we'll just
+        emulate 2.3 behavior everywhere for now """
+        Queue.__init__(self)
+        self.queue = []
+        
     def _put(self, item):
         """ Assume Queue is backed by a list. Add the new item to the list, taking into account
             priority via heapq """

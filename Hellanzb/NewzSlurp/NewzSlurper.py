@@ -69,7 +69,7 @@ def startNewzSlurp():
     
 def shutdownNewzSlurp():
     """ """
-    # FIXME:?
+    reactor.stop()
     pass
 
 class NewzSlurperFactory(UsenetClientFactory):
@@ -147,6 +147,10 @@ class NewzSlurper(NNTPClient):
     def fetchNextNZBSegment(self):
         """ Pop nzb article from the queue, and attempt to retrieve it if it hasn't already been
         retrieved"""
+        # FIXME: all segments are on the filesystem, but not assembled. needsDownload from
+        # the queue returns true, so the file's segments all end up being iterated through
+        # here. what will happen is we will skip them all accordingly, but we will never
+        # assemble them/succesfully tryFinishNZB
         if self.currentSegment is None:
             try:
                 nextSegment = Hellanzb.queue.get_nowait()
@@ -181,9 +185,9 @@ class NewzSlurper(NNTPClient):
         debug('NewzSlurper[' + str(self.id) + '] going to fetch article: ' + \
               str(self.currentSegment.messageId))
 
-        self.fetchArticle(str(self.currentSegment.messageId))
+        self.fetchBody(str(self.currentSegment.messageId))
         
-    def fetchArticle(self, index):
+    def fetchBody(self, index):
         """ """
         start = time.time()
         #if self.factory.totalStartTime == None:
@@ -191,19 +195,18 @@ class NewzSlurper(NNTPClient):
         if self.currentSegment != None and self.currentSegment.nzbFile.downloadStartTime == None:
             self.currentSegment.nzbFile.downloadStartTime = start
         self.downloadStartTime = start
-        NNTPClient.fetchArticle(self, '<' + index + '>')
+        NNTPClient.fetchBody(self, '<' + index + '>')
 
-    def gotArticle(self, article):
-        """ Decode the article """
+    def gotBody(self, body):
+        """ Queue the article body for decoding and continue fetching the next article """
         debug('NewzSlurper[' + str(self.id) + ']' + ' got article: ' + self.currentSegment.getDestination() + \
-             ' (' + self.currentSegment.messageId + ')' + ' size: ' + str(len(article)) + ' expected size: ' + \
+             ' (' + self.currentSegment.messageId + ')' + ' lines: ' + str(len(body)) + ' expected size: ' + \
              str(self.currentSegment.bytes))
 
-        self.currentSegment.articleData = article
+        self.currentSegment.articleData = body
         self.deferSegmentDecode(self.currentSegment)
         self.currentSegment = None
 
-        #self.lineCount = 0
         self.downloadStartTime = None
         self.readBytes = 0
         #self.readPercentage = 0
@@ -228,15 +231,15 @@ class NewzSlurper(NNTPClient):
 
         self.fetchNextNZBSegment()
 
-    def _stateArticle(self, line):
-        """ The normal _stateArticle converts the list of lines downloaded to a string, we want to
+    def _stateBody(self, line):
+        """ The normal _stateBody converts the list of lines downloaded to a string, we want to
         keep these lines in a list throughout life of the processing (should be more
         efficient) """
         if line != '.':
             self._newLine(line, 0)
         else:
-            #self.gotArticle('\n'.join(self._endState()))
-            self.gotArticle(self._endState())
+            #self.gotBody('\n'.join(self._endState()))
+            self.gotBody(self._endState())
 
     def _stateIdle(self):
         print 'the group is: %s' % stat['group']
@@ -261,21 +264,9 @@ class NewzSlurper(NNTPClient):
         self.setStream()
         self.authInfo()
 
-    def gotHead(self, head):
-        print 'huh huh i got head'
-        print 'head: ' + head
-
-    def getHeadFailed(self, err):
-        print 'didn\'t get any head =['
-        print 'err: ' + err
-
-    def gotBody(self, body):
-        print 'got body'
-        # FIXME: decode body. or do it during the lineReceieved()?
-
     def gotBodyFailed(self, err):
-        print 'didn\'t get body'
-        print 'err: ' + err
+        # FIXME:
+        pass
 
     def lineReceived(self, line):
         #self.lineCount += 1

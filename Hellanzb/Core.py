@@ -67,6 +67,9 @@ def signalHandler(signum, frame):
 
     # CTRL-C
     if signum == signal.SIGINT:
+        # FIXME: sup this doesnt work
+        #from Hellanzb.NewzSlurp.NewzSlurper import shutdownNewzSlurp
+        #shutdownNewzSlurp()
         # lazily notify everyone they should stop immediately
         Hellanzb.shutdown = True
         

@@ -9,7 +9,7 @@ from threading import Lock, RLock
 from xml.sax import make_parser
 from xml.sax.handler import ContentHandler, feature_external_ges, feature_namespaces
 from Hellanzb.Logging import *
-from Hellanzb.NewzSlurp.ArticleDecoder import parseArticleData, tryFinishNZB
+from Hellanzb.NewzSlurp.ArticleDecoder import parseArticleData, setRealFileName, tryFinishNZB
 from Hellanzb.Util import archiveName, getFileExtension, PriorityQueue
 
 #s/NZBUtil/NZBModel/
@@ -87,6 +87,16 @@ def needsDownload(object):
                 prefix = file[0:-len('.segmentXXXX')]
                 #if re.match(r'.*' + prefix + r'.*', object.nzbFile.subject):
                 if object.nzbFile.subject.find(prefix) > -1:
+                    
+                    # HACK: filename is None. so we only have the temporary name in
+                    # memory. since we didnt see the temporary name on the filesystem, but
+                    # we found a subject match, that means we have the real name on the
+                    # filesystem. In the case where this happens, and we are segment #1,
+                    # we've figured out the real filename (hopefully!)
+                    if object.number == 1:
+                        #debug('DELICIOUS HACK: ((((((((((((((((((((((((((((((((((((((((((((((((((' + prefix)
+                        setRealFileName(object, prefix)
+
                     tempFileNameLock.release()
                     object.doh('none segment file mismatch')
                     return False
@@ -257,7 +267,7 @@ class NZBSegment:
     
     def getTempFileName(self):
         """ """
-        return self.nzbFile.getTempFileName() + '_' + str(self.number).zfill(4)
+        return self.nzbFile.getTempFileName() + '.segment' + str(self.number).zfill(4)
 
     def getFilenameFromArticleData(self):
         """ Determine the segment's filename via the articleData """

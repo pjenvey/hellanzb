@@ -1,4 +1,4 @@
-import binascii, re, string
+import binascii, os, re, shutil, string
 from zlib import crc32
 from Hellanzb.Logging import *
 from StringIO import StringIO
@@ -11,17 +11,29 @@ def decode(segment):
     instance as having been decoded, then assemble all the segments together if all their
     decoded segment filenames exist """
     # FIXME: should need to try/ this call?
-    # decode the article to disk w/ a tmp file name
     decodeArticleData(segment)
 
     #del segment.articleData
 
     # FIXME: maybe call everything below this postProcess. have postProcess called when --
     # during the queue instantiation?
-    
     if segment.nzbFile.isAllSegmentsDecoded():
         assembleNZBFile(segment.nzbFile)
     debug('Decoded segment: ' + segment.getDestination())
+
+def stripArticleData(articleData):
+    """ Rip off leading/trailing whitespace from the articleData list """
+    try:
+        # Only rip off the first leading whitespace
+        #while articleData[0] == '':
+        if articleData[0] == '':
+            articleData.pop(0)
+
+        # Trailing
+        while articleData[-1] == '':
+            articleData.pop(-1)
+    except IndexError:
+        pass
 
 def parseArticleData(segment, justExtractFilename = False):
     """ get the article's filename from the articleData. if justExtractFilename == False,
@@ -32,32 +44,25 @@ def parseArticleData(segment, justExtractFilename = False):
     if segment.articleData == None:
         raise FatalError('Could not getFilenameFromArticleData')
 
+    # First, clean it
+    stripArticleData(segment.articleData)
+
     cleanData = []
     encodingType = UNKNOWN
     withinData = False
     index = -1
     for line in segment.articleData:
         index += 1
+        #info('index: ' + str(index) + ' line: ' + line)
 
-        #info('aline: ' + line)
-        #if not withinData and line != '':
-        #    info('popping line: ' + line)
-        #    doh = segment.articleData.pop(index)
-        #    info('popped: ' + doh)
-        #    continue
-        #else:
         if withinData:
             # un-double-dot any lines :\
             if line[:2] == '..':
                 line = line[1:]
-                #segment.articleData[index] = line
-                
-            cleanData.append(line)
+                segment.articleData[index] = line
 
-        # FIXME: we won't always see 'begin ' for UU (only the first header segment would
-        # contain it) So we should probably check for yEnc, then fall back to uu. BUT we
-        # should also take into account non encoded files (like .nfo), which HeadHoncho
-        # handles
+        # After stripping the articleData, we should find a yencode header, uuencode
+        # header, or a uuencode part header (an empty line)
         if line.startswith('=ybegin'):
             # See if we can parse the =ybegin line
             ybegin = ySplit(line)
@@ -65,7 +70,7 @@ def parseArticleData(segment, justExtractFilename = False):
             if not ('line' in ybegin and 'size' in ybegin and 'name' in ybegin):
                 raise FatalError('* Invalid =ybegin line in part %d!' % 31337)
 
-            setFileName(segment, ybegin['name'], justExtractFilename)
+            setRealFileName(segment, ybegin['name'])
             encodingType = YENCODE
 
         elif line.startswith('=ypart'):
@@ -80,22 +85,20 @@ def parseArticleData(segment, justExtractFilename = False):
                 segment.crc = '0' * (8 - len(yend['crc32'])) + yend['crc32'].upper()
 
         elif line.startswith('begin '):
-            debug('UUDECODE begin&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&')
+            #debug('UUDECODE begin&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&')
             filename = line.rstrip().split(' ', 2)[2]
             if not filename:
                 raise FatalError('* Invalid =begin line in part %d!' % 31337)
-            setFileName(segment, filename, justExtractFilename)
+            setRealFileName(segment, filename)
             encodingType = UUENCODE
             withinData = True
-        #elif line == '' :
-        #elif line == ''  and firstSegment is uuencode
-        #    pass
-        # FIXME: FIXME: FIXME:
-        elif not withinData and line == '':
-            encodingType = UUENCODE
+        #elif index == 0 and line == '' :
+        elif line == '':
+            continue
+        elif not withinData:
+            # Assume this is a subsequent uuencode segment
             withinData = True
-            
-            # FIXME: continue uuencode..?
+            encodingType = UUENCODE
 
     # FIXME: could put this check even higher up
     if justExtractFilename:
@@ -103,47 +106,45 @@ def parseArticleData(segment, justExtractFilename = False):
 
     #info('data: ' + str(segment.articleData))
 
-    decodeCleanDataToFile(cleanData, segment.getDestination(), encodingType)
-    #decodeCleanDataToFile(segment.articleData, segment.getDestination(), encodingType)
+    decodeSegmentToFile(segment, encodingType)
     del cleanData
     del segment.articleData
     segment.articleData = '' # We often check it for == None
 decodeArticleData=parseArticleData
 
-def setFileName(segment, filename, justExtractFilename):
+def setRealFileName(segment, filename):
+    """ Set the actual filename of the segment's parent nzbFile. If the filename wasn't
+    already previously set, set the actual filename atomically and also atomically rename
+    known temporary files belonging to that nzbFile to use the new real filename """
     noFileName = segment.nzbFile.filename == None
-    # FIXME:? cant check for tempFilename here. if we're resuming, and we didnt
-    # rename temp files created by an older hellanzb process, our tempFilename
-    # could be None and we wouldnt rename them. is this safe?
-    #if segment.nzbFile.tempFilename != None and justExtractFilename == True:
-    if noFileName and justExtractFilename == True:
-        # We were using temp name and just succesfully found the new filename via
-        # ySplit. Immediately rename any files that were using the temp name
+    if noFileName and segment.number == 1:
+        # We might have been using a tempFileName previously, and just succesfully found
+        # the real filename in the articleData. Immediately rename any files that were
+        # using the temp name
         segment.nzbFile.tempFileNameLock.acquire()
         segment.nzbFile.filename = filename
 
         tempFileNames = {}
         for nzbSegment in segment.nzbFile.nzbSegments:
-            tempFileNames[nzbSegment.getTempFileName()] = nzbSegment.getDestination()
-    
+            tempFileNames[nzbSegment.getTempFileName()] = os.path.basename(nzbSegment.getDestination())
+
         from Hellanzb import WORKING_DIR
         for file in os.listdir(WORKING_DIR):
             if file in tempFileNames:
                 newDest = tempFileNames.get(file)
                 shutil.move(WORKING_DIR + os.sep + file,
                             WORKING_DIR + os.sep + newDest)
-                debug('>>>>RENAMED: ' + file + ' to: ' + newDest)
 
         segment.nzbFile.tempFileNameLock.release()
     else:
         segment.nzbFile.filename = filename
 
-def decodeCleanDataToFile(cleanData, destination, encodingType = YENCODE):
+def decodeSegmentToFile(segment, encodingType = YENCODE):
     """ Decode the clean data (clean as in it's headers (mime and yenc/uudecode) have been
     removed) list to the specified destination """
     if encodingType == YENCODE:
-        #debug('ydecoding line count: ' + str(len(cleanData.readlines())))
-        decodedLines = yDecode(cleanData)
+        #debug('ydecoding line count: ' + str(len(segment.articleData.readlines())))
+        decodedLines = yDecode(segment.articleData)
 
         # FIXME: crc check
         #decoded = ''.join(decodedLines)
@@ -151,24 +152,23 @@ def decodeCleanDataToFile(cleanData, destination, encodingType = YENCODE):
         #if crc != segment.crc:
         #    warn('CRC mismatch ' + crc + ' != ' + segment.crc)
         
-        out = open(destination, 'wb')
+        out = open(segment.getDestination(), 'wb')
         for line in decodedLines:
             out.write(line)
         out.close()
 
         # Get rid of all this data now that we're done with it
-        debug('YDecoded articleData to file: ' + destination)
+        debug('YDecoded articleData to file: ' + segment.getDestination())
 
     elif encodingType == UUENCODE:
-        decodedLines = UUDecode(cleanData)
-        debug('dec: ' + str(len(decodedLines)) + ' orig: ' + str(len(cleanData)))
-        out = open(destination, 'wb')
+        decodedLines = UUDecode(segment.articleData)
+        out = open(segment.getDestination(), 'wb')
         for line in decodedLines:
             out.write(line)
         out.close()
 
         # Get rid of all this data now that we're done with it
-        debug('UUDecoded articleData to file: ' + destination)
+        debug('UUDecoded articleData to file: ' + segment.getDestination())
         
     else:
         debug('FIXME: Did not YY/UDecode!!')
@@ -215,15 +215,16 @@ def ySplit(line):
 def UUDecode(dataList):
     buffer = []
 
+    index = -1
     for line in dataList:
-        if line == '':
-        #if not line or line[:5] == 'end':
-            # FIXME: not sure if i really want this
-            continue
+        index += 1
 
-        #if not line or line[:5] == '=yend':
-        if not line:
+        if index == 0 and (not line or line[:6] == 'begin '):
+            continue
+        elif not line or line[:3] == 'end':
             break
+        
+        #if not line or line[:5] == '=yend':
 
         if line[-2:] == '\r\n':
             line = line[:-2]

@@ -90,16 +90,9 @@ class HeadHoncho:
                         ShowError('failed to open any server connections!')
 
         def super_anti_idle(self):
-                _select = select.select
-                ready = []
                 for swrap in self.Servers:
                         for fd, nwrap in swrap.Conns.items():
-                                nwrap.setblocking(0)
-                                ready.append(fd)
-                can_read = _select(ready, [], [], 0)[0]                
-                for fd in ready:
-                        nwrap = self.FDs[fd].Conns[fd]
-                        nwrap.anti_idle()
+                                nwrap.anti_idle()
                                 
         # ---------------------------------------------------------------------------
         # Our main loop, obviously
@@ -198,7 +191,7 @@ class HeadHoncho:
                                         continue
 
                                 if subject.find(file.decode('latin-1')) > -1 and \
-                                   pwrap.totalbytes == os.path.getsize(os.getcwd() + os.sep + file.decode('latin-1')):
+                                   pwrap.totalbytes == os.path.getsize(os.getcwd() + os.sep + file):
                                         alreadyDownloaded = True
                                         print '\r* Skipping %s, already complete  ' % file
                                         self.super_anti_idle()
@@ -328,7 +321,7 @@ class HeadHoncho:
                                                                 # If it's yEnc, make sure it's not complete already
                                                                 if ybegin:
                                                                         filename = ybegin['name']
-                                                                        if os.path.isfile(filename.decode('latin-1')):
+                                                                        if os.path.isfile(filename):
                                                                                 currsize = os.path.getsize(filename)
                                                                                 if currsize == int(ybegin['size']):
                                                                                         # FIXME: this is done up above now

@@ -183,13 +183,11 @@ class HeadHoncho:
                                 if subject.find(file.decode('latin-1')) > -1 and \
                                    pwrap.totalbytes == os.path.getsize(os.getcwd() + os.sep + file.decode('latin-1')):
                                         alreadyDownloaded = True
-                                        can_read = _select(active, [], [], 0)[0]
-                                        for fd in can_read:
+                                        print '\r* Skipping %s, already complete  ' % file
+                                        for fd in [fd for fd in ready if self.FDs[fd] == swrap]:
                                                 nwrap = self.FDs[fd].Conns[fd]
                                                 nwrap.anti_idle()
-                                                print '\r* Anti-idle!'
-
-                                        print '\r* Skipping %s, already complete  ' % file
+                                                print '\r* Anti-IDLE!'
 
                         if alreadyDownloaded:
                                 continue
@@ -252,6 +250,12 @@ class HeadHoncho:
                                         
                                         # If we're all done, run away
                                         elif not active:
+                                                if skipfile:
+                                                        for fd in [fd for fd in ready if self.FDs[fd] == swrap]:
+                                                                nwrap = self.FDs[fd].Conns[fd]
+                                                                nwrap.anti_idle()
+                                                                print '\r* Anti-IDLE!'
+
                                                 break
                                 
                                 # Select!
@@ -270,8 +274,6 @@ class HeadHoncho:
                                                 # If we're skipping this file, just do that
                                                 if skipfile:
                                                         if done:
-                                                                nwrap.anti_idle()
-                                                                print '\r* Anti-idle!'
                                                                 nwrap.reset()
                                                                 active.remove(fd)
                                                                 ready.append(fd)
@@ -492,7 +494,6 @@ class HeadHoncho:
                                                         
                                                         file_dec_bytes += len(decoded)
                                                         nextpart += 1
-                                                
                                                 
                                                 # Reset the connection to a useful state
                                                 nwrap.reset()

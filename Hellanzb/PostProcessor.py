@@ -41,7 +41,7 @@ class PostProcessor(Thread):
         # abort if we lack required binaries
         assertIsExe('par2')
         
-        self.dirName = dirName
+        self.dirName = os.path.realpath(dirName)
         
         # Whether or not this thread is the only thing happening in the app (-p mode)
         self.background = background

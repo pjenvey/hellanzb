@@ -106,15 +106,21 @@ class HeadHoncho:
         def main_loop(self):
                 for job in self.jobs:
                         print
-                        
-                        # Is it a nzb job?
-                        if job.endswith('.nzb'):
-                                self.nzb_job(job)
 
-                        # Wtf is it then?
-                        else:
-                                ShowError("unknown job type '%s'", job)
-                                #scroll('Unknown file type: ' + job)
+                        while 1:
+                                # Is it a nzb job?
+                                if job.endswith('.nzb'):
+                                        try:
+                                                self.nzb_job(job)
+                                        except nntplib.NNTPPermanentError, e:
+                                                print '\r* Lost a server connection, restarting all connections'
+                                                self.__init__(self.jobs)
+                                        else:
+                                                break
+
+                                        # Wtf is it then?
+                                else:
+                                        ShowError("unknown job type '%s'", job)
         
         # ---------------------------------------------------------------------------
         # Does all the stuff we need for a 'nzb' job.

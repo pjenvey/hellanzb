@@ -61,7 +61,7 @@ try:
         newVersion = newVersion + '-HEAD'
         print 'Checking in new version number: ' + newVersion
         writeVersion(newVersion)
-        os.system('svn ci -m "New build, version: ' + newVersion '" ' + VERSION_FILENAME)
+        os.system('svn ci -m "New build, version: ' + newVersion + '" ' + VERSION_FILENAME)
 
     else:
         print 'Error: Version number: ' + version + ' is not HEAD!'

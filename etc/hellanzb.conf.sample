@@ -67,7 +67,7 @@ Hellanzb.GROWL_PASSWORD = 'password'
 
 # If any of the following file types are missing from the archive and cannot be repaired,
 # continue processing because they're unimportant
-Hellanzb.NOT_REQUIRED_FILE_TYPES = [ 'm3u', 'nfo', 'sfv', 'log' ]
+Hellanzb.NOT_REQUIRED_FILE_TYPES = [ 'm3u', 'nfo', 'sfv', 'log', 'nzb' ]
 
 
 # For debugging

@@ -3,12 +3,12 @@
 """Growl 0.6 Network Protocol Client for Python"""
 __version__ = "0.6" # will always match Growl version
 __author__ = "Rui Carmo (http://the.taoofmac.com)"
-__copyright__ = "(C) 2004 Rui Carmo. GNU GPL 2."
+__copyright__ = "(C) 2004 Rui Carmo. Code under BSD License."
 __contributors__ = "Ingmar J Stein (Growl Team)"
 
 import struct
 import md5
-from socket import *
+from socket import AF_INET, SOCK_DGRAM, socket
 
 GROWL_UDP_PORT=9887
 GROWL_PROTOCOL_VERSION=1

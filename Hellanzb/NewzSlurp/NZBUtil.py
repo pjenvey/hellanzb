@@ -57,35 +57,20 @@ def needsDownload(object):
                 if segmentNumber != object.number:
                     continue
 
-                #if object.getDestination() == 'hellanzb-tmp-RZA_-_The_World_According_To_RZA_(2003).file0014.segment0005':
-                if True:
-                    debug('$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$')
-                    debug('$' + object.nzbFile.subject)
-                    debug('$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$')
-                    debug('$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$')
-                    debug('$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$')
-                    debug('file: ' + file)
-
                 # Strip the segment suffix, and if that filename is in our subject,
                 # we've found a match
                 prefix = file[0:-len('.segmentXXXX')]
                 if object.nzbFile.subject.find(prefix) > -1:
-                    debug('^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^')
-                    debug('^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^')
-                    debug('^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^')
-                    debug('^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^')
-                    
                     # HACK: filename is None. so we only have the temporary name in
                     # memory. since we didnt see the temporary name on the filesystem, but
                     # we found a subject match, that means we have the real name on the
                     # filesystem. In the case where this happens, and we are segment #1,
                     # we've figured out the real filename (hopefully!)
                     if object.number == 1:
-                        debug('needsDownload: GOT real file name from PREFIX! ')
+                        #debug('needsDownload: GOT real file name from PREFIX! ')
                         setRealFileName(object, prefix)
 
                     tempFileNameLock.release()
-                    debug('$_T_' + object.nzbFile.subject)
                     return False
 
             # Whole file match

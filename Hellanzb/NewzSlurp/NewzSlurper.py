@@ -100,9 +100,6 @@ class NewzSlurper(NNTPClient):
         self.activeGroups = []
         self.currentSegment = None
 
-        # FIXME:
-        self.linecount = 0
-
     def authInfo(self):
         """ """
         self.sendLine('AUTHINFO USER ' + self.username)
@@ -152,7 +149,6 @@ class NewzSlurper(NNTPClient):
                     nextSegment = Hellanzb.queue.get_nowait()
 
                 self.currentSegment = nextSegment
-                debug(self.getName() + ' changed currentsegment: ' + self.currentSegment.nzbFile.subject + ' number: ' + str(self.currentSegment.number))
                 self.filename = os.path.basename(self.currentSegment.nzbFile.getDestination())
             except Empty:
                 debug(self.getName() + ' DONE downloading')
@@ -169,6 +165,7 @@ class NewzSlurper(NNTPClient):
             if group not in self.activeGroups:
                 debug(self.getName() + ' fetching group:' + group)
                 self.fetchGroup(group)
+                return
 
         debug(self.getName() + ' fetching article: <' + self.currentSegment.messageId + '> ' + \
               self.currentSegment.getDestination())
@@ -176,15 +173,12 @@ class NewzSlurper(NNTPClient):
         
     def fetchBody(self, index):
         """ """
-        self.linecount = 0 # FIXME
         start = time.time()
         #if self.factory.totalStartTime == None:
         #    self.factory.totalStartTime = start
         if self.currentSegment != None and self.currentSegment.nzbFile.downloadStartTime == None:
             self.currentSegment.nzbFile.downloadStartTime = start
         self.downloadStartTime = start
-        #debug(self.getName() + ' BODY for : ' + index + ' t: ' + str(self.transport.getHost()) + ' buf: ' + str(self.__buffer)) # FIXME
-        debug(self.getName() + ' BODY for : ' + index + ' t: ' + str(self.transport.getHost()) + ' buf: ' + str('')) # FIXME
         NNTPClient.fetchBody(self, '<' + index + '>')
 
     def getName(self):
@@ -200,9 +194,7 @@ class NewzSlurper(NNTPClient):
         """ Queue the article body for decoding and continue fetching the next article """
         debug(self.getName() + ' got article: ' + ' <' + self.currentSegment.messageId + '> ' + \
               self.currentSegment.getDestination() + ' lines: ' + str(len(body)) + ' expected size: ' + \
-              #str(self.currentSegment.bytes) + 't: ' + str(self.transport.getHost()) + ' buf: ' + str(self.__buffer))
-              str(self.currentSegment.bytes) + 't: ' + str(self.transport.getHost()) + ' buf: ' + str(''))
-        debug('>>>>' + self.getName() + ' segnum: ' + str(self.currentSegment.number) + ' subject: ' + self.currentSegment.nzbFile.subject + ' msgId: ' + self.currentSegment.messageId + '\n' + str(body[:4]))
+              str(self.currentSegment.bytes))
 
         self.currentSegment.articleData = body
         self.deferSegmentDecode(self.currentSegment)
@@ -276,10 +268,6 @@ class NewzSlurper(NNTPClient):
         now = time.time()
         self.updateByteCount(len(line))
         self.updateStats(now)
-        self.linecount += 1
-        if self.linecount < 4:
-            #debug(self.getName() + ' t: ' + str(self.transport.getHost()) + ' ||' + line + ' buf: ' + str(self.__buffer))
-            debug(self.getName() + ' t: ' + str(self.transport.getHost()) + ' ||' + line + ' buf: ' + str(''))
         
         NNTPClient.lineReceived(self, line)
 

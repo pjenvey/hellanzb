@@ -70,8 +70,6 @@ def parseArticleData(segment, justExtractFilename = False):
             if not ('line' in ybegin and 'size' in ybegin and 'name' in ybegin):
                 raise FatalError('* Invalid =ybegin line in part %d!' % 31337)
 
-            debug('segment header: ' + str(ybegin) + ' subject: ' + segment.nzbFile.subject + ' index: ' + str(segment.number) + ' dest: ' + segment.getTempFileName())
-
             setRealFileName(segment, ybegin['name'])
             encodingType = YENCODE
 
@@ -119,12 +117,6 @@ def setRealFileName(segment, filename):
     already previously set, set the actual filename atomically and also atomically rename
     known temporary files belonging to that nzbFile to use the new real filename """
     noFileName = segment.nzbFile.filename == None
-    from StringIO import StringIO
-    from traceback import print_stack
-    s = StringIO()
-    print_stack(file=s)
-    s = s.getvalue()
-    debug('setting filename: ' + filename + ' segment ' + segment.getTempFileName() + ' subject: ' + segment.nzbFile.subject + ' stack: ' + s)
     if noFileName and segment.number == 1:
         # We might have been using a tempFileName previously, and just succesfully found
         # the real filename in the articleData. Immediately rename any files that were
@@ -142,7 +134,6 @@ def setRealFileName(segment, filename):
                 newDest = tempFileNames.get(file)
                 shutil.move(WORKING_DIR + os.sep + file,
                             WORKING_DIR + os.sep + newDest)
-                debug('MOVED: ' + file + ' to: ' + newDest)
 
         segment.nzbFile.tempFileNameLock.release()
     else:
@@ -154,7 +145,6 @@ def decodeSegmentToFile(segment, encodingType = YENCODE):
     if encodingType == YENCODE:
         #debug('ydecoding line count: ' + str(len(segment.articleData.readlines())))
         decodedLines = yDecode(segment.articleData)
-        debug('DECODING to: ' + segment.getDestination() + ' subject: ' + segment.nzbFile.subject)
 
         # FIXME: crc check
         #decoded = ''.join(decodedLines)
@@ -283,6 +273,7 @@ def assembleNZBFile(nzbFile):
         os.remove(nzbSegment.getDestination())
 
     file.close()
+    # FIXME: could tell the queue hte file is done here
     #Hellanzb.queue
     debug('Assembled file: ' + nzbFile.getDestination() + ' from segment files: ' + \
           str([ nzbSegment.getDestination() for nzbSegment in nzbFile.nzbSegments ]))

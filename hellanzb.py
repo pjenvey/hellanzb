@@ -59,6 +59,9 @@ def loadConfig(fileName):
         debug('Found config file in directory: ' + os.path.dirname(fileName))
         return True
     
+    except FatalError, fe:
+        error('A problem occurred while reading your configuration file: ' + fe.message)
+        sys.exit(1)
     except:
         error('An unexpected error occurred file reading the config file:')
         raise

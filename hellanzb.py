@@ -74,8 +74,8 @@ if __name__ == '__main__':
     loadConfig()
 
     exe = os.path.basename(sys.argv[0])
-    if exe == "hellanzb":
+    if exe == "hellanzb.py":
         runDaemon()
         
-    elif exe == "troll":
+    elif exe == "troll.py":
         runTroll()

@@ -1,5 +1,5 @@
 import binascii, bisect, nntplib, os, re
-import select, socket, sys, time
+import select, socket, sys, time, asyncore
 
 import Hellanzb
 from Hellanzb.Logging import *
@@ -106,7 +106,6 @@ class Controller:
 
         print 'found %d posts.' % (len(posts))
 
-        
         if posts:
             useful = 0
 
@@ -121,10 +120,11 @@ class Controller:
                         break
 
                 if not found:
-                    print '(%s) No valid groups found!' % (swrap.name)
+                    print '(%s) No valid groups found!' % (id)
 
-#           if useful:
-#                self.get_bodies(posts)
+           if useful:
+               slurp_posts = posts
+               asyncore.loop(self.dmap)
 
 
     # ---------------------------------------------------------------------------

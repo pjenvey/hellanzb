@@ -15,12 +15,9 @@ import time
 
 from zlib import crc32
 
-from classes.Database import Database
 from classes.NZBParser import ParseNZB
 from classes.WrapPost import WrapPost
 from classes.WrapServer import WrapServer
-
-#from classes import ElementTree
 
 # We need the useful yenc module
 sys.path.append(os.path.expanduser('~/lib/python'))
@@ -32,13 +29,6 @@ except ImportError:
 
 # ---------------------------------------------------------------------------
 
-# Regexes for matching subjects
-SUBJECT_REs = (
-	re.compile(r'^(?P<subject>.*?)\((?P<partnum>\d+)\/(?P<numparts>\d+)\)$'),
-	re.compile(r'^(?P<subject>.*?) yEnc \((?P<partnum>\d+)\/(?P<numparts>\d+)\).*?$'),
-	re.compile(r'^(?P<subject>.*?)\((?P<partnum>\d+)\/(?P<numparts>\d+)\) yEnc.*?$'),
-)
-
 CHECK_FAIL = 0
 CHECK_PASS = 1
 CHECK_NEED_MORE = 2
@@ -46,18 +36,6 @@ CHECK_IGNORE = 3
 
 TYPE_UUENCODE = 'uuencode'
 TYPE_YENC = 'yenc'
-
-# ---------------------------------------------------------------------------
-#   msgid varchar(128) NOT NULL,
-CREATE_QUERY = """CREATE TABLE %s (
-   article bigint unsigned NOT NULL,
-   subject varchar(255) NOT NULL,
-   msgid varchar(128) NOT NULL,
-   size mediumint unsigned NOT NULL,
-   PRIMARY KEY (article)
-)"""
-
-INDEX_QUERY = "CREATE INDEX subject ON %s (subject)"
 
 # ---------------------------------------------------------------------------
 
@@ -72,10 +50,6 @@ class HeadHoncho:
 		self.Config = Config
 		self.jobs = jobs
 		
-		# Make a blank database object. We only need it if we're doing a 'match'
-		# post.
-		self.DB = None
-		
 		# Set up our connections
 		self.FDs = {}
 		self.Servers = []
@@ -87,10 +61,7 @@ class HeadHoncho:
 		self.Aliases = {}
 		for option in self.Config.options('aliases'):
 			self.Aliases[option] = self.Config.get('aliases', option)
-		
-		# XOVER stuff
-		self._xover_count = self.Config.getint('general', 'xover_count')
-		self._xover_rollback = self.Config.getint('general', 'xover_rollback')
+
 		self._incomplete_threshold = self.Config.getint('general', 'incomplete_threshold')
 		
 		# Work out our servers. First we sort by priority, then name.
@@ -129,15 +100,7 @@ class HeadHoncho:
 			# Is it a nzb job?
 			if job.endswith('.nzb'):
 				self.nzb_job(job)
-			
-			# Is it a match job?
-			elif job.find(':') >= 0:
-				# Start our database connection now
-				if self.DB is None:
-					self.DB = Database(self.Config)
-				
-				self.match_job(job)
-			
+
 			# Wtf is it then?
 			else:
 				ShowError("unknown job type '%s'", job)
@@ -181,313 +144,7 @@ class HeadHoncho:
 			
 			if useful:
 				self.get_bodies(posts)
-	
-	# ---------------------------------------------------------------------------
-	# Does all the stuff we need for a 'match' job.
-	def match_job(self, job):
-		# Get the info we'll be needing
-		newsgroup, matchme = job.split(':', 1)
-		
-		# It might be an alias
-		newsgroup = self.Aliases.get(newsgroup, newsgroup)
-		
-		# Select the group and see if we need to update the headers
-		print 'Entering %s:' % newsgroup
-		
-		xovers = []
-		
-		for swrap in self.Servers:
-			groupdata = swrap.set_group(newsgroup)
-			
-			# If we haven't updated this group yet, do so now
-			if newsgroup not in self.Updated:
-				# Work out if we have to do an XOVER here
-				group_first = long(groupdata[2])
-				group_last = long(groupdata[3])
-				
-				# Possibly create a table for this group
-				query = CREATE_QUERY % swrap.Table
-				try:
-					rows = self.DB.query(query)
-				except:
-					pass
-				else:
-					query = INDEX_QUERY % swrap.Table
-					rows = self.DB.query(query)
-				
-				# See if the cache has any articles
-				query = 'SELECT COUNT(1) as articles FROM %s' % swrap.Table
-				rows = self.DB.query(query)
-				count = long(rows[0]['articles'])
-				
-				# If there's no cache, we need to do a full update
-				if count == 0:
-					last = group_first
-				
-				# If there is a cache, we need to find out what the last article number was
-				else:
-					print '(%s) Purging old headers...' % (swrap.name),
-					sys.stdout.flush()
-					
-					text = 'SELECT article FROM %s ORDER BY article DESC LIMIT 1' % swrap.Table
-					rows = self.DB.query(text)
-					last = long(rows[0]['article']) + 1
-					
-					# If our cache is rather out of date, ignore it
-					text = 'SELECT COUNT(1) AS rowcount FROM %s' % swrap.Table
-					rowcount = self.DB.query(text)[0]['rowcount']
-					
-					if last < group_first:
-						text = 'TRUNCATE TABLE %s' % swrap.Table
-						done = self.DB.query(text)
-						
-						print '%d articles truncated.' % rowcount
-						
-						last = group_first
-					
-					else:
-						query = 'DELETE FROM %s WHERE article < %%s' % swrap.Table
-						done = self.DB.query(query, group_first)
-						
-						print '%d articles purged.' % done
-				
-				# If there are new headers, we better go get some
-				if last < group_last:
-					# If we have to rollback, take that into account
-					if count > 0 and self._xover_rollback:
-						last = last - (self._xover_count * self._xover_rollback * swrap.num_connects)
-						if last < 0 or last < group_first:
-							last = group_first
-						
-						print '(%s) Rolling back headers...' % (swrap.name),
-						sys.stdout.flush()
-						
-						query = 'DELETE FROM %s WHERE article >= %%s' % swrap.Table
-						done = self.DB.query(query, last)
-						
-						print '%d articles purged.' % done
-					
-					
-					grabme = (swrap, last, group_last)
-					xovers.append(grabme)
-		
-		# If we need to do some XOVERs, do so
-		if xovers:
-			self.xover(xovers)
-		
-		# And remember that we've updated it
-		self.Updated[newsgroup] = 1
-		
-		# If they just wanted to update the group, bail
-		if matchme == '':
-			return
-		
-		
-		# After all that, we can see if we have any matching articles
-		posts = {}
-		
-		print
-		print 'Searching for "%%%s%%"...' % (matchme),
-		
-		for swrap in self.Servers:
-			sys.stdout.flush()
-			
-			# Get any articles that match
-			query = "SELECT subject, msgid, size FROM %s WHERE subject LIKE '%%%s%%' ORDER BY subject, size DESC" % (swrap.Table, matchme)
-			cursor = self.DB.cursorquery(query)
-			
-			# Split the rows into posts
-			while 1:
-				result = cursor.fetchmany()
-				if not result:
-					break
-				
-				for row in result:
-					found = 0
-					for r in SUBJECT_REs:
-						m = r.match(row[0])
-						if m:
-							subject = m.group('subject')
-							partnum = int(m.group('partnum'))
-							numparts = int(m.group('numparts'))
-							
-							# Initialiase the data for this post if we have to
-							if subject not in posts:
-								posts[subject] = WrapPost()
-							
-							# Add the new info
-							posts[subject].add_part(partnum, row[1], int(row[2]), [swrap])
-							# Reset the number of parts
-							posts[subject].numparts = numparts
-							
-							found = 1
-							break
-					
-					if not found:
-						print 'NO MATCH:', row[0]
-			
-			cursor.close()
-			del cursor
-			del result
-		
-		
-		# If we have some posts, go do them now
-		print 'found %d posts.' % (len(posts))
-		
-		if posts:
-			self.get_bodies(posts)
-	
-	# ---------------------------------------------------------------------------
-	# Do an XOVER with multiple connections, oh dear
-	def xover(self, xovers):
-		# Function shortcuts
-		_select = select.select
-		_sleep = time.sleep
-		_time = time.time
-		
-		# Initialise some variables
-		active = []
-		ready = []
-		
-		got = 0
-		last_idle_check = _time()
-		oldper = 0
-		toget = 0
-		
-		# Set up our servers
-		for swrap, group_first, group_last in xovers:
-			for fd, nwrap in swrap.Conns.items():
-				nwrap.setblocking(0)
-				ready.append(fd)
-			
-			toget += (group_last - group_first + 1)
-			
-			# We'll need this stuff soon
-			swrap._last_activity = last_idle_check
-			
-			swrap._next = group_first
-			swrap._last = group_last
-			
-			swrap._last_activity = _time()
-			
-			swrap._query = 'INSERT INTO %s (article, subject, msgid, size) VALUES (%%s, %%s, %%s, %%s)' % swrap.Table
-		
-		# And grab
-		print '\rRetrieving %d new headers:   0%%' % (toget),
-		sys.stdout.flush()
-		
-		last_idle_time = _time()
-		
-		while 1:
-			currtime = _time()
-			
-			# Start the next XOVER if we have to
-			if ready:
-				found = 0
-				
-				for i in xrange(len(ready)):
-					swrap = self.FDs[ready[i]]
-					if swrap._next >= 0:
-						found = 1
-						
-						fd = ready.pop(i)
-						active.append(fd)
-						nwrap = swrap.Conns[fd]
-						
-						xover_start = swrap._next
-						xover_end = min(xover_start + self._xover_count - 1, swrap._last)
-						
-						# If this is the last bit of xover to do, don't do any more
-						if xover_end == swrap._last:
-							swrap._next = -1
-						else:
-							swrap._next = xover_end + 1
-						
-						# Send the command
-						nwrap.xover(xover_start, xover_end)
-						
-						break
-				
-				
-				if not found:
-					# All done?
-					if not active:
-						print '\rRetrieving %d new headers: complete!' % (toget)
-						break
-				
-				# Anti-idle time maybe
-				if currtime - last_idle_time >= 10:
-					last_idle_time = currtime
-					
-					for swrap in self.Servers:
-						if currtime - swrap._last_activity >= 30:
-							print '(%s) Anti-idle...' % (swrap.name)
-							swrap._last_activity = currtime
-							for nwrap in swrap.Conns.values():
-								nwrap.anti_idle()
-			
-			
-			# Select!
-			can_read = _select(active, [], [], 0)[0]
-			for fd in can_read:
-				swrap = self.FDs[fd]
-				swrap._last_activity = currtime
-				
-				nwrap = swrap.Conns[fd]
-				read_bytes, done = nwrap.recv_chunk()
-				
-				# Still more to do
-				if not done:
-					continue
-				
-				# We got a dot line, all done
-				new = []
-				for line in nwrap.lines:
-					try:
-						# don't care about poster, date, msgid, references, lines
-						article, subject, _, _, msgid, _, size, _ = line.split('\t', 7)
-					
-					except ValueError:
-						print 'Bad XOVER:', repr(line)
-					
-					new.append([article, subject, msgid, size])
-				
-				# Do the DB query if we have any new ones
-				if new:
-					self.DB.manyquery(swrap._query, new)
-					
-					# Update the counter maybe
-					got += len(new)
-					
-					newper = int(float(got) / toget * 100)
-					if newper > oldper:
-						oldper = newper
-						print '\rRetrieving %d new headers: %3d%%' % (toget, newper),
-						sys.stdout.flush()
-				
-				# Reset the data buffer
-				nwrap.lines = []
-				
-				# We're ready for more work
-				active.remove(fd)
-				ready.append(fd)
-			
-			# Sleep for a little bit
-			_sleep(0.01)
-		
-		# Clean up
-		for swrap in self.Servers:
-			try:
-				del swrap._last_activity
-				del swrap._next
-				del swrap._last
-				
-				for fd, nwrap in swrap.Conns.items():
-					nwrap.setblocking(1)
-			
-			except AttributeError:
-				pass
-	
+
 	# ---------------------------------------------------------------------------
 	# Retrieve a set of bodies with multiple connections, arggh
 	def get_bodies(self, posts):
@@ -936,16 +593,6 @@ def magic_sort(a, b):
 		return cmp(a, b)
 
 # ---------------------------------------------------------------------------
-
-def SameFormat(a, b):
-	'Format a and b in the same number format'
-	
-	if (a < 10) and (b < 10):
-		return '%d/%d' % (a, b)
-	elif (a < 100) and (b < 100):
-		return '%02d/%02d' % (a, b)
-	elif (a < 1000) and (b < 1000):
-		return '%03d/%03d' % (a, b)
 
 def NiceSize(bytes):
 	bytes = float(bytes)

@@ -185,12 +185,6 @@ def cleanUp(dirName):
     if not os.path.exists(dirName) or not os.path.isdir(dirName):
         return
 
-    # If we had a fatal error and we moved the _broken files, put them back as to not
-    # confuse anyone about what's in the directory
-    for file in brokenFiles:
-        fixedName = file[:-len('_broken')]
-        os.rename(fixedName, file)
-
     # Delete the processed dir only if it doesn't contain anything
     try:
         os.rmdir(dirName + os.sep + Hellanzb.PROCESSED_SUBDIR)

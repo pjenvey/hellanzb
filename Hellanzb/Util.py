@@ -101,8 +101,8 @@ shortly after every read """
 class Ptyopen2(Ptyopen):
     """ Ptyopen = Popen3
         Ptyopen2 = Popen4
-	Python was lame for naming it that way and I am just as lame
-	for following suit """
+        Python was lame for naming it that way and I am just as lame
+        for following suit """
     def __init__(self, cmd, bufsize = -1):
         """ Popen3 class (isn't this actually Popen4, capturestderr = False?) that uses ptys
 instead of pipes, to allow inline reading (instead of potential i/o buffering) of output

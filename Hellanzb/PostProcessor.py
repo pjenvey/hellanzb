@@ -124,9 +124,9 @@ class PostProcessor(Thread):
         info(archiveName(self.dirName) + ': Decompressing ' + str(len(self.musicFiles)) + \
              ' files via ' + str(int(Hellanzb.MAX_DECOMPRESSION_THREADS)) + ' threads..')
 
-	# Failed decompress threads put their file names in this list
-	self.failedToProcesses = []
-	self.failedLock = Lock()
+        # Failed decompress threads put their file names in this list
+        self.failedToProcesses = []
+        self.failedLock = Lock()
 
         # Maintain a pool of threads of the specified size until we've exhausted the
         # musicFiles list
@@ -152,11 +152,11 @@ class PostProcessor(Thread):
         for decompressor in self.decompressionThreadPool:
             decompressor.join()
 
-	if len(self.failedToProcesses) > 0:
-	    # Let the threads finish their logging (ScrollInterrupter can
-	    # lag)
-	    time.sleep(.1)
-	    raise FatalError('Failed to complete music decompression')
+        if len(self.failedToProcesses) > 0:
+            # Let the threads finish their logging (ScrollInterrupter can
+            # lag)
+            time.sleep(.1)
+            raise FatalError('Failed to complete music decompression')
 
         processComplete(self.dirName, 'music', None)
         info(archiveName(self.dirName) + ': Finished decompressing')
@@ -174,12 +174,12 @@ class PostProcessor(Thread):
 
         # Move out anything else that's broken, a dupe or tagged as
         # not required
-	for file in self.brokenFiles:
-	    if os.path.isfile(self.dirName + os.sep + file):
+        for file in self.brokenFiles:
+            if os.path.isfile(self.dirName + os.sep + file):
                 os.rename(self.dirName + os.sep + file,
                           self.dirName + os.sep + Hellanzb.PROCESSED_SUBDIR + os.sep + file)
 
-	for file in os.listdir(self.dirName):
+        for file in os.listdir(self.dirName):
             ext = getFileExtension(file)
             if ext != None and len(ext) > 0 and ext in Hellanzb.NOT_REQUIRED_FILE_TYPES:
                 os.rename(self.dirName + os.sep + file,

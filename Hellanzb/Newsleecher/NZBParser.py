@@ -17,6 +17,8 @@ def ParseNZB(filename, servers):
         
         # No XML namespaces here
         parser.setFeature(feature_namespaces, 0)
+
+        # Don't get external entities (like trying to d/l remote dtds)
         parser.setFeature(feature_external_ges, 0)
         
         # Dicts to shove things into

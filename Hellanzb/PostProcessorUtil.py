@@ -49,11 +49,11 @@ class DecompressionThread(Thread):
         Thread.__init__(self)
 
     def failure(self):
-	""" There was a problem decompressing -- let the parent know """
-	self.parent.failedLock.acquire()
-	self.parent.failedToProcesses.append(self.file)
-	self.parent.failedLock.release()
-	    
+        """ There was a problem decompressing -- let the parent know """
+        self.parent.failedLock.acquire()
+        self.parent.failedToProcesses.append(self.file)
+        self.parent.failedLock.release()
+            
     def run(self):
         """ decompress the song, then remove ourself from the active thread pool """
         # Catch exceptions here just in case, to ensure notify() will finally be called

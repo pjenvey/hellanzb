@@ -94,7 +94,7 @@ exiting """
 
         # If there aren't any proceses to wait for exit immediately
         if len(popen2._active) == 0:
-            shutdown(Hellanzb.SHUTDOWN_CODE)
+            shutdownNow(Hellanzb.SHUTDOWN_CODE)
 
         # The idea here is to 'cheat' again to exit the program ASAP if all the processes
         # are associated with the main thread (the processes would have already gotten the
@@ -106,7 +106,7 @@ exiting """
                 threadsOutsideMain = True
 
         if not threadsOutsideMain:
-            shutdown(Hellanzb.SHUTDOWN_CODE)
+            shutdownNow(Hellanzb.SHUTDOWN_CODE)
 
         # We couldn't cheat our way out of the program, tell the user the processes
         # (threads) we're waiting on, and wait for another signal
@@ -138,7 +138,7 @@ exiting """
                 except OSError, ose:
                     error('Unexpected problem while kill -9ing process' + popen.cmd, ose)
 
-            shutdown(Hellanzb.SHUTDOWN_CODE)
+            shutdownNow(Hellanzb.SHUTDOWN_CODE)
 
 def init(options):
     """ initialize the app """
@@ -169,8 +169,11 @@ def shutdown(returnCode = 0):
     ScrollInterrupter.pendingMonitor.notify()
     ScrollInterrupter.pendingMonitor.release()
     
-    sys.exit(returnCode)
+def shutdownNow(returnCode = 0):
+    shutdown(returnCode)
 
+    sys.exit(returnCode)
+    
 if __name__ == '__main__':
 
     parser = optparse.OptionParser(version = Hellanzb.version)
@@ -203,7 +206,7 @@ if __name__ == '__main__':
             info('\nStarting post processor')
             troll.start()
             troll.join()
-            shutdown()
+            shutdownNow()
         
         else:
             info('\nStarting queue daemon')
@@ -214,7 +217,8 @@ if __name__ == '__main__':
         pass
     except FatalError, fe:
         error('Exiting', fe)
-        shutdown(1)
+        shutdownNow(1)
     except Exception, e:
         error('An unexpected problem occurred, exiting', e)
         shutdown(1)
+        raise

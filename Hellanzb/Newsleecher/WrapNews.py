@@ -90,6 +90,10 @@ class WrapNews:
                         self.reconnect()
                         print '\r* Lost a server connection, reconnected to %s:%s.' % (self.host,self.port)
                         self.setblocking(1)
+                except nntplib.NNTPPermanentError, e:
+                        self.reconnect()
+                        print '\r* Lost a server connection, reconnected to %s:%s.' % (self.host,self.port)
+                        self.setblocking(1)
         
         # Send a BODY command
         def body(self, article):

@@ -35,4 +35,6 @@ post-activate {
                 file copy ${prefix}/etc/${name}.conf.sample \
                         ${prefix}/etc/${name}.conf
         }
+# FIXME: symlink /Systtem/Library/Frameworks/Python.framework/Version/Current/lib/site-packages/Hellanzb
+# to the dir in /opt/local
 }

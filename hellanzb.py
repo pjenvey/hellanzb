@@ -77,6 +77,7 @@ def loadConfig(fileName):
         error('A problem occurred while reading the config file', fe)
         raise
     except Exception, e:
+        # FIXME: log stack trace of original Exception!
         msg = 'An unexpected error occurred while reading the config file'
         error(msg, e)
         raise FatalError(msg)
@@ -147,6 +148,8 @@ exiting """
 def init(options):
     """ initialize the app """
     Hellanzb.SHUTDOWN_CODE = 20
+
+    Hellanzb.SERVERS = {}
 
     # Troll threads
     Hellanzb.postProcessors = []

@@ -44,5 +44,19 @@ defineMusicType('flac', 'flac -d <FILE>', 'wav')
 defineMusicType('wav', None, None)
 defineMusicType('mp3', None, None)
 
+# Define multiple servers. Servers can have multiple hosts, Newsleecher will persist the
+# number of connections to you specify to each server
+#defineServer(id = 'somewhere',
+#             hosts = ['news.somewhere.com:119', 'morenews.somewhere.com:119'],
+#             username = 'change',
+#             password = 'me',
+#             connections = 4,
+#             priority = 1,
+#             bindto = '')
+
+# NOTE: Probably not in use right now, from Newsleecher -- Posts _less_ than this percent
+# complete will be skipped
+Hellanzb.Newsleecher.INCOMPLETE_THRESHOLD = 90
+
 # for debugging
 Hellanzb.DEBUG_MODE = False

@@ -4,14 +4,14 @@ import getpass
 import nntplib
 import sys
 
-from classes.WrapNews import WrapNews
+from WrapNews import WrapNews
 
 # ---------------------------------------------------------------------------
 
 class WrapServer:
-	def __init__(self, Config, section):
-		self.Config = Config
-		self.name = section[7:]
+	def __init__(self, serverInfo):
+                self.serverInfo = serverInfo
+		self.name = self.serverInfo['id']
 		
 		self.Conns = {}
 		
@@ -20,13 +20,12 @@ class WrapServer:
 	# ---------------------------------------------------------------------------
 	# Open our connections
 	def connect(self):
-		section = 'server.%s' % self.name
-		
 		# Get the info we need to connect
-		_servers = self.Config.get(section, 'nntp_server').split()
-		_user = self.Config.get(section, 'nntp_username') or None
-		_pass = self.Config.get(section, 'nntp_password') or None
-		_bindto = self.Config.get(section, 'bindto')
+                _servers = self.serverInfo['hosts']
+                _user = self.serverInfo['username']
+                _pass = self.serverInfo['password']
+                _bindto = self.serverInfo['bindto']
+                
 		if _bindto:
 			_bindto = _bindto.split(' ')
 		else:
@@ -42,7 +41,7 @@ class WrapServer:
 		sys.stdout.flush()
 		
 		# We only support 1-10 connections per server
-		self.num_connects = max(1, min(10, self.Config.getint(section, 'connections')))
+                self.num_connects = max(1, min(10, self.serverInfo['connections']))
 		
 		# Build our connections
 		success = 0

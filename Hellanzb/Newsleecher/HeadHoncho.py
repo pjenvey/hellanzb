@@ -13,11 +13,13 @@ import socket
 import sys
 import time
 
+import Hellanzb
+
 from zlib import crc32
 
-from classes.NZBParser import ParseNZB
-from classes.WrapPost import WrapPost
-from classes.WrapServer import WrapServer
+from NZBParser import ParseNZB
+from WrapPost import WrapPost
+from WrapServer import WrapServer
 
 # We need the useful yenc module
 sys.path.append(os.path.expanduser('~/lib/python'))
@@ -46,8 +48,7 @@ def ShowError(text, *args):
 	sys.exit(-1)
 
 class HeadHoncho:
-	def __init__(self, Config, jobs):
-		self.Config = Config
+	def __init__(self, jobs):
 		self.jobs = jobs
 		
 		# Set up our connections
@@ -56,27 +57,26 @@ class HeadHoncho:
 		
 		# Groups we've updated already
 		self.Updated = {}
-		
-		# Expand any aliases we have
-		self.Aliases = {}
-		for option in self.Config.options('aliases'):
-			self.Aliases[option] = self.Config.get('aliases', option)
 
-		self._incomplete_threshold = self.Config.getint('general', 'incomplete_threshold')
+		self._incomplete_threshold = Hellanzb.Newsleecher.INCOMPLETE_THRESHOLD
 		
 		# Work out our servers. First we sort by priority, then name.
 		servers = []
 		
-		for section in [s for s in self.Config.sections() if s.startswith('server.')]:
-			priority = self.Config.getint(section, 'priority')
-			servers.append((priority, section))
-		
+                for id in Hellanzb.SERVERS:
+                        serverInfo = Hellanzb.SERVERS[id]
+                        # We're keying by the id here, store it for later use
+                        serverInfo['id'] = id
+
+                        priority = serverInfo['priority']
+                        servers.append((priority, serverInfo))
+                        
 		servers.sort()
 		
 		# Now actually start them up
-		for priority, section in servers:
+		for priority, serverInfo in servers:
 			# Build our wrap
-			swrap = WrapServer(self.Config, section)
+			swrap = WrapServer(serverInfo)
 			self.Servers.append(swrap)
 			
 			# Connect

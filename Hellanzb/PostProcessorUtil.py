@@ -236,29 +236,38 @@ def processRars(dirName, rarPassword):
     if not isFreshState(dirName, 'rar'):
         return
 
-    # sort the filenames and assume the first thing to look like a rar is what we want to
-    # begin unraring with
-    firstRar = None
+    # loop through a sorted list of the files until we find the first
+    # rar, then unrar it. skip over any files we know unrar() has
+    # already processed, and repeat
+    processedRars = []
     files = os.listdir(dirName)
     files.sort()
     for file in files:
-        absPath = dirName + os.sep + file
-        if os.path.isfile(absPath) and isRar(absPath) and not isAlbumCoverArchive(absPath):
-            firstRar = file
-            break
+        absPath = os.path.normpath(dirName + os.sep + file)
+	
+        if isRar(absPath) and not isAlbumCoverArchive(absPath) and absPath not in processedRars:
+	    processedRars.extend(unrar(absPath, rarPassword))
+    
+    processComplete(dirName, 'rar',
+                    lambda file : os.path.isfile(file) and isRar(file) and not isAlbumCoverArchive(file))
+    info(archiveName(dirName) + ': Finished unraring')
 
-    if firstRar == None:
+def unrar(fileName, rarPassword = None, pathToExtract = None):
+    """ Unrar the specified file. Returns all the rar files we extracted from """
+    if fileName == None:
         # FIXME: this last part is dumb, when isAlbumCoverArchive works, this FetalError
         # could mean the only rars we found are were album covers
         raise FatalError('Unable to locate the first rar')
 
-    # run rar from dirName, so it'll output files there
-    oldWd = os.getcwd()
-    os.chdir(dirName)
+    dirName = os.path.dirname(fileName)
+
+    # By default extract to the file's dir
+    if pathToExtract == None:
+	pathToExtract = dirName
 
     # First, list the contents of the rar, if any filenames are preceeded with *, the rar
     # is passworded
-    listCmd = Hellanzb.UNRAR_CMD + ' l -y ' + ' "' + firstRar + '"'
+    listCmd = Hellanzb.UNRAR_CMD + ' l -y ' + ' "' + fileName + '"'
     p = Ptyopen(listCmd)
     output, listStatus = p.readlinesAndWait()
     listReturnCode = os.WEXITSTATUS(listStatus)
@@ -294,28 +303,35 @@ def processRars(dirName, rarPassword):
         growlNotify('Archive Error', 'hellanzb Archive requires password:', archiveName(dirName),
                     True)
         raise FatalError('Cannot continue, this archive requires a RAR password and there is none set')
-
+	
     if isPassworded:
-        cmd = Hellanzb.UNRAR_CMD + ' x -y -p' + rarPassword + ' "' + firstRar + '"'
+        cmd = Hellanzb.UNRAR_CMD + ' x -y -p' + rarPassword + ' "' + fileName + '" "' + \
+	    pathToExtract + '"'
     else:
-        cmd = Hellanzb.UNRAR_CMD + ' x -y ' + ' "' + firstRar + '"'
+        cmd = Hellanzb.UNRAR_CMD + ' x -y ' + ' "' + fileName + '" "' + pathToExtract + '"'
     
-    info(archiveName(dirName) + ': Unraring..')
+    info(archiveName(dirName) + ': Unraring ' + os.path.basename(fileName))
     p = Ptyopen(cmd)
     output, status = p.readlinesAndWait()
     unrarReturnCode = os.WEXITSTATUS(status)
-
-    os.chdir(oldWd)
 
     if unrarReturnCode > 0:
         errMsg = 'There was a problem during unrar, output:\n\n'
         for line in output:
             errMsg += line
         raise FatalError(errMsg)
-    
-    processComplete(dirName, 'rar',
-                    lambda file : os.path.isfile(file) and isRar(file) and not isAlbumCoverArchive(file))
-    info(archiveName(dirName) + ': Finished unraring')
+
+    # Return a tally of all the rars extracted from
+    processedRars = []
+    prefix = 'Extracting from '
+    for line in output:
+	if len(line) > len(prefix) + 1 and line.find(prefix) == 0:
+	   rarFile = line[len(prefix):].rstrip()
+	   # Distrust the dirname rar returns (just incase)
+	   rarFile = os.path.normpath(os.path.dirname(fileName) + os.sep + os.path.basename(rarFile))
+	   processedRars.append(rarFile)
+
+    return processedRars
 
 def processPars(dirName):
     """ Verify the integrity of the files in the specified directory via par2. If files need

@@ -57,11 +57,13 @@ Hellanzb.MAX_DECOMPRESSION_THREADS = 2
 
 
 # Enable grow notifications for 31337 Mac OS X people
-Hellanzb.ENABLE_GROWL_NOTIFY = True
+Hellanzb.GROWL_NOTIFY = True
 
-# The hellagrowler notification server, in the format 'hostname:port'
-Hellanzb.SERVER = 'IP:7300'
+# The growl notification server, in the format 'hostname'
+Hellanzb.GROWL_SERVER = 'IP'
 
+# The growl password
+Hellanzb.GROWL_PASSWORD = 'password'
 
 # If any of the following file types are missing from the archive and cannot be repaired,
 # continue processing because they're unimportant

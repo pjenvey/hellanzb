@@ -249,14 +249,12 @@ def UUDecode(dataList):
             except binascii.Error, msg:
                 error('\n* Decode failed in part %d: %s' % (31337, msg))
                 error('=> %s' % (repr(line)))
-                #print '\n* Decode failed in part %d: %s' % (nwrap._partnum, msg)
-                #print '=> %s' % (repr(nwrap.lines[i]))
 
     return buffer
 
 def assembleNZBFile(nzbFile):
     """ Assemble the final file from all the NZBFile's decoded segments """
-    # FIXME: someone has to pad the file if we have broken pieces
+    # FIXME: does someone has to pad the file if we have broken pieces?
     
     # FIXME: don't overwrite existing files???
     file = open(nzbFile.getDestination(), 'wb')
@@ -288,12 +286,16 @@ def tryFinishNZB(nzb):
     start = time.time()
     done = True
 
-    # FIXME: should only look in the queue's list of known files for what to loop
-    # through. this function could be in charge of deleting those files from the queue
-    # when they're considered done
-    for nzbFile in nzb.nzbFileElements:
-        #if not nzbFile.isAllSegmentsDecoded():
-        #if not nzbFile.isAssembled():
+    # Only loop through the nzb nzbFile's that lie in the Queue (and belong to the
+    # specified NZB)
+    Hellanzb.queue.nzbFilesLock.acquire()
+    queueFilesCopy = Hellanzb.queue.nzbFiles.copy()
+    Hellanzb.queue.nzbFilesLock.release()
+
+    for nzbFile in queueFilesCopy:
+        if nzbFile not in nzb.nzbFileElements:
+            continue
+        
         if nzbFile.needsDownload():
             debug('NOT DONE, file: ' + nzbFile.getDestination())
             done = False

@@ -9,6 +9,9 @@ from Hellanzb.Logging import *
 from Hellanzb.PostProcessorUtil import defineMusicType
 from Hellanzb.Util import *
 
+# FIXME
+from Hellanzb.NewzSlurp.NewzSlurper import shutdownNewzSlurp
+
 __id__ = '$Id$'
 
 def findAndLoadConfig(optionalConfigFile = None):
@@ -66,10 +69,11 @@ def signalHandler(signum, frame):
     exiting """
 
     # CTRL-C
+    sys.stdout.flush()
     if signum == signal.SIGINT:
-        # FIXME: sup this doesnt work
-        #from Hellanzb.NewzSlurp.NewzSlurper import shutdownNewzSlurp
-        #shutdownNewzSlurp()
+        sys.stdout.flush()
+        shutdownNewzSlurp()
+
         # lazily notify everyone they should stop immediately
         Hellanzb.shutdown = True
         

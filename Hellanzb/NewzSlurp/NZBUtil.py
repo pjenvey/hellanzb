@@ -117,12 +117,14 @@ class NZBFile:
         # FIXME: BLAH!
         self.tempFileNameLock = RLock()
 
+        self.showFilename = None
         
         self.totalBytes = 0
 
         self.downloadStartTime = None
         self.totalReadBytes = 0
         self.downloadPercentage = 0
+        self.speed = 0
 
     def getDestination(self):
         """ Return the destination of where this file will lie on the filesystem. The filename
@@ -249,7 +251,7 @@ class NZBSegment:
 class NZBQueue(PriorityQueue):
     """ priority fifo queue of segments to download. lower numbered segments are downloaded
     before higher ones """
-    NZB_CONTENT_P = 10 # normal nzb downloads
+    NZB_CONTENT_P = 100000 # normal nzb downloads
     EXTRA_PAR2_P = 0 # par2 after-the-fact downloads are more important
 
     def __init__(self, fileName = None):
@@ -262,6 +264,8 @@ class NZBQueue(PriorityQueue):
         
         if fileName is not None:
             self.parseNZB(fileName)
+
+        self.totalQueuedBytes = 0
 
     def _put(self, item):
         """ """
@@ -278,6 +282,15 @@ class NZBQueue(PriorityQueue):
                 self.nzbFiles.add(item.nzbFile)
             PriorityQueue._put(self, item)
 
+    def calculateTotalQueuedBytes(self):
+        # FIXME: we don't maintain this calculation all the time, too much CPU work for
+        # _put
+        self.nzbFilesLock.acquire()
+        files = self.nzbFiles.copy()
+        self.nzbFilesLock.release()
+        for nzbFile in files:
+            self.totalQueuedBytes += nzbFile.totalBytes
+
     def fileDone(self, nzbFile):
         """ Notify the queue a file is done. This is called after assembling a file into it's
         final contents. Segments are really stored independantly of individual Files in
@@ -286,6 +299,7 @@ class NZBQueue(PriorityQueue):
         if nzbFile in self.nzbFiles:
             self.nzbFiles.remove(nzbFile)
         self.nzbFilesLock.release()
+        self.totalQueuedBytes += nzbFile.totalBytes
 
     def parseNZB(self, fileName):
         """ Initialize the queue from the specified nzb file """
@@ -296,10 +310,6 @@ class NZBQueue(PriorityQueue):
         parser.setFeature(feature_namespaces, 0)
         parser.setFeature(feature_external_ges, 0)
         
-        # Dicts to shove things into
-        newsgroups = {}
-        posts = {}
-        
         # Create the handler
         nzb = NZB(fileName)
         dh = NZBParser(self, nzb)
@@ -309,6 +319,8 @@ class NZBQueue(PriorityQueue):
 
         # Parse the input
         parser.parse(fileName)
+
+        self.calculateTotalQueuedBytes()
 
         # In the case the NZBParser determined the entire archive's contents are already
         # on the filesystem, try to finish up (and move onto post processing)
@@ -336,24 +348,20 @@ class NZBParser(ContentHandler):
 
         self.fileNeedsDownload = None
         self.fileCount = 0
+        self.segmentCount = 0
         
     def startElement(self, name, attrs):
         if name == 'file':
-            #FIXME
-            #print 'got: ' + unicode(attrs.get('subject'))
-            #i = open('/tmp/ww', 'wb')
-            #i.write(attrs.get('subject').encode('utf-8'))
-            #i.close()
-            #print 'got: ' + attrs.get('subject').encode('utf-8')
-            # FIXME: subject can be unicode, any of the other attribs?
             subject = attrs.get('subject')
             if isinstance(subject, unicode):
                 subject = subject.encode('latin-1')
-            #self.file = NZBFile(attrs.get('subject'), attrs.get('date'), attrs.get('poster'),
-            self.file = NZBFile(subject, attrs.get('date'), attrs.get('poster'),
-                                self.nzb)
+            poster = attrs.get('poster')
+            if isinstance(poster, unicode):
+                poster = poster.encode('latin-1')
+                
+            self.file = NZBFile(subject, attrs.get('date'), poster, self.nzb)
             self.fileNeedsDownload = self.file.needsDownload()
-            #debug('fileNeeds: ' + str(self.fileNeedsDownload))
+
             self.fileCount += 1
             self.file.number = self.fileCount
                 
@@ -383,12 +391,13 @@ class NZBParser(ContentHandler):
             self.chars = None
                 
         elif name == 'segment':
+            self.segmentCount += 1
             messageId = ''.join(self.chars)
             if isinstance(messageId, unicode):
                 messageId = messageId.encode('latin-1')
             nzbs = NZBSegment(self.bytes, self.number, messageId, self.file)
             if self.fileNeedsDownload:
-                self.queue.put((NZBQueue.NZB_CONTENT_P, nzbs))
+                self.queue.put((NZBQueue.NZB_CONTENT_P+ self.segmentCount, nzbs))
 
             self.chars = None
             self.number = None

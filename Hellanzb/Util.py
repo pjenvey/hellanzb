@@ -252,20 +252,23 @@ def defineServer(**args):
     for var in (args):
         exec 'Hellanzb.SERVERS[id][\'' + var + '\'] = args[\'' + var + '\']'
 
-def truncate(str, length = 60):
+def truncate(str, length = 60, reverse = False):
     """ Truncate a string to certain length. Appends '...' to the string if truncated -- and
 those three periods are included in the specified length"""
     if str == None:
         return str
     
     if len(str) > int(length):
-        return str[0:int(length) - 3] + '...'
+        if reverse:
+            return '...' + str[-(int(length) - 3):]
+        else:
+            return str[0:int(length) - 3] + '...'
     
     return str
 
 def getStack():
     """ Return the current execution stack as a string """
     s = StringIO()
-    print_stack(file=s)
+    print_stack(file = s)
     s = s.getvalue()
     return s

@@ -24,13 +24,16 @@ def initNewzSlurp():
     log.startLogging(fileStream)
 
     from Hellanzb.NewzSlurp.NZBUtil import NZBQueue
-    # FIXME:
+    # Create the one and only download queue
     Hellanzb.queue = NZBQueue()
 
-    # create factory protocol and application
+    # Create the one and only twisted factory
     Hellanzb.nsf = NewzSlurperFactory()
 
+    # notified when an NZB file has finished donwloading
     Hellanzb.nzbfileDone = Condition()
+    
+    startNewzSlurp()
 
 def startNewzSlurp():
     """ gogogo """
@@ -59,6 +62,16 @@ def startNewzSlurp():
     reactor.suggestThreadPoolSize(1)
 
     start_new_thread(reactor.run, (), { 'installSignalHandlers': False })
+    #reactor.run(installSignalHandlers = False )
+
+    #reactor.callLater(4, checkShutdownTwisted)
+
+def checkShutdownTwisted():
+    try:
+        checkShutdown()
+    except SystemExit:
+        shutdownNewzSlurp()
+    reactor.callLater(4, checkShutdownTwisted)
     
 def shutdownNewzSlurp():
     """ """
@@ -81,11 +94,31 @@ class NewzSlurperFactory(UsenetClientFactory):
 
         self.deferredEmptyQueue = None
 
+        # FIXME: idle the connection by: returning nothing, having a callLater handle an
+        # idle call. whenever there's activity, we cancel the idle call and reschedule for
+        # later
+        self.clients = []
+
+        # could maintain a map of protocol to log message. we only print when we have new
+        # log messages from every connection
+        self.scroller = NewzSlurpStatLog()
+
     def buildProtocol(self, addr):
         last = self.lastChecks.setdefault(addr, time.mktime(time.gmtime()) - (60 * 60 * 24 * 7))
         p = NewzSlurper(self.username, self.password)
         p.factory = self
+        # FIXME: Is it safe to maintain the clients in this list?
+        self.clients.append(p)
+        self.scroller.size += 1
         return p
+
+    def fetchNextNZBSegment(self):
+        for p in self.clients:
+            #p.fetchNextNZBSegment
+            #debug('GO-' + p.getName())
+            p.fetchNextNZBSegment()
+            # HMM: Why can't the reactor do this
+            #reactor.callLater(0, p.fetchNextNZBSegment)
 
 class NewzSlurper(NNTPClient):
 
@@ -100,7 +133,7 @@ class NewzSlurper(NNTPClient):
         
         self.downloadStartTime = None
         self.readBytes = 0
-        self.filename = None
+        #self.filename = None
 
         self.activeGroups = []
         self.currentSegment = None
@@ -135,7 +168,7 @@ class NewzSlurper(NNTPClient):
 
         self.fetchNextNZBSegment()
 
-    def fetchNextNZBSegment(self, arg1=None, arg2=None):
+    def fetchNextNZBSegment(self):
         """ Pop nzb article from the queue, and attempt to retrieve it if it hasn't already been
         retrieved"""
         # FIXME: all segments are on the filesystem, but not assembled. needsDownload from
@@ -156,48 +189,10 @@ class NewzSlurper(NNTPClient):
                     nextSegment = Hellanzb.queue.get_nowait()
 
                 self.currentSegment = nextSegment
-                self.filename = os.path.basename(self.currentSegment.nzbFile.getDestination())
+                if self.currentSegment.nzbFile.showFilename == None:
+                    self.currentSegment.nzbFile.showFilename = os.path.basename(self.currentSegment.nzbFile.getDestination())
             except Empty:
-                from Hellanzb.Util import getStack
-                debug(self.getName() + ' DONE downloading')
-                #debug(self.getName() + ' DONE downloading' + getStack())
-                ##time.sleep(10)
-                #return
-                #debug('b')
-                # Can other connections use this same deferred? just add themselves as
-                # callbacks.
-                #if self.factory.deferredEmptyQueue == None:
-                #    self.factory.deferredEmptyQueue = flow.Deferred(Threaded(doh(self)))
-                ##d = flow.Deferred(Threaded(doh(self)))
-                #debug('a')
-                ##d.addCallback(self.fetchNextNZBSegment)
-                if self.factory.deferredEmptyQueue == None:
-                    debug('NEW defQUEUE!')
-                    self.factory.deferredEmptyQueue = wtf()
-                    #self.factory.deferredEmptyQueue = flow.Deferred(Threaded(doh2(self)))
-                else:
-                    self.factory.deferredEmptyQueue.deferredFinishedLock.acquire()
-                    if self.factory.deferredEmptyQueue.deferredFinished == True:
-                        debug('NEW defQUEUE!')
-                        self.factory.deferredEmptyQueue.deferredFinishedLock.release()
-                        self.factory.deferredEmptyQueue = wtf()
-                    else:
-                        debug('NOT FINISHED!')
-                        self.factory.deferredEmptyQueue.deferredFinishedLock.release()
-                    pass
-                        
-                ###self.factory.deferredEmptyQueue.addCallback(self, self.fetchNextNZBSegment)
-                self.factory.deferredEmptyQueue.addCallback(self, callback)
-                
-                #self.factory.deferredEmptyQueue.addCallback(self.fetchNextNZBSegment, callbackArgs=(self))
-                debug('gonna add callback' + self.getName())
-                #self.factory.deferredEmptyQueue.addCallback(self.fetchNextNZBSegment)
-                debug('ADDED CALLBACK!')
-                #return self.factory.deferredEmptyQueue.d
-                return self.factory.deferredEmptyQueue
-                #return d
-                #return
-                #return                
+                return
 
         # Change group
         for i in xrange(len(self.currentSegment.nzbFile.groups)):
@@ -223,6 +218,8 @@ class NewzSlurper(NNTPClient):
         if self.currentSegment != None and self.currentSegment.nzbFile.downloadStartTime == None:
             self.currentSegment.nzbFile.downloadStartTime = start
         self.downloadStartTime = start
+        
+        self.factory.scroller.segments.append(self.currentSegment)
         NNTPClient.fetchBody(self, '<' + index + '>')
 
     def getName(self):
@@ -240,16 +237,45 @@ class NewzSlurper(NNTPClient):
               self.currentSegment.getDestination() + ' lines: ' + str(len(body)) + ' expected size: ' + \
               str(self.currentSegment.bytes))
 
+        hi = """
         self.myState = None
+
         self.currentSegment.articleData = body
         self.deferSegmentDecode(self.currentSegment)
-        self.currentSegment = None
 
+        self.currentSegment = None
         self.downloadStartTime = None
         self.readBytes = 0
 
         self.fetchNextNZBSegment()
+        """
+        self.processBodyAndContinue(body)
+        
+    def gotBodyFailed(self, err):
+        """ Handle a failure of the BODY command. Ensure the failed segment gets a 0 byte file
+        written to the filesystem when this occurs """
+        debug(self.getName() + ' got BODY FAILED, error: ' + str(err) + ' for messageId: <' + \
+              self.currentSegment.messageId + '> ' + self.currentSegment.getDestination() + \
+              ' expected size: ' + str(self.currentSegment.bytes))
+        
+        self.processBodyAndContinue('')
 
+    def processBodyAndContinue(self, articleData):
+        """ Defer decoding of the specified articleData of the currentSegment, reset our state and
+        continue fetching the next queued segment """
+        self.myState = None
+
+        self.factory.scroller.segments.remove(self.currentSegment)
+
+        self.currentSegment.articleData = articleData
+        self.deferSegmentDecode(self.currentSegment)
+
+        self.currentSegment = None
+        self.downloadStartTime = None
+        self.readBytes = 0
+
+        self.fetchNextNZBSegment()
+        
     def deferSegmentDecode(self, segment):
         """ Decode the specified segment in a separate thread """
         reactor.callInThread(decode, segment)
@@ -304,14 +330,13 @@ class NewzSlurper(NNTPClient):
     def connectionLost(self, reason):
         NNTPClient.connectionLost(self) # calls self.factory.clientConnectionLost(self, reason)
         error(self.getName() + ' lost connection: ' + str(reason))
-        
-    def gotBodyFailed(self, err):
-        # FIXME:
-        pass
+
+        self.activeGroups = []
+        self.factory.clients.remove(self)
+        self.scroller.size -= 1
 
     def lineReceived(self, line):
         # Update stats for current segment if we're issuing a BODY command
-        #if self._state[0] == self._stateBody:
         if self.myState == 'body':
             now = time.time()
             self.updateByteCount(len(line))
@@ -336,107 +361,73 @@ class NewzSlurper(NNTPClient):
 
         if self.currentSegment.nzbFile.downloadPercentage > oldPercentage:
             elapsed = max(0.1, now - self.currentSegment.nzbFile.downloadStartTime)
-            speed = self.currentSegment.nzbFile.totalReadBytes / elapsed / 1024.0
-            scroll('\r* Downloading %s - %2d%% @ %.1fKB/s' % (truncate(self.filename),
-                                                             self.currentSegment.nzbFile.downloadPercentage,
-                                                             speed))
+            #speed = self.currentSegment.nzbFile.totalReadBytes / elapsed / 1024.0
+            self.currentSegment.nzbFile.speed = self.currentSegment.nzbFile.totalReadBytes / elapsed / 1024.0
+            #scroll('\r* Downloading %s - %2d%% @ %.1fKB/s' % (truncate(self.filename),
+            #                                                 self.currentSegment.nzbFile.downloadPercentage,
+            #                                                 speed))
+        self.factory.scroller.updateLog()
 
-
-class FunkyAssMultiTwistedConnectionSingletonDeferred:
+class NewzSlurpStatLog:
     def __init__(self):
-        self.protocolFifo = []
-        self.protocolFifoLock = Lock()
-        self.d = flow.Deferred(Threaded(doh(self)))
+        self.size = 0
+        self.segments = []
+        self.currentLog = None
 
-        self.deferredFinished = False
-        self.deferredFinishedLock = Lock()
+        self.wait = 0
+        self.delay = 70
+        
+    def updateLog(self):
+        """ Log ticker """
+        # Delay logging so we don't over-log
+        self.wait += 1
+        if self.wait < self.delay:
+            return
+        else:
+            self.wait = 0
 
-    def addCallback(self, protocol, protocolFunction):
-        debug('trying to add callback for p: ' + protocol.getName())
-        self.d.addCallback(protocolFunction)
-        self.protocolFifoLock.acquire()
-        self.protocolFifo.append(protocol)
-        self.protocolFifoLock.release()
+        logNow = False
+        currentLog = self.currentLog
+        if self.currentLog != None:
+            # Kill previous lines
+            self.currentLog = '\r\033[' + str(self.size) + 'A'
+        else:
+            # unless we have just began logging. explicitly log the first message
+            logNow = True
+            self.currentLog = ''
 
-    def pop(self):
-        p = None
-        self.protocolFifoLock.acquire()
-        if len(self.protocolFifo) > 0:
-            p = self.protocolFifo[0]
-            self.protocolFifo = self.protocolFifo[1:]
-            debug('POPPING: ' + p.getName())
-        self.protocolFifoLock.release()
-        return p
+        # HACKY:
+        # sort by filename, then blink out connections download segments for the same
+        # file. only show the file download totals
+        sortedSegments = self.segments[:]
+        sortedSegments.sort(lambda x, y : cmp(x.nzbFile.showFilename, y.nzbFile.showFilename))
+        
+        lastSegment = None
+        totalSpeed = 0
+        i = 0
+        for segment in sortedSegments:
+            i += 1
+            if lastSegment != None and lastSegment.nzbFile == segment.nzbFile:
+                self.currentLog += '\033[34m[\033[39m%d\033[34m]\033[39m Downloading %s\033[K' % \
+                    (i, truncate(segment.nzbFile.showFilename, length = 100, reverse = True))
+            else:
+                self.currentLog += '\033[34m[\033[39m%d\033[34m]\033[39m Downloading %s - %2d%% @ %.1fKB/s\033[K' % \
+                    (i, truncate(segment.nzbFile.showFilename, length = 100, reverse = True),
+                     segment.nzbFile.downloadPercentage, segment.nzbFile.speed)
+                totalSpeed += segment.nzbFile.speed
+                
+            self.currentLog += '\n\r'
+
+            lastSegment = segment
+                
+        for fill in range(i + 1, self.size + 1):
+            self.currentLog += '\033[34m[\033[39m%d\033[34m]\033[39m\033[K' % (fill)
+            self.currentLog += '\n\r'
+
+        self.currentLog += '\033[34m[\033[39mTotal\033[34m]\033[39m %.1fKB/s, %d MB queued \033[K' % \
+            (totalSpeed, Hellanzb.queue.totalQueuedBytes / 1024 / 1024)
+
+        if logNow or self.currentLog != currentLog:
+            scroll(self.currentLog)
             
-wtf = FunkyAssMultiTwistedConnectionSingletonDeferred
-def doh(wtf):
-    time.sleep(1)
-    try:
-        #nextSegment = Hellanzb.queue.get(block = True, timeout = 60 * 5)
-        debug('waiting')
-        nextSegment = Hellanzb.queue.get(block = True, timeout = 5)
-        debug('waited')
-        while not nextSegment.needsDownload():
-            nextSegment = Hellanzb.queue.get_nowait()
-
-        wtf.deferredFinishedLock.acquire()
-        debug('DEF FINISHED!')
-        wtf.deferredFinished = True
-        wtf.deferredFinishedLock.release()
-        while 1:
-            debug('got new, popping')
-            p = wtf.pop()
-            if p == None:
-                debug('got new, done popping')
-                raise StopIteration()
-            p.currentSegment = nextSegment
-            debug('GETTING DEST..')
-            p.filename = os.path.basename(p.currentSegment.nzbFile.getDestination())
-            debug('got new, process/yielding')
-        #object.currentSegment = nextSegment
-        #object.filename = os.path.basename(object.currentSegment.nzbFile.getDestination())
-        #yield wtf.pop()
-            yield p
-    except Empty:
-        debug('EMPTY NZBQUEUE')
-        wtf.deferredFinishedLock.acquire()
-        debug('DEF FINISHED!')
-        wtf.deferredFinished = True
-        wtf.deferredFinishedLock.release()
-        while 1:
-            debug('FOUND NOTHING, (RESET)')
-            p = wtf.pop()
-            if p == None:
-                raise StopIteration()
-            # FIXME: Send anti idle here (or in callback)
-            # reactor.callLater(0, p.fetchAntiIdle)
-        #yield object
-        #yield wtf.pop()
-            yield p
-    #time.sleep(3)
-
-# We end up adding a callback (which can trigger running callbacks) in the middle of the
-# defer running a callback -- endless loop
-def doh2(object):
-    try:
-        #nextSegment = Hellanzb.queue.get(block = True, timeout = 60 * 5)
-        nextSegment = Hellanzb.queue.get(block = True, timeout = 5)
-        while not nextSegment.needsDownload():
-            nextSegment = Hellanzb.queue.get_nowait()
-        object.currentSegment = nextSegment
-        object.filename = os.path.basename(object.currentSegment.nzbFile.getDestination())
-        debug('YIELDING object w/ next: ' + object.getName())
-        #yield object
-        yield ''
-    except Empty:
-        # Send anti idle here
-        debug('YIELDING object w/out next: ' + object.getName())
-        #yield object
-        yield '2'
-    #time.sleep(3)
-
-def callback(callBackList):
-    debug('cback' + str(callBackList))
-    for i in callBackList:
-        debug('calling back ho: ' + i.getName())
-        reactor.callLater(0, i.fetchNextNZBSegment)
+        

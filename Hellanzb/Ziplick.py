@@ -25,7 +25,6 @@ class Ziplick:
         self.ensureDirs()
         from Hellanzb.NewzSlurp.NewzSlurper import initNewzSlurp, startNewzSlurp
         initNewzSlurp()
-        startNewzSlurp()
 
     def ensureDirs(self):
         """ Ensure that all the required directories exist, otherwise attempt to create them """
@@ -99,6 +98,7 @@ class Ziplick:
             # done now
             if not Hellanzb.queue.parseNZB(nzbfile):
                 Hellanzb.nzbfileDone.acquire()
+                Hellanzb.nsf.fetchNextNZBSegment()
                 Hellanzb.nzbfileDone.wait()
                 Hellanzb.nzbfileDone.release()
 

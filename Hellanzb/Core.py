@@ -184,6 +184,8 @@ def parseArgs():
     # run troll as a cmd line app
     parser.add_option('-p', '--post-process-dir', type='string', dest='postProcessDir',
                       help='don\'t run the daemon: post-process the specified dir and exit')
+    parser.add_option('-P', '--rar-password', type='string', dest='rarPassword',
+                      help='when used with the -p option, specifies the rar password')
     return parser.parse_args()
 
 def processArgs(options):
@@ -196,8 +198,13 @@ def processArgs(options):
         if not os.access(options.postProcessDir, os.R_OK):
             error('Unable to process, no read access to directory: ' + options.postProcessDir)
             shutdownNow(1)
+
+        rarPassword = None
+        if options.rarPassword:
+            rarPassword = options.rarPassword
             
-        troll = Hellanzb.PostProcessor.PostProcessor(options.postProcessDir, background = False)
+        troll = Hellanzb.PostProcessor.PostProcessor(options.postProcessDir, background = False,
+                                                     rarPassword = rarPassword)
         info('\nStarting post processor')
         troll.start()
         troll.join()
@@ -228,4 +235,3 @@ def main():
         error('An unexpected problem occurred, exiting', e)
         shutdown()
         raise
-

@@ -175,8 +175,9 @@ class PostProcessor(Thread):
         # Move out anything else that's broken, a dupe or tagged as
         # not required
 	for file in self.brokenFiles:
-	    os.rename(self.dirName + os.sep + file,
-		      self.dirName + os.sep + Hellanzb.PROCESSED_SUBDIR + os.sep + file)
+	    if os.path.isfile(self.dirName + os.sep + file):
+                os.rename(self.dirName + os.sep + file,
+                          self.dirName + os.sep + Hellanzb.PROCESSED_SUBDIR + os.sep + file)
 
 	for file in os.listdir(self.dirName):
             ext = getFileExtension(file)

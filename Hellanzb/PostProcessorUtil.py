@@ -270,9 +270,15 @@ def unrar(fileName, rarPassword = None, pathToExtract = None):
     # First, list the contents of the rar, if any filenames are preceeded with *, the rar
     # is passworded
     listCmd = Hellanzb.UNRAR_CMD + ' l -y ' + ' "' + fileName + '"'
-    p = Ptyopen(listCmd)
+    p = Ptyopen2(listCmd)
     output, listStatus = p.readlinesAndWait()
     listReturnCode = os.WEXITSTATUS(listStatus)
+
+    if listReturnCode > 0:
+        errMsg = 'There was a problem during the rar listing, output:\n\n'
+        for line in output:
+            errMsg += line
+        raise FatalError(errMsg)
 
     isPassworded = False
     withinFiles = False
@@ -310,7 +316,7 @@ def unrar(fileName, rarPassword = None, pathToExtract = None):
         cmd = Hellanzb.UNRAR_CMD + ' x -y -p' + rarPassword + ' "' + fileName + '" "' + \
 	    pathToExtract + '"'
     else:
-        cmd = Hellanzb.UNRAR_CMD + ' x -y ' + ' "' + fileName + '" "' + pathToExtract + '"'
+        cmd = Hellanzb.UNRAR_CMD + ' x -y' + ' "' + fileName + '" "' + pathToExtract + '"'
     
     info(archiveName(dirName) + ': Unraring ' + os.path.basename(fileName))
     p = Ptyopen2(cmd)
@@ -327,11 +333,11 @@ def unrar(fileName, rarPassword = None, pathToExtract = None):
     processedRars = []
     prefix = 'Extracting from '
     for line in output:
-	if len(line) > len(prefix) + 1 and line.find(prefix) == 0:
-	   rarFile = line[len(prefix):].rstrip()
-	   # Distrust the dirname rar returns (just incase)
-	   rarFile = os.path.normpath(os.path.dirname(fileName) + os.sep + os.path.basename(rarFile))
-	   processedRars.append(rarFile)
+        if len(line) > len(prefix) + 1 and line.find(prefix) == 0:
+           rarFile = line[len(prefix):].rstrip()
+           # Distrust the dirname rar returns (just incase)
+           rarFile = os.path.normpath(os.path.dirname(fileName) + os.sep + os.path.basename(rarFile))
+           processedRars.append(rarFile)
 
     return processedRars
 

@@ -197,7 +197,7 @@ def decompressMusicFile(fileName, musicType):
 
     archive = archiveName(os.path.dirname(fileName))
     
-    info(archiveName + ': Decompressing to ' + str(musicType.decompressToType) + ': ' + \
+    info(archive + ': Decompressing to ' + str(musicType.decompressToType) + ': ' + \
          os.path.basename(fileName))
     cmd = cmd.replace('<DESTFILE>', '"' + destFileName + '"')
 
@@ -214,7 +214,13 @@ def decompressMusicFile(fileName, musicType):
                   os.path.basename(fileName))
     
     elif returnCode > 0:
-        error('There was a problem while decompressing music file: ' + os.path.basename(fileName))
+        # FIXME: not getting stderr here
+        msg = 'There was a problem while decompressing music file: ' + os.path.basename(fileName) + \
+            ' output:\n'
+        for line in output:
+            msg = msg + line
+        error(msg)
+
         # FIXME - could propagate this to parent
         # see threading.thread.interrupt_main()
         #raise FatalError("Unable to decompress music file: " + fileName)

@@ -179,9 +179,9 @@ class HeadHoncho:
                         for file in os.listdir(os.getcwd()):
                                 if file == '.' or file == '..' or file[0] == '.':
                                         continue
-                                
-                                if subject.find(file) > -1 and \
-                                pwrap.totalbytes == os.path.getsize(os.getcwd() + os.sep + file):
+
+                                if subject.find(file.decode('latin-1')) > -1 and \
+                                   pwrap.totalbytes == os.path.getsize(os.getcwd() + os.sep + file.decode('latin-1')):
                                         alreadyDownloaded = True
                                         print '\r* Skipping %s, already complete  ' % file
 
@@ -307,7 +307,7 @@ class HeadHoncho:
                                                                 # If it's yEnc, make sure it's not complete already
                                                                 if ybegin:
                                                                         filename = ybegin['name']
-                                                                        if os.path.isfile(filename):
+                                                                        if os.path.isfile(filename.decode('latin-1')):
                                                                                 currsize = os.path.getsize(filename)
                                                                                 if currsize == int(ybegin['size']):
                                                                                         # FIXME: this is done up above now
@@ -531,6 +531,7 @@ class HeadHoncho:
                 for swrap in self.Servers:
                         for fd, nwrap in swrap.Conns.items():
                                 nwrap.setblocking(1)
+
 
 # ---------------------------------------------------------------------------
 # Check a post to make sure it's usable.

@@ -117,7 +117,7 @@ class PostProcessor(Thread):
             return
                 
         info(archiveName(self.dirName) + ': Decompressing ' + str(len(self.musicFiles)) + \
-             ' files via ' + str(Hellanzb.MAX_DECOMPRESSION_THREADS) + ' threads..')
+             ' files via ' + str(int(Hellanzb.MAX_DECOMPRESSION_THREADS)) + ' threads..')
     
         # Maintain a pool of threads of the specified size until we've exhausted the
         # musicFiles list
@@ -126,7 +126,7 @@ class PostProcessor(Thread):
             # Block the pool until we're done spawning
             self.decompressorCondition.acquire()
             
-            if len(self.decompressionThreadPool) < Hellanzb.MAX_DECOMPRESSION_THREADS:
+            if len(self.decompressionThreadPool) < int(Hellanzb.MAX_DECOMPRESSION_THREADS):
                 decompressor = DecompressionThread(parent = self) # will pop the next
                                                                   # music file off the
                                                                   # list
@@ -139,7 +139,9 @@ class PostProcessor(Thread):
                 
             self.decompressorCondition.release()
 
-        # FIXME: we're not done until the threads are done. join() the remaining
+        # We're not finished until all the threads are done
+        for decompressor in self.decompressionThreadPool:
+            decompressor.join()
 
         processComplete(self.dirName, 'music', None)
         info(archiveName(self.dirName) + ': Finished decompressing')

@@ -3,60 +3,70 @@
 # 
 # $Id$
 
-# important locations
-Hellanzb.PREFIX_DIR = '/ext2/'
-Hellanzb.DEST_DIR = Hellanzb.PREFIX_DIR + 'usenet/'
-Hellanzb.WORKING_DIR = Hellanzb.PREFIX_DIR + 'nzb/daemon.working/'
-Hellanzb.QUEUE_DIR = Hellanzb.PREFIX_DIR + 'nzb/daemon.queue/'
-Hellanzb.CURRENT_DIR = Hellanzb.PREFIX_DIR + 'nzb/daemon.current/'
-Hellanzb.TEMP_DIR = Hellanzb.PREFIX_DIR + 'nzb/daemon.temp/'
-
-# name of the sub directory within the nzb archive dir to move proccessed files to
-Hellanzb.PROCESSED_SUBDIR = 'processed'
-
-Hellanzb.PASSWORDS_DIR = Hellanzb.PREFIX_DIR + 'nzb/daemon.passwords/'
-
-# Also log output to this file
+# Log output to this file
 Hellanzb.LOG_FILE = '/var/tmp/hellanzb.log'
 
-# max files we should decompress at the same time
-Hellanzb.MAX_DECOMPRESSION_THREADS = 2
 
-# If any of the following file types are missing from the archive and cannot be repaired,
-# continue processing because they're unimportant
-Hellanzb.NOT_REQUIRED_FILE_TYPES = [ 'm3u', 'nfo', 'sfv', 'log' ]
+# Define server connections. Servers can have multiple hosts, Newsleecher will
+# persist the number of connections to each specified server. There may be
+# mulitple defineServer lines
+defineServer(id = 'changeme',
+             hosts = ['news.changeme.com:119', 'morenews.changeme.com:119'],
+             username = 'changeme',
+             password = 'fuckbush',
+             connections = 4,
+             priority = 1,
+             bindto = '')
 
-# Enable grow notifications for 31337 Mac OS x people
-Hellanzb.ENABLE_GROWL_NOTIFY = True
 
-# The growl notification server, in the format 'hostname:port'
-Hellanzb.SERVER = 'IP:7300'
+# Important locations
+Hellanzb.PREFIX_DIR = '/ext2/'
+
+# Where to put queued up .nzb files
+Hellanzb.QUEUE_DIR = Hellanzb.PREFIX_DIR + 'nzb/daemon.queue/'
+# Where the fully processed archives go
+Hellanzb.DEST_DIR = Hellanzb.PREFIX_DIR + 'usenet/'
+# The .nzb we're currently downloading is stored here
+Hellanzb.CURRENT_DIR = Hellanzb.PREFIX_DIR + 'nzb/daemon.current/'
+# The archive currently being downloaded is stored here
+Hellanzb.WORKING_DIR = Hellanzb.PREFIX_DIR + 'nzb/daemon.working/'
+# Temp storage
+Hellanzb.TEMP_DIR = Hellanzb.PREFIX_DIR + 'nzb/daemon.temp/'
+
+# FIXME: Where to store the passwords for rar archives
+Hellanzb.PASSWORDS_DIR = Hellanzb.PREFIX_DIR + 'nzb/daemon.passwords/'
+
+# Sub directory within the nzb archive dir to move proccessed files to
+Hellanzb.PROCESSED_SUBDIR = 'processed'
+
 
 # Supported music types and optionally their decompression executables and the file type
 # that executable will decompress to. The exes must be in the PATH.
 #
 # <FILE> will be replaced with the name of music file
-# optional <DESTFILE> is <FILE> with an extension of '.wav'
-#
+# optional <DESTFILE> is <FILE> with the specified extension
+#nnn
 # None means these files don't need to be decompressed
 defineMusicType('ape', 'mac <FILE> <DESTFILE> -d', 'wav')
 defineMusicType('flac', 'flac -d <FILE>', 'wav')
 defineMusicType('wav', None, None)
 defineMusicType('mp3', None, None)
 
-# Define multiple servers. Servers can have multiple hosts, Newsleecher will persist the
-# number of connections to you specify to each server
-#defineServer(id = 'somewhere',
-#             hosts = ['news.somewhere.com:119', 'morenews.somewhere.com:119'],
-#             username = 'change',
-#             password = 'me',
-#             connections = 4,
-#             priority = 1,
-#             bindto = '')
+# max files we should decompress at the same time
+Hellanzb.MAX_DECOMPRESSION_THREADS = 2
 
-# NOTE: Probably not in use right now, from Newsleecher -- Posts _less_ than this percent
-# complete will be skipped
-Hellanzb.Newsleecher.INCOMPLETE_THRESHOLD = 90
 
-# for debugging
+# Enable grow notifications for 31337 Mac OS X people
+Hellanzb.ENABLE_GROWL_NOTIFY = True
+
+# The hellagrowler notification server, in the format 'hostname:port'
+Hellanzb.SERVER = 'IP:7300'
+
+
+# If any of the following file types are missing from the archive and cannot be repaired,
+# continue processing because they're unimportant
+Hellanzb.NOT_REQUIRED_FILE_TYPES = [ 'm3u', 'nfo', 'sfv', 'log' ]
+
+
+# For debugging
 Hellanzb.DEBUG_MODE = False

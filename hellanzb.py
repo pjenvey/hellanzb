@@ -109,6 +109,7 @@ def runTroll(archiveDir):
 if __name__ == '__main__':
     
     parser = optparse.OptionParser()
+    # TODO: the Usage output should show Troll.version
     parser.add_option('-c', '--config', type='string', dest='configFile',
                       help='specify the configuration file')
     parser.add_option('-p', '--process-dir', type='string', dest='processDir',

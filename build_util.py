@@ -38,7 +38,7 @@ def branchRelease(version):
     # Branch
     branchURL = repository.replace('trunk', 'branches') + '/' + version
     print 'Branching from: ' + fromRepository + ' to: ' + branchURL
-    os.system('svn copy -m "TEST -- Branching new release, version: ' + version + '" . ' + branchURL)
+    os.system('svn copy -m "Branching new release, version: ' + version + '" . ' + branchURL)
     
     print 'Switching working copy to the new branch'
     os.system('svn switch ' + branchURL)

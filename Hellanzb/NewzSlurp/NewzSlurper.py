@@ -179,7 +179,7 @@ class NewzSlurper(NNTPClient):
 
     def gotauthInfoOk(self, message):
         "Override for notification when authInfo() action is successful"
-        debug(self.getName() + ' AUTHINFO succeeded:' + message)
+        debug(self.getName() + ' AUTHINFO succeeded: ' + message)
 
         self.fetchNextNZBSegment()
 
@@ -224,7 +224,7 @@ class NewzSlurper(NNTPClient):
             # NOTE: we could get away with activating only one of the groups instead of
             # all
             if group not in self.activeGroups:
-                debug(self.getName() + ' getting GROUP:' + group)
+                debug(self.getName() + ' getting GROUP: ' + group)
                 self.fetchGroup(group)
                 return
 
@@ -342,7 +342,7 @@ class NewzSlurper(NNTPClient):
 
         self.activeGroups = []
         self.factory.clients.remove(self)
-        self.scroller.size -= 1
+        self.factory.scroller.size -= 1
 
     def lineReceived(self, line):
         # Update stats for current segment if we're issuing a BODY command

@@ -81,17 +81,21 @@ class PostProcessor(Thread):
         try:
             self.postProcess()
             
+        except SystemExit, se:
+            # sys.exit throws this. collect $200
+            pass
+        
         except FatalError, fe:
             self.stop()
             error('A problem occurred for archive: ' + archiveName(self.dirName), fe)
-            if not self.background:
-                raise
+            #if not self.background:
+            raise
         
         except Exception, e:
             self.stop()
             error('An unexpected problem occurred for archive: ' + archiveName(self.dirName), e)
-            if not self.background:
-                raise
+            #if not self.background:
+            raise
     
     def decompressMusicFiles(self):
         """ Assume the integrity of the files in the specified directory have been
@@ -146,7 +150,7 @@ class PostProcessor(Thread):
         # Move out anything else that is tagged as not required
         for file in os.listdir(self.dirName):
             ext = getFileExtension(file)
-            if len(ext) > 0 and ext in Hellanzb.NOT_REQUIRED_FILE_TYPES:
+            if ext != None and len(ext) > 0 and ext in Hellanzb.NOT_REQUIRED_FILE_TYPES:
                 os.rename(self.dirName + os.sep + file,
                           self.dirName + os.sep + Hellanzb.PROCESSED_SUBDIR + os.sep + file)
     
@@ -178,7 +182,6 @@ class PostProcessor(Thread):
         for file in files:
             absoluteFile = self.dirName + os.sep + file
             if os.path.isfile(absoluteFile):
-                print 'file: ' + file
                 if stringEndsWith(file, '_broken'):
                     # Keep track of the broken files
                     brokenFiles.append(absoluteFile)
@@ -211,6 +214,6 @@ class PostProcessor(Thread):
         
         if dirHasMusicFiles(self.dirName):
             checkShutdown()
-            decompressMusicFiles(self.dirName)
+            self.decompressMusicFiles()
 
         self.finishedPostProcess()

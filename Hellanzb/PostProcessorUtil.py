@@ -5,6 +5,7 @@ PostProcessorUtil - support functions for the PostProcessor
 """
 import Hellanzb, os, popen2, signal, re
 from threading import Thread
+from Logging import *
 from Util import *
 
 __id__ = '$Id$'

@@ -2,7 +2,7 @@
 Util - hellanzb misc functions
 
 """
-import os, popen2, pty, string, sys, thread, threading, time, xmlrpclib, Hellanzb, StringIO
+import os, popen2, pty, re, string, sys, thread, threading, time, xmlrpclib, Hellanzb, StringIO
 from distutils import spawn
 from threading import RLock, Thread
 from Logging import *
@@ -22,7 +22,7 @@ instead of pipes, to allow inline reading (instead of potential i/o buffering) o
 from the child process. It also stores the cmd it's running (as a string) and the thread
 that created the object, for later use """
         # NOTE: this is all stolen from Popen minus the openpty calls
-        popen2._cleanup()
+        #popen2._cleanup()
         self.cmd = cmd
         self.thread = threading.currentThread()
         p2cread, p2cwrite = pty.openpty()
@@ -46,7 +46,30 @@ that created the object, for later use """
             self.childerr = os.fdopen(errout, 'r', bufsize)
         else:
             self.childerr = None
-        popen2._active.append(self)
+        #popen2._active.append(self)
+
+    def poll(self):
+        """Return the exit status of the child process if it has finished,
+        or -1 if it hasn't finished yet."""
+        if self.sts < 0:
+            try:
+                pid, sts = os.waitpid(self.pid, os.WNOHANG)
+                if pid == self.pid:
+                    self.sts = sts
+                    #_active.remove(self)
+            except os.error:
+                pass
+        return self.sts
+
+    def wait(self):
+        """Wait for and return the exit status of the child process."""
+        if self.sts < 0:
+            pid, sts = os.waitpid(self.pid, 0)
+            if pid == self.pid:
+                self.sts = sts
+                #_active.remove(self)
+        return self.sts
+
 
 def getLocalClassName(klass):
     """ Get the local name (no package/module information) of the specified class instance """
@@ -108,7 +131,7 @@ name """
     name = os.path.basename(dirName)
 
     # Strip the msg_id and .nzb extension from an nzb file name
-    if len(name) > 3 and name[-3:].lower == 'nzb':
+    if len(name) > 3 and name[-3:].lower() == 'nzb':
         name = re.sub(r'msgid_.*?_', r'', name)
         name = re.sub(r'\.nzb$', r'', name)
 

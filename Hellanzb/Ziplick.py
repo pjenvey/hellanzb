@@ -11,6 +11,7 @@ version 0.2
 """
 
 import Hellanzb, os, re, PostProcessor
+from shutil import move
 from time import sleep
 from threading import Thread
 from Logging import *
@@ -22,7 +23,6 @@ class Ziplick:
 
     def __init__(self):
         self.ensureDirs()
-        self.run()
 
     def ensureDirs(self):
         """ Ensure that all the required directories exist, otherwise attempt to create them """
@@ -71,9 +71,10 @@ class Ziplick:
                 
                 # Fix the filename
                 # NOTE: this shouldn't be necessary with Ptyopen
-                newname = re.sub(r'[\[|\]|\(|\)]',r'',nzbfilename)
-                os.rename(Hellanzb.QUEUE_DIR+nzbfilename,Hellanzb.QUEUE_DIR+newname)
-                nzbfilename = newname
+                #newname = re.sub(r'[\[|\]|\(|\)]',r'',nzbfilename)
+                #os.rename(Hellanzb.QUEUE_DIR+nzbfilename,Hellanzb.QUEUE_DIR+newname)
+                
+                move(Hellanzb.QUEUE_DIR+nzbfilename,Hellanzb.QUEUE_DIR+nzbfilename)
                 
                 # nzbfile will always be a absolute filename 
                 nzbfile = Hellanzb.QUEUE_DIR + nzbfilename
@@ -104,14 +105,12 @@ class Ziplick:
             checkShutdown()
             
             # Make our new directory, minus the .nzb
-            newdir = Hellanzb.DEST_DIR + nzbfilename
+            newdir = Hellanzb.DEST_DIR + archiveName(nzbfilename)
                         
             # Grab the message id, we'll store it in the newdir for later use
-            msgId = re.sub(r'.*msgid_', r'', newdir)
+            msgId = re.sub(r'.*msgid_', r'', nzbfilename)
             msgId = re.sub(r'_.*', r'', msgId)
-                                       
-            newdir = archiveName(newdir)
-                
+
             # Take care of the unfortunate case that we coredumped
             coreFucked = False
             if os.WCOREDUMP(statusCode):
@@ -122,11 +121,17 @@ class Ziplick:
                             archiveName(nzbfilename) + '\n:(', True)
                 
             # Move our nzb contents to their new location, clear out the temp dir
-            # FIXME: rename actually sucks here -- it blows up if you're
-            # renaming a file to a different mount point
-            os.rename(Hellanzb.WORKING_DIR,newdir)
+            if os.path.exists(newdir):
+                # Rename the dir if it exists already
+                renamedDir = newdir + '_hellanzb_renamed'
+                i = 0
+                while os.path.exists(renamedDir + str(i)):
+                    i = i + 1
+                move(newdir, renamedDir + str(i))
+                
+            move(Hellanzb.WORKING_DIR,newdir)
             touch(newdir + os.sep + '.msgid_' + msgId)
-            os.spawnlp(os.P_WAIT, 'mv', 'mv', nzbfile, newdir)
+            move(nzbfile, newdir)
             os.mkdir(Hellanzb.WORKING_DIR)
 
             # FIXME: if this ctrl-c is caught we will never bother Trolling the newdir. If

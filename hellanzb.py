@@ -211,6 +211,7 @@ if __name__ == '__main__':
         else:
             info('\nStarting queue daemon')
             daemon = Hellanzb.Ziplick.Ziplick()
+            daemon.run()
 
     except SystemExit, se:
         # sys.exit throws this. collect $200

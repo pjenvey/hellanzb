@@ -553,7 +553,7 @@ def trollmain(dirName):
 
 def troll(dirName,archiveName):
     try:
-        self.trollmain(dirName)
+        trollmain(dirName)
     except FatalError, fe:
         cleanUp(dirName)
         error('An unexpected problem occurred for archive: ' +

@@ -18,6 +18,7 @@ o use optparse
 
 import os, sys, Hellanzb, Hellanzb.Troll, Hellanzb.Ziplick
 from Hellanzb.Util import *
+from Hellanzb.Troll import defineMusicType
 
 __id__ = '$Id$'
 

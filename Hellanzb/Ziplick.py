@@ -68,13 +68,6 @@ class Ziplick:
                 nzbfilename = self.queued_nzbs[0]
                 del self.queued_nzbs[0]
                 
-                # Fix the filename
-                # NOTE: this shouldn't be necessary with Ptyopen
-                #newname = re.sub(r'[\[|\]|\(|\)]',r'',nzbfilename)
-                #os.rename(Hellanzb.QUEUE_DIR+nzbfilename,Hellanzb.QUEUE_DIR+newname)
-                
-                move(Hellanzb.QUEUE_DIR+nzbfilename,Hellanzb.QUEUE_DIR+nzbfilename)
-                
                 # nzbfile will always be a absolute filename 
                 nzbfile = Hellanzb.QUEUE_DIR + nzbfilename
                 os.spawnlp(os.P_WAIT, 'mv', 'mv', nzbfile, Hellanzb.CURRENT_DIR)

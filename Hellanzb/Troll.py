@@ -348,7 +348,7 @@ def processRars(dirName, rarPassword):
             withinFiles = True
 
     if isPassworded and rarPassword == None:
-        growlNotify('Archive', 'hellanzb Archive requires password:', archiveNameFromDirName(dirName),
+        growlNotify('Archive Error', 'hellanzb Archive requires password:', archiveNameFromDirName(dirName),
                     True)
         raise FatalError('Cannot continue, this archive requires a RAR password and there is none set')
 
@@ -548,7 +548,7 @@ def troll(dirName):
 
     # We're done
     info("Finished processing: " + archiveNameFromDirName(dirName))
-    growlNotify('Archive', 'hellanzb Done Processing:', archiveNameFromDirName(dirName),
+    growlNotify('Archive Success', 'hellanzb Done Processing:', archiveNameFromDirName(dirName),
                 True)
 
 def archiveNameFromDirName(dirName):

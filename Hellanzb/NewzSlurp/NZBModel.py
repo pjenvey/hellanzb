@@ -11,8 +11,6 @@ from Hellanzb.Logging import *
 from Hellanzb.NewzSlurp.ArticleDecoder import parseArticleData, setRealFileName, tryFinishNZB
 from Hellanzb.Util import archiveName, getFileExtension, PriorityQueue
 
-#s/NZBUtil/NZBModel/
-
 # o could put failed segments into a failed queue, connections that are flaged as being
 # fill servers will try to attemp to d/l the file if any of them fail?
 

@@ -10,6 +10,7 @@ from twisted.protocols.nntp import NNTPClient
 from twisted.python import log
 from Hellanzb.Logging import *
 from Hellanzb.NewzSlurp.ArticleDecoder import decode
+from Hellanzb.NewzSlurp.NZBModel import NZBQueue
 from Queue import Empty
 
 __id__ = '$Id$'
@@ -20,7 +21,6 @@ def initNewzSlurp():
     fileStream = LogOutputStream(debug)
     log.startLogging(fileStream)
 
-    from Hellanzb.NewzSlurp.NZBUtil import NZBQueue
     # Create the one and only download queue
     Hellanzb.queue = NZBQueue()
 

@@ -1,1 +1,1 @@
-version = '0.4-HEAD'
+version = '0.5'

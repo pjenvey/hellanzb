@@ -80,7 +80,6 @@ class Ziplick:
                 
                 # nzbfile will always be a absolute filename 
                 nzbfile = Hellanzb.QUEUE_DIR + nzbfilename
-                #os.spawnlp(os.P_WAIT, 'mv', 'mv', nzbfile, Hellanzb.CURRENT_DIR)
                 move(nzbfile, Hellanzb.CURRENT_DIR)
             else:
                 nzbfilename = self.current_nzbs[0]
@@ -90,9 +89,6 @@ class Ziplick:
             nzbfile = Hellanzb.CURRENT_DIR + nzbfilename
 
             # Change the cwd for Newsleecher, and download the files
-            # FIXME: scroll stuff is broken. Needs to be rethought now that we control the
-            # nzb getter
-            #oldDir = os.getcwd()
             os.chdir(Hellanzb.WORKING_DIR)
 
             # The scroll level will flood the console with constantly updating statistics

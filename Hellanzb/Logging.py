@@ -359,6 +359,11 @@ def scrollEnd():
     ScrollableHandler.scrollFlag = False
     del ScrollableHandler.scrollLock
 
+def isDebugEnabled():
+    if hasattr(Hellanzb, 'DEBUG_MODE') and Hellanzb.DEBUG_MODE != None and Hellanzb.DEBUG_MODE != False:
+        return True
+    return False
+
 def initLogging():
     """ Setup logging """
     logging.addLevelName(ScrollableHandler.SCROLL, 'SCROLL')
@@ -372,7 +377,8 @@ def initLogging():
         def filter(self, record):
             if record.levelno > logging.WARNING:
                 return False
-            elif record.levelno == logging.DEBUG and not Hellanzb.DEBUG_MODE:
+            # DEBUG will only go out to it's log file
+            elif record.levelno == logging.DEBUG:
                 return False
             return True
     
@@ -414,11 +420,15 @@ def initLogging():
 
 def initLogFile(logFile = None):
     """ Initialize the log file. This has to be done after the config is loaded """
+    maxBytes = backupCount = 0
+    if hasattr(Hellanzb, 'LOG_FILE_MAX_BYTES'):
+        maxBytes = Hellanzb.LOG_FILE_MAX_BYTES
+    if hasattr(Hellanzb, 'LOG_FILE_BACKUP_COUNT'):
+        backupCount = Hellanzb.LOG_FILE_BACKUP_COUNT
 
     class LogFileFilter(logging.Filter):
         def filter(self, record):
-            #if record.levelno == ScrollableHandler.SCROLL:
-            # FIXME:
+            # SCROLL doesn't belong in log files and DEBUG will have it's own log file
             if record.levelno == ScrollableHandler.SCROLL or record.levelno == logging.DEBUG:
                 return False
             return True
@@ -427,20 +437,19 @@ def initLogFile(logFile = None):
     if logFile != None:
         Hellanzb.LOG_FILE = os.path.abspath(logFile)
         
-    fileHdlr = RotatingFileHandlerNoLF(Hellanzb.LOG_FILE)
+    fileHdlr = RotatingFileHandlerNoLF(Hellanzb.LOG_FILE, maxBytes = maxBytes, backupCount = backupCount)
     fileHdlr.setFormatter(logging.Formatter('%(asctime)s %(levelname)s %(message)s'))
     fileHdlr.addFilter(LogFileFilter())
     
     Hellanzb.logger.addHandler(fileHdlr)
 
-    # If some debug to file flag
-    if True:
+    if isDebugEnabled():
         class DebugFileFilter(logging.Filter):
             def filter(self, record):
                 if record.levelno > logging.DEBUG:
                     return False
                 return True
-        debugFileHdlr = RotatingFileHandlerNoLF(Hellanzb.LOG_FILE + '-debug')
+        debugFileHdlr = RotatingFileHandlerNoLF(Hellanzb.DEBUG_MODE, maxBytes = maxBytes, backupCount = backupCount)
         debugFileHdlr.setFormatter(logging.Formatter('%(asctime)s %(levelname)s %(message)s'))
         debugFileHdlr.setLevel(logging.DEBUG)
         debugFileHdlr.addFilter(DebugFileFilter())

@@ -1,5 +1,5 @@
 """
-NZBModel -
+NZBModel - Representations of the NZB file format in memory
 
 """
 import re, time
@@ -11,8 +11,7 @@ from Hellanzb.Logging import *
 from Hellanzb.NewzSlurp.ArticleDecoder import parseArticleData, setRealFileName, tryFinishNZB
 from Hellanzb.Util import archiveName, getFileExtension, PriorityQueue
 
-# o could put failed segments into a failed queue, connections that are flaged as being
-# fill servers will try to attemp to d/l the file if any of them fail?
+__id__ = '$Id$'
 
 def needsDownload(object):
     """ Whether or not this object needs to be downloaded (isn't on the file system). This
@@ -331,37 +330,27 @@ class NZBQueue(PriorityQueue):
         
 class NZBParser(ContentHandler):
     def __init__(self, queue, nzb):
-        self.newsgroups = []
-        #self.posts = posts
-        
-        # fifo queue of pending segments to d/l
+        # downloading queue to add NZB segments to
         self.queue = queue
 
-        # key: nzb files loaded into this queue
-        # val: all of their NZBFile objects
-        self.nzbs = {}
+        # nzb file to parse
         self.nzb = nzb
-        
-        self.chars = None
-        self.subject = None
+
+        # parsing variables
         self.file = None
-                
         self.bytes = None
         self.number = None
-
+        self.chars = None
         self.fileNeedsDownload = None
+        
         self.fileCount = 0
         self.segmentCount = 0
         
     def startElement(self, name, attrs):
         if name == 'file':
-            subject = attrs.get('subject')
-            if isinstance(subject, unicode):
-                subject = subject.encode('latin-1')
-            poster = attrs.get('poster')
-            if isinstance(poster, unicode):
-                poster = poster.encode('latin-1')
-                
+            subject = self.parseUnicode(attrs.get('subject'))
+            poster = self.parseUnicode(attrs.get('poster'))
+
             self.file = NZBFile(subject, attrs.get('date'), poster, self.nzb)
             self.fileNeedsDownload = self.file.needsDownload()
 
@@ -388,24 +377,29 @@ class NZBParser(ContentHandler):
                 
         elif name == 'group':
             newsgroup = ''.join(self.chars)
-
             self.file.groups.append(newsgroup)
                         
             self.chars = None
                 
         elif name == 'segment':
             self.segmentCount += 1
-            messageId = ''.join(self.chars)
-            if isinstance(messageId, unicode):
-                messageId = messageId.encode('latin-1')
+
+            messageId = self.parseUnicode(''.join(self.chars))
             nzbs = NZBSegment(self.bytes, self.number, messageId, self.file)
+
             if self.fileNeedsDownload:
                 # HACK: Maintain the order in which we encountered the segments by adding
                 # segmentCount to the priority. lame afterthought -- after realizing
-                # heapqs botch the order. NZB_CONTENT_P must now be large enough so that
-                # it won't ever clash with EXTRA_PAR2_P + i
+                # heapqs aren't ordered. NZB_CONTENT_P must now be large enough so that it
+                # won't ever clash with EXTRA_PAR2_P + i
                 self.queue.put((NZBQueue.NZB_CONTENT_P + self.segmentCount, nzbs))
 
             self.chars = None
             self.number = None
             self.bytes = None    
+
+    def parseUnicode(self, unicodeOrStr):
+        if isinstance(unicodeOrStr, unicode):
+            return unicodeOrStr.encode('latin-1')
+        return unicodeOrStr
+        

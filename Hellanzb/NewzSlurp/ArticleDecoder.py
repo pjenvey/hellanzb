@@ -153,7 +153,6 @@ def decodeSegmentToFile(segment, encodingType = YENCODE):
     removed) list to the specified destination """
     decodedLines = []
     if encodingType == YENCODE:
-        #debug('ydecoding line count: ' + str(len(segment.articleData.readlines())))
         decodedLines = yDecode(segment.articleData)
 
         # FIXME: crc check needs to be shown through the scroll (but not via

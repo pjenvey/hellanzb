@@ -2,11 +2,11 @@
 NewzSlurper -
 """
 import os, time
-from thread import start_new_thread
 from threading import Condition
 from twisted.internet import reactor
-from twisted.news.news import UsenetClientFactory
+from twisted.internet.protocol import ReconnectingClientFactory
 from twisted.protocols.nntp import NNTPClient
+from twisted.protocols.policies import TimeoutMixin
 from twisted.python import log
 from Hellanzb.Core import shutdown
 from Hellanzb.Logging import *
@@ -33,7 +33,7 @@ def initNewzSlurp():
     
     startNewzSlurp()
 
-def niceShutdown():
+def hellaShutdown():
     info('Caught interrupt, exiting..')
     sys.stdout.flush()
     shutdown()
@@ -60,34 +60,13 @@ def startNewzSlurp():
     else:
         info('opened ' + str(connectionCount) + ' connections.')
         
-    # run
-    #reactor.suggestThreadPoolSize(2)
     reactor.suggestThreadPoolSize(1)
 
-    reactor.addSystemEventTrigger('before', 'shutdown', niceShutdown)
+    reactor.addSystemEventTrigger('before', 'shutdown', hellaShutdown)
     
-    #start_new_thread(reactor.run, (), { 'installSignalHandlers': False })
-    #reactor.run(installSignalHandlers = False )
     reactor.run()
 
-    #reactor.callLater(4, checkShutdownTwisted)
-
-    import signal
-    from Hellanzb.Core import signalHandler
-    signal.signal(signal.SIGINT, signalHandler)
-
-def checkShutdownTwisted():
-    try:
-        checkShutdown()
-    except SystemExit:
-        shutdownNewzSlurp()
-    reactor.callLater(4, checkShutdownTwisted)
-    
-def shutdownNewzSlurp():
-    """ """
-    reactor.stop()
-
-class NewzSlurperFactory(UsenetClientFactory):
+class NewzSlurperFactory(ReconnectingClientFactory):
 
     def __init__(self):
         # FIXME: we need to have different connections use different username/passwords. i
@@ -106,9 +85,6 @@ class NewzSlurperFactory(UsenetClientFactory):
         self.sessionSpeed = 0
         self.sessionStartTime = None
         
-        # FIXME: what is this
-        self.lastChecks = {}
-
         # FIXME: idle the connection by: returning nothing, having a callLater handle an
         # idle call. whenever there's activity, we cancel the idle call and reschedule for
         # later
@@ -120,10 +96,15 @@ class NewzSlurperFactory(UsenetClientFactory):
         # this class handles updating statistics via the SCROLL level (the UI)
         self.scroller = NewzSlurpStatLog(self)
 
+        # FIXME: maybe make this a defineServer var
+        #self.timeOut = 0
+        #if hasattr(Hellanzb, 'ANTI_IDLE_DELAY_SECONDS'):
+        #    self.timeOut = int(Hellanzb.ANTI_IDLE_DELAY_SECONDS)
+
     def buildProtocol(self, addr):
-        last = self.lastChecks.setdefault(addr, time.mktime(time.gmtime()) - (60 * 60 * 24 * 7))
         p = NewzSlurper(self.username, self.password)
         p.factory = self
+        #p.timeOut = self.timeOut # FIXME:
         
         # FIXME: Is it safe to maintain the clients in this list? no other twisted
         # examples do this. no twisted base factory classes seem to maintain this list
@@ -136,7 +117,27 @@ class NewzSlurperFactory(UsenetClientFactory):
         for p in self.clients:
             reactor.callLater(0, p.fetchNextNZBSegment)
 
-class NewzSlurper(NNTPClient):
+class AntiIdleMixin(TimeoutMixin):
+    """ policies.TimeoutMixin calls self.timeoutConnection after the connection has been idle
+    too long. Anti-idling the connection involves the same operation, so we extend
+    TimeoutMixin, anti-idle instead, and reset the timeout after anti-idling (to repeat
+    the process -- unlike TimeoutMixin) """
+    def antiIdleConnection(self):
+        """ """
+        raise NotImplementedError()
+
+    def timeoutConnection(self):
+        """ Called when the connection times out -- i.e. when we've been idle longer than the
+        self.timeOut value """
+        self.antiIdleConnection()
+
+        # TimeoutMixin assumes we're done (timed out) after timeoutConnection. Since we're
+        # still connected, we need to manually reset the timeout
+        self.setTimeout(self.timeOut)
+
+class NewzSlurper(NNTPClient, AntiIdleMixin):
+    """ Extend the Twisted NNTPClient to download NZB segments from our queue in a
+    loop """
 
     nextId = 0 # Id Pool
     
@@ -159,6 +160,10 @@ class NewzSlurper(NNTPClient):
         #self.filename = None
 
         self.myState = None
+
+        # How long we must be idle for in seconds until we send an anti idle request
+        #self.timeOut = 0
+        self.timeOut = 7 * 60
 
     def authInfo(self):
         """ """
@@ -240,7 +245,7 @@ class NewzSlurper(NNTPClient):
         
     def fetchBody(self, index):
         """ """
-        self.myState = 'body'
+        self.myState = 'BODY'
         start = time.time()
         if self.currentSegment != None and self.currentSegment.nzbFile.downloadStartTime == None:
             self.currentSegment.nzbFile.downloadStartTime = start
@@ -314,24 +319,28 @@ class NewzSlurper(NNTPClient):
             #self.gotBody('\n'.join(self._endState()))
             self.gotBody(self._endState())
 
-    def _stateAntiIdle(self, line):
-        debug('stateAntiIdle')
+    def _stateHelp(self, line):
         if line != '.':
             self._newLine(line, 0)
         else:
-            self.gotAntiIdle('\n'.join(self._endState()))
+            self.gotHelp('\n'.join(self._endState()))
 
-    def fetchAntiIdle(self):
+    def fetchHelp(self):
+        debug(self.getName() + ' fetching HELP')
         self.sendLine('HELP')
-        self._newState(self._stateAntiIdle, self.getAntiIdleFailed)
+        self.myState = 'HELP'
+        #self._newState(self._stateHelp, self.getHelpFailed)
+        self._newState(self._stateHelp, self.getHelpFailed)
 
-    def gotAntiIdle(self, idle):
-        debug('got idle')
-        self.fetchNextNZBSegment()
+    def gotHelp(self, idle):
+        self.myState = None
+        debug(self.getName() + ' got HELP')
 
-    def getAntiIdleFailed(self, err):
-        "Override for getAntiIdleFailed"
-        debug('getAntiIdleFailed')
+    def getHelpFailed(self, err):
+        "Override for getHelpFailed"
+        self.myState = None
+        debug(self.getName() + ' got HELP failed: ' + str(err))
+        #pass
         
     def authInfoFailed(self, err):
         "Override for notification when authInfoFailed() action fails"
@@ -339,12 +348,25 @@ class NewzSlurper(NNTPClient):
 
     def connectionMade(self):
         NNTPClient.connectionMade(self)
+        self.setTimeout(self.timeOut)
         self.setStream()
         self.authInfo()
 
     def connectionLost(self, reason):
-        NNTPClient.connectionLost(self) # calls self.factory.clientConnectionLost(self, reason)
+        self.setTimeout(None)
+        # FIXME: could put failed segments into a failed queue. connections that are
+        # flaged as being fill servers would try to attempt to d/l the failed files. you
+        # couldn't write a 0 byte file to disk in that case -- not until all fill servers
+        # had tried downloading
         
+        # ReconnectingClientFactory will pretend it wants to reconnect after we CTRL-C --
+        # we'll quiet it by canceling it
+        if Hellanzb.shutdown:
+            self.factory.stopTrying()
+
+        NNTPClient.connectionLost(self) # calls self.factory.clientConnectionLost(self, reason)
+
+        # Continue being quiet about things if we're shutting down
         if not Hellanzb.shutdown:
             error(self.getName() + ' lost connection: ' + str(reason))
 
@@ -353,12 +375,21 @@ class NewzSlurper(NNTPClient):
         self.factory.scroller.size -= 1
 
     def lineReceived(self, line):
+        # We got data -- reset the anti idle timeout
+        self.resetTimeout()
+        
         # Update stats for current segment if we're issuing a BODY command
-        if self.myState == 'body':
+        if self.myState == 'BODY':
             now = time.time()
             self.updateByteCount(len(line))
             self.updateStats(now)
-        
+            
+        elif self.myState == 'HELP':
+            # UsenetClient.lineReceived thinks the appropriate HELP response code (100) is
+            # an error. circumvent it
+            self._state[0](line)
+            return
+            
         NNTPClient.lineReceived(self, line)
 
     def updateByteCount(self, lineLen):
@@ -379,14 +410,21 @@ class NewzSlurper(NNTPClient):
 
         if self.currentSegment.nzbFile.downloadPercentage > oldPercentage:
             elapsed = max(0.1, now - self.currentSegment.nzbFile.downloadStartTime)
-            #speed = self.currentSegment.nzbFile.totalReadBytes / elapsed / 1024.0
             elapsedSession = max(0.1, now - self.factory.sessionStartTime)
-            self.factory.sessionSpeed = self.factory.sessionReadBytes / elapsedSession / 1024.0
+
             self.currentSegment.nzbFile.speed = self.currentSegment.nzbFile.totalReadBytes / elapsed / 1024.0
-            #scroll('\r* Downloading %s - %2d%% @ %.1fKB/s' % (truncate(self.filename),
-            #                                                 self.currentSegment.nzbFile.downloadPercentage,
-            #                                                 speed))
+            self.factory.sessionSpeed = self.factory.sessionReadBytes / elapsedSession / 1024.0
+            
         self.factory.scroller.updateLog()
+
+    def antiIdleConnection(self):
+        self.fetchHelp()
+
+    #def __str__(self):
+    #    return 'str' + self.getName()
+    #def __repr__(self):
+    #    return 'repr' + self.getName()
+    
 
 class ASCIICodes:
     def __init__(self):
@@ -480,5 +518,3 @@ class NewzSlurpStatLog:
 
         if logNow or self.currentLog != currentLog:
             scroll(self.currentLog)
-            
-        

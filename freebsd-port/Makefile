@@ -16,6 +16,12 @@ DISTNAME=	${PORTNAME}-${PORTVERSION}
 PLIST_FILES=	bin/hellanzb.py \
 		etc/hellanzb.conf.sample \
 		share/doc/hellanzb/README \
+		%%PYTHON_SITELIBDIR%%/Hellanzb/Core.py \
+		%%PYTHON_SITELIBDIR%%/Hellanzb/Core.pyc \
+		%%PYTHON_SITELIBDIR%%/Hellanzb/Core.pyo \
+		%%PYTHON_SITELIBDIR%%/Hellanzb/Growl.py \
+		%%PYTHON_SITELIBDIR%%/Hellanzb/Growl.pyc \
+		%%PYTHON_SITELIBDIR%%/Hellanzb/Growl.pyo \
 		%%PYTHON_SITELIBDIR%%/Hellanzb/PostProcessor.py \
 		%%PYTHON_SITELIBDIR%%/Hellanzb/PostProcessor.pyc \
 		%%PYTHON_SITELIBDIR%%/Hellanzb/PostProcessor.pyo \

@@ -534,7 +534,7 @@ def trollmain(dirName):
 
     # Move other cruft out of the way
     deleteDuplicates(dirName)
-    if os.isfile(dirName + os.sep + nzbFile) and os.access(dirName + os.sep + nzbFile, os.R_OK):
+    if os.path.isfile(dirName + os.sep + nzbFile) and os.access(dirName + os.sep + nzbFile, os.R_OK):
         os.rename(dirName + os.sep + nzbFile, dirName + os.sep + Hellanzb.PROCESSED_SUBDIR + os.sep + nzbFile)
 
     # We're done

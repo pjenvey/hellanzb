@@ -7,7 +7,6 @@ archive passwords on it's own
 o the decompressor isn't thread safe. we'll have to convert this to a Decompressor class
 to prevent this. Ziplink should be able to spawn a troll thread on it's own, while it goes
 back to monitoring the queue
-o move various things out into a Util package
 
 @author pjenvey
 """

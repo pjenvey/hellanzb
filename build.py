@@ -6,12 +6,13 @@ distribution, and finally check in the version number bump change
 @author pjenvey
 
 """
-import optparse, os, re, setup, sys, tarfile
+import md5, optparse, os, re, setup, sys, tarfile
 from Hellanzb.Util import assertIsExe, stringEndsWith
 
 __id__ = '$Id$'
 
 VERSION_FILENAME = './Hellanzb/__init__.py'
+UPLOAD_HOST = 'groovie.org:/home/pjenvey/hellanzb/'
 
 def bumpVersion(oldVersion):
     """ Bump the ver number. Is dumb and expects 0.0. Will bump by .1 """
@@ -27,6 +28,31 @@ def writeVersion(newVersion):
     versionFile = open(VERSION_FILENAME, 'w')
     versionFile.write('version = \'' + newVersion + '\'\n')
     versionFile.close()
+
+def md5File(fileName):
+    """ Return the md5 checksum of the specified file """
+    m = md5.new()
+    file = open(fileName)
+    for line in file.readlines():
+        m.update(line)
+    return m.hexdigest()
+
+def uploadToHost(version):
+    """ Upload the new build of version to the UPLOAD_HOST """
+    files = []
+    for file in os.listdir('dist'):
+        if file.find('-' + version + '.') > -1:
+            files.append(file)
+
+    if len(files) == 0:
+        print "Error, could not find files to upload"
+
+    cmd = 'scp '
+    for file in files:
+            cmd = cmd + 'dist/' + file + ' '
+    cmd = cmd + UPLOAD_HOST
+
+    os.system(cmd)
 
 def buildDist():
     """ build a binary distribution """
@@ -81,9 +107,10 @@ def buildDPort(version):
     if not os.path.isdir(destDir):
         os.mkdir(destDir)
 
-    # replace the version
-    os.system('cat ' + portStubDir + os.sep + 'Portfile | sed s/____VERSION____/' + version + '/ > ' +
-              destDir + os.sep + 'Portfile')
+    # replace the version, and darwinports seems to require a checksum
+    checksum = md5File('dist/hellanzb-' + version + '.tar.gz').strip()
+    os.system('cat ' + portStubDir + os.sep + 'Portfile | sed s/____VERSION____/' + version + '/ | ' +
+              'sed s/____MD5_CHECKSUM____/' + 'md5\ ' + checksum + '/ > ' + destDir + os.sep + 'Portfile')
 
     dir = portDestDir[len('dist/'):]
     createTarBall('dist', dir, dir + '.tar.gz')
@@ -143,6 +170,8 @@ try:
         if not options.local:
             print 'Checking in new version number: ' + version
             os.system('svn ci -m "New build, version: ' + version + '" ' + VERSION_FILENAME)
+            print 'Deploying new build to host: ' + UPLOAD_HOST
+            uploadToHost(version)
 
     else:
         print 'Error: Version number: ' + version + ' is not HEAD!'

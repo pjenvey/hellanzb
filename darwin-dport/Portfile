@@ -1,7 +1,8 @@
 # $Id$
 
 PortSystem 1.0
-PortGroup python 1.0
+# This python portgroup will require you to download the python dport =[
+#PortGroup python 1.0
 
 name             hellanzb
 version          ____VERSION____
@@ -14,11 +15,22 @@ long_description \
 homepage         http://www.hellanzb.com
 platforms        darwin
 
-master_sites     http://groovie.org/~pjenvey/
+master_sites     http://groovie.org/~pjenvey/hellanzb/
 distname         hellanzb-${version}
-#checksums        md5 b854f25a33289565bcaeaded04955c1a
+checksums        ____MD5_CHECKSUM____
 
-post-install {
+# Stripped from the python group
+set python.bin   python
+
+use_configure    no
+
+build.cmd        ${python.bin} setup.py
+build.target     build
+
+destroot.cmd     ${python.bin} setup.py
+destroot.destdir --prefix=${destroot}${prefix}
+
+post-activate {
         if { ![file exists ${prefix}/etc/${name}.conf] } {
                 file copy ${prefix}/etc/${name}.conf.sample \
                         ${prefix}/etc/${name}.conf

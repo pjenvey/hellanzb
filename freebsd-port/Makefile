@@ -11,7 +11,7 @@ PORTVERSION=	____VERSION____
 #PORTEPOCH=	1
 CATEGORIES?=	net
 #MASTER_SITES=	http://www.hellanzb.com/distfiles/
-MASTER_SITES=	http://groovie.org/~pjenvey/
+MASTER_SITES=	http://groovie.org/~pjenvey/hellanzb/
 DISTNAME=	${PORTNAME}-${PORTVERSION}
 NO_CHECKSUM=	yes
 

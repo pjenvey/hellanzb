@@ -2,10 +2,6 @@
 PostProcessor (aka troll) - verify/repair/unarchive/decompress files downloaded with
 nzbget
 
-TODO
-o More work on passwords. Ideally troll should be able to determine some common rar
-archive passwords on it's own
-
 @author pjenvey
 """
 import Hellanzb, os
@@ -87,7 +83,7 @@ class PostProcessor(Thread):
         
         except FatalError, fe:
             self.stop()
-            error('A problem occurred for archive: ' + archiveName(self.dirName), fe)
+            error(archiveName(self.dirName) + ': A problem occurred', fe)
             if not self.background:
                 # FIXME: none of these will cause the main thread to return 1
                 sys.exit(1)
@@ -96,7 +92,7 @@ class PostProcessor(Thread):
         
         except Exception, e:
             self.stop()
-            error('An unexpected problem occurred for archive: ' + archiveName(self.dirName), e)
+            error(archiveName(self.dirName) + ': An unexpected problem occurred', e)
             if not self.background:
                 # not sure what happened, let's see the backtrace
                 raise
@@ -115,8 +111,8 @@ class PostProcessor(Thread):
         if len(DecompressionThread.musicFiles) == 0:
             return
                 
-        info('Decompressing ' + str(len(DecompressionThread.musicFiles)) + ' files via ' +
-             str(Hellanzb.MAX_DECOMPRESSION_THREADS) + ' threads..')
+        info(archiveName(self.dirName) + ': Decompressing ' + str(len(DecompressionThread.musicFiles)) + \
+             ' files via ' + str(Hellanzb.MAX_DECOMPRESSION_THREADS) + ' threads..')
     
         # Maintain a pool of threads of the specified size until we've exhausted the
         # musicFiles list
@@ -138,7 +134,7 @@ class PostProcessor(Thread):
                 
             self.decompressorCondition.release()
     
-        info('Finished Decompressing')
+        info(archiveName(self.dirName) + ': Finished Decompressing')
 
     def finishedPostProcess(self):
         """ finish the post processing work """
@@ -159,7 +155,7 @@ class PostProcessor(Thread):
                           self.dirName + os.sep + Hellanzb.PROCESSED_SUBDIR + os.sep + file)
     
         # We're done
-        info("Finished processing: " + archiveName(self.dirName))
+        info(archiveName(self.dirName) + ': Finished processing')
         growlNotify('Archive Success', 'hellanzb Done Processing:', archiveName(self.dirName),
                     True)
 

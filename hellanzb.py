@@ -15,12 +15,11 @@ o skip downloading par2 files unless they're needed:
    
    obviously both those files need the correct headers/footers too.
 
-o Make the par code only do a par2 repair (and no verify), repair already does the
+o (troll) Make the par code only do a par2 repair (and no verify), repair already does the
 verification
 
-o Now that troll runs in it's own thread, the logs can be filled with notifications from
-different archives/threads on every different line. should make all log messages prefix
-themselves with the archive name so the logs are easier to read
+o (troll) More work on passwords. Ideally troll should be able to determine some common rar
+archive passwords on it's own
 
 @author pjenvey, bbangert
 

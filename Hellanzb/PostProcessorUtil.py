@@ -51,10 +51,11 @@ class DecompressionThread(Thread):
     def run(self):
         """ decompress the song, then remove ourself from the active thread pool """
         # Catch exceptions here just in case, to ensure notify() will finally be called
+        archive = archiveName(os.path.dirname(self.file))
         try:
             decompressMusicFile(self.file, self.type)
         except Exception, e:
-            error('There was an unexpected problem while decompressing the musc file: ' + \
+            error(archive + ': There was an unexpected problem while decompressing the musc file: ' + \
                   os.path.basename(self.file), e)
 
         # Decrement the thread count AND immediately notify the caller
@@ -193,9 +194,11 @@ def decompressMusicFile(fileName, musicType):
 
     extLen = len(getFileExtension(fileName))
     destFileName = fileName[:-extLen] + musicType.decompressToType
+
+    archive = archiveName(os.path.dirname(fileName))
     
-    info('Decompressing music file: ' + os.path.basename(fileName) \
-         + ' to file: ' + os.path.basename(destFileName))
+    info(archiveName + ': Decompressing to ' + str(musicType.decompressToType) + ': ' + \
+         os.path.basename(fileName))
     cmd = cmd.replace('<DESTFILE>', '"' + destFileName + '"')
 
     # user defined cmds might spit out to stderr
@@ -277,7 +280,7 @@ def processRars(dirName, rarPassword):
     else:
         cmd = Hellanzb.UNRAR_CMD + ' x -y ' + ' "' + firstRar + '"'
     
-    info('Unraring..')
+    info(archiveName(dirName) + ': Unraring..')
     p = Ptyopen(cmd)
     output, status = p.readlinesAndWait()
     unrarReturnCode = os.WEXITSTATUS(status)
@@ -290,7 +293,7 @@ def processRars(dirName, rarPassword):
             errMsg += line
         raise FatalError(errMsg)
     
-    info('Finished unraring')
+    info(archiveName(dirName) + ': Finished unraring')
     processComplete(dirName, 'rar',
                     lambda file : os.path.isfile(file) and isRar(file) and not isAlbumCoverArchive(file))
 
@@ -301,10 +304,10 @@ there are not enough recovery blocks, raise a fatal exception """
     # Just incase we're running the program again, and we already successfully processed
     # the pars, don't bother doing it again
     if os.path.isfile(dirName + os.sep + Hellanzb.PROCESSED_SUBDIR + os.sep + '.par_done'):
-        info('Skipping par processing')
+        info(archiveName(dirName) + ': Skipping par processing')
         return
     
-    info('Verifying via pars..')
+    info(archiveName(dirName) + ': Verifying via pars..')
 
     dirName = dirName + os.sep
     verifyCmd = 'par2 v "' + dirName + '*.PAR2" "' + dirName + '*.par2" "' + dirName + '*_broken"'
@@ -316,11 +319,11 @@ there are not enough recovery blocks, raise a fatal exception """
         
     if verifyReturnCode == 0:
         # Verified
-        info('Par verification passed')
+        info(archiveName(dirName) + ': Par verification passed')
 
     elif verifyReturnCode == 1:
         # Repair required and possible
-        info('Repairing files via par..')
+        info(archiveName(dirName) + ': Repairing files via par..')
         
         p = Ptyopen(repairCmd)
         output, repairStatus = p.readlinesAndWait()
@@ -328,7 +331,7 @@ there are not enough recovery blocks, raise a fatal exception """
 
         if repairReturnCode == 0:
             # Repaired
-            info('Par repair successfully completed')
+            info(archiveName(dirName) + ': Par repair successfully completed')
         elif repairReturnCode > 0:
             # We should never get here. If verifyReturnCode is 1, we're guaranteed a
             # successful repair
@@ -340,7 +343,7 @@ there are not enough recovery blocks, raise a fatal exception """
         # First, if the repair is not possible, double check the output for what files are
         # missing or damaged (a missing file is considered as damaged in this case). they
         # may be unimportant
-        damagedAndRequired, neededBlocks = parseParNeedsBlocksOutput(output)
+        damagedAndRequired, neededBlocks = parseParNeedsBlocksOutput(archiveName(dirName), output)
 
         # The archive is only totally broken when we're missing required files
         if len(damagedAndRequired) > 0:
@@ -351,7 +354,7 @@ there are not enough recovery blocks, raise a fatal exception """
 
     processComplete(dirName, 'par', isPar)
 
-def parseParNeedsBlocksOutput(output):
+def parseParNeedsBlocksOutput(archive, output):
     """ Return a list of broken or damaged required files from par2 v output, and the required
 blocks needed. Will also log warn the user when it finds either of these kinds of files,
 or log error when they're required """
@@ -375,12 +378,12 @@ or log error when they're required """
                 # FIXME: putting msgids in the log output would help you read it
                 # better. Could queue up these messages for later processing (return them
                 # in this function)
-                errMsg = 'Archive missing required file: ' + file
-                warnMsg = 'Archive missing non-required file: ' + file
+                errMsg = archive + ': Archive missing required file: ' + file
+                warnMsg = archive + ': Archive missing non-required file: ' + file
             else:
                 file = damagedRE.sub('', line)
-                errMsg = 'Archive has damaged, required file: ' + file
-                warnMsg = 'Archive has damaged, non-required file: ' + file
+                errMsg = archive + ': Archive has damaged, required file: ' + file
+                warnMsg = archive + ': Archive has damaged, non-required file: ' + file
 
             if isRequiredFile(file):
                 error(errMsg)

@@ -17,7 +17,7 @@ o use optparse
 """
 
 import os, sys, Hellanzb, Hellanzb.Troll, Hellanzb.Ziplick
-from Hellanzb.Troll import debug, defineMusicType, error, FatalError
+from Hellanzb.Util import *
 
 __id__ = '$Id$'
 

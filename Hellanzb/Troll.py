@@ -2,6 +2,8 @@
 troll - verify/repair/unarchive/decompress files downloaded with nzbget
 
 TODO
+o More work on passwords. Ideally troll should be able to determine some common rar
+archive passwords on it's own
 o the decompressor isn't thread safe. we'll have to convert this to a Decompressor class
 to prevent this. Ziplink should be able to spawn a troll thread on it's own, while it goes
 back to monitoring the queue
@@ -9,10 +11,10 @@ o move various things out into a Util package
 
 @author pjenvey
 """
-import Hellanzb, os, popen2, string, sys, time, xmlrpclib
+import Hellanzb, os, popen2
 from distutils import spawn
-from StringIO import StringIO
 from threading import Thread, Condition
+from Util import *
 
 __id__ = '$Id$'
 
@@ -28,7 +30,6 @@ def init():
 
     # global vars that users shouldn't modify
     brokenFiles = [] # list of broken files (their renamed names)
-
 
 # FIXME: this class should be a KnownFileType class, or something. file types other than
 # music might want to be decompressed
@@ -87,34 +88,6 @@ class DecompressionThread(Thread):
 
         Thread.start(self)
 
-class FatalError(Exception):
-    """ An error that will cause the program to exit """
-    def __init__(self, message):
-        self.message = message
-
-def warn(message):
-    """ Log a message at the warning level """
-    sys.stderr.write('Warning: ' + message + '\n')
-
-def error(message):
-    """ Log a message at the error level """
-    sys.stderr.write('Error: ' + message + '\n')
-
-def info(message):
-    """ Log a message at the info level """
-    print message
-
-def debug(message):
-    if Hellanzb.DEBUG_MODE:
-        print message
-
-def assertIsExe(exe):
-    """ Abort the program if the specified file is not in our PATH and executable """
-    if len(exe) > 0:
-        exe = exe.split()[0]
-        if spawn.find_executable(exe) == None or os.access(exe, os.X_OK):
-            raise FatalError('Cannot continue program, required executable not in path: ' + exe)
-
 def dirHasRars(dirName):
     """ Determine if the specified directory contains rar files """
     for file in os.listdir(dirName):
@@ -129,20 +102,6 @@ def dirHasPars(dirName):
 def dirHasMusicFiles(dirName):
     """ Determine if the specified directory contains any known music files """
     return dirHasFileTypes(dirName, getMusicTypeExtensions())
-
-def dirHasFileType(dirName, fileExtension):
-    return dirHasFileTypes(dirName, [ fileExtension ])
-
-def dirHasFileTypes(dirName, fileExtensionList):
-    """ Determine if the specified directory contains any files of the specified type -- that
-type being defined by it's filename extension. the match is case insensitive """
-    for file in os.listdir(dirName):
-        ext = getFileExtension(file)
-        if ext:
-            for type in fileExtensionList:
-                if ext.lower() == type.lower():
-                    return True
-    return False
 
 def isRar(fileName):
     """ Determine if the specified file is a rar """
@@ -261,17 +220,6 @@ renamed file name to the specified list """
     warn('Renamed broken file: ' + fileName + ' to ' + fixedName)
     os.rename(fileName, fixedName)
 
-def getFileExtension(fileName):
-    """ Return the extenion of the specified file name """
-    if len(fileName) > 1 and fileName.find('.') > -1:
-        return string.lower(os.path.splitext(fileName)[1][1:])
-
-def stringEndsWith(string, match):
-    matchLen = len(match)
-    if len(string) >= matchLen and string[-matchLen:] == match:
-        return True
-    return False
-
 def getMusicType(fileName):
     """ Determine the specified file's MusicType instance """
     ext = getFileExtension(fileName)
@@ -279,13 +227,6 @@ def getMusicType(fileName):
         if ext == musicType.extension:
             return musicType
     return False
-
-def touch(fileName):
-    """ Set the access/modified times of this file to the current time. Create the file if it
-does not exist. """
-    fd = os.open(fileName, os.O_WRONLY | os.O_CREAT, 0666)
-    os.close(fd)
-    os.utime(fileName, None)
 
 def decompressMusicFiles(dirName):
     """ Assume the integrity of the files in the specified directory have been
@@ -516,16 +457,14 @@ move the files we processed out of the way, and touch a file on the filesystem i
 this state is done """
     # ensure we pass the absolute path to the filter function
     for file in filter(moveFileFilterFunction, [dirName + os.sep + file for file in os.listdir(dirName)]):
-        if not Hellanzb.DEBUG_MODE:
-            os.rename(file, os.path.dirname(file) + os.sep + Hellanzb.PROCESSED_SUBDIR + os.sep +
+        os.rename(file, os.path.dirname(file) + os.sep + Hellanzb.PROCESSED_SUBDIR + os.sep +
                   os.path.basename(file))
 
     # And make a note of the completition
     # NOTE: we've just moved the files out of dirName, and we usually do a dirHas check
     # before calling the process function. but this is more explicit, and could be used to
     # show the overall status on the webapp
-    if not Hellanzb.DEBUG_MODE:
-        touch(dirName + os.sep + Hellanzb.PROCESSED_SUBDIR + os.sep + '.' + processStateName + '_done')
+    touch(dirName + os.sep + Hellanzb.PROCESSED_SUBDIR + os.sep + '.' + processStateName + '_done')
     
 def troll(dirName):
     """ main, mayn """
@@ -618,24 +557,3 @@ def archiveNameFromDirName(dirName):
     if dirName[len(dirName) - 1] == os.sep:
         dirName = dirName[0:len(dirName) - 1]
     return os.path.basename(dirName)
-
-# FIXME: this function and a number of others should be moved out into a Util package
-def growlNotify(type, title, description, sticky):
-    """ send a message to the growl daemon via an xmlrpc proxy """
-    # FIXME: should validate the server information on startup, and catch connection
-    # refused errors here
-    if not Hellanzb.ENABLE_GROWL_NOTIFY:
-        return
-
-    # NOTE: we probably want this in it's own thread to be safe, i can see this easily
-    # deadlocking for a bit on say gethostbyname()
-    # AND we could have a LOCAL_GROWL option for those who might run hellanzb on os x
-    serverUrl = 'http://' + Hellanzb.SERVER + '/'
-    server = xmlrpclib.Server(serverUrl)
-
-    # If for some reason, the XMLRPC server ain't there no more, this will blow up
-    # so we put it in a try/except block
-    try:
-        server.notify(type, title, description, sticky)
-    except:
-        return

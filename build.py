@@ -7,7 +7,7 @@ distribution, and finally check in the version number bump change
 
 """
 import os, re, setup, sys
-from Hellanzb.Troll import assertIsExe, stringEndsWith
+from Hellanzb.Util import assertIsExe, stringEndsWith
 
 __id__ = '$Id$'
 

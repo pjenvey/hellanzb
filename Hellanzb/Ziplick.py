@@ -16,7 +16,7 @@ version 0.2
 import Hellanzb, os, re, Troll
 from time import sleep
 from threading import Thread
-from Troll import FatalError, info, growlNotify, stringEndsWith, touch, error
+from Util import *
 
 __id__ = '$Id$'
 

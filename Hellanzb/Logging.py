@@ -300,9 +300,9 @@ def init():
 
     # FIXME: could move this to config file
     # How many seconds to delay the scroll for
-    #Hellanzb.Logging.SCROLL_INTERRUPT_WAIT = 5
+    Hellanzb.Logging.SCROLL_INTERRUPT_WAIT = 5
     # 2 is for testing
-    Hellanzb.Logging.SCROLL_INTERRUPT_WAIT = 2
+    #Hellanzb.Logging.SCROLL_INTERRUPT_WAIT = 2
 
 
     # Whether or not scroll mode is on

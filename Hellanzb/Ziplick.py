@@ -10,12 +10,12 @@ version 0.2
 # extracting
 """
 
-import Hellanzb, os, re, PostProcessor
+import Hellanzb, os, re, PostProcessor, asyncore
 from shutil import move
 from time import sleep
 from Logging import *
 from Util import *
-from Hellanzb.Newsleecher.HeadHoncho import HeadHoncho
+from Hellanzb.NewzSlurp.Controller import Controller
 
 __id__ = '$Id$'
 
@@ -24,11 +24,9 @@ class Ziplick:
     def __init__(self):
         self.ensureDirs()
 
-        if not Hellanzb.NEWSLEECHER_IS_BUGGY:
-            # We only want one instance of the news leecher (with the same pool persisted
-            # throughout the life of the daemon. We'll set the jobs later
-            self.newsleecher = HeadHoncho(jobs = None)
-
+        # Initialize our nntp client
+        self.newz_slurp = Controller()
+        
     def ensureDirs(self):
         """ Ensure that all the required directories exist, otherwise attempt to create them """
         for arg in dir(Hellanzb):
@@ -68,8 +66,6 @@ class Ziplick:
                 
                 # Nothing to do, lets wait 5 seconds and start over
                 if not self.queued_nzbs:
-                    if not Hellanzb.NEWSLEECHER_IS_BUGGY:
-                        self.newsleecher.super_anti_idle()
                     sleep(5)
                     continue
                 
@@ -95,30 +91,8 @@ class Ziplick:
             scrollBegin()
 
             statusCode = None
-            if Hellanzb.NEWSLEECHER_IS_BUGGY:
-                # Run nzbget. Pipe it's output through the logging system via the special
-                # scroll level
-                p = Ptyopen(['nzbget', nzbfile]) # Passing Ptyopen a list tells it to run the
-                                                 # process directly, instead of through
-                                                 # /bin/sh
-                # no input
-                p.tochild.close()
 
-                while True:
-                    try:
-                        line = p.fromchild.readline()
-                        if line == '': # EOF
-                            break
-                        line = line.rstrip()
-                        scroll(line)
-                    except Exception, e:
-                        pass
-                p.fromchild.close()
-                statusCode = p.wait()
-                nzbgetReturnCode = os.WEXITSTATUS(statusCode)
-            else:
-                self.newsleecher.jobs = [nzbfile]
-                self.newsleecher.main_loop()
+            self.newz_slurp.process(nzbfile)
 
             scrollEnd()
 
@@ -135,7 +109,7 @@ class Ziplick:
 
             # Take care of the unfortunate case that we coredumped
             coreFucked = False
-            if Hellanzb.NEWSLEECHER_IS_BUGGY and os.WCOREDUMP(statusCode):
+            if os.WCOREDUMP(statusCode):
                 coreFucked = True
                 newdir += '_corefucked'
                 error('Archive: ' + archiveName(nzbfilename) + ' is core fucked :(')

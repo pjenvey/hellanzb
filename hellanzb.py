@@ -160,12 +160,6 @@ def init(options):
             Hellanzb.UNRAR_CMD = exe
     assertIsExe(Hellanzb.UNRAR_CMD)
 
-    # FIXME: cruft
-    Hellanzb.Newsleecher.INCOMPLETE_THRESHOLD = 90
-
-    # FIXME
-    Hellanzb.NEWSLEECHER_IS_BUGGY = False
-
     # One and only signal handler
     signal.signal(signal.SIGINT, signalHandler)
 

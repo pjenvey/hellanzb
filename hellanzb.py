@@ -77,10 +77,11 @@ def loadConfig(fileName):
         return True
     
     except FatalError, fe:
-        error('A problem occurred while reading your configuration file: ' + fe.message)
+        error('A problem occurred while reading the config file: ' + fe.message)
         sys.exit(1)
-    except:
-        error('An unexpected error occurred file reading the config file:')
+    except Exception, e:
+        error('An unexpected error occurred while reading the config file: ' + str(e.__class__) + ': ' +
+              str(e))
         raise
 
 def runDaemon():
@@ -100,9 +101,9 @@ def runTroll(archiveDir):
         error('An unexpected problem occurred: ' + fe.message)
         sys.exit(1)
 
-    except:
+    except Exception, e:
         Hellanzb.Troll.cleanUp(archiveDir)
-        error('An unexpected problem occurred!')
+        error('An unexpected problem occurred: ' + str(e.__class__) + ': ' + str(e))
         raise
     
 if __name__ == '__main__':

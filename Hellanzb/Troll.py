@@ -71,9 +71,9 @@ class DecompressionThread(Thread):
         # Catch exceptions here just in case, to ensure notify() will finally be called
         try:
             decompressMusicFile(self.file, self.type)
-        except:
+        except Exception, e:
             error('There was an unexpected problem while decompressing the musc file: ' + \
-                  os.path.basename(self.file))
+                  os.path.basename(self.file) + ': ' + str(e.__class__) + ': ' + str(e))
 
         # Decrement the thread count AND immediately notify the caller
         DecompressionThread.cv.acquire()
@@ -574,6 +574,6 @@ def troll(dirName):
 def archiveNameFromDirName(dirName):
     """ Extract the name of the archive from the archive's absolute path """
     # pop off separator and basename
-    if dirName[len(dirName) - 1] == os.sep:
+    while dirName[len(dirName) - 1] == os.sep:
         dirName = dirName[0:len(dirName) - 1]
     return os.path.basename(dirName)

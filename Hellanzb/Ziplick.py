@@ -124,7 +124,7 @@ class Ziplick(Thread):
                     Troll.cleanUp(newdir)
                     error('An unexpected problem occurred for archive: ' +
                           self.archiveNameFromNzb(nzbfilename) + ', problem: ' + fe.message)
-                except:
+                except Exception, e:
                     Troll.cleanUp(newdir)
                     error('An unexpected problem occurred for archive: ' +
-                          self.archiveNameFromNzb(nzbfilename) + '!')
+                          self.archiveNameFromNzb(nzbfilename) + ': ' + str(e.__class__) + ': ' + str(e))

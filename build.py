@@ -179,6 +179,7 @@ try:
         if not options.local:
             print 'Checking in new version number: ' + version
             os.system('svn ci -m "New build, version: ' + version + '" ' + VERSION_FILENAME)
+            
             print 'Deploying new build to host: ' + UPLOAD_HOST
             uploadToHost(version)
 

@@ -156,7 +156,8 @@ def decodeSegmentToFile(segment, encodingType = YENCODE):
         #debug('ydecoding line count: ' + str(len(segment.articleData.readlines())))
         decodedLines = yDecode(segment.articleData)
 
-        # FIXME: crc check needs to interrupt scroll
+        # FIXME: crc check needs to be shown through the scroll (but not via
+        # Hellanzb.Logging.ScrollInterrupter)
         decoded = ''.join(decodedLines)
         crc = '%08X' % (crc32(decoded) & 2**32L - 1)
         if crc != segment.crc:

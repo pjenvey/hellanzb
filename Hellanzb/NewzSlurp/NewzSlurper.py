@@ -459,10 +459,11 @@ class NewzSlurpStatLog:
                 
             if lastSegment != None and lastSegment.nzbFile == segment.nzbFile:
                 line = self.connectionPrefix + ' %s' + ACODE.KILL_LINE
-                self.currentLog += line % (str(i), rtruncate(segment.nzbFile.showFilename, length = 100))
+                # 58 line width -- approximately 80 - 4 (prefix) - 18 (max suffix)
+                self.currentLog += line % (str(i), rtruncate(segment.nzbFile.showFilename, length = 58))
             else:
                 line = self.connectionPrefix + ' %s - %2d%% @ %.1fKB/s' + ACODE.KILL_LINE
-                self.currentLog += line % (str(i), rtruncate(segment.nzbFile.showFilename, length = 100),
+                self.currentLog += line % (str(i), rtruncate(segment.nzbFile.showFilename, length = 58),
                                            segment.nzbFile.downloadPercentage, segment.nzbFile.speed)
                 
             self.currentLog += '\n\r'

@@ -25,7 +25,7 @@ def runSetup():
         url = 'http://www.hellanzb.com/',
         license = 'UNAUTHORIZED USE ENTITLES #kgb TO KILL YOU AND YOUR ENTIRE FAMILY',
 
-        packages = [ 'Hellanzb' ],
+        packages = [ 'Hellanzb', 'Hellanzb.Newsleecher' ],
         scripts = [ 'hellanzb.py', 'hellagrowler.py' ],
         data_files = [ ( 'etc', [ 'etc/hellanzb.conf.sample' ] ),
                        ( 'share/doc/hellanzb', [ 'README' ] ) ],

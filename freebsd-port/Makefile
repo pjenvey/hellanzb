@@ -33,7 +33,25 @@ PLIST_FILES=	bin/hellanzb.py \
 		%%PYTHON_SITELIBDIR%%/Hellanzb/Ziplick.pyo \
 		%%PYTHON_SITELIBDIR%%/Hellanzb/__init__.py \
 		%%PYTHON_SITELIBDIR%%/Hellanzb/__init__.pyc \
-		%%PYTHON_SITELIBDIR%%/Hellanzb/__init__.pyo
+		%%PYTHON_SITELIBDIR%%/Hellanzb/__init__.pyo \
+		%%PYTHON_SITELIBDIR%%/Hellanzb/Newsleecher/HeadHoncho.py \
+		%%PYTHON_SITELIBDIR%%/Hellanzb/Newsleecher/HeadHoncho.pyc \
+		%%PYTHON_SITELIBDIR%%/Hellanzb/Newsleecher/HeadHoncho.pyo \
+		%%PYTHON_SITELIBDIR%%/Hellanzb/Newsleecher/NZBParser.py \
+		%%PYTHON_SITELIBDIR%%/Hellanzb/Newsleecher/NZBParser.pyc \
+		%%PYTHON_SITELIBDIR%%/Hellanzb/Newsleecher/NZBParser.pyo \
+		%%PYTHON_SITELIBDIR%%/Hellanzb/Newsleecher/WrapNews.py \
+		%%PYTHON_SITELIBDIR%%/Hellanzb/Newsleecher/WrapNews.pyc \
+		%%PYTHON_SITELIBDIR%%/Hellanzb/Newsleecher/WrapNews.pyo \
+		%%PYTHON_SITELIBDIR%%/Hellanzb/Newsleecher/WrapPost.py \
+		%%PYTHON_SITELIBDIR%%/Hellanzb/Newsleecher/WrapPost.pyc \
+		%%PYTHON_SITELIBDIR%%/Hellanzb/Newsleecher/WrapPost.pyo \
+		%%PYTHON_SITELIBDIR%%/Hellanzb/Newsleecher/WrapServer.py \
+		%%PYTHON_SITELIBDIR%%/Hellanzb/Newsleecher/WrapServer.pyc \
+		%%PYTHON_SITELIBDIR%%/Hellanzb/Newsleecher/WrapServer.pyo \
+		%%PYTHON_SITELIBDIR%%/Hellanzb/Newsleecher/__init__.py \
+		%%PYTHON_SITELIBDIR%%/Hellanzb/Newsleecher/__init__.pyc \
+		%%PYTHON_SITELIBDIR%%/Hellanzb/Newsleecher/__init__.pyo
 
 PLIST_DIRS=	share/doc/hellanzb \
 		%%PYTHON_SITELIBDIR%%/Hellanzb

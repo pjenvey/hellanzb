@@ -296,7 +296,7 @@ def scrollEnd():
     ScrollableHandler.scrollFlag = False
     del ScrollableHandler.scrollLock
 
-def init():
+def initLogging():
     """ Setup logging """
     logging.addLevelName(ScrollableHandler.SCROLL, 'SCROLL')
 

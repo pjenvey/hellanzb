@@ -88,14 +88,18 @@ class PostProcessor(Thread):
         except FatalError, fe:
             self.stop()
             error('A problem occurred for archive: ' + archiveName(self.dirName), fe)
-            #if not self.background:
-            raise
+            if not self.background:
+                # FIXME: none of these will cause the main thread to return 1
+                sys.exit(1)
+                #thread.interrupt_main()
+                #raise
         
         except Exception, e:
             self.stop()
             error('An unexpected problem occurred for archive: ' + archiveName(self.dirName), e)
-            #if not self.background:
-            raise
+            if not self.background:
+                # not sure what happened, let's see the backtrace
+                raise
     
     def decompressMusicFiles(self):
         """ Assume the integrity of the files in the specified directory have been

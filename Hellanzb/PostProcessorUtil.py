@@ -307,8 +307,8 @@ there are not enough recovery blocks, raise a fatal exception """
     info('Verifying via pars..')
 
     dirName = dirName + os.sep
-    verifyCmd = 'par2 v "' + dirName + '*.PAR2" "' + dirName + '*.par2"' + ' *_broken'
-    repairCmd = 'par2 r "' + dirName + '*.PAR2" "' + dirName + '*.par2"' + ' *_broken' 
+    verifyCmd = 'par2 v "' + dirName + '*.PAR2" "' + dirName + '*.par2" "' + dirName + '*_broken"'
+    repairCmd = 'par2 r "' + dirName + '*.PAR2" "' + dirName + '*.par2" "' + dirName + '*_broken"'
 
     p = popen2.Popen4(verifyCmd)
     output = p.fromchild.readlines()
@@ -348,8 +348,8 @@ there are not enough recovery blocks, raise a fatal exception """
         if len(damagedAndRequired) > 0:
             growlNotify('Error', 'hellanzb Cannot par repair:', archiveName(dirName) +
                         '\nNeed ' + neededBlocks + ' more recovery blocks', True)
-            raise FatalError('Unable to par repair: there are not enough recovery blocks, need: ' +
-                             neededBlocks + 'more')
+            raise FatalError('Unable to par repair: archive requires ' + neededBlocks + \
+                             ' more recovery blocks for repair')
 
     processComplete(dirName, 'par', isPar)
 
@@ -374,14 +374,21 @@ or log error when they're required """
 
             if stringEndsWith(line, 'missing.'):
                 file = line[:-len('" - missing.')]
+                # FIXME: putting msgids in the log output would help you read it
+                # better. Could queue up these messages for later processing (return them
+                # in this function)
+                errMsg = 'Archive missing required file: ' + file
+                warnMsg = 'Archive missing non-required file: ' + file
             else:
                 file = damagedRE.sub('', line)
+                errMsg = 'Archive has damaged, required file: ' + file
+                warnMsg = 'Archive has damaged, non-required file: ' + file
 
             if isRequiredFile(file):
-                error('Archive missing required file: ' + file)
+                error(errMsg)
                 damagedAndRequired.append(file)
             else:
-                warn('Archive missing non-required file: ' + file)
+                warn(warnMsg)
 
         elif line[0:len('You need ')] == 'You need ' and \
             stringEndsWith(line, ' more recovery blocks to be able to repair.'):
@@ -395,9 +402,10 @@ def processComplete(dirName, processStateName, moveFileFilterFunction):
 move the files we processed out of the way, and touch a file on the filesystem indicating
 this state is done """
     # ensure we pass the absolute path to the filter function
-    for file in filter(moveFileFilterFunction, [dirName + os.sep + file for file in os.listdir(dirName)]):
-        os.rename(file, os.path.dirname(file) + os.sep + Hellanzb.PROCESSED_SUBDIR + os.sep +
-                  os.path.basename(file))
+    if moveFileFilterFunction != None:
+        for file in filter(moveFileFilterFunction, [dirName + os.sep + file for file in os.listdir(dirName)]):
+            os.rename(file, os.path.dirname(file) + os.sep + Hellanzb.PROCESSED_SUBDIR + os.sep + \
+                      os.path.basename(file))
 
     # And make a note of the completition
     # NOTE: we've just moved the files out of dirName, and we usually do a dirHas check

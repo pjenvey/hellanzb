@@ -226,6 +226,26 @@ scroll and already added the spaces """
                 
                 ScrollableHandler.scrollLock.release()
 
+class LogOutputStream:
+    """ Provides somewhat of a file-like interface (supporting only the typical writing
+    functions) to the specified logging function """
+    def __init__(self, logFunction):
+        self.write = logFunction
+
+    def flush(self):
+        pass
+    
+    def close(self): raise NotImplementedError()
+    def isatty(self): raise NotImplementedError()
+    def next(self): raise NotImplementedError()
+    def read(self, n=-1): raise NotImplementedError()
+    def readline(self, length=None): raise NotImplementedError()
+    def readlines(self, sizehint=0): raise NotImplementedError()
+    def seek(self, pos, mode=0): raise NotImplementedError()
+    def tell(self): raise NotImplementedError()
+    def truncate(self, size=None): raise NotImplementedError()
+    def writelines(self, list): raise NotImplementedError()
+
 def warn(message):
     """ Log a message at the warning level """
     Hellanzb.logger.warn(message)
@@ -301,7 +321,8 @@ def initLogging():
     logging.addLevelName(ScrollableHandler.SCROLL, 'SCROLL')
 
     Hellanzb.logger = logging.getLogger('hellanzb')
-    Hellanzb.logger.setLevel(ScrollableHandler.SCROLL)
+    #Hellanzb.logger.setLevel(ScrollableHandler.SCROLL)
+    Hellanzb.logger.setLevel(logging.DEBUG)
 
     # Filter for stdout -- log warning and below
     class OutFilter(logging.Filter):
@@ -366,3 +387,16 @@ def initLogFile(logFile = None):
     fileHdlr.addFilter(LogFileFilter())
     
     Hellanzb.logger.addHandler(fileHdlr)
+
+    # If some debug to file flag
+    if True:
+        class DebugFileFilter(logging.Filter):
+            def filter(self, record):
+                if record.levelno > logging.DEBUG:
+                    return False
+                return True
+        debugFileHdlr = logging.handlers.RotatingFileHandler(Hellanzb.LOG_FILE + '-debug')
+        debugFileHdlr.setFormatter(logging.Formatter('%(asctime)s %(levelname)s %(message)s'))
+        debugFileHdlr.setLevel(logging.DEBUG)
+        debugFileHdlr.addFilter(DebugFileFilter())
+        Hellanzb.logger.addHandler(debugFileHdlr)

@@ -23,8 +23,13 @@ class Ziplick:
 
     def __init__(self):
         self.ensureDirs()
-        from Hellanzb.NewzSlurp import initNewzSlurp
+        from Hellanzb.NewzSlurp.NewzSlurper import initNewzSlurp, startNewzSlurp
         initNewzSlurp()
+        # (newshosting) Connecting... opened 4 connections.
+        # FIXME: make the logging accept a second arg, so we can not end lines (if this is possible?)
+        info('(somewhere) Connecting...')
+        startNewzSlurp()
+        info('Opened connections')
 
     def ensureDirs(self):
         """ Ensure that all the required directories exist, otherwise attempt to create them """

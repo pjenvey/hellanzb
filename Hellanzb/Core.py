@@ -164,9 +164,10 @@ def shutdown():
     Hellanzb.shutdown = True
 
     # wakeup the doofus scroll interrupter thread (to die) if it's waiting
-    ScrollInterrupter.pendingMonitor.acquire()
-    ScrollInterrupter.pendingMonitor.notify()
-    ScrollInterrupter.pendingMonitor.release()
+    if hasattr(ScrollInterrupter, 'pendingMonitor'):
+        ScrollInterrupter.pendingMonitor.acquire()
+        ScrollInterrupter.pendingMonitor.notify()
+        ScrollInterrupter.pendingMonitor.release()
     
 def shutdownNow(returnCode = 0):
     """ shutdown the program ASAP """

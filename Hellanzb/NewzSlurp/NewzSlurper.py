@@ -14,15 +14,30 @@ from twisted.python import log
 from random import randint
 from Hellanzb.Logging import *
 from Hellanzb.NewzSlurp.ArticleDecoder import decode
+from Queue import Empty
 
 __id__ = '$Id$'
 
 USERNAME = 'pjenvey'
-PASSWORD = 'DONUT_TRY_TO_HAX_ME'
+PASSWORD = 'gr7eatswitch'
+
+# FIXME:
+# problem: when resuming, we dont have our real name yet (just the temp name). you need
+# the real name before you can determine what is on the filesystem/whats left to d/l
+
+# SOLUTION:
+# the needsDownload() could do this, if it fails to find the filename or segment filename
+# on the FS, and we only have a temporary name, for every file in the directory, if the
+# filename matches a substr in our subject, we found it. segment we can look for the
+# correct .segment prefix.
+# This check should be done in NewzSlurper to be correct. but could cause small
+# delays. could we put this in the NZBQueue.parseNZB instead?
 
 def initNewzSlurp():
-    # initialize logging
-    log.startLogging(sys.stdout)
+    """ Init """
+    # Direct the twisted output to the debug level
+    fileStream = LogOutputStream(debug)
+    log.startLogging(fileStream)
 
     from Hellanzb.NewzSlurp.NZBUtil import NZBQueue
     # FIXME:
@@ -39,12 +54,14 @@ def startNewzSlurp():
     #for i in range(1):
         # connect factory to this host and port
         reactor.connectTCP("unlimited.newshosting.com", 9000, Hellanzb.nsf)
+        #reactor.connectTCP("unlimited.newshosting.com", 8000, Hellanzb.nsf)
 
     # run
-    #info('@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@')
     #reactor.suggestThreadPoolSize(3)
     reactor.suggestThreadPoolSize(1)
-    reactor.run(installSignalHandlers = False)
+    from thread import start_new_thread
+    #reactor.run(installSignalHandlers = False)
+    start_new_thread(reactor.run, (), { 'installSignalHandlers': False })
     
 def shutdownNewzSlurp():
     """ """
@@ -125,16 +142,27 @@ class NewzSlurper(NNTPClient):
     def fetchNextNZBSegment(self):
         """ Pop nzb article from the queue, and attempt to retrieve it if it hasn't already been
         retrieved"""
-        #nzbSegment = Hellanzb.queue.get()
+        #nzbSegment = Hellanzb.queue.get_nowait()
         if self.currentSegment is None:
-            # FIXME: act accordingly when the queue is empty
-            self.currentSegment = Hellanzb.queue.get()
+            try:
+                # FIXME: act accordingly when the queue is empty
+                nextSegment = Hellanzb.queue.get_nowait()
+                while not nextSegment.needsDownload():
+                    #debug('SKIPPING segment: ' + nextSegment.getTempFileName())
+                    debug('SKIPPING segment: ' + nextSegment.getTempFileName() + ' subject: ' + nextSegment.nzbFile.subject)
+                    nextSegment = Hellanzb.queue.get_nowait()
+                self.currentSegment = nextSegment
+            except Empty:
+                debug('DONE!')
+                time.sleep(10)
+                return
 
         for i in xrange(len(self.currentSegment.nzbFile.groups)):
             # FIXME: group here is a type unicode class. fetchGroup requires str
             # objects. These should be str()'d during the nzbFile instantiation
             group = str(self.currentSegment.nzbFile.groups[i])
             debug('NewzSlurper[' + str(self.id) + ']' + ' fetching group:' + group)
+            debug('group 4 segment: ' + self.currentSegment.getTempFileName() + ' subject: ' + self.currentSegment.nzbFile.subject)
 
             # FIXME: should only activate one of the groups
             if group not in self.activeGroups:
@@ -143,14 +171,11 @@ class NewzSlurper(NNTPClient):
             
         # queue.pendingGroups, queue.activeGroups, def fetchPendingGroups(): # function
         # calls a locked queue function that returns it new groups
-        info('NewzSlurper[' + str(self.id) + ']' + ' fetching article: ' + \
-              self.currentSegment.guessFileName() + ' (' + self.currentSegment.messageId + ')')
-        info(str(self.id) + 'going to fetch article: ' + str(self.currentSegment.messageId))
+        debug('NewzSlurper[' + str(self.id) + ']' + ' fetching article: ' + \
+              #self.currentSegment.getDestination() + ' (' + self.currentSegment.messageId + ')')
+              self.currentSegment.getDestination() + ' (' + self.currentSegment.nzbFile.subject + ')')
+        debug(str(self.id) + 'going to fetch article: ' + str(self.currentSegment.messageId))
         self.fetchArticle(str(self.currentSegment.messageId))
-
-    #def _stateArticle(self, line):
-    #    print '.',
-    #    NNTPClient._stateArticle(self, line)
         
     def fetchArticle(self, index):
         """ """
@@ -158,12 +183,13 @@ class NewzSlurper(NNTPClient):
 
     def gotArticle(self, article):
         """ Decode the article """
-        info('NewzSlurper[' + str(self.id) + ']' + ' got article: ' + self.currentSegment.guessFileName() + \
+        debug('NewzSlurper[' + str(self.id) + ']' + ' got article: ' + self.currentSegment.getDestination() + \
              ' (' + self.currentSegment.messageId + ')' + ' size: ' + str(len(article)) + ' expected size: ' + \
              str(self.currentSegment.bytes))
 
-        #info('aclass: ' + str(article.__class__))
-        #info('gotArticle: ' + article)
+        #debug('aclass: ' + str(article.__class__))
+        #debug('gotArticle: ' + article)
+        debug('article class: ' + str(article.__class__))
         self.currentSegment.articleData = article
         self.deferSegmentDecode(self.currentSegment)
         self.currentSegment = None
@@ -179,17 +205,22 @@ class NewzSlurper(NNTPClient):
 
     def gotGroup(self, group):
         """ """
+        debug('gotGroup!')
         # FIXME: wtf does fetchGroup tuple group?
         group = group[len(group) - 1]
-        info(str(self.id) + 'got group: ' + group)
+        debug(str(self.id) + 'got group: ' + group)
         self.activeGroups.append(group)
         self.activatedGroup = True
         # FIXME: where do i remove the group?
 
         self.fetchNextNZBSegment()
 
-    #def _stateArticle(self, line):
-    #    NNTPClient._stateArticle(self, line)
+    def _stateArticle(self, line):
+        if line != '.':
+            self._newLine(line, 0)
+        else:
+            #self.gotArticle('\n'.join(self._endState()))
+            self.gotArticle(self._endState())
 
     def _stateIdle(self):
         print 'the group is: %s' % stat['group']
@@ -198,16 +229,16 @@ class NewzSlurper(NNTPClient):
             self._endState()
             self.fetchGroup(stat['group'])
 
-    def getIdleFailed(self, error):
+    def getIdleFailed(self, err):
         "Override for getIdleFailed"
         print 'uhhh, something bad happened....'
         
     def fetchIdle(self):
         self._newState(self._stateIdle, self.getIdleFailed)
 
-    def authInfoFailed(self, error):
+    def authInfoFailed(self, err):
         "Override for notification when authInfoFailed() action fails"
-        error('AUTHINFO failed: ' + error)
+        error('AUTHINFO failed: ' + str(err))
 
     def connectionMade(self):
         NNTPClient.connectionMade(self)
@@ -218,17 +249,17 @@ class NewzSlurper(NNTPClient):
         print 'huh huh i got head'
         print 'head: ' + head
 
-    def getHeadFailed(self, error):
+    def getHeadFailed(self, err):
         print 'didn\'t get any head =['
-        print 'error: ' + error
+        print 'err: ' + err
 
     def gotBody(self, body):
         print 'got body'
         # FIXME: decode body. or do it during the lineReceieved()?
 
-    def gotBodyFailed(self, error):
+    def gotBodyFailed(self, err):
         print 'didn\'t get body'
-        print 'error: ' + error
+        print 'err: ' + err
 
     def lineReceived(self, line):
         self.lineCount += 1

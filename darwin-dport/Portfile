@@ -41,6 +41,7 @@ depends_run  bin:nzbget:nzbget \
              bin:par2:par2 \
              bin:rar:rar \
              bin:flac:flac \
+             bin:shorten:shorten \
 
 post-activate {
         # copy over the sample conf file if neccessary

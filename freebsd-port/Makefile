@@ -60,7 +60,8 @@ RUN_DEPENDS=	nzbget:${POSTDIR}/news/nzbget \
 		par2:${POSTDIR}/archivers/par2cmdline \
 		rar:${POSTDIR}/archivers/rar \
 		flac:${POSTDIR}/audio/flac \
-		mac:${POSTDIR}/audio/mac
+		mac:${POSTDIR}/audio/mac \
+		shorten:${POSTDIR}/audio/shorten
 
 MAINTAINER=	pjenvey@groovie.org
 COMMENT?=	Hands free usenet file retrieval via nzb files

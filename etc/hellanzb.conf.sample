@@ -49,6 +49,7 @@ Hellanzb.PROCESSED_SUBDIR = 'processed'
 # None means these files don't need to be decompressed
 defineMusicType('ape', 'mac <FILE> <DESTFILE> -d', 'wav')
 defineMusicType('flac', 'flac -d <FILE>', 'wav')
+defineMusicType('shn', 'shorten -x < <FILE> > <DESTFILE>', 'wav')
 defineMusicType('wav', None, None)
 defineMusicType('mp3', None, None)
 

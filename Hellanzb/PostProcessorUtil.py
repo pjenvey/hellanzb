@@ -461,8 +461,8 @@ def getRarPassword(msgId):
                 if not os.access(absPath, os.R_OK):
                     raise FatalError('Refusing to continue: unable to read rar password (no read access)')
             
-            msgIdFile = open(absPath)
-            return msgIdFile.read().rstrip()
+                msgIdFile = open(absPath)
+                return msgIdFile.read().rstrip()
 
 def isFreshState(dirName, stateName):
     """ Determine if the specified state has already been completed """

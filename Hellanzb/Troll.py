@@ -636,10 +636,6 @@ def growlNotify(type, title, description, sticky):
     # If for some reason, the XMLRPC server ain't there no more, this will blow up
     # so we put it in a try/except block
     try:
-        # FIXME this won't be supported until it's in the growl release
-        if sticky:
-            pass
-        
-        server.notify(type, title, description)
+        server.notify(type, title, description, sticky)
     except:
         return

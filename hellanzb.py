@@ -43,7 +43,6 @@ def findAndLoadConfig(optionalConfigFile):
             error('Unable to load specified config file: ' + optionalConfigFile)
             sys.exit(1)
 
-
     # look for conf in this order: sys.prefix, ./, or ./etc/
     confDirs = [ sys.prefix + os.sep + 'etc', os.getcwd() + os.sep + 'etc', os.getcwd() ]
 

@@ -115,8 +115,8 @@ class WrapNews:
                                 except Exception, msg:
                                         print 'WARNING: unable to connect: %s' % (msg)
                                 else:
-                                        self.body(self.article)
                                         self.setblocking(0)
+                                        self.body(self.article)
                                         break
                         else:
                                 break

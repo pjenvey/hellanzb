@@ -19,6 +19,9 @@ PLIST_FILES=	bin/hellanzb.py \
 		%%PYTHON_SITELIBDIR%%/Hellanzb/Troll.py \
 		%%PYTHON_SITELIBDIR%%/Hellanzb/Troll.pyc \
 		%%PYTHON_SITELIBDIR%%/Hellanzb/Troll.pyo \
+		%%PYTHON_SITELIBDIR%%/Hellanzb/Util.py \
+		%%PYTHON_SITELIBDIR%%/Hellanzb/Util.pyc \
+		%%PYTHON_SITELIBDIR%%/Hellanzb/Util.pyo \
 		%%PYTHON_SITELIBDIR%%/Hellanzb/Ziplick.py \
 		%%PYTHON_SITELIBDIR%%/Hellanzb/Ziplick.pyc \
 		%%PYTHON_SITELIBDIR%%/Hellanzb/Ziplick.pyo \

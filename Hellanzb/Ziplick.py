@@ -87,7 +87,9 @@ class Ziplick:
 
             # Run nzbget. Pipe it's output through the logging system via the special
             # scroll level
-            p = Ptyopen('nzbget "' + nzbfile + '"')
+            p = Ptyopen(['nzbget', nzbfile]) # Passing Ptyopen a list tells it to run the
+                                             # process directly, instead of through
+                                             # /bin/sh
             # no input
             p.tochild.close()
 

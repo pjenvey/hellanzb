@@ -14,6 +14,14 @@ class FatalError(Exception):
         self.args = [message]
         self.message = message
 
+# NOTE: Ptyopen, like popens, is odd with return codes and their status. You seem to be
+# able to get the correct *return code* from a Ptyopen.wait(), but you won't be able to
+# get the correct WCOREDUMP *status*. This is because pty/popen run your executable via
+# /bin/sh. The shell will relay the *return code* of the process back to python correctly,
+# but I suspect when you check for WCOREDUMP you're checking whether or not /bin/sh core
+# dumped, not your process. The solution to this is to pass the cmd as a list -- the cmd
+# and it's args. This tells pty/popen to run the process directly instead of via /bin/sh,
+# and you get the right WCOREDUMP *status*
 class Ptyopen(popen2.Popen3):
     def __init__(self, cmd, capturestderr = False, bufsize = -1):
         """ Popen3 class (isn't this actually Popen4, capturestderr = False?) that uses ptys

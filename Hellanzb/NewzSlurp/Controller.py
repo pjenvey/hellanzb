@@ -1,5 +1,8 @@
 import binascii, bisect, nntplib, os, re
 import select, socket, sys, time, asyncore
+from twisted.internet import reactor
+from twisted.internet.protocol import ClientCreator
+from twisted.python import log
 
 import Hellanzb
 from Hellanzb.Logging import *
@@ -8,7 +11,7 @@ from Hellanzb.Util import *
 from zlib import crc32
 
 from NZBParser import ParseNZB
-from NNTPasync import nntp_client
+from NewzSlurper import *
 
 # We need the useful yenc module
 sys.path.append(os.path.expanduser('~/lib/python'))
@@ -50,8 +53,9 @@ class Controller:
             servers.append((priority, serverInfo))
                         
         servers.sort()
-        self.dmap = {}
-                
+
+        connections = 0
+
         # Now actually start them up
         for priority, serverInfo in servers:
             num_connects = max(1, min(10, int(serverInfo['connections'])))
@@ -60,20 +64,22 @@ class Controller:
 
             # Build our connections
             success = 0
-
+            nntpPool = ClientCreator(reactor,NewzSlurper)
             # Iterate through the hosts
             for server in serverInfo['hosts']:
                 host, port = server.split(':')
+                USERNAME = serverInfo['username']
+                PASSWORD = serverInfo['password']
 
                 # Setup the amount of connections to this host specified
                 for i in range(num_connects):
                     name = serverInfo['id'] + str(i) + host + port
                     try:
-                        self.dmap[name] = nntp_client(host=host, port=int(port), user=serverInfo['username'],
-                                                      password=serverInfo['password'],readermode=1)
+                        nntpPool.connectTCP(host, int(port))
                     except Exception, msg:
                         print 'WARNING: unable to connect: %s' % (msg)
                     else:
+                        connections += 1
                         success += 1
 
             # We connected!
@@ -83,8 +89,10 @@ class Controller:
                 print 'opened %d connections.' % (success)
 
         # Did we connect?
-        if not self.dmap:
+        if connections == 0:
             ShowError('failed to open any server connections!')
+        else:
+            reactor.run()
 
 
     def process(self, nzbfile):
@@ -107,24 +115,8 @@ class Controller:
         print 'found %d posts.' % (len(posts))
 
         if posts:
-            useful = 0
-
-            for id in self.dmap.keys():
-                found = 0
-
-                for newsgroup in newsgroups:
-                    groupdata = self.dmap[id].group(newsgroup)
-                    if groupdata is not None:
-                        found = 1
-                        useful += 1
-                        break
-
-                if not found:
-                    print '(%s) No valid groups found!' % (id)
-
-           if useful:
-               slurp_posts = posts
-               asyncore.loop(self.dmap)
+            slurp_posts = posts
+            #asyncore.loop(self.dmap)
 
 
     # ---------------------------------------------------------------------------

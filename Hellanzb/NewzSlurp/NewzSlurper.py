@@ -5,11 +5,9 @@ from twisted.internet import reactor
 from twisted.news.news import UsenetClientFactory
 from twisted.protocols.nntp import NNTPClient
 from twisted.python import log
+from Hellanzb.Logging import *
 
 __id__ = '$Id$'
-
-USERNAME = 'pjenvey'
-PASSWORD = 'god'
 
 class NewzSlurperFactory(UsenetClientFactory):
 
@@ -33,9 +31,10 @@ class NewzSlurper(NNTPClient):
         self.passwords = []
         self.lineCount = 0 # FIXME:
 
-    def authInfo(self, user, password):
+    def authInfo(self, username, password):
         """ """
-        self.sendLine('AUTHINFO USER ' + user)
+        info('username is ' + username)
+        self.sendLine('AUTHINFO USER ' + username)
         self._newState(None, self.authInfoFailed, self._authInfoUserResponse)
         self.passwords.append(password)
 
@@ -61,31 +60,19 @@ class NewzSlurper(NNTPClient):
         "Override for notification when authInfo() action is successful"
         print 'sweet bitch we logged in: ' + line
 
-        #self.sendLine('MODE READER')
-        print 'switching groupz..'
-        #self.fetchGroup('alt.binaries.pl.ape')
-        #self.fetchGroup('alt.binaries.sounds.lossless.repost')
-        self.fetchGroup('alt.binaries.mpeg.video.music')
-        self.fetchGroup('alt.binaries.mpeg.videos')
-
-        print 'getting head huh huh'        
-        ###self.fetchBody('N7ednXjCrNRbOzjcRVn-vQ@giganews.com')
-        self.fetchHead('<K5grd.59527$SM5.2786@news.easynews.com>')
-
-        print 'getting body..'
-        self.fetchBody('<K5grd.59527$SM5.2786@news.easynews.com>')
+        self._newState(self.gotIdle,None)
 
     def authInfoFailed(self, error):
         "Override for notification when authInfoFailed() action fails"
         print 'we didn\'t log in wtfs??: ' + str(error)
 
     def connectionMade(self):
+        global USERNAME
+        global PASSWORD
         print 'got connection made'
         NNTPClient.connectionMade(self)
-
+        
         self.authInfo(USERNAME, PASSWORD)
-        #print 'getting head huh huh'        
-        #self.fetchHead('N7ednRL9rNTEMTjcRVn-vQ@giganews.com')
 
     def gotHead(self, head):
         print 'huh huh i got head'
@@ -109,6 +96,14 @@ class NewzSlurper(NNTPClient):
             print '.',
         sys.stdout.flush()
         NNTPClient.lineReceived(self, line)
+
+    def gotIdle(self):
+        '''Were idle, which means we need to see if theres anything to
+        retrieve, and ensure we are in the right group.'''
+        print 'idling'
+        self.newState(self.gotIdle,None)
+        
+
 
 if __name__ == '__main__':
     # initialize logging

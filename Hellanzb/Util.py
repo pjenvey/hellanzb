@@ -15,7 +15,7 @@ class FatalError(Exception):
         self.message = message
 
 class Ptyopen(popen2.Popen3):
-    def __init__(self, cmd, capturestderr=False, bufsize=-1):
+    def __init__(self, cmd, capturestderr = False, bufsize = -1):
         """ Popen3 class (isn't this actually Popen4, capturestderr = False?) that uses ptys
 instead of pipes, to allow inline reading (instead of potential i/o buffering) of output
 from the child process. It also stores the cmd it's running (as a string) and the thread
@@ -74,9 +74,9 @@ that created the object, for later use """
 otherwise we could cause a deadlock with the scroller. Slow down the reading by pausing a
 millisecond after every read """
         output = []
-        while 1:
+        while True:
             line = self.fromchild.readline()
-            if line == '':
+            if line == '': # EOF
                 break
             output.append(line)
             # Somehow the scroll locks end up getting blocked unless their consumers pause

@@ -197,8 +197,11 @@ def decompressMusicFile(fileName, musicType):
     info('Decompressing music file: ' + os.path.basename(fileName) \
          + ' to file: ' + os.path.basename(destFileName))
     cmd = cmd.replace('<DESTFILE>', '"' + destFileName + '"')
-        
-    p = Ptyopen(cmd)
+
+    # user defined cmds might spit out to stderr
+    p = Ptyopen(cmd, capturestderr = True)
+    # Ignore stderr
+    p.childerr.close()
     output, status = p.readlinesAndWait()
     returnCode = os.WEXITSTATUS(status)
 

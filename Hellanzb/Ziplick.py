@@ -88,12 +88,17 @@ class Ziplick:
             # Run nzbget. Pipe it's output through the logging system via the special
             # scroll level
             p = Ptyopen('nzbget "' + nzbfile + '"')
+            # no input
             p.tochild.close()
 
             scrollBegin()
-            while p.poll() == -1:
+            while True:
                 try:
-                    scroll(p.fromchild.readline().rstrip())
+                    line = p.fromchild.readline()
+                    if line == '': # EOF
+                        break
+                    line = line.rstrip()
+                    scroll(line)
                 except Exception, e:
                     pass
             p.fromchild.close()

@@ -85,7 +85,7 @@ class WrapNews:
         def anti_idle(self):
                 self.setblocking(1)
                 try:
-                        self.nntp.help()
+                        data = self.nntp.help()
                 except nntplib.NNTPTemporaryError, e:
                         self.reconnect()
                         print '\r* Lost a server connection, reconnected to %s:%s.' % (self.host,self.port)
@@ -121,7 +121,6 @@ class WrapNews:
                                 else:
                                         self.setblocking(0)
                                         self.body(self.article)
-                                        break
                         else:
                                 break
                                 

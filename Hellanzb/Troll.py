@@ -571,6 +571,19 @@ def troll(dirName):
     growlNotify('Archive Success', 'hellanzb Done Processing:', archiveNameFromDirName(dirName),
                 True)
 
+def troll(dirName,archiveName):
+    try:
+        self.trollmain(dirName)
+    except FatalError, fe:
+        self.cleanUp(dirName)
+        error('An unexpected problem occurred for archive: ' +
+              archiveName + ', problem: ' + fe.message)
+    except Exception, e:
+        self.cleanUp(newdir)
+        error('An unexpected problem occurred for archive: ' +
+              archiveName + ': ' + str(e.__class__) + ': ' + str(e))
+
+
 def archiveNameFromDirName(dirName):
     """ Extract the name of the archive from the archive's absolute path """
     # pop off separator and basename

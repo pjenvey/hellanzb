@@ -117,14 +117,5 @@ class Ziplick(Thread):
 
             # Finally unarchive/process the directory
             if not coreFucked:
-                try:
-                    Troll.init()
-                    Troll.troll(newdir)
-                except FatalError, fe:
-                    Troll.cleanUp(newdir)
-                    error('An unexpected problem occurred for archive: ' +
-                          self.archiveNameFromNzb(nzbfilename) + ', problem: ' + fe.message)
-                except Exception, e:
-                    Troll.cleanUp(newdir)
-                    error('An unexpected problem occurred for archive: ' +
-                          self.archiveNameFromNzb(nzbfilename) + ': ' + str(e.__class__) + ': ' + str(e))
+                Troll.init()
+                Troll.troll(newdir,self.archiveNameFromNzb(nzbfilename))

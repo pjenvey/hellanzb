@@ -37,7 +37,7 @@ class MemberFunctions:
         
     def notify(self, ntype, title, description, sticky):
         gn = self.gn
-        gn.notify(noteType=ntype,title=title,description=description, Sticky=sticky)
+        gn.notify(noteType=ntype,title=title,description=description, sticky=sticky)
         return 1
         
 # Make our XMLRPC Server, create our instance, and assign it

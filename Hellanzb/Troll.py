@@ -11,7 +11,7 @@ o move various things out into a Util package
 
 @author pjenvey
 """
-import Hellanzb, os, popen2
+import Hellanzb, os, popen2, re
 from distutils import spawn
 from threading import Thread, Condition
 from Util import *
@@ -420,36 +420,56 @@ there are not enough recovery blocks, raise a fatal exception """
     elif verifyReturnCode > 1:
         # Repair required and impossible
 
-        # FIXME: this code should really handle missing AND broken files.. blah
         # First, if the repair is not possible, double check the output for what files are
-        # missing. they may be unimportant
-        missingAndRequired = []
-
-        for line in output:
-            line = line.rstrip()
-            index = line.find('Target:')
-            if index > -1 and stringEndsWith(line, 'missing.'):
-                # Strip any preceeding curses junk
-                line = line[index:]
-
-                # Finally, get just the filename
-                line = line[len('Target: "'):]
-                file = line[:-len('" - missing.')]
-
-                if isRequiredFile(file):
-                    error('Archive missing required file: ' + file)
-                    missingAndRequired.append(file)
-                else:
-                    warn('Archive missing non-required file: ' + file)
+        # missing or damaged (a missing file is considered as damaged in this case). they
+        # may be unimportant
+        damagedAndRequired, neededBlocks = parseParNeedsBlocksOutput(output)
 
         # The archive is only totally broken when we're missing required files
-        if len(missingAndRequired) > 0:
-            # TODO: statistics about how many blocks are needed would be nice
-            growlNotify('Error', 'hellanzb Cannot par repair:', archiveNameFromDirName(dirName) + '\n :(',
-                        True)
-            raise FatalError('Unable to par repair: there are not enough recovery blocks')
+        if len(damagedAndRequired) > 0:
+            growlNotify('Error', 'hellanzb Cannot par repair:', archiveNameFromDirName(dirName) +
+                        '\nNeed ' + neededBlocks + ' more recovery blocks', True)
+            raise FatalError('Unable to par repair: there are not enough recovery blocks, need: ' +
+                             neededBlocks + 'more')
 
     processComplete(dirName, 'par', isPar)
+
+def parseParNeedsBlocksOutput(output):
+    """ Return a list of broken or damaged required files from par2 v output, and the required
+blocks needed. Will also log warn the user when it finds either of these kinds of files,
+or log error when they're required """
+    damagedAndRequired = []
+    neededBlocks = None
+    damagedRE = re.compile(r'"\ -\ damaged\.\ Found\ \d+\ of\ \d+\ data\ blocks\.')
+
+    for line in output:
+        line = line.rstrip()
+            
+        index = line.find('Target:')
+        if index > -1 and stringEndsWith(line, 'missing.') or damagedRE.search(line):
+            # Strip any preceeding curses junk
+            line = line[index:]
+
+            # Finally, get just the filename
+            line = line[len('Target: "'):]
+
+            if stringEndsWith(line, 'missing.'):
+                file = line[:-len('" - missing.')]
+            else:
+                file = damagedRE.sub('', line)
+
+            if isRequiredFile(file):
+                error('Archive missing required file: ' + file)
+                damagedAndRequired.append(file)
+            else:
+                warn('Archive missing non-required file: ' + file)
+
+        elif line[0:len('You need ')] == 'You need ' and \
+            stringEndsWith(line, ' more recovery blocks to be able to repair.'):
+            line = line[len('You need '):]
+            neededBlocks = line[:-len(' more recovery blocks to be able to repair.')]
+            
+    return damagedAndRequired, neededBlocks
         
 def processComplete(dirName, processStateName, moveFileFilterFunction):
     """ Once we've finished a particular processing state, this function will be called to

@@ -84,12 +84,18 @@ class WrapNews:
         # Send a useless command to avoid idle timeouts
         def anti_idle(self):
                 self.setblocking(1)
-                self.nntp.help()
+                try:
+                        self.nntp.help()
+                except nntplib.NNTPTemporaryError, e:
+                        self.reconnect()
+                        print '\r* Lost a server connection, reconnected to %s:%s.' % (self.host,self.port)
+                        self.setblocking(1)
         
         # Send a BODY command
         def body(self, article):
                 command = 'BODY %s\r\n' % (article)
                 self.nntp.sock.send(command)
+                self.article = article
         
         # Send a XOVER command
         def xover(self, start, finish):
@@ -99,8 +105,22 @@ class WrapNews:
         # recv() a chunk of data and split it into lines. Returns 0 if there's
         # probably some more data coming, and 1 if we got a dot line.
         def recv_chunk(self):
-                chunk = self.recv(4096)
-                
+                while 1:
+                        try:
+                                chunk = self.recv(4096)
+                        except:
+                                try:
+                                        self.reconnect()
+                                        print '\r* Lost connection, attempting to re-establish'
+                                except Exception, msg:
+                                        print 'WARNING: unable to connect: %s' % (msg)
+                                else:
+                                        self.body(self.article)
+                                        self.setblocking(0)
+                                        break
+                        else:
+                                break
+                                
                 # Split the data into lines now
                 self.data += chunk
                 new_lines = self.data.split('\r\n')

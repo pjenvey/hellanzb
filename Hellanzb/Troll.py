@@ -556,7 +556,7 @@ def troll(dirName,archiveName):
         error('An unexpected problem occurred for archive: ' +
               archiveName + ', problem: ' + fe.message)
     except Exception, e:
-        cleanUp(newdir)
+        cleanUp(dirName)
         error('An unexpected problem occurred for archive: ' +
               archiveName + ': ' + str(e.__class__) + ': ' + str(e))
 

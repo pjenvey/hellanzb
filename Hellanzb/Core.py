@@ -11,6 +11,7 @@ from Hellanzb.Util import *
 
 # FIXME
 from Hellanzb.NewzSlurp.NewzSlurper import shutdownNewzSlurp
+from twisted.internet import reactor
 
 __id__ = '$Id$'
 
@@ -67,11 +68,10 @@ def loadConfig(fileName):
 def signalHandler(signum, frame):
     """ The main and only signal handler. Handle cleanup/managing child processes before
     exiting """
-
+    reactor.callLater(0, reactor.stop)
+    reactor.wakeUp()
     # CTRL-C
-    sys.stdout.flush()
     if signum == signal.SIGINT:
-        sys.stdout.flush()
         shutdownNewzSlurp()
 
         # lazily notify everyone they should stop immediately

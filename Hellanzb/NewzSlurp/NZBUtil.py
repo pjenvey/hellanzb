@@ -82,12 +82,14 @@ def needsDownload(object):
     return True
 
 class NZB:
+    """ Representation of an nzb file -- the root <nzb> tag """
     def __init__(self, nzbFileName):
         self.nzbFileName = nzbFileName
         self.archiveName = archiveName(self.nzbFileName)
         self.nzbFileElements = []
         
 class NZBFile:
+    """ <nzb><file/><nzb> """
     needsDownload = needsDownload
 
     def __init__(self, subject, date = None, poster = None, nzb = None):
@@ -98,29 +100,30 @@ class NZBFile:
         
         # Parent NZB
         self.nzb = nzb
-        
         # FIXME: thread safety?
         self.nzb.nzbFileElements.append(self)
         
-        self.number = len(self.nzb.nzbFileElements)
         self.groups = []
         self.nzbSegments = []
 
-        # FIXME: file needs a destination. if None, we overwrite it with WORKING_DIR
-        #self.destination = None
+        self.number = len(self.nzb.nzbFileElements)
+        self.totalBytes = 0
 
         # The real filename, determined from the actual decoded articleData
         self.filename = None
         # The filename used temporarily until the real filename is determined
         self.tempFilename = None
 
-        # FIXME: BLAH!
+        # re-entrant lock for maintaing temp filenames/renaming temp -> real file names in
+        # separate threads. FIXME: This is a lot of RLock() construction
         self.tempFileNameLock = RLock()
 
+        # LAME: maintain a cached name we display in the UI, and whether or not the cached
+        # name might be stale (might be stale = a temporary name)
         self.showFilename = None
-        
-        self.totalBytes = 0
+        self.showFilenameIsTemp = False
 
+        # FIXME: more UI junk
         self.downloadStartTime = None
         self.totalReadBytes = 0
         self.downloadPercentage = 0
@@ -196,6 +199,7 @@ class NZBFile:
             ' date: ' + str(self.date) + ' poster: ' + str(self.poster)
 
 class NZBSegment:
+    """ <file><segment/></file> """
     needsDownload = needsDownload
     
     def __init__(self, bytes, number, messageId, nzbFile):
@@ -283,7 +287,8 @@ class NZBQueue(PriorityQueue):
             PriorityQueue._put(self, item)
 
     def calculateTotalQueuedBytes(self):
-        # FIXME: we don't maintain this calculation all the time, too much CPU work for
+        """ Calculate how many bytes are queued to be downloaded in this queue """
+        # NOTE: we don't maintain this calculation all the time, too much CPU work for
         # _put
         self.nzbFilesLock.acquire()
         files = self.nzbFiles.copy()
@@ -299,7 +304,7 @@ class NZBQueue(PriorityQueue):
         if nzbFile in self.nzbFiles:
             self.nzbFiles.remove(nzbFile)
         self.nzbFilesLock.release()
-        self.totalQueuedBytes += nzbFile.totalBytes
+        self.totalQueuedBytes -= nzbFile.totalBytes
 
     def parseNZB(self, fileName):
         """ Initialize the queue from the specified nzb file """
@@ -397,7 +402,11 @@ class NZBParser(ContentHandler):
                 messageId = messageId.encode('latin-1')
             nzbs = NZBSegment(self.bytes, self.number, messageId, self.file)
             if self.fileNeedsDownload:
-                self.queue.put((NZBQueue.NZB_CONTENT_P+ self.segmentCount, nzbs))
+                # HACK: Maintain the order in which we encountered the segments by adding
+                # segmentCount to the priority. lame afterthought -- after realizing
+                # heapqs botch the order. NZB_CONTENT_P must now be large enough so that
+                # it won't ever clash with EXTRA_PAR2_P + i
+                self.queue.put((NZBQueue.NZB_CONTENT_P + self.segmentCount, nzbs))
 
             self.chars = None
             self.number = None

@@ -1,7 +1,6 @@
 import binascii, os, re, shutil, string
 from zlib import crc32
 from Hellanzb.Logging import *
-from StringIO import StringIO
 
 # Decode types enum
 UNKNOWN, YENCODE, UUENCODE = range(3)
@@ -85,14 +84,12 @@ def parseArticleData(segment, justExtractFilename = False):
                 segment.crc = '0' * (8 - len(yend['crc32'])) + yend['crc32'].upper()
 
         elif line.startswith('begin '):
-            #debug('UUDECODE begin&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&')
             filename = line.rstrip().split(' ', 2)[2]
             if not filename:
                 raise FatalError('* Invalid =begin line in part %d!' % 31337)
             setRealFileName(segment, filename)
             encodingType = UUENCODE
             withinData = True
-        #elif index == 0 and line == '' :
         elif line == '':
             continue
         elif not withinData:
@@ -103,8 +100,6 @@ def parseArticleData(segment, justExtractFilename = False):
     # FIXME: could put this check even higher up
     if justExtractFilename:
         return
-
-    #info('data: ' + str(segment.articleData))
 
     decodeSegmentToFile(segment, encodingType)
     del cleanData
@@ -228,8 +223,6 @@ def UUDecode(dataList):
         elif not line or line[:3] == 'end':
             break
         
-        #if not line or line[:5] == '=yend':
-
         if line[-2:] == '\r\n':
             line = line[:-2]
         elif line[-1:] in '\r\n':

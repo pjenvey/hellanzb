@@ -266,6 +266,9 @@ those three periods are included in the specified length"""
     
     return str
 
+def rtruncate(*args, **kwargs):
+    return truncate(reverse = True, *args, **kwargs)
+
 def getStack():
     """ Return the current execution stack as a string """
     s = StringIO()

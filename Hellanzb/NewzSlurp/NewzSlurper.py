@@ -1,7 +1,7 @@
 """
+NewzSlurper -
 """
-
-import os, sys, time
+import os, time
 from thread import start_new_thread
 from threading import Condition
 from twisted.internet import reactor
@@ -11,9 +11,6 @@ from twisted.python import log
 from Hellanzb.Logging import *
 from Hellanzb.NewzSlurp.ArticleDecoder import decode
 from Queue import Empty
-
-from twisted.flow import flow
-from twisted.flow.threads import Threaded
 
 __id__ = '$Id$'
 
@@ -66,6 +63,10 @@ def startNewzSlurp():
 
     #reactor.callLater(4, checkShutdownTwisted)
 
+    import signal
+    from Hellanzb.Core import signalHandler
+    signal.signal(signal.SIGINT, signalHandler)
+
 def checkShutdownTwisted():
     try:
         checkShutdown()
@@ -84,31 +85,41 @@ class NewzSlurperFactory(UsenetClientFactory):
         # don't think we want multiple factories
         self.username = None
         self.password = None
-        
+
+        # FIXME: don't think these are actually used
         #self.totalStartTime = None
         self.totalReadBytes = 0
         self.totalDownloadedFiles = 0
 
+        # statistics for the current session (sessions end when we stop downloading on all
+        # ports). used for the more accurate total speeds shown in the UI
+        self.sessionReadBytes = 0
+        self.sessionSpeed = 0
+        self.sessionStartTime = None
+        
         # FIXME: what is this
         self.lastChecks = {}
-
-        self.deferredEmptyQueue = None
 
         # FIXME: idle the connection by: returning nothing, having a callLater handle an
         # idle call. whenever there's activity, we cancel the idle call and reschedule for
         # later
         self.clients = []
 
-        # could maintain a map of protocol to log message. we only print when we have new
-        # log messages from every connection
-        self.scroller = NewzSlurpStatLog()
+        from sets import Set
+        self.activeClients = Set()
+
+        # this class handles updating statistics via the SCROLL level (the UI)
+        self.scroller = NewzSlurpStatLog(self)
 
     def buildProtocol(self, addr):
         last = self.lastChecks.setdefault(addr, time.mktime(time.gmtime()) - (60 * 60 * 24 * 7))
         p = NewzSlurper(self.username, self.password)
         p.factory = self
-        # FIXME: Is it safe to maintain the clients in this list?
+        
+        # FIXME: Is it safe to maintain the clients in this list? no other twisted
+        # examples do this. no twisted base factory classes seem to maintain this list
         self.clients.append(p)
+        
         self.scroller.size += 1
         return p
 
@@ -130,13 +141,17 @@ class NewzSlurper(NNTPClient):
         self.username = username
         self.password = password
         self.id = self.getNextId()
-        
+
+        # successful GROUP commands during this session
+        self.activeGroups = []
+
+        # current article (<segment>) we're dealing with
+        self.currentSegment = None
+
+        # staistics/for the ui
         self.downloadStartTime = None
         self.readBytes = 0
         #self.filename = None
-
-        self.activeGroups = []
-        self.currentSegment = None
 
         self.myState = None
 
@@ -171,11 +186,12 @@ class NewzSlurper(NNTPClient):
     def fetchNextNZBSegment(self):
         """ Pop nzb article from the queue, and attempt to retrieve it if it hasn't already been
         retrieved"""
-        # FIXME: all segments are on the filesystem, but not assembled. needsDownload from
-        # the queue returns true, so the file's segments all end up being iterated through
-        # here. what will happen is we will skip them all accordingly, but we will never
-        # assemble them/succesfully tryFinishNZB
+        time.sleep(.1)
         if self.currentSegment is None:
+            if self not in self.factory.activeClients:
+                if len(self.factory.activeClients) == 0:
+                    self.factory.sessionStartTime = time.time()
+                self.factory.activeClients.add(self)
             try:
                 nextSegment = Hellanzb.queue.get_nowait()
                 while not nextSegment.needsDownload():
@@ -190,8 +206,15 @@ class NewzSlurper(NNTPClient):
 
                 self.currentSegment = nextSegment
                 if self.currentSegment.nzbFile.showFilename == None:
+                    if self.currentSegment.nzbFile.filename == None:
+                        self.currentSegment.nzbFile.showFilenameIsTemp = True
                     self.currentSegment.nzbFile.showFilename = os.path.basename(self.currentSegment.nzbFile.getDestination())
             except Empty:
+                self.factory.activeClients.remove(self)
+                if len(self.factory.activeClients) == 0:
+                    self.factory.sessionReadBytes = 0
+                    self.factory.sessionSpeed = 0
+                    self.factory.sessionStartTime = None
                 return
 
         # Change group
@@ -213,8 +236,6 @@ class NewzSlurper(NNTPClient):
         """ """
         self.myState = 'body'
         start = time.time()
-        #if self.factory.totalStartTime == None:
-        #    self.factory.totalStartTime = start
         if self.currentSegment != None and self.currentSegment.nzbFile.downloadStartTime == None:
             self.currentSegment.nzbFile.downloadStartTime = start
         self.downloadStartTime = start
@@ -237,18 +258,6 @@ class NewzSlurper(NNTPClient):
               self.currentSegment.getDestination() + ' lines: ' + str(len(body)) + ' expected size: ' + \
               str(self.currentSegment.bytes))
 
-        hi = """
-        self.myState = None
-
-        self.currentSegment.articleData = body
-        self.deferSegmentDecode(self.currentSegment)
-
-        self.currentSegment = None
-        self.downloadStartTime = None
-        self.readBytes = 0
-
-        self.fetchNextNZBSegment()
-        """
         self.processBodyAndContinue(body)
         
     def gotBodyFailed(self, err):
@@ -347,6 +356,7 @@ class NewzSlurper(NNTPClient):
     def updateByteCount(self, lineLen):
         self.readBytes += lineLen
         self.factory.totalReadBytes += lineLen
+        self.factory.sessionReadBytes += lineLen
         if self.currentSegment != None:
             self.currentSegment.nzbFile.totalReadBytes += lineLen
 
@@ -362,6 +372,8 @@ class NewzSlurper(NNTPClient):
         if self.currentSegment.nzbFile.downloadPercentage > oldPercentage:
             elapsed = max(0.1, now - self.currentSegment.nzbFile.downloadStartTime)
             #speed = self.currentSegment.nzbFile.totalReadBytes / elapsed / 1024.0
+            elapsedSession = max(0.1, now - self.factory.sessionStartTime)
+            self.factory.sessionSpeed = self.factory.sessionReadBytes / elapsedSession / 1024.0
             self.currentSegment.nzbFile.speed = self.currentSegment.nzbFile.totalReadBytes / elapsed / 1024.0
             #scroll('\r* Downloading %s - %2d%% @ %.1fKB/s' % (truncate(self.filename),
             #                                                 self.currentSegment.nzbFile.downloadPercentage,
@@ -369,13 +381,15 @@ class NewzSlurper(NNTPClient):
         self.factory.scroller.updateLog()
 
 class NewzSlurpStatLog:
-    def __init__(self):
+    def __init__(self, factory):
+        self.factory = factory
         self.size = 0
         self.segments = []
         self.currentLog = None
 
-        self.wait = 0
+        # Only bother doing the whole UI update after running updateStats this many times
         self.delay = 70
+        self.wait = 0
         
     def updateLog(self):
         """ Log ticker """
@@ -402,19 +416,24 @@ class NewzSlurpStatLog:
         sortedSegments = self.segments[:]
         sortedSegments.sort(lambda x, y : cmp(x.nzbFile.showFilename, y.nzbFile.showFilename))
         
+        #totalSpeed = 0
         lastSegment = None
-        totalSpeed = 0
         i = 0
         for segment in sortedSegments:
+            if segment.nzbFile.showFilenameIsTemp == True and segment.nzbFile.filename != None:
+                segment.nzbFile.showFilename = segment.nzbFile.filename
+                segment.nzbFile.showFilenameIsTemp = False
             i += 1
             if lastSegment != None and lastSegment.nzbFile == segment.nzbFile:
                 self.currentLog += '\033[34m[\033[39m%d\033[34m]\033[39m Downloading %s\033[K' % \
-                    (i, truncate(segment.nzbFile.showFilename, length = 100, reverse = True))
+                    (i, rtruncate(segment.nzbFile.showFilename, length = 100))
+                    #(i, truncate(segment.nzbFile.showFilename, length = 100, reverse = True))
             else:
                 self.currentLog += '\033[34m[\033[39m%d\033[34m]\033[39m Downloading %s - %2d%% @ %.1fKB/s\033[K' % \
-                    (i, truncate(segment.nzbFile.showFilename, length = 100, reverse = True),
+                    (i, rtruncate(segment.nzbFile.showFilename, length = 100),
+                    #(i, truncate(segment.nzbFile.showFilename, length = 100, reverse = True),
                      segment.nzbFile.downloadPercentage, segment.nzbFile.speed)
-                totalSpeed += segment.nzbFile.speed
+                #totalSpeed += segment.nzbFile.speed
                 
             self.currentLog += '\n\r'
 
@@ -425,7 +444,8 @@ class NewzSlurpStatLog:
             self.currentLog += '\n\r'
 
         self.currentLog += '\033[34m[\033[39mTotal\033[34m]\033[39m %.1fKB/s, %d MB queued \033[K' % \
-            (totalSpeed, Hellanzb.queue.totalQueuedBytes / 1024 / 1024)
+            (self.factory.sessionSpeed, Hellanzb.queue.totalQueuedBytes / 1024 / 1024)
+            #(totalSpeed, Hellanzb.queue.totalQueuedBytes / 1024 / 1024)
 
         if logNow or self.currentLog != currentLog:
             scroll(self.currentLog)

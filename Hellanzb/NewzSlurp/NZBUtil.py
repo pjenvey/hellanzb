@@ -12,6 +12,207 @@ from Hellanzb.Logging import *
 from Hellanzb.NewzSlurp.ArticleDecoder import parseArticleData
 from Hellanzb.Util import archiveName, getFileExtension, PriorityQueue
 
+# o could put failed segments into a failed queue, connections that are flaged as being
+# fill servers will try to attemp to d/l the file if any of them fail?
+
+def needsDownload2(object):
+    """ Whether or not this segment needs to be downloaded (isn't on the file system) """
+    # We need to ensure that we're not in the process of renaming from a temp file
+    # name, so we have to lock.
+    object.doh('entry')
+    isSegment = isinstance(object, NZBSegment)
+    if isSegment:
+        filename = object.nzbFile.filename
+        subject = object.nzbFile.subject
+        tempFileNameLock = object.nzbFile.tempFileNameLock
+    else:
+        filename = object.filename
+        subject = object.subject
+        tempFileNameLock = object.tempFileNameLock
+
+    tempFileNameLock.acquire()
+
+    if os.path.isfile(object.getDestination()):
+        object.nzbFile.tempFileNameLock.release()
+        object.doh('isfile')
+        return False
+
+    #elif os.path.isfile(object.getDestination()):
+    #    object.nzbFile.tempFileNameLock.release()
+    #    object.doh('isfile segment')
+    #    return False
+
+    #elif object.nzbFile.filename == None:
+
+    elif filename == None:
+        object.doh('no filename')
+        # We only know about the temp filename. In that case, fall back to matching
+        # filenames in our subject line
+        from Hellanzb import WORKING_DIR
+        for file in os.listdir(WORKING_DIR):
+            ext = getFileExtension(file)
+
+            #object.doh(file)
+            if re.match(r'^segment\d{4}$', ext):
+                pass
+                #object.doh('matched')
+            else:
+                pass
+                #object.doh('nomatched')
+                if file == 'ps-ncsg38b.r00':
+                    if isSegment:
+                        subject = object.nzbFile.subject
+                    else:
+                        subject = object.subject
+                    #object.doh('subject: ' + subject)
+
+            # Segment Match
+            if isSegment and ext != None and re.match(r'^segment\d{4}$', ext):
+
+                # Quickest/easiest way to determine this file is not this segment's
+                # file is by checking it's segment number
+                segmentNumber = int(file[-4:])
+                if segmentNumber != object.number:
+                    continue
+
+                # Strip the segment suffix, and if that filename is in our subject,
+                # we've found a match
+                prefix = file[0:-len('.segmentXXXX')]
+                #if re.match(r'.*' + prefix + r'.*', object.nzbFile.subject):
+                if object.nzbFile.subject.find(prefix) > -1:
+                    tempFileNameLock.release()
+                    object.doh('none segment file mismatch')
+                    return False
+                    #return True
+
+            # Whole file match
+            #elif re.match(r'.*' + file + r'.*', object.nzbFile.subject):
+            elif subject.find(file) > -1:
+                tempFileNameLock.release()
+                object.doh('none file')
+                #return True
+                return False
+            
+        # Looks like none of the files in WORKING_DIR are ours so we need to be
+        # downloaded
+        #object.nzbFile.tempFileNameLock.release()
+        #return True
+
+    object.doh('final')
+    tempFileNameLock.release()
+    return True
+
+class NZB:
+    def __init__(self, nzbFileName):
+        self.nzbFileName = nzbFileName
+        self.archiveName = archiveName(self.nzbFileName)
+        self.nzbFileElements = []
+        
+class NZBFile:
+    def __init__(self, subject, date = None, poster = None, nzb = None):
+        # from xml attributes
+        self.subject = str(subject)
+        self.date = date
+        self.poster = poster
+        # Name of the actual nzb file this <file> is part of
+        self.nzb = nzb
+        # FIXME: thread safety?
+        self.nzb.nzbFileElements.append(self)
+        self.number = len(self.nzb.nzbFileElements)
+        self.groups = []
+        self.nzbSegments = []
+
+        self.decodedNzbSegments = []
+        # FIXME:FIXME:FIXME: ridiculous amount of Lock() spamming what is this for
+        # again???
+        self.decodedNzbSegmentsLock = Lock()
+
+        self.filename = None
+        self.tempFilename = None
+
+        # FIXME: BLAH!
+        self.tempFileNameLock = RLock()
+
+    def getDestination(self):
+        """ Return the destination of where this file will lie on the filesystem. The filename
+        information is grabbed from the first segment's articleData (uuencode's fault --
+        yencode includes the filename in every segment's articleData). In the case where a
+        segment needs to know it's filename, and that first segment doesn't have
+        articleData (hasn't been downloaded yet), a temp filename will be
+        returned. Downloading segments out of order can easily occur in app like hellanzb
+        that downloads the segments in parallel """
+        # FIXME: blah imports
+        from Hellanzb import WORKING_DIR
+
+        if self.filename == None:
+
+            firstSegment = None
+            if len(self.nzbSegments) > 0:
+                firstSegment = self.nzbSegments[0]
+
+            # Return the cached tempFilename until the firstSegment is downloaded
+            if self.tempFilename != None and (firstSegment == None or firstSegment.articleData == None):
+                return WORKING_DIR + os.sep + self.tempFilename
+
+            # this will set either filename or tempFilename
+            if firstSegment != None:
+                firstSegment.getFilenameFromArticleData()
+            else:
+                self.tempFilename = self.getTempFileName()
+
+            # Again return tempFilename until we find the real filename
+            # NOTE: seems like there'd be no notification if we're unable to retrieve the
+            # real filename, we'd just be stuck with the temp
+            if self.filename == None:
+                return WORKING_DIR + os.sep + self.tempFilename
+                    
+        return WORKING_DIR + os.sep + self.filename
+
+    def getTempFileName(self):
+        """ Generate a temporary filename for this file, for when we don't have it's actual file
+        name on hand """
+        return 'hellanzb-tmp-' + self.nzb.archiveName + '.file' + str(self.number).zfill(4)
+
+    def isAssembled(self):
+        """ We should only write the finished file if we completely assembled """
+        if os.path.isfile(self.getDestination()):
+            return True
+        return False
+
+    def isAllSegmentsDecoded(self):
+        """ Determine whether all these file's segments have been decoded """
+        start = time.time()
+
+        decodedSegmentFiles = []
+        for nzbSegment in self.nzbSegments:
+            decodedSegmentFiles.append(os.path.basename(nzbSegment.getDestination()))
+
+        dirName = os.path.dirname(self.getDestination())
+        for file in os.listdir(dirName):
+            if file in decodedSegmentFiles:
+                decodedSegmentFiles.remove(file)
+
+        # Just be stupid -- we're only finished until we've found all the known files
+        # (segments)
+        if len(decodedSegmentFiles) == 0:
+            finish = time.time() - start
+            debug('isAllSegmentsDecoded (True) took: ' + str(finish) + ' seconds')
+            return True
+
+        finish = time.time() - start
+        debug(self.getDestination() + 'isAllSegmentsDecoded (Flalse) took: ' + str(finish))
+        return False
+
+    def doh(self, m):
+        pass
+
+    needsDownload = needsDownload2
+
+    def __repr__(self):
+        # FIXME
+        return 'NZBFile subject: ' + str(self.subject) + 'fileName: ' + str(self.filename) + \
+            ' date: ' + str(self.date) + ' poster: ' + str(self.poster)
+
 class NZBSegment:
     def __init__(self, bytes, number, messageId, nzbFile):
         # from xml attributes
@@ -19,11 +220,13 @@ class NZBSegment:
         self.number = number
         self.messageId = messageId
 
-        # Reference to the parent NZBFile this is segment belongs to
+        # Reference to the parent NZBFile this segment belongs to
         self.nzbFile = nzbFile
 
+        # The downloaded article data
         self.articleData = None
-        
+
+        # the CRC value specified by the downloaded yEncode data, if it exists
         self.crc = None
 
     def getDestination(self):
@@ -41,7 +244,8 @@ class NZBSegment:
         # getDestination(). tempFilename is only used when that first segment lacks
         # articleData and can't determine the real filename
         if self.articleData == None and self.number == 1:
-            self.nzbFile.tempFilename = self.getTempFileName()
+            #self.nzbFile.tempFilename = self.getTempFileName()
+            self.nzbFile.tempFilename = self.nzbFile.getTempFileName()
             return
 
         # We have article data, get the filename from it
@@ -53,35 +257,31 @@ class NZBSegment:
 
     # FIXME: give file a needsDownload, and we can run the check during queue creation as
     # well
-    def needsDownload(self):
+    # FIXME: optimize the call for segments, calling this function on a segment (during
+    # newzslurping) is where i care more about delaying
+    needsDownload = needsDownload2
+    def needsDownload0(self):
         """ Whether or not this segment needs to be downloaded (isn't on the file system) """
         # We need to ensure that we're not in the process of renaming from a temp file
         # name, so we have to lock.
-        self.doh('entry')
         self.nzbFile.tempFileNameLock.acquire()
-        ##info('my dest: ' + self.getDestination())
+
         if os.path.isfile(self.nzbFile.getDestination()):
             self.nzbFile.tempFileNameLock.release()
             self.doh('isfile')
             return False
+
         elif os.path.isfile(self.getDestination()):
             self.nzbFile.tempFileNameLock.release()
             self.doh('isfile segment')
             return False
+
         elif self.nzbFile.filename == None:
             self.doh('no filename')
             # We only know about the temp filename. In that case, fall back to matching
             # filenames in our subject line
             from Hellanzb import WORKING_DIR
             for file in os.listdir(WORKING_DIR):
-
-                self.doh(file)
-                if re.match(r'.*' + file + r'.*', self.nzbFile.subject):
-                    self.doh('matched')
-                else:
-                    self.doh('nomatched')
-                if file == 'ps-ncsg38b.vol000+01.PAR2':
-                    self.doh('subject: ' + self.nzbFile.subject)
                 ext = getFileExtension(file)
                 # Segment Match
                 if ext != None and re.match(r'^segment\d{4}$', ext):
@@ -90,9 +290,6 @@ class NZBSegment:
                     # file is by checking it's segment number
                     segmentNumber = int(file[-4:])
                     if segmentNumber != self.number:
-                        #self.doh('none segment mismatch')
-                        # FIXME: need to continue instead of return
-                        #return False
                         continue
 
                     # Strip the segment suffix, and if that filename is in our subject,
@@ -126,145 +323,14 @@ class NZBSegment:
         #if True:
         #if self.number == 16 and self.nzbFile.subject == '(Naughty.College.School.Girls.38.XXX.DVDRip.XviD-Pr0nStarS-CD1)))[50/50] - "ps-ncsg38a.rar" yEnc (1/17)':
         #if self.nzbFile.subject == '(Naughty.College.School.Girls.38.XXX.DVDRip.XviD-Pr0nStarS-CD2-pars)))[1/7] - "ps-ncsg38b.vol000+01.PAR2" yEnc (1/1)':
-        if self.nzbFile.subject == '(Naughty.College.School.Girls.38.XXX.DVDRip.XviD-Pr0nStarS-CD1)))[50/50] - "ps-ncsg38a.rar" yEnc (1/17)':
+        #if self.nzbFile.subject == '(Naughty.College.School.Girls.38.XXX.DVDRip.XviD-Pr0nStarS-CD1)))[50/50] - "ps-ncsg38a.rar" yEnc (1/17)':
+        if self.nzbFile.subject =='(Naughty.College.School.Girls.38.XXX.DVDRip.XviD-Pr0nStarS-CD2)))[01/50] - "ps-ncsg38b.r00" yEnc (1/17)':
             debug('>>>>' + m)
 
     def __repr__(self):
         # FIXME
         return 'messageId: ' + str(self.messageId) + ' number: ' + str(self.number) + ' bytes: ' + \
             str(self.bytes)
-
-class NZB:
-    def __init__(self, nzbFileName):
-        self.nzbFileName = nzbFileName
-        self.archiveName = archiveName(self.nzbFileName)
-        self.nzbFileElements = []
-        
-class NZBFile:
-    def __init__(self, subject, date = None, poster = None, nzb = None):
-        # from xml attributes
-        self.subject = str(subject)
-        self.date = date
-        self.poster = poster
-        # Name of the actual nzb file this <file> is part of
-        self.nzb = nzb
-        # FIXME: thread safety?
-        self.nzb.nzbFileElements.append(self)
-        self.groups = []
-        self.nzbSegments = []
-
-        self.decodedNzbSegments = []
-        # FIXME:FIXME:FIXME: ridiculous amount of Lock() spamming what is this for
-        # again???
-        self.decodedNzbSegmentsLock = Lock()
-
-        self.filename = None
-        self.tempFilename = None
-
-        # FIXME: BLAH!
-        self.tempFileNameLock = RLock()
-
-    def getDestination(self):
-        """ Return the destination of where this file will lie on the filesystem. The filename
-        information is grabbed from the first segment's articleData (uuencode's fault --
-        yencode includes the filename in every segment's articleData). In the case where a
-        segment needs to know it's filename, and that first segment doesn't have
-        articleData (hasn't been downloaded yet), a temp filename will be
-        returned. Downloading segments out of order can easily occur in app like hellanzb
-        that downloads the segments in parallel """
-        # FIXME: blah imports
-        from Hellanzb import WORKING_DIR
-
-        noFileName = False
-        if self.filename == None:
-            noFileName = True
-
-            firstSegment = self.nzbSegments[0]
-
-            # Return the cached tempFilename until the firstSegment is downloaded
-            if self.tempFilename != None and firstSegment.articleData == None:
-                return WORKING_DIR + os.sep + self.tempFilename
-
-            # this will set either filename or tempFilename
-            firstSegment.getFilenameFromArticleData()
-
-            # Again return tempFilename until we find the real filename
-            # NOTE: seems like there'd be no notification if we're unable to retrieve the
-            # real filename, we'd just be stuck with the temp
-            if self.filename == None:
-                return WORKING_DIR + os.sep + self.tempFilename
-
-        hi = """
-        if noFileName:
-            # We were using temp name and just found the new filename. Immediately rename
-            # any files that were using the temp name
-            tempFileNames = {}
-            for nzbSegment in self.nzbSegments:
-                tempFileNames[nzbSegment.getTempFileName()] = nzbSegment.getDestination()
-
-            for file in os.listdir(WORKING_DIR):
-                if file in tempFileNames:
-                    newDest = tempFileNames.get('file')
-                    shutil.move(WORKING_DIR + os.sep + file,
-                                WORKING_DIR + os.sep + newDest)
-        """
-                    
-        return WORKING_DIR + os.sep + self.filename
-
-    def getTempFileName(self):
-        """ Generate a temporary filename for this file, for when we don't have it's actual file
-        name on hand """
-        return 'hellanzb-tmp-' + self.nzb.archiveName + '.file' + str(self.number).zfill(4)
-
-    def isAssembled(self):
-        """ We should only write the finished file if we completely assembled """
-        if os.path.isfile(self.getDestination()):
-            return True
-        return False
-
-    def isAllSegmentsDecoded(self):
-        """ Determine whether all these file's segments have been decoded """
-        start = time.time()
-
-        decodedSegmentFiles = []
-        for nzbSegment in self.nzbSegments:
-            decodedSegmentFiles.append(os.path.basename(nzbSegment.getDestination()))
-
-        dirName = os.path.dirname(self.getDestination())
-        for file in os.listdir(dirName):
-            ####if re.match(self.filename + '\.hellanzb\d{4}$', file) and file in decodedSegmentFiles:
-            #if re.match('\.hellanzb\d{4}$', file):
-            
-            #    stripped = re.sub('\.hellanzb\d{4}', '', file)
-            if file in decodedSegmentFiles:
-                
-                #debug('$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$')
-                #debug('stripped: ' + stripped)
-                #debug('$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$')
-                #debug('>')
-                #if re.match(file, self.subject):
-                    # Found it -- this file is done
-                    #debug('!file: ' + file)
-                    #debug('>>>>')
-                decodedSegmentFiles.remove(file)
-
-        # Just be stupid -- we're only finished until we've found all the known files
-        # (segments)
-        if len(decodedSegmentFiles) == 0:
-            finish = time.time() - start
-            debug('isAllSegmentsDecoded (T) took: ' + str(finish) + ' seconds')
-            return True
-
-        finish = time.time() - start
-        debug(self.getDestination() + 'isAllSegmentsDecoded (F) took: ' + str(finish))
-        #debug(self.getDestination() + 'isAllSegmentsDecoded (F) took: ' + str(finish) + \
-        #     ' seconds len: ' + str(len(decodedSegmentFiles)) + ' ' + str(decodedSegmentFiles))
-        return False
-
-    def __repr__(self):
-        # FIXME
-        return 'NZBFile subject: ' + str(self.subject) + 'fileName: ' + str(self.filename) + \
-            ' date: ' + str(self.date) + ' poster: ' + str(self.poster)
 
 class NZBQueue(PriorityQueue):
     """ priority fifo queue of segments to download. lower numbered segments are downloaded
@@ -333,10 +399,12 @@ class NZBParser(ContentHandler):
         
         self.chars = None
         self.subject = None
+        self.file = None
                 
         self.bytes = None
         self.number = None
 
+        self.fileNeedsDownload = None
         self.fileCount = 0
         
     def startElement(self, name, attrs):
@@ -349,6 +417,9 @@ class NZBParser(ContentHandler):
             #print 'got: ' + attrs.get('subject').encode('utf-8')
             self.file = NZBFile(attrs.get('subject'), attrs.get('date'), attrs.get('poster'),
                                 self.nzb)
+            self.fileNeedsDownload = self.file.needsDownload()
+            self.fileNeedsDownload = True
+            debug('fileNeeds: ' + str(self.fileNeedsDownload))
             self.fileCount += 1
             self.file.number = self.fileCount
                 
@@ -381,7 +452,8 @@ class NZBParser(ContentHandler):
             messageId = ''.join(self.chars)
             nzbs = NZBSegment(self.bytes, self.number, messageId, self.file)
             self.file.nzbSegments.append(nzbs)
-            self.queue.put((NZBQueue.NZB_CONTENT_P, nzbs))
+            if self.fileNeedsDownload:
+                self.queue.put((NZBQueue.NZB_CONTENT_P, nzbs))
                         
             self.chars = None
             self.number = None

@@ -29,17 +29,17 @@ Hellanzb.ENABLE_GROWL_NOTIFY = True
 # The growl notification server, in the format 'hostname:port'
 Hellanzb.SERVER = 'IP:7300'
 
-# Supported music types and optionally their decompression executables. The exes must
-# be in the PATH.
+# Supported music types and optionally their decompression executables and the file type
+# that executable will decompress to. The exes must be in the PATH.
 #
 # <FILE> will be replaced with the name of music file
 # optional <DESTFILE> is <FILE> with an extension of '.wav'
 #
 # None means these files don't need to be decompressed
-defineMusicType('ape', 'mac <FILE> <DESTFILE> -d')
-defineMusicType('flac', 'flac -d <FILE>')
-defineMusicType('wav', None)
-defineMusicType('mp3', None)
+defineMusicType('ape', 'mac <FILE> <DESTFILE> -d', 'wav')
+defineMusicType('flac', 'flac -d <FILE>', 'wav')
+defineMusicType('wav', None, None)
+defineMusicType('mp3', None, None)
 
 # for debugging
 Hellanzb.DEBUG_MODE = False

@@ -26,20 +26,20 @@ def usage():
 
 def loadConfig():
     """ Load the configuration file """
-    confDirs = [ sys.prefix + os.sep + "etc", os.getcwd() + os.sep + "etc", os.getcwd() ]
+    confDirs = [ sys.prefix + os.sep + 'etc', os.getcwd() + os.sep + 'etc', os.getcwd() ]
     
     foundConfig = False
     for dir in confDirs:
         try:
-            execfile(dir + os.sep + "hellanzb.conf")
+            execfile(dir + os.sep + 'hellanzb.conf')
             foundConfig = True
-            debug("Found config file in directory: " + dir)
+            debug('Found config file in directory: ' + dir)
             break
         except IOError, ioe:
             pass
 
     if not foundConfig:
-        error("Could not find configuration file in the following dirs: " + str(confDirs))
+        error('Could not find configuration file in the following dirs: ' + str(confDirs))
         sys.exit(1)
 
 def runDaemon():
@@ -61,12 +61,12 @@ def runTroll():
         Hellanzb.Troll.troll(archiveDir)
 
     except FatalError, fe:
-        Hellanzb.Troll.cleanUp(incomingDir)
-        error("An unexpected problem occurred: " + fe.message + "\n")
+        Hellanzb.Troll.cleanUp(archiveDir)
+        error('An unexpected problem occurred: ' + fe.message)
         sys.exit(1)
     except:
-        Hellanzb.Troll.cleanUp(incomingDir)
-        error("An unexpected problem occurred!")
+        Hellanzb.Troll.cleanUp(archiveDir)
+        error('An unexpected problem occurred!')
         raise
     
 if __name__ == '__main__':
@@ -74,8 +74,8 @@ if __name__ == '__main__':
     loadConfig()
 
     exe = os.path.basename(sys.argv[0])
-    if exe == "hellanzb.py":
+    if exe == 'hellanzb.py':
         runDaemon()
         
-    elif exe == "troll.py":
+    elif exe == 'troll.py':
         runTroll()

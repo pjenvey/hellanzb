@@ -3,7 +3,8 @@ troll - verify/repair/unarchive/decompress files downloaded with nzbget
 
 TODO
 o the decompressor isn't thread safe. we'll have to convert this to a Decompressor class
-to prevent this
+to prevent this. Ziplink should be able to spawn a troll thread on it's own, while it goes
+back to monitoring the queue
 o move various things out into a Util package
 
 @author pjenvey
@@ -36,15 +37,18 @@ class MusicType:
 decompress the music (to wav, generally) if it comes across this type of file """
     extension = None
     decompressor = None
+    decompressToType = None
     musicTypes = [] # class var -- supported MusicTypes
 
-    def __init__(self, extension, decompressor):
+    def __init__(self, extension, decompressor, decompressToType):
         self.extension = extension
 
         if decompressor != None and decompressor != "":
             # exit if we lack the required decompressor
             assertIsExe(decompressor)
             self.decompressor = decompressor
+
+        self.decompressToType = decompressToType
 
     def shouldDecompress(self):
         if self.decompressor == None:
@@ -120,7 +124,7 @@ def dirHasRars(dirName):
 
 def dirHasPars(dirName):
     """ Determine if the specified directory contains par files """
-    return dirHasFileTypes(dirName, 'par2')
+    return dirHasFileType(dirName, 'par2')
 
 def dirHasMusicFiles(dirName):
     """ Determine if the specified directory contains any known music files """
@@ -150,7 +154,7 @@ def isRar(fileName):
         return True
 
     # If it doesn't end in rar, use unix file(1) 
-    p = popen2.Popen4('file -b ' + absPath)
+    p = popen2.Popen4('file -b "' + absPath + '"')
     output = p.fromchild.readlines()
     p.fromchild.close()
     verifyReturnCode = os.WEXITSTATUS(p.wait())
@@ -212,9 +216,9 @@ broken, PAR2 files will be required to repair """
             return True
     return False
 
-def defineMusicType(extension, decompressor):
+def defineMusicType(extension, decompressor, decompressToType):
     """ Create a new instance of a MusicType and add it to the list of known music types """
-    MusicType.musicTypes.append(MusicType(extension, decompressor))
+    MusicType.musicTypes.append(MusicType(extension, decompressor, decompressToType))
 
 def deleteDuplicates(dirName):
     for file in os.listdir(dirName):
@@ -234,7 +238,7 @@ def cleanUp(dirName):
 
     # Delete the processed dir only if it doesn't contain anything
     try:
-        os.rmdir(dirName + os.sep + 'processed')
+        os.rmdir(dirName + os.sep + Hellanzb.PROCESSED_SUBDIR)
     except OSError:
         pass
 
@@ -295,6 +299,12 @@ threads """
         if os.path.isfile(absPath) and getMusicType(file) and getMusicType(file).shouldDecompress():
             DecompressionThread.musicFiles.append(absPath)
 
+    if len(DecompressionThread.musicFiles) == 0:
+        return
+            
+    info('Decompressing ' + str(len(DecompressionThread.musicFiles)) + ' files via ' +
+         str(Hellanzb.MAX_DECOMPRESSION_THREADS) + ' threads..')
+
     # Maintain a pool of threads of the specified size until we've exhausted the
     # musicFiles list
     DecompressionThread.pool = []
@@ -315,14 +325,15 @@ threads """
             DecompressionThread.cv.wait()
             
         DecompressionThread.cv.release()
-        
+
+    info('Finished Decompressing')
 
 def decompressMusicFile(fileName, musicType):
     """ Decompress the specified file according to it's musicType """
     cmd = musicType.decompressor.replace('<FILE>', '"' + fileName + '"')
 
     extLen = len(getFileExtension(fileName))
-    destFileName = fileName[:-extLen] + 'wav'
+    destFileName = fileName[:-extLen] + musicType.decompressToType
     
     info('Decompressing music file: ' + os.path.basename(fileName) \
          + ' to file: ' + os.path.basename(destFileName))
@@ -333,15 +344,16 @@ def decompressMusicFile(fileName, musicType):
     p.fromchild.close()
     returnCode = os.WEXITSTATUS(p.wait())
 
-    # Let's not be too specific. All we care about is whether or not the decompress
-    # succeeded
-    if returnCode > 0:
+    if returnCode == 0:
+        # Successful, move the old file away
+        os.rename(fileName, os.path.dirname(fileName) + os.sep + Hellanzb.PROCESSED_SUBDIR + os.sep +
+                  os.path.basename(fileName))
+    
+    elif returnCode > 0:
         pass
         # FIXME - propagate this to parent
         # see threading.thread.interrupt_main()
         #raise FatalError("Unable to decompress music file: " + fileName)
-        
-    return False
 
 def processRars(dirName, rarPassword):
     """ If the specified directory contains rars, unrar them. """
@@ -395,7 +407,8 @@ def processRars(dirName, rarPassword):
             withinFiles = True
 
     if isPassworded and rarPassword == None:
-        growlNotify('Archive', 'hellanzb Archive requires password:', archiveNameFromDirName(dirName))
+        growlNotify('Archive', 'hellanzb Archive requires password:', archiveNameFromDirName(dirName),
+                    True)
         raise FatalError('Cannot continue, this archive requires a RAR password and there is none set')
 
     if isPassworded:
@@ -416,7 +429,8 @@ def processRars(dirName, rarPassword):
         for line in output:
             errMsg += line
         raise FatalError(errMsg)
-
+    
+    info('Finished unraring')
     processComplete(dirName, 'rar',
                     lambda file : os.path.isfile(file) and isRar(file) and not isAlbumCoverArchive(file))
 
@@ -490,7 +504,8 @@ there are not enough recovery blocks, raise a fatal exception """
         # The archive is only totally broken when we're missing required files
         if len(missingAndRequired) > 0:
             # TODO: statistics about how many blocks are needed would be nice
-            growlNotify('Error', 'hellanzb Cannot par repair:', archiveNameFromDirName(dirName) + '\n :(')
+            growlNotify('Error', 'hellanzb Cannot par repair:', archiveNameFromDirName(dirName) + '\n :(',
+                        True)
             raise FatalError('Unable to par repair: there are not enough recovery blocks')
 
     processComplete(dirName, 'par', isPar)
@@ -499,11 +514,11 @@ def processComplete(dirName, processStateName, moveFileFilterFunction):
     """ Once we've finished a particular processing state, this function will be called to
 move the files we processed out of the way, and touch a file on the filesystem indicating
 this state is done """
-
     # ensure we pass the absolute path to the filter function
     for file in filter(moveFileFilterFunction, [dirName + os.sep + file for file in os.listdir(dirName)]):
         if not Hellanzb.DEBUG_MODE:
-            os.rename(dirName + os.sep + file, dirName + os.sep + Hellanzb.PROCESSED_SUBDIR + os.sep + file)
+            os.rename(file, os.path.dirname(file) + os.sep + Hellanzb.PROCESSED_SUBDIR + os.sep +
+                  os.path.basename(file))
 
     # And make a note of the completition
     # NOTE: we've just moved the files out of dirName, and we usually do a dirHas check
@@ -548,7 +563,7 @@ def troll(dirName):
             elif file[0:len('.msgid_')] == '.msgid_':
                 msgId = file[len('.msgid_'):]
 
-            elif getExtension(file).lower() == 'nzb':
+            elif getFileExtension(file).lower() == 'nzb':
                 nzbFile = file
 
     # If there are required broken files and we lack pars, punt
@@ -593,17 +608,19 @@ def troll(dirName):
     os.rename(dirName + os.sep + nzbFile, dirName + os.sep + Hellanzb.PROCESSED_SUBDIR + os.sep + nzbFile)
 
     # We're done
-    growlNotify('Archive', 'hellanzb Done Processing:', archiveNameFromDirName(dirName))
+    info("Finished processing: " + archiveNameFromDirName(dirName))
+    growlNotify('Archive', 'hellanzb Done Processing:', archiveNameFromDirName(dirName),
+                True)
 
 def archiveNameFromDirName(dirName):
     """ Extract the name of the archive from the archive's absolute path """
     # pop off separator and basename
     if dirName[len(dirName) - 1] == os.sep:
-        dirName = dirName[0:len(dirName) - 2]
-        return os.path.basename(dirName)
+        dirName = dirName[0:len(dirName) - 1]
+    return os.path.basename(dirName)
 
 # FIXME: this function and a number of others should be moved out into a Util package
-def growlNotify(type, title, description):
+def growlNotify(type, title, description, sticky):
     """ send a message to the growl daemon via an xmlrpc proxy """
     # FIXME: should validate the server information on startup, and catch connection
     # refused errors here
@@ -619,6 +636,10 @@ def growlNotify(type, title, description):
     # If for some reason, the XMLRPC server ain't there no more, this will blow up
     # so we put it in a try/except block
     try:
+        # FIXME this won't be supported until it's in the growl release
+        if sticky:
+            pass
+        
         server.notify(type, title, description)
     except:
         return

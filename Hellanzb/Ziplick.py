@@ -46,7 +46,8 @@ class Ziplick(Thread):
         self.queued_nzbs = []
         self.current_nzbs = [x for x in os.listdir(Hellanzb.CURRENT_DIR) if re.search(r'\.nzb$',x)]
 
-        growlNotify('Queue', 'hellanzb', 'Now monitoring queue..')
+        info('hellanzb - Now monitoring queue...')
+        growlNotify('Queue', 'hellanzb', 'Now monitoring queue..', False)
         while 1:
             # See if we're resuming a nzb fetch
             if not self.current_nzbs:
@@ -61,7 +62,7 @@ class Ziplick(Thread):
                     for nzb in new_nzbs:
                         msg = 'Found new nzb:'
                         info(msg + self.archiveNameFromNzb(nzb))
-                        growlNotify('Queue', 'hellanzb ' + msg,self.archiveNameFromNzb(nzb))
+                        growlNotify('Queue', 'hellanzb ' + msg,self.archiveNameFromNzb(nzb), False)
                 
                 # Nothing to do, lets wait 5 seconds and start over
                 if not self.queued_nzbs:
@@ -81,7 +82,7 @@ class Ziplick(Thread):
                 os.spawnlp(os.P_WAIT, 'mv', 'mv', nzbfile, Hellanzb.CURRENT_DIR)
             else:
                 nzbfilename = self.current_nzbs[0]
-                growlNotify('Queue', 'hellanzb Resuming:', self.archiveNameFromNzb(nzbfilename))
+                growlNotify('Queue', 'hellanzb Resuming:', self.archiveNameFromNzb(nzbfilename), False)
                 del self.current_nzbs[0]
             nzbfile = Hellanzb.CURRENT_DIR + nzbfilename
                 
@@ -102,6 +103,9 @@ class Ziplick(Thread):
             if os.WCOREDUMP(result):
                 coreFucked = True
                 newdir = newdir + '_corefucked'
+                error('Archive: ' + archiveNameFromNzb(nzbfilename) + ' is core fucked :(')
+                growlNotify('Error' + 'hellanzb Archive is core fucked',
+                            archiveNameFromNzb(nzbfilename) + '\n:(', True)
                 
             # Move our nzb contents to their new location, clear out the temp dir
             # FIXME: rename actually sucks here -- it blows up if you're
@@ -113,5 +117,14 @@ class Ziplick(Thread):
 
             # Finally unarchive/process the directory
             if not coreFucked:
-                Troll.init()
-                Troll.troll(newdir)
+                try:
+                    Troll.init()
+                    Troll.troll(newdir)
+                except FatalError, fe:
+                    Troll.cleanUp(newdir)
+                    error('An unexpected problem occurred for archive: ' + archiveNameFromNzb(nzbfilename) +
+                          ', problem: ' + fe.message)
+                except:
+                    Troll.cleanUp(newdir)
+                    error('An unexpected problem occurred for archive: ' + archiveNameFromNzb(nzbfilename) +
+                          '!')

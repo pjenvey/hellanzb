@@ -37,10 +37,10 @@ set sys_python_prefix /System/Library/Frameworks/Python.framework/Versions/Curre
 
 # End Stripped
 
-depends_run  bin:nzbget:nzbget \
-             bin:par2:par2 \
+depends_run  bin:par2:par2 \
              bin:rar:rar \
              bin:flac:flac \
+             lib:XXX:py-twisted \
 
 post-activate {
         # copy over the sample conf file if neccessary

@@ -15,7 +15,6 @@ from shutil import move
 from time import sleep
 from Logging import *
 from Util import *
-#from Hellanzb.NewzSlurp.Controller import Controller
 
 __id__ = '$Id$'
 

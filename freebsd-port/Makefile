@@ -16,6 +16,9 @@ DISTNAME=	${PORTNAME}-${PORTVERSION}
 PLIST_FILES=	bin/hellanzb.py \
 		etc/hellanzb.conf.sample \
 		share/doc/hellanzb/README \
+		%%PYTHON_SITELIBDIR%%/Hellanzb/Core.py \
+		%%PYTHON_SITELIBDIR%%/Hellanzb/Core.pyc \
+		%%PYTHON_SITELIBDIR%%/Hellanzb/Core.pyo \
 		%%PYTHON_SITELIBDIR%%/Hellanzb/PostProcessor.py \
 		%%PYTHON_SITELIBDIR%%/Hellanzb/PostProcessor.pyc \
 		%%PYTHON_SITELIBDIR%%/Hellanzb/PostProcessor.pyo \
@@ -56,12 +59,11 @@ PLIST_FILES=	bin/hellanzb.py \
 PLIST_DIRS=	share/doc/hellanzb \
 		%%PYTHON_SITELIBDIR%%/Hellanzb
 
-RUN_DEPENDS=	nzbget:${POSTDIR}/news/nzbget \
-		par2:${POSTDIR}/archivers/par2cmdline \
+RUN_DEPENDS=	par2:${POSTDIR}/archivers/par2cmdline \
 		rar:${POSTDIR}/archivers/rar \
 		flac:${POSTDIR}/audio/flac \
-		mac:${POSTDIR}/audio/mac
-		#twisted:${POSTDIR}/audio/mac
+		mac:${POSTDIR}/audio/mac \
+		${PYTHON_SITELIBDIR}/twisted/__init__.py:${PORTSDIR}/devel/py-twisted
 
 MAINTAINER=	pjenvey@groovie.org
 COMMENT?=	Hands free usenet file retrieval via nzb files

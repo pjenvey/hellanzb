@@ -270,17 +270,26 @@ def growlNotify(type, title, description, sticky):
     addr = (Hellanzb.GROWL_SERVER, GROWL_UDP_PORT)
     s = socket(AF_INET,SOCK_DGRAM)
 
-    p = GrowlRegistrationPacket(application="hellanzb", password=Hellanzb.GROWL_PASSWORD)
+    if len(Hellanzb.GROWL_PASSWORD) == 0:
+        p = GrowlRegistrationPacket(application="hellanzb")
+    else:
+        p = GrowlRegistrationPacket(application="hellanzb", password=Hellanzb.GROWL_PASSWORD)
     p.addNotification("Archive Error", enabled=True)
     p.addNotification("Archive Success", enabled=True)
     p.addNotification("Error", enabled=True)
     p.addNotification("Queue", enabled=True)
     s.sendto(p.payload(), addr)
-
-    p = GrowlNotificationPacket(application="hellanzb",
-                                notification=type, title=title,
-                                description=description, priority=1,
-                                sticky=sticky, password=Hellanzb.GROWL_PASSWORD)
+    
+    if len(Hellanzb.GROWL_PASSWORD) == 0:
+        p = GrowlNotificationPacket(application="hellanzb",
+                                    notification=type, title=title,
+                                    description=description, priority=1,
+                                    sticky=sticky)
+    else:
+        p = GrowlNotificationPacket(application="hellanzb",
+                            notification=type, title=title,
+                            description=description, priority=1,
+                            sticky=sticky, password=Hellanzb.GROWL_PASSWORD)
     s.sendto(p.payload(),addr)
     s.close()
 

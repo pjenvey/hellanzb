@@ -18,6 +18,7 @@ class PostProcessor(Thread):
     decompressionThreadPool = None
     decompressorCondition = None
     background = None
+    musicFiles = None
     
     msgId = None
     nzbFile = None
@@ -97,26 +98,30 @@ class PostProcessor(Thread):
                 # not sure what happened, let's see the backtrace
                 raise
     
-    def decompressMusicFiles(self):
+    def processMusic(self):
         """ Assume the integrity of the files in the specified directory have been
     verified. Iterate through the music files, and decompres them when appropriate in multiple
     threads """
+        if not isFreshState(self.dirName, 'music'):
+            info(archiveName(self.dirName) + ': Skipping music file decompression')
+            return
+        
         # Determine the music files to decompress
-        DecompressionThread.musicFiles = []
+        self.musicFiles = []
         for file in os.listdir(self.dirName):
             absPath = self.dirName + os.sep + file
             if os.path.isfile(absPath) and getMusicType(file) and getMusicType(file).shouldDecompress():
-                DecompressionThread.musicFiles.append(absPath)
+                self.musicFiles.append(absPath)
     
-        if len(DecompressionThread.musicFiles) == 0:
+        if len(self.musicFiles) == 0:
             return
                 
-        info(archiveName(self.dirName) + ': Decompressing ' + str(len(DecompressionThread.musicFiles)) + \
+        info(archiveName(self.dirName) + ': Decompressing ' + str(len(self.musicFiles)) + \
              ' files via ' + str(Hellanzb.MAX_DECOMPRESSION_THREADS) + ' threads..')
     
         # Maintain a pool of threads of the specified size until we've exhausted the
         # musicFiles list
-        while len(DecompressionThread.musicFiles) > 0:
+        while len(self.musicFiles) > 0:
     
             # Block the pool until we're done spawning
             self.decompressorCondition.acquire()
@@ -133,8 +138,9 @@ class PostProcessor(Thread):
                 self.decompressorCondition.wait()
                 
             self.decompressorCondition.release()
-    
-        info(archiveName(self.dirName) + ': Finished Decompressing')
+
+        processComplete(self.dirName, 'music', None)
+        info(archiveName(self.dirName) + ': Finished decompressing')
 
     def finishedPostProcess(self):
         """ finish the post processing work """
@@ -212,8 +218,8 @@ class PostProcessor(Thread):
             checkShutdown()
             processRars(self.dirName, rarPassword)
         
-        if dirHasMusicFiles(self.dirName):
+        if dirHasMusic(self.dirName):
             checkShutdown()
-            self.decompressMusicFiles()
+            self.processMusic()
 
         self.finishedPostProcess()

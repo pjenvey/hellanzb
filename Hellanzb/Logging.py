@@ -12,6 +12,8 @@ from logging import StreamHandler
 from threading import Condition, Lock, Thread
 from Util import *
 
+__id__ = '$Id$'
+
 class ScrollableHandler(StreamHandler):
     """ ScrollableHandler is a StreamHandler that specially handles scrolling (log messages at the SCROLL level). It allows you to temporarily interrupt the constant scroll with other log messages of different levels. It also slightly pauses the scroll output, giving you time to read the message  """
     # the SCROLL level (a class var)

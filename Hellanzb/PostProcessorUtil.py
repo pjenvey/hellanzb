@@ -39,8 +39,8 @@ class DecompressionThread(Thread):
     """ decompress a file in a separate thread """
 
     def __init__(self, parent):
-        self.file = DecompressionThread.musicFiles[0]
-        DecompressionThread.musicFiles.remove(self.file)
+        self.file = parent.musicFiles[0]
+        parent.musicFiles.remove(self.file)
 
         self.type = getMusicType(self.file)
         
@@ -76,9 +76,13 @@ def dirHasRars(dirName):
 
 def dirHasPars(dirName):
     """ Determine if the specified directory contains par files """
-    return dirHasFileType(dirName, 'par2')
+    for file in os.listdir(dirName):
+        file = dirName + os.sep + file
+        if isPar(file):
+            return True
+    return False
 
-def dirHasMusicFiles(dirName):
+def dirHasMusic(dirName):
     """ Determine if the specified directory contains any known music files """
     return dirHasFileTypes(dirName, getMusicTypeExtensions())
 
@@ -109,7 +113,9 @@ def isPar(fileName):
     """ Determine if the specified file is a par """
     fileName = os.path.basename(fileName)
     ext = getFileExtension(fileName)
-    if ext and ext.lower() == 'par2':
+    if not ext:
+        return False
+    if ext.lower() == 'par2' or ext.lower() == 'par2_broken':
         return True
     return False
 
@@ -227,6 +233,9 @@ def decompressMusicFile(fileName, musicType):
 
 def processRars(dirName, rarPassword):
     """ If the specified directory contains rars, unrar them. """
+    if not isFreshState(dirName, 'rar'):
+        return
+
     # sort the filenames and assume the first thing to look like a rar is what we want to
     # begin unraring with
     firstRar = None
@@ -277,6 +286,11 @@ def processRars(dirName, rarPassword):
             withinFiles = True
 
     if isPassworded and rarPassword == None:
+        # FIXME: for each known password, run unrar, read output line by line. look for
+        # 'need password' line blocking for input. try one password, if it doesn't work,
+        # kill -9 the process
+        # for every password that does not work, append to the processed/.rar_failed_passwords
+        # known passwords for this loop are all known passwords minus those in that file
         growlNotify('Archive Error', 'hellanzb Archive requires password:', archiveName(dirName),
                     True)
         raise FatalError('Cannot continue, this archive requires a RAR password and there is none set')
@@ -299,9 +313,9 @@ def processRars(dirName, rarPassword):
             errMsg += line
         raise FatalError(errMsg)
     
-    info(archiveName(dirName) + ': Finished unraring')
     processComplete(dirName, 'rar',
                     lambda file : os.path.isfile(file) and isRar(file) and not isAlbumCoverArchive(file))
+    info(archiveName(dirName) + ': Finished unraring')
 
 def processPars(dirName):
     """ Verify the integrity of the files in the specified directory via par2. If files need
@@ -309,41 +323,37 @@ repair and there are enough recovery blocks, repair the files. If files need rep
 there are not enough recovery blocks, raise a fatal exception """
     # Just incase we're running the program again, and we already successfully processed
     # the pars, don't bother doing it again
-    if os.path.isfile(dirName + os.sep + Hellanzb.PROCESSED_SUBDIR + os.sep + '.par_done'):
+    if not isFreshState(dirName, 'par'):
         info(archiveName(dirName) + ': Skipping par processing')
         return
     
     info(archiveName(dirName) + ': Verifying via pars..')
 
     dirName = dirName + os.sep
-    verifyCmd = 'par2 v "' + dirName + '*.PAR2" "' + dirName + '*.par2" "' + dirName + '*_broken"'
     repairCmd = 'par2 r "' + dirName + '*.PAR2" "' + dirName + '*.par2" "' + dirName + '*_broken"'
 
-    p = Ptyopen(verifyCmd)
-    output, verifyStatus = p.readlinesAndWait()
-    verifyReturnCode = os.WEXITSTATUS(verifyStatus)
+    p = Ptyopen(repairCmd)
+    output, status = p.readlinesAndWait()
+    returnCode = os.WEXITSTATUS(status)
         
-    if verifyReturnCode == 0:
+    if returnCode == 0:
+        # FIXME: checkout for 'repaired blah' messages.
+        # for line in output:
+        #     if line.find(''):
+        #         parRepaired = True
+        #
+        # if parRepaired:
+        #     info(archiveName(dirName) + ': Par repair successfully completed')
+        # else:
+        
         # Verified
         info(archiveName(dirName) + ': Par verification passed')
 
-    elif verifyReturnCode == 1:
-        # Repair required and possible
-        info(archiveName(dirName) + ': Repairing files via par..')
-        
-        p = Ptyopen(repairCmd)
-        output, repairStatus = p.readlinesAndWait()
-        repairReturnCode = os.WEXITSTATUS(repairStatus)
-
-        if repairReturnCode == 0:
-            # Repaired
-            info(archiveName(dirName) + ': Par repair successfully completed')
-        elif repairReturnCode > 0:
-            # We should never get here. If verifyReturnCode is 1, we're guaranteed a
-            # successful repair
-            raise FatalError('Unable to par repair: an unexpected problem has occurred')
+    elif returnCode == 1:
+        # this should never happen
+        raise FatalError('par repair unexpectedly returned returned: 1')
             
-    elif verifyReturnCode > 1:
+    elif returnCode > 1:
         # Repair required and impossible
 
         # First, if the repair is not possible, double check the output for what files are
@@ -355,8 +365,10 @@ there are not enough recovery blocks, raise a fatal exception """
         if len(damagedAndRequired) > 0:
             growlNotify('Error', 'hellanzb Cannot par repair:', archiveName(dirName) +
                         '\nNeed ' + neededBlocks + ' more recovery blocks', True)
+            # FIXME: download more pars and try again
             raise FatalError('Unable to par repair: archive requires ' + neededBlocks + \
                              ' more recovery blocks for repair')
+            # otherwise processComplete here (failed)
 
     processComplete(dirName, 'par', isPar)
 
@@ -376,13 +388,12 @@ or log error when they're required """
             # Strip any preceeding curses junk
             line = line[index:]
 
-            # Finally, get just the filename
+            # Extract the filename
             line = line[len('Target: "'):]
 
             if stringEndsWith(line, 'missing.'):
                 file = line[:-len('" - missing.')]
-                # FIXME: putting msgids in the log output would help you read it
-                # better. Could queue up these messages for later processing (return them
+                # FIXME: Could queue up these messages for later processing (return them
                 # in this function)
                 errMsg = archive + ': Archive missing required file: ' + file
                 warnMsg = archive + ': Archive missing non-required file: ' + file
@@ -415,9 +426,6 @@ this state is done """
                       os.path.basename(file))
 
     # And make a note of the completition
-    # NOTE: we've just moved the files out of dirName, and we usually do a dirHas check
-    # before calling the process function. but this is more explicit, and could be used to
-    # show the overall status on the webapp
     touch(dirName + os.sep + Hellanzb.PROCESSED_SUBDIR + os.sep + '.' + processStateName + '_done')
 
 def getRarPassword(msgId):
@@ -434,3 +442,8 @@ def getRarPassword(msgId):
             msgIdFile = open(absPath)
             return msgIdFile.read().rstrip()
 
+def isFreshState(dirName, stateName):
+    """ Determine if the specified state has already been completed """
+    if os.path.isfile(dirName + os.sep + Hellanzb.PROCESSED_SUBDIR + os.sep + '.' + stateName + '_done'):
+        return False
+    return True

@@ -103,7 +103,10 @@ exiting """
         for popen in popen2._active:
             # signal guarantees us to be within the main thread
             if popen.thread != threading.currentThread():
-                thredsOutsideMain = True
+                threadsOutsideMain = True
+            else:
+                # otherwise we don't care about it
+                popen2._active.remove(popen)
 
         if not threadsOutsideMain:
             shutdown(Hellanzb.SHUTDOWN_CODE)

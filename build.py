@@ -45,7 +45,8 @@ def buildPort(version):
     print "Building new FreeBSD port"
     
     portDir = 'dist/hellanzb-port'
-    os.mkdir(portDir)
+    if not os.path.isdir(portDir):
+        os.mkdir(portDir)
 
     # replace the version
     os.system('cat port/Makefile | sed s/____VERSION____/' + version + '/ > ' + portDir + '/Makefile')
@@ -89,7 +90,6 @@ try:
         print 'Checking in new version number: ' + newVersion
         writeVersion(newVersion)
         os.system('svn ci -m "New build, version: ' + newVersion + '" ' + VERSION_FILENAME)
-
 
     else:
         print 'Error: Version number: ' + version + ' is not HEAD!'

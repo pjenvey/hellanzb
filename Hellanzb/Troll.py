@@ -485,7 +485,7 @@ this state is done """
     # show the overall status on the webapp
     touch(dirName + os.sep + Hellanzb.PROCESSED_SUBDIR + os.sep + '.' + processStateName + '_done')
     
-def troll(dirName):
+def trollmain(dirName):
     """ main, mayn """
     global brokenFiles # FIXME gross
     

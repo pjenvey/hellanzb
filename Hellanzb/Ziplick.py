@@ -24,9 +24,10 @@ class Ziplick:
     def __init__(self):
         self.ensureDirs()
 
-        # We only want one instance of the news leecher (with the same pool persisted
-        # throughout the life of the daemon. We'll set the jobs later
-        self.newsleecher = HeadHoncho(jobs = None)
+        if not Hellanzb.NEWSLEECHER_IS_BUGGY:
+            # We only want one instance of the news leecher (with the same pool persisted
+            # throughout the life of the daemon. We'll set the jobs later
+            self.newsleecher = HeadHoncho(jobs = None)
 
     def ensureDirs(self):
         """ Ensure that all the required directories exist, otherwise attempt to create them """
@@ -90,8 +91,33 @@ class Ziplick:
             os.chdir(Hellanzb.WORKING_DIR)
 
             scrollBegin()
-            self.newsleecher.jobs = [nzbfile]
-            self.newsleecher.main_loop()
+
+            statusCode = None
+            if Hellanzb.NEWSLEECHER_IS_BUGGY:
+                # Run nzbget. Pipe it's output through the logging system via the special
+                # scroll level
+                p = Ptyopen(['nzbget', nzbfile]) # Passing Ptyopen a list tells it to run the
+                                                 # process directly, instead of through
+                                                 # /bin/sh
+                # no input
+                p.tochild.close()
+
+                while True:
+                    try:
+                        line = p.fromchild.readline()
+                        if line == '': # EOF
+                            break
+                        line = line.rstrip()
+                        scroll(line)
+                    except Exception, e:
+                        pass
+                p.fromchild.close()
+                statusCode = p.wait()
+                nzbgetReturnCode = os.WEXITSTATUS(statusCode)
+            else:
+                self.newsleecher.jobs = [nzbfile]
+                self.newsleecher.main_loop()
+
             scrollEnd()
 
             os.chdir(oldDir)
@@ -105,6 +131,15 @@ class Ziplick:
             msgId = re.sub(r'.*msgid_', r'', nzbfilename)
             msgId = re.sub(r'_.*', r'', msgId)
 
+            # Take care of the unfortunate case that we coredumped
+            coreFucked = False
+            if Hellanzb.NEWSLEECHER_IS_BUGGY and os.WCOREDUMP(statusCode):
+                coreFucked = True
+                newdir = newdir + '_corefucked'
+                error('Archive: ' + archiveName(nzbfilename) + ' is core fucked :(')
+                growlNotify('Error', 'hellanzb Archive is core fucked',
+                            archiveName(nzbfilename) + '\n:(', True)
+                
             # Move our nzb contents to their new location, clear out the temp dir
             if os.path.exists(newdir):
                 # Rename the dir if it exists already
@@ -126,6 +161,6 @@ class Ziplick:
             
             # Finally unarchive/process the directory in another thread, and continue
             # nzbing
-            if not checkShutdown():
+            if not coreFucked and not checkShutdown():
                 troll = PostProcessor.PostProcessor(newdir)
                 troll.start()

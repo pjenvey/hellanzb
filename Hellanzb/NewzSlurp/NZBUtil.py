@@ -2,7 +2,7 @@
 NZBModel -
 
 """
-import shutil, re, time
+import re, time
 from sets import Set
 from threading import Lock, RLock
 from xml.sax import make_parser
@@ -57,10 +57,23 @@ def needsDownload(object):
                 if segmentNumber != object.number:
                     continue
 
+                #if object.getDestination() == 'hellanzb-tmp-RZA_-_The_World_According_To_RZA_(2003).file0014.segment0005':
+                if True:
+                    debug('$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$')
+                    debug('$' + object.nzbFile.subject)
+                    debug('$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$')
+                    debug('$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$')
+                    debug('$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$')
+                    debug('file: ' + file)
+
                 # Strip the segment suffix, and if that filename is in our subject,
                 # we've found a match
                 prefix = file[0:-len('.segmentXXXX')]
                 if object.nzbFile.subject.find(prefix) > -1:
+                    debug('^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^')
+                    debug('^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^')
+                    debug('^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^')
+                    debug('^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^')
                     
                     # HACK: filename is None. so we only have the temporary name in
                     # memory. since we didnt see the temporary name on the filesystem, but
@@ -68,10 +81,11 @@ def needsDownload(object):
                     # filesystem. In the case where this happens, and we are segment #1,
                     # we've figured out the real filename (hopefully!)
                     if object.number == 1:
-                        #debug('needsDownload: GOT real file name from PREFIX! ')
+                        debug('needsDownload: GOT real file name from PREFIX! ')
                         setRealFileName(object, prefix)
 
                     tempFileNameLock.release()
+                    debug('$_T_' + object.nzbFile.subject)
                     return False
 
             # Whole file match
@@ -93,7 +107,7 @@ class NZBFile:
 
     def __init__(self, subject, date = None, poster = None, nzb = None):
         # from xml attributes
-        self.subject = str(subject)
+        self.subject = subject
         self.date = date
         self.poster = poster
         
@@ -345,8 +359,14 @@ class NZBParser(ContentHandler):
             #i.write(attrs.get('subject').encode('utf-8'))
             #i.close()
             #print 'got: ' + attrs.get('subject').encode('utf-8')
-            self.file = NZBFile(attrs.get('subject'), attrs.get('date'), attrs.get('poster'),
+            # FIXME: subject can be unicode, any of the other attribs?
+            subject = attrs.get('subject')
+            if isinstance(subject, unicode):
+                subject = subject.encode('latin-1')
+            #self.file = NZBFile(attrs.get('subject'), attrs.get('date'), attrs.get('poster'),
+            self.file = NZBFile(subject, attrs.get('date'), attrs.get('poster'),
                                 self.nzb)
+            info('number: ' + str(self.file.number) + ' subject: ' + subject)
             self.fileNeedsDownload = self.file.needsDownload()
             debug('fileNeeds: ' + str(self.fileNeedsDownload))
             self.fileCount += 1
@@ -368,6 +388,7 @@ class NZBParser(ContentHandler):
     def endElement(self, name):
         if name == 'file':
             self.file = None
+            self.fileNeedsDownload = None
                 
         elif name == 'group':
             newsgroup = ''.join(self.chars)
@@ -378,10 +399,12 @@ class NZBParser(ContentHandler):
                 
         elif name == 'segment':
             messageId = ''.join(self.chars)
+            if isinstance(messageId, unicode):
+                messageId = messageId.encode('latin-1')
             nzbs = NZBSegment(self.bytes, self.number, messageId, self.file)
             if self.fileNeedsDownload:
                 self.queue.put((NZBQueue.NZB_CONTENT_P, nzbs))
-                        
+
             self.chars = None
             self.number = None
             self.bytes = None    

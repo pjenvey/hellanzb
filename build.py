@@ -143,7 +143,8 @@ try:
                       help='Assume this is a trunk (HEAD) build, and do not bump the version number')
     options, args = parser.parse_args()
 
-    assertIsExe('svn')
+    if not options.local:
+        assertIsExe('svn')
 
     versionFile = open(VERSION_FILENAME)
     versionLine = versionFile.read()

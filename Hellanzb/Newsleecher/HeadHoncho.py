@@ -657,12 +657,37 @@ def ySplit(line):
 # Build the yEnc decode table
 YDEC_TRANS = ''.join([chr((i + 256 - 42) % 256) for i in range(256)])
 
-def yDecode(data):
+# This yDecode seems to have a bug, it would cause CRC mismatches in some cases -pjenvey
+def yDecodeOLD(data):
         # unescape NUL, TAB, LF, CR, =
         for i in (0, 9, 10, 13, 61):
                 j = '=%c' % (i + 64)
                 data = data.replace(j, chr(i))
         
         return data.translate(YDEC_TRANS)
+
+
+# From effbot.org/zone/yenc-decoder.htm -- does not suffer from yDecodeOLD's bug -pjenvey
+yenc42 = string.join(map(lambda x: chr((x-42) & 255), range(256)), '')
+yenc64 = string.join(map(lambda x: chr((x-64) & 255), range(256)), '')
+def yDecode(data):
+    from StringIO import StringIO
+    file = StringIO(data)
+    buffer = []
+    while 1:
+        line = file.readline()
+        if not line or line[:5] == '=yend':
+            break
+        if line[-2:] == '\r\n':
+            line = line[:-2]
+        elif line[-1:] in '\r\n':
+            line = line[:-1]
+        data = string.split(line, '=')
+        buffer.append(string.translate(data[0], yenc42))
+        for data in data[1:]:
+            data = string.translate(data, yenc42)
+            buffer.append(string.translate(data[0], yenc64))
+            buffer.append(data[1:])
+    return ''.join(buffer)
 
 # ---------------------------------------------------------------------------    

@@ -7,6 +7,32 @@
 from xml.sax import make_parser
 from xml.sax.handler import ContentHandler, feature_external_ges, feature_namespaces
 
+
+# ---------------------------------------------------------------------------
+
+def ParseNZB(filename):
+        # Create a parser
+        parser = make_parser()
+        
+        # No XML namespaces here
+        parser.setFeature(feature_namespaces, 0)
+        parser.setFeature(feature_external_ges, 0)
+        
+        # Dicts to shove things into
+        newsgroups = {}
+        posts = {}
+        
+        # Create the handler
+        dh = NZBParser(newsgroups, posts)
+        
+        # Tell the parser to use it
+        parser.setContentHandler(dh)
+        
+        # Parse the input
+        parser.parse(filename)
+        
+        return (newsgroups, posts)
+
 # ---------------------------------------------------------------------------
 
 class WrapPost:
@@ -20,7 +46,7 @@ class WrapPost:
                 return '<WrapPost: %d parts, %d bytes>' % (self.numparts, self.totalbytes)
         
         # Add a new part to our data chunks
-        def add_part(self, partnum, msgid, bytes, servers):
+        def add_part(self, partnum, msgid, bytes):
                 if not msgid.startswith('<') and not msgid.startswith('>'):
                         msgid = '<%s>' % msgid
                 
@@ -31,9 +57,6 @@ class WrapPost:
                         self.numparts += 1
                         self.totalbytes += bytes
                 
-                for swrap in servers:
-                        if msgid == self.parts[partnum][0]:
-                                self.parts[partnum].append(swrap)
         
         # Return the next part
         def get_next_part(self):
@@ -42,38 +65,10 @@ class WrapPost:
                 
                 return parts_i[0]
 
-# ---------------------------------------------------------------------------
 
-def ParseNZB(filename, servers):
-        # Create a parser
-        parser = make_parser()
-        
-        # No XML namespaces here
-        parser.setFeature(feature_namespaces, 0)
-
-        # Don't get external entities (like trying to d/l remote dtds)
-        parser.setFeature(feature_external_ges, 0)
-        
-        # Dicts to shove things into
-        newsgroups = {}
-        posts = {}
-        
-        # Create the handler
-        dh = NZBParser(servers, newsgroups, posts)
-        
-        # Tell the parser to use it
-        parser.setContentHandler(dh)
-        
-        # Parse the input
-        parser.parse(filename)
-        
-        return (newsgroups, posts)
-
-# ---------------------------------------------------------------------------
 
 class NZBParser(ContentHandler):
-        def __init__(self, servers, newsgroups, posts):
-                self.servers = servers
+        def __init__(self, newsgroups, posts):
                 self.newsgroups = newsgroups
                 self.posts = posts
                 
@@ -118,7 +113,7 @@ class NZBParser(ContentHandler):
                 
                 elif name == 'segment':
                         msgid = ''.join(self.chars)
-                        self.posts[self.subject].add_part(self.partnum, msgid, self.bytes, self.servers)
+                        self.posts[self.subject].add_part(self.partnum, msgid, self.bytes)
                         
                         self.chars = None
                         self.partnum = None

@@ -24,9 +24,6 @@ class Ziplick:
     def __init__(self):
         self.ensureDirs()
 
-        # Initialize our nntp client
-        self.newz_slurp = Controller()
-        
     def ensureDirs(self):
         """ Ensure that all the required directories exist, otherwise attempt to create them """
         for arg in dir(Hellanzb):
@@ -63,7 +60,7 @@ class Ziplick:
                         msg = 'Found new nzb:'
                         info(msg + archiveName(nzb))
                         growlNotify('Queue', 'hellanzb ' + msg,archiveName(nzb), False)
-                
+                        
                 # Nothing to do, lets wait 5 seconds and start over
                 if not self.queued_nzbs:
                     sleep(5)
@@ -91,8 +88,10 @@ class Ziplick:
             scrollBegin()
 
             statusCode = None
-
-            self.newz_slurp.process(nzbfile)
+            
+            # Initialize our nntp client
+            slurp = Controller()
+            slurp.process(nzbfile)
 
             scrollEnd()
 

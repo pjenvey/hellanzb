@@ -86,42 +86,19 @@ class Controller:
         if not self.dmap:
             ShowError('failed to open any server connections!')
 
-                                
-    # ---------------------------------------------------------------------------
-    # Our main loop, obviously
-    def main_loop(self):
-        for job in self.jobs:
-            print
 
-            while 1:
-                # Is it a nzb job?
-                if job.endswith('.nzb'):
-                    try:
-                        self.nzb_job(job)
-                    except nntplib.NNTPPermanentError, e:
-                        print '\r* Lost a server connection, restarting all connections'
-                        self.__init__(self.jobs)
-                    else:
-                        break
-
-                    # Wtf is it then?
-                else:
-                    ShowError("unknown job type '%s'", job)
-        
-    # ---------------------------------------------------------------------------
-    # Does all the stuff we need for a 'nzb' job.
-    def nzb_job(self, job):
+    def process(self, nzbfile):
         # Make sure the file exists first
-        if not os.access(job, os.R_OK):
+        if not os.access(nzbfile, os.R_OK):
             print "File '%s' does not exist or is not readable!"
             #scroll('File ' + job + ' does not exist or is not readable!')
             return
 
-        print "Attempting to parse '%s'..." % job,
+        print "Attempting to parse '%s'..." % nzbfile,
         sys.stdout.flush()
 
         try:
-            newsgroups, posts = ParseNZB(job, self.Servers)
+            newsgroups, posts = ParseNZB(nzbfile)
 
         except Exception, msg:
             print 'failed: %s' % msg
@@ -129,15 +106,15 @@ class Controller:
 
         print 'found %d posts.' % (len(posts))
 
-
+        
         if posts:
             useful = 0
 
-            for swrap in self.Servers:
+            for id in self.dmap.keys():
                 found = 0
 
                 for newsgroup in newsgroups:
-                    groupdata = swrap.set_group(newsgroup)
+                    groupdata = self.dmap[id].group(newsgroup)
                     if groupdata is not None:
                         found = 1
                         useful += 1
@@ -146,8 +123,9 @@ class Controller:
                 if not found:
                     print '(%s) No valid groups found!' % (swrap.name)
 
-            if useful:
-                self.get_bodies(posts)
+#           if useful:
+#                self.get_bodies(posts)
+
 
     # ---------------------------------------------------------------------------
     # Retrieve a set of bodies with multiple connections, arggh

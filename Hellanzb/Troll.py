@@ -372,7 +372,7 @@ there are not enough recovery blocks, raise a fatal exception """
     info('Verifying via pars..')
 
     dirName = dirName + os.sep
-    verifyCmd = 'par2 v "' + dirName + '*.PAR2" "' + dirName + '*.par2"'
+    verifyCmd = 'par2 v "' + dirName + '*.PAR2" "' + dirName + '*.par2"' + ' *_broken'
     repairCmd = 'par2 r "' + dirName + '*.PAR2" "' + dirName + '*.par2"' + ' *_broken' 
 
     p = popen2.Popen4(verifyCmd)

@@ -21,7 +21,7 @@ def runSetup():
         license = 'UNAUTHORIZED USE ENTITLES #kgb TO KILL YOU AND YOUR ENTIRE FAMILY',
 
         packages = [ 'Hellanzb' ],
-        scripts = [ 'hellanzb' ],
+        scripts = [ 'hellanzb.py' ],
         data_files = [ ( 'etc', [ 'etc/hellanzb.conf' ] ) ],
         )
 

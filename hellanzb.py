@@ -15,9 +15,6 @@ o skip downloading par2 files unless they're needed:
    
    obviously both those files need the correct headers/footers too.
 
-o (troll) Make the par code only do a par2 repair (and no verify), repair already does the
-verification
-
 o (troll) More work on passwords. Ideally troll should be able to determine some common rar
 archive passwords on it's own
 
@@ -108,7 +105,8 @@ exiting """
         for popen in popen2._active:
             # signal guarantees us to be within the main thread
             if popen.thread != threading.currentThread():
-                # FIXME: only Ptyopen has a popen.thread
+                # FIXME: only Ptyopen has a popen.thread. And Do I need to bother to look
+                # at this _active list? since everything is Ptyopen now
                 threadsOutsideMain = True
 
         if not threadsOutsideMain:
@@ -148,6 +146,8 @@ exiting """
 
 def init(options):
     """ initialize the app """
+    Hellanzb.SHUTDOWN_CODE = 20
+
     # Troll threads
     Hellanzb.postProcessors = []
     Hellanzb.postProcessorLock = Lock()
@@ -163,11 +163,10 @@ def init(options):
 
     findAndLoadConfig(options.configFile)
 
-    Hellanzb.Logging.initLogFile()
-    
-    Hellanzb.SHUTDOWN_CODE = 20
+    Hellanzb.Logging.initLogFile(options.logFile)
 
 def shutdown(returnCode = 0):
+    """ turn the knob that tells all parts of the program we're shutting down """
     Hellanzb.shutdown = True
 
     # wakeup the doofus scroll interrupter thread (to die) if it's waiting
@@ -176,6 +175,7 @@ def shutdown(returnCode = 0):
     ScrollInterrupter.pendingMonitor.release()
     
 def shutdownNow(returnCode = 0):
+    """ shutdown the program ASAP """
     shutdown(returnCode)
 
     sys.exit(returnCode)
@@ -185,6 +185,8 @@ if __name__ == '__main__':
     parser = optparse.OptionParser(version = Hellanzb.version)
     parser.add_option('-c', '--config', type='string', dest='configFile',
                       help='specify the configuration file')
+    parser.add_option('-l', '--log-file', type='string', dest='logFile',
+                      help='specify the log file (overwrites the config file setting)')
     # run troll as a cmd line app
     parser.add_option('-p', '--post-process-dir', type='string', dest='postProcessDir',
                       help='don\'t run the daemon: post-process the specified dir and exit')

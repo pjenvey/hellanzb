@@ -139,6 +139,8 @@ class PostProcessor(Thread):
                 
             self.decompressorCondition.release()
 
+        # FIXME: we're not done until the threads are done. join() the remaining
+
         processComplete(self.dirName, 'music', None)
         info(archiveName(self.dirName) + ': Finished decompressing')
 

@@ -1,12 +1,17 @@
 hellanzb 
 --------------------------------------------------
 
-Building:
+Before running hellanzb:
 
-To do an actual build you need access to the svn repository
+o Copy the <prefix>/etc/hellanzb.conf.sample file to hellanzb.conf
 
-simply run:
+  The prefix is typically:
+    /usr/local (FreeBSD port) or
+    /opt/local (Darwin port)
+    
+ and edit the defineMusicType lines to match the music decompressors
+ installed on your system.
 
-build.py
-
+hellanzb -
 http://www.hellanzb.com/
+KnowledgeTap Development Group

@@ -7,7 +7,7 @@ looking into python's logging system. Hoho.
 
 @author pjenvey
 """
-import logging, logging.handlers, sys, time, xmlrpclib
+import logging, logging.handlers, os.path, sys, time, xmlrpclib
 from logging import StreamHandler
 from threading import Condition, Lock, Thread
 from Util import *
@@ -338,7 +338,7 @@ def init():
     scrollInterrupter = ScrollInterrupter()
     scrollInterrupter.start()
 
-def initLogFile():
+def initLogFile(logFile):
     """ Initialize the log file. This has to be done after the config is loaded """
 
     class LogFileFilter(logging.Filter):
@@ -348,6 +348,9 @@ def initLogFile():
             return True
     
     # FIXME: should check if Hellanzb.LOG_FILE is set first
+    if logFile != None:
+        Hellanzb.LOG_FILE = os.path.abspath(logFile)
+        
     fileHdlr = logging.handlers.RotatingFileHandler(Hellanzb.LOG_FILE)
     fileHdlr.setFormatter(logging.Formatter('%(asctime)s %(levelname)s %(message)s'))
     fileHdlr.addFilter(LogFileFilter())

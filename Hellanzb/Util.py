@@ -79,8 +79,8 @@ that created the object, for later use """
 
     def readlinesAndWait(self):
         """ Read lines and wait for the process to finish. Don't read the lines too quickly,
-otherwise we could cause a deadlock with the scroller. Slow down the reading by pausing a
-millisecond after every read """
+otherwise we could cause a deadlock with the scroller. Slow down the reading by pausing
+shortly after every read """
         output = []
         while True:
             line = self.fromchild.readline()

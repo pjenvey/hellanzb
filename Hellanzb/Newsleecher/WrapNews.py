@@ -64,6 +64,7 @@ class WrapNews:
         # Set up!
         def __init__(self, swrap, host, port, username, password, bindto):
                 self.swrap = swrap
+                self.host, self.port, self.username, self.password, self.bindto = [host, port, username, password, bindto]
                 
                 self.nntp = EvilNNTP(host=host, port=port, user=username, password=password, readermode=1, bindto=bindto)
                 # Shortcut some stuff
@@ -72,7 +73,14 @@ class WrapNews:
                 
                 self.data = ''
                 self.lines = []
-        
+
+        def reconnect(self):
+                host, port, username, password, bindto = [self.host, self.port, self.username, self.password, self.bindto]
+                self.nntp = EvilNNTP(host=host, port=port, user=username, password=password, readermode=1, bindto=bindto)
+                # Shortcut some stuff
+                self.setblocking = self.nntp.sock.setblocking
+                self.recv = self.nntp.sock.recv
+                
         # Send a useless command to avoid idle timeouts
         def anti_idle(self):
                 command = 'MODE READER\r\n'
@@ -91,7 +99,17 @@ class WrapNews:
         # recv() a chunk of data and split it into lines. Returns 0 if there's
         # probably some more data coming, and 1 if we got a dot line.
         def recv_chunk(self):
-                chunk = self.recv(4096)
+                attempts = 0
+                while attempts < 5:
+                        try:
+                                chunk = self.recv(4096)
+                        except:
+                                atempts += 1
+                                self.reconnect()
+                        else:
+                                break
+                if attempts >= 5:
+                        raise nntplib.NNTPPermanentError("Couldn't re-establish connection.")
                 
                 # Split the data into lines now
                 self.data += chunk

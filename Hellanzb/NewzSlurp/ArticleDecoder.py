@@ -3,10 +3,8 @@ from zlib import crc32
 from Hellanzb.Logging import *
 from StringIO import StringIO
 
-# Decode types
-UNKNOWN = -1
-YENCODE = 0
-UUENCODE = 1
+# Decode types enum
+UNKNOWN, YENCODE, UUENCODE = range(3)
 
 def decode(segment):
     """ Decode the NZBSegment's articleData to it's destination. Toggle the NZBSegment
@@ -18,6 +16,9 @@ def decode(segment):
 
     #del segment.articleData
 
+    # FIXME: maybe call everything below this postProcess. have postProcess called when --
+    # during the queue instantiation?
+    
     if segment.nzbFile.isAllSegmentsDecoded():
         assembleNZBFile(segment.nzbFile)
     debug('Decoded segment: ' + segment.getDestination())
@@ -32,7 +33,7 @@ def parseArticleData(segment, justExtractFilename = False):
         raise FatalError('Could not getFilenameFromArticleData')
     
     cleanData = []
-    decodeType = UNKNOWN
+    encodingType = UNKNOWN
     withinData = False
     for line in segment.articleData:
         
@@ -54,7 +55,7 @@ def parseArticleData(segment, justExtractFilename = False):
             if not ('line' in ybegin and 'size' in ybegin and 'name' in ybegin):
                 raise FatalError('* Invalid =ybegin line in part %d!' % fileDestination)
 
-            noFileName = self.filename == None
+            noFileName = segment.nzbFile.filename == None
             # FIXME:? cant check for tempFilename here. if we're resuming, and we didnt
             # rename temp files created by an older hellanzb process, our tempFilename
             # could be None and we wouldnt rename them. is this safe?
@@ -75,12 +76,13 @@ def parseArticleData(segment, justExtractFilename = False):
                         newDest = tempFileNames.get(file)
                         shutil.move(WORKING_DIR + os.sep + file,
                                     WORKING_DIR + os.sep + newDest)
+                        debug('>>>>RENAMED: ' + file + ' to: ' + newDest)
 
                 segment.nzbFile.tempFileNameLock.release()
             else:
                 segment.nzbFile.filename = ybegin['name']
             
-            decodeType = YENCODE
+            encodingType = YENCODE
 
         elif line.startswith('=ypart'):
             # FIXME: does ybegin always ensure a ypart on the next line?
@@ -96,23 +98,23 @@ def parseArticleData(segment, justExtractFilename = False):
         elif line.startswith('begin '):
             debug('UUDECODE begin&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&')
             segment.nzbFile.filename = line.rstrip().split(' ', 2)[2]
-            decodeType = UUENCODE
+            encodingType = UUENCODE
             withinData = True
 
     # FIXME: could put this check even higher up
     if justExtractFilename:
         return
 
-    decodeCleanDataToFile(cleanData, segment.getDestination(), decodeType)
+    decodeCleanDataToFile(cleanData, segment.getDestination(), encodingType)
     del cleanData
     del segment.articleData
     segment.articleData = '' # We often check it for == None
 decodeArticleData=parseArticleData
 
-def decodeCleanDataToFile(cleanData, destination, decodeType = YENCODE):
+def decodeCleanDataToFile(cleanData, destination, encodingType = YENCODE):
     """ Decode the clean data (clean as in it's headers (mime and yenc/uudecode) have been
     removed) list to the specified destination """
-    if decodeType == YDECODE:
+    if encodingType == YENCODE:
         #debug('ydecoding line count: ' + str(len(cleanData.readlines())))
         decodedLines = yDecode(cleanData)
 
@@ -130,7 +132,7 @@ def decodeCleanDataToFile(cleanData, destination, decodeType = YENCODE):
         # Get rid of all this data now that we're done with it
         debug('YDecoded articleData to file: ' + destination)
 
-    elif decodeType == UUENCODE:
+    elif encodingType == UUENCODE:
         decodedLines = UUDecode(cleanData)
         out = open(destination, 'wb')
         for line in decodedLines:
@@ -248,7 +250,10 @@ def tryFinishNZB(nzb):
     # through. this function could be in charge of deleting those files from the queue
     # when they're considered done
     for nzbFile in nzb.nzbFileElements:
-        if not nzbFile.isAllSegmentsDecoded():
+        #if not nzbFile.isAllSegmentsDecoded():
+        #if not nzbFile.isAssembled():
+        if nzbFile.needsDownload():
+            debug('NOT DONE, file: ' + nzbFile.getDestination())
             done = False
             break
 
@@ -260,3 +265,4 @@ def tryFinishNZB(nzb):
         
     finish = time.time() - start
     debug('tryFinishNZB (' + str(done) + ') took: ' + str(finish) + ' seconds')
+    return done

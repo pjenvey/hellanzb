@@ -99,10 +99,15 @@ class Ziplick:
             # Initialize our nntp client
             #slurp = Controller()
             #slurp.process(nzbfile)
-            Hellanzb.queue.parseNZB(nzbfile)
-            Hellanzb.nzbfileDone.acquire()
-            Hellanzb.nzbfileDone.wait()
-            Hellanzb.nzbfileDone.release()
+            # if parseNZB has work to do, we'll wait() until it's done. otherwise it's
+            # done now
+            if not Hellanzb.queue.parseNZB(nzbfile):
+                info('waiting')
+                Hellanzb.nzbfileDone.acquire()
+                Hellanzb.nzbfileDone.wait()
+                Hellanzb.nzbfileDone.release()
+                info('done waiting')
+            info('skipped wait')
 
             scrollEnd()
 
@@ -117,15 +122,6 @@ class Ziplick:
             msgId = re.sub(r'.*msgid_', r'', nzbfilename)
             msgId = re.sub(r'_.*', r'', msgId)
 
-            # Take care of the unfortunate case that we coredumped
-            coreFucked = False
-            if os.WCOREDUMP(statusCode):
-                coreFucked = True
-                newdir += '_corefucked'
-                error('Archive: ' + archiveName(nzbfilename) + ' is core fucked :(')
-                growlNotify('Error', 'hellanzb Archive is core fucked',
-                            archiveName(nzbfilename) + '\n:(', True)
-                
             # Move our nzb contents to their new location, clear out the temp dir
             if os.path.exists(newdir):
                 # Rename the dir if it exists already
@@ -147,6 +143,6 @@ class Ziplick:
             
             # Finally unarchive/process the directory in another thread, and continue
             # nzbing
-            if not coreFucked and not checkShutdown():
+            if not checkShutdown():
                 troll = PostProcessor.PostProcessor(newdir)
                 troll.start()

@@ -9,14 +9,21 @@ from threading import Lock, RLock
 from xml.sax import make_parser
 from xml.sax.handler import ContentHandler, feature_external_ges, feature_namespaces
 from Hellanzb.Logging import *
-from Hellanzb.NewzSlurp.ArticleDecoder import parseArticleData
+from Hellanzb.NewzSlurp.ArticleDecoder import parseArticleData, tryFinishNZB
 from Hellanzb.Util import archiveName, getFileExtension, PriorityQueue
+
+#s/NZBUtil/NZBModel/
 
 # o could put failed segments into a failed queue, connections that are flaged as being
 # fill servers will try to attemp to d/l the file if any of them fail?
 
-def needsDownload2(object):
-    """ Whether or not this segment needs to be downloaded (isn't on the file system) """
+def needsDownload(object):
+    """ Whether or not this object needs to be downloaded (isn't on the file system). This
+    function is generalized to support both NZBFile and NZBSegment objects. A NZBFile
+    needs to be downloaded when it's file does not exist on the filesystem. An NZBSegment
+    needs to be downloaded when either it's segment file, or it's parent NZBFile's file
+    does not exist on the filesystem. This function does some magic to handle
+    tempFileNames """
     # We need to ensure that we're not in the process of renaming from a temp file
     # name, so we have to lock.
     object.doh('entry')
@@ -33,7 +40,7 @@ def needsDownload2(object):
     tempFileNameLock.acquire()
 
     if os.path.isfile(object.getDestination()):
-        object.nzbFile.tempFileNameLock.release()
+        tempFileNameLock.release()
         object.doh('isfile')
         return False
 
@@ -109,6 +116,8 @@ class NZB:
         self.nzbFileElements = []
         
 class NZBFile:
+    needsDownload = needsDownload
+
     def __init__(self, subject, date = None, poster = None, nzb = None):
         # from xml attributes
         self.subject = str(subject)
@@ -132,6 +141,12 @@ class NZBFile:
 
         # FIXME: BLAH!
         self.tempFileNameLock = RLock()
+
+        self.totalBytes = 0
+
+        self.downloadStartTime = None
+        self.totalReadBytes = 0
+        self.downloadPercentage = 0
 
     def getDestination(self):
         """ Return the destination of where this file will lie on the filesystem. The filename
@@ -173,11 +188,14 @@ class NZBFile:
         name on hand """
         return 'hellanzb-tmp-' + self.nzb.archiveName + '.file' + str(self.number).zfill(4)
 
+    hi = """
     def isAssembled(self):
-        """ We should only write the finished file if we completely assembled """
-        if os.path.isfile(self.getDestination()):
+        #We should only write the finished file if we completely assembled
+        if self.filename != None and os.path.isfile(self.getDestination()):
             return True
+        #elif 
         return False
+        """
 
     def isAllSegmentsDecoded(self):
         """ Determine whether all these file's segments have been decoded """
@@ -196,17 +214,17 @@ class NZBFile:
         # (segments)
         if len(decodedSegmentFiles) == 0:
             finish = time.time() - start
-            debug('isAllSegmentsDecoded (True) took: ' + str(finish) + ' seconds')
+            debug('isAllSegmentsDecoded (True) took: ' + str(finish) + ' ' + self.getDestination())
             return True
 
         finish = time.time() - start
-        debug(self.getDestination() + 'isAllSegmentsDecoded (Flalse) took: ' + str(finish))
+        debug('isAllSegmentsDecoded (False) took: ' + str(finish) + ' ' + self.getDestination())
+        #debug(self.getDestination() + 'isAllSegmentsDecoded (False) took: ' + str(finish) + \
+        #      ' left: ' + str(decodedSegmentFiles))
         return False
 
     def doh(self, m):
         pass
-
-    needsDownload = needsDownload2
 
     def __repr__(self):
         # FIXME
@@ -214,6 +232,8 @@ class NZBFile:
             ' date: ' + str(self.date) + ' poster: ' + str(self.poster)
 
 class NZBSegment:
+    needsDownload = needsDownload
+    
     def __init__(self, bytes, number, messageId, nzbFile):
         # from xml attributes
         self.bytes = bytes
@@ -222,6 +242,8 @@ class NZBSegment:
 
         # Reference to the parent NZBFile this segment belongs to
         self.nzbFile = nzbFile
+        self.nzbFile.nzbSegments.append(self)
+        self.nzbFile.totalBytes += self.bytes
 
         # The downloaded article data
         self.articleData = None
@@ -255,77 +277,10 @@ class NZBSegment:
             raise FatalError('Could not getFilenameFromArticleData, file:' + str(self.nzbFile) +
                              ' segment: ' + str(self))
 
-    # FIXME: give file a needsDownload, and we can run the check during queue creation as
-    # well
-    # FIXME: optimize the call for segments, calling this function on a segment (during
-    # newzslurping) is where i care more about delaying
-    needsDownload = needsDownload2
-    def needsDownload0(self):
-        """ Whether or not this segment needs to be downloaded (isn't on the file system) """
-        # We need to ensure that we're not in the process of renaming from a temp file
-        # name, so we have to lock.
-        self.nzbFile.tempFileNameLock.acquire()
-
-        if os.path.isfile(self.nzbFile.getDestination()):
-            self.nzbFile.tempFileNameLock.release()
-            self.doh('isfile')
-            return False
-
-        elif os.path.isfile(self.getDestination()):
-            self.nzbFile.tempFileNameLock.release()
-            self.doh('isfile segment')
-            return False
-
-        elif self.nzbFile.filename == None:
-            self.doh('no filename')
-            # We only know about the temp filename. In that case, fall back to matching
-            # filenames in our subject line
-            from Hellanzb import WORKING_DIR
-            for file in os.listdir(WORKING_DIR):
-                ext = getFileExtension(file)
-                # Segment Match
-                if ext != None and re.match(r'^segment\d{4}$', ext):
-
-                    # Quickest/easiest way to determine this file is not this segment's
-                    # file is by checking it's segment number
-                    segmentNumber = int(file[-4:])
-                    if segmentNumber != self.number:
-                        continue
-
-                    # Strip the segment suffix, and if that filename is in our subject,
-                    # we've found a match
-                    prefix = file[0:-len('.segmentXXXX')]
-                    #if re.match(r'.*' + prefix + r'.*', self.nzbFile.subject):
-                    if self.nzbFile.subject.find(prefix) > -1:
-                        self.nzbFile.tempFileNameLock.release()
-                        self.doh('none segment file mismatch')
-                        return False
-                        #return True
-
-                # Whole file match
-                #elif re.match(r'.*' + file + r'.*', self.nzbFile.subject):
-                elif self.nzbFile.subject.find(file) > -1:
-                    self.nzbFile.tempFileNameLock.release()
-                    self.doh('none file')
-                    #return True
-                    return False
-                
-            # Looks like none of the files in WORKING_DIR are ours so we need to be
-            # downloaded
-            #self.nzbFile.tempFileNameLock.release()
-            #return True
-
-        self.doh('final')
-        self.nzbFile.tempFileNameLock.release()
-        return True
-
     def doh(self, m):
         #if True:
-        #if self.number == 16 and self.nzbFile.subject == '(Naughty.College.School.Girls.38.XXX.DVDRip.XviD-Pr0nStarS-CD1)))[50/50] - "ps-ncsg38a.rar" yEnc (1/17)':
-        #if self.nzbFile.subject == '(Naughty.College.School.Girls.38.XXX.DVDRip.XviD-Pr0nStarS-CD2-pars)))[1/7] - "ps-ncsg38b.vol000+01.PAR2" yEnc (1/1)':
-        #if self.nzbFile.subject == '(Naughty.College.School.Girls.38.XXX.DVDRip.XviD-Pr0nStarS-CD1)))[50/50] - "ps-ncsg38a.rar" yEnc (1/17)':
-        if self.nzbFile.subject =='(Naughty.College.School.Girls.38.XXX.DVDRip.XviD-Pr0nStarS-CD2)))[01/50] - "ps-ncsg38b.r00" yEnc (1/17)':
-            debug('>>>>' + m)
+        #    debug('>>>>' + m)
+        pass
 
     def __repr__(self):
         # FIXME
@@ -383,6 +338,10 @@ class NZBQueue(PriorityQueue):
 
         # Parse the input
         parser.parse(fileName)
+
+        # In the case the NZBParser determined the entire archive's contents are already
+        # on the filesystem, try to finish up (and move onto post processing)
+        return tryFinishNZB(nzb)
         
 class NZBParser(ContentHandler):
     def __init__(self, queue, nzb):
@@ -418,7 +377,6 @@ class NZBParser(ContentHandler):
             self.file = NZBFile(attrs.get('subject'), attrs.get('date'), attrs.get('poster'),
                                 self.nzb)
             self.fileNeedsDownload = self.file.needsDownload()
-            self.fileNeedsDownload = True
             debug('fileNeeds: ' + str(self.fileNeedsDownload))
             self.fileCount += 1
             self.file.number = self.fileCount
@@ -451,7 +409,6 @@ class NZBParser(ContentHandler):
         elif name == 'segment':
             messageId = ''.join(self.chars)
             nzbs = NZBSegment(self.bytes, self.number, messageId, self.file)
-            self.file.nzbSegments.append(nzbs)
             if self.fileNeedsDownload:
                 self.queue.put((NZBQueue.NZB_CONTENT_P, nzbs))
                         

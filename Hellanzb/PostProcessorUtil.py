@@ -266,6 +266,8 @@ def processRars(dirName, rarPassword):
 
 def unrar(fileName, rarPassword = None, pathToExtract = None):
     """ Unrar the specified file. Returns all the rar files we extracted from """
+    # FIXME: since we unrar multiple files, this function's FatalErrors shouldn't destroy
+    # the chain of unraring (it currently does)
     if fileName == None:
         # FIXME: this last part is dumb, when isAlbumCoverArchive works, this FetalError
         # could mean the only rars we found are were album covers

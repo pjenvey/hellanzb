@@ -5,7 +5,7 @@ import sys
 sys.path.append('/home/pjenvey/src/hellanzb-asynchella')
 # </DEBUGGING>
 
-import sys, time
+import os, sys, time
 from threading import Condition
 from twisted.internet import reactor
 from twisted.news.news import UsenetClientFactory
@@ -19,7 +19,7 @@ from Queue import Empty
 __id__ = '$Id$'
 
 USERNAME = 'pjenvey'
-PASSWORD = 'HAHA I REMEMBERED THIS TIME'
+PASSWORD = 'IF_A_SPERM_GETS_WASTED_GOD_GETS_REAL_IRATE'
 
 # FIXME:
 # problem: when resuming, we dont have our real name yet (just the temp name). you need
@@ -74,13 +74,16 @@ class NewzSlurperFactory(UsenetClientFactory):
         """ """
         # FIXME: what is this
         self.lastChecks = {}
+        #self.totalStartTime = None
+        self.totalReadBytes = 0
+        self.totalDownloadedFiles = 0
 
     def buildProtocol(self, addr):
         """ """
         last = self.lastChecks.setdefault(addr, time.mktime(time.gmtime()) - (60 * 60 * 24 * 7))
         #p = nntp.UsenetClientProtocol(self.groups, last, self.storage)
         auth = {'username':USERNAME, 'password':PASSWORD}
-        p = NewzSlurper(auth, {})
+        p = NewzSlurper(auth, {}, self)
         p.factory = self
         return p
 
@@ -88,15 +91,21 @@ class NewzSlurper(NNTPClient):
 
     nextId = 0 # Id Pool
     
-    def __init__(self, auth, stat):
+    def __init__(self, auth, stat, factory):
         """ """
         NNTPClient.__init__(self)
         self.auth = auth
         self.stat = stat
+        self.factory = factory
         self.group = None
         self.id = self.getNextId()
         #self.stat['pending'][self.id] = True
-        self.lineCount = 0 # FIXME:
+        
+        #self.lineCount = 0 # FIXME:
+        self.downloadStartTime = None
+        self.readBytes = 0
+        #self.readPercentage = 0
+        self.filename = None
 
         self.activatedGroup = False
         self.activeGroups = []
@@ -152,6 +161,7 @@ class NewzSlurper(NNTPClient):
                     debug('SKIPPING segment: ' + nextSegment.getTempFileName() + ' subject: ' + nextSegment.nzbFile.subject)
                     nextSegment = Hellanzb.queue.get_nowait()
                 self.currentSegment = nextSegment
+                self.filename = os.path.basename(self.currentSegment.nzbFile.getDestination())
             except Empty:
                 debug('DONE!')
                 time.sleep(10)
@@ -162,7 +172,7 @@ class NewzSlurper(NNTPClient):
             # objects. These should be str()'d during the nzbFile instantiation
             group = str(self.currentSegment.nzbFile.groups[i])
             debug('NewzSlurper[' + str(self.id) + ']' + ' fetching group:' + group)
-            debug('group 4 segment: ' + self.currentSegment.getTempFileName() + ' subject: ' + self.currentSegment.nzbFile.subject)
+            #debug('group 4 segment: ' + self.currentSegment.getTempFileName() + ' subject: ' + self.currentSegment.nzbFile.subject)
 
             # FIXME: should only activate one of the groups
             if group not in self.activeGroups:
@@ -174,11 +184,18 @@ class NewzSlurper(NNTPClient):
         debug('NewzSlurper[' + str(self.id) + ']' + ' fetching article: ' + \
               #self.currentSegment.getDestination() + ' (' + self.currentSegment.messageId + ')')
               self.currentSegment.getDestination() + ' (' + self.currentSegment.nzbFile.subject + ')')
-        debug(str(self.id) + 'going to fetch article: ' + str(self.currentSegment.messageId))
+        debug('NewzSlurper[' + str(self.id) + '] going to fetch article: ' + \
+              str(self.currentSegment.messageId))
         self.fetchArticle(str(self.currentSegment.messageId))
         
     def fetchArticle(self, index):
         """ """
+        start = time.time()
+        #if self.factory.totalStartTime == None:
+        #    self.factory.totalStartTime = start
+        if self.currentSegment != None and self.currentSegment.nzbFile.downloadStartTime == None:
+            self.currentSegment.nzbFile.downloadStartTime = start
+        self.downloadStartTime = start
         NNTPClient.fetchArticle(self, '<' + index + '>')
 
     def gotArticle(self, article):
@@ -187,12 +204,14 @@ class NewzSlurper(NNTPClient):
              ' (' + self.currentSegment.messageId + ')' + ' size: ' + str(len(article)) + ' expected size: ' + \
              str(self.currentSegment.bytes))
 
-        #debug('aclass: ' + str(article.__class__))
-        #debug('gotArticle: ' + article)
-        debug('article class: ' + str(article.__class__))
         self.currentSegment.articleData = article
         self.deferSegmentDecode(self.currentSegment)
         self.currentSegment = None
+
+        #self.lineCount = 0
+        self.downloadStartTime = None
+        self.readBytes = 0
+        #self.readPercentage = 0
 
         # FIXME: endstate,newstate?
         #from time import sleep
@@ -216,6 +235,9 @@ class NewzSlurper(NNTPClient):
         self.fetchNextNZBSegment()
 
     def _stateArticle(self, line):
+        """ The normal _stateArticle converts the list of lines downloaded to a string, we want to
+        keep these lines in a list throughout life of the processing (should be more
+        efficient) """
         if line != '.':
             self._newLine(line, 0)
         else:
@@ -262,11 +284,57 @@ class NewzSlurper(NNTPClient):
         print 'err: ' + err
 
     def lineReceived(self, line):
-        self.lineCount += 1
-        if self.lineCount % 100 == 0:
-            print '.',
-        sys.stdout.flush()
+        #self.lineCount += 1
+
+        lineLen = len(line)
+        self.readBytes += lineLen
+        self.factory.totalReadBytes += lineLen
+        if self.currentSegment != None:
+            self.currentSegment.nzbFile.totalReadBytes += lineLen
+
+        self.updatePercentage()
+        
+        #if self.lineCount % 100 == 0:
+        #    print '.',
+        #sys.stdout.flush()
         NNTPClient.lineReceived(self, line)
+
+    def updatePercentage(self):
+        if self.currentSegment == None:
+            return
+
+        if self.filename != 'hellanzb-tmp-GhettoGaggers.com_-_Alika.file0003':
+            return
+        
+        #oldPercentage = self.readPercentage
+        oldPercentage = self.currentSegment.nzbFile.downloadPercentage
+        #self.currentSegment.nzbFile.downloadPercentage = min(100, int(float(self.readBytes) /
+        #max(1, self.currentSegment.bytes) * 100))
+        self.currentSegment.nzbFile.downloadPercentage = min(100,
+                                                             int(float(self.currentSegment.nzbFile.totalReadBytes) /
+                                                                 max(1, self.currentSegment.nzbFile.totalBytes) * 100))
+
+        #if self.readPercentage > oldPercentage:
+        if self.currentSegment.nzbFile.downloadPercentage > oldPercentage:
+            #elapsed = max(0.1, time.time() - self.downloadStartTime)
+            elapsed = max(0.1, time.time() - self.currentSegment.nzbFile.downloadStartTime)
+            speed = self.currentSegment.nzbFile.totalReadBytes / elapsed / 1024.0
+            #print '\r* Decoding %s - %2d%% @ %.1fKB/s' % (truncate(filename), percent, speed),
+            #print '\r* Downloading %s - %2d%% @ %.1fKB/s' % (truncate(self.filename),
+            #                                                 self.currentSegment.nzbFile.downloadPercentage,
+            #                                                 speed),
+            #debug('!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!! ' + str(oldPercentage) + ' : ' + str(self.readPercentage))
+            #scroll('\r* f: ' + truncate(self.filename) + ' r: ' + str(self.currentSegment.nzbFile.downloadPercentage) + ' s: ' + str(speed))
+            #sys.stderr.write('\r* f: ' + truncate(self.filename) + ' r: ' + str(self.currentSegment.nzbFile.downloadPercentage) + ' s: ' + str(speed))
+            #sys.stdout.flush()
+
+            #scroll('\r* f: ' + truncate(self.filename) + ' r: ' + str(self.currentSegment.nzbFile.downloadPercentage) + ' s: ' + str(speed))
+            #debug('\r* f: ' + truncate(self.filename) + ' r: ' + str(self.currentSegment.nzbFile.downloadPercentage) + ' s: ' + str(speed))
+
+            scroll('\r* Downloading %s - %2d%% @ %.1fKB/s' % (truncate(self.filename),
+                                                             self.currentSegment.nzbFile.downloadPercentage,
+                                                             speed))
+
 
     def gotIdle(self, idle):
         print 'idling'

@@ -7,15 +7,46 @@ looking into python's logging system. Hoho.
 
 @author pjenvey
 """
-import logging, logging.handlers, os.path, sys, time, xmlrpclib
+import logging, os.path, sys, time, types, xmlrpclib
 from logging import StreamHandler
+from logging.handlers import RotatingFileHandler
 from threading import Condition, Lock, Thread
 from Growl import *
 from Util import *
 
 __id__ = '$Id$'
 
-class ScrollableHandler(StreamHandler):
+class StreamHandlerNoLF(StreamHandler):
+    """ A StreamHandler that doesn't append \n to every message logged to it """
+
+    def emit(self, record):
+        """ Cut/Pastse of StreamHandler's emit to not append messages with \n """
+        try:
+            msg = self.format(record)
+            if not hasattr(types, "UnicodeType"): #if no unicode support...
+                self.stream.write("%s" % msg)
+            else:
+                try:
+                    self.stream.write("%s" % msg)
+                except UnicodeError:
+                    self.stream.write("%s" % msg.encode("UTF-8"))
+            self.flush()
+        except:
+            self.handleError(record)
+
+class RotatingFileHandlerNoLF(RotatingFileHandler):
+    """ A RotatingFileHandler that doesn't append \n to every message logged to it """
+
+    def emit(self, record):
+        """ Cut/Pastse of RotatingFileHandler's emit to not append messages with \n """
+        if self.maxBytes > 0:                   # are we rolling over?
+            msg = "%s" % self.format(record)
+            self.stream.seek(0, 2)  #due to non-posix-compliant Windows feature
+            if self.stream.tell() + len(msg) >= self.maxBytes:
+                self.doRollover()
+        logging.FileHandler.emit(self, record)
+
+class ScrollableHandler(StreamHandlerNoLF):
     """ ScrollableHandler is a StreamHandler that specially handles scrolling (log messages at the SCROLL level). It allows you to temporarily interrupt the constant scroll with other log messages of different levels. It also slightly pauses the scroll output, giving you time to read the message  """
     # the SCROLL level (a class var)
     SCROLL = 11
@@ -248,7 +279,7 @@ class LogOutputStream:
 
 def warn(message):
     """ Log a message at the warning level """
-    Hellanzb.logger.warn(message)
+    Hellanzb.logger.warn(message + '\n')
 
 def error(message, exception = None):
     """ Log a message at the error level. Optionally log exception information """
@@ -258,15 +289,15 @@ def error(message, exception = None):
         if isinstance(exception, Exception):
             message += ': ' + getLocalClassName(exception.__class__) + ': ' + str(exception)
         
-    Hellanzb.logger.error(message)
+    Hellanzb.logger.error(message + '\n')
 
 def info(message):
     """ Log a message at the info level """
-    Hellanzb.logger.info(message)
+    Hellanzb.logger.info(message + '\n')
 
 def debug(message):
     """ Log a message at the debug level """
-    Hellanzb.logger.debug(message)
+    Hellanzb.logger.debug(message + '\n')
 
 def scroll(message):
     """ Log a message at the scroll level """
@@ -337,8 +368,8 @@ def initLogging():
     #outHdlr.setLevel(ScrollableHandler.SCROLL)
     outHdlr.addFilter(OutFilter())
 
-    errHdlr = ScrollableHandler(sys.stderr)
-    errHdlr = logging.StreamHandler(sys.stderr)
+    #errHdlr = ScrollableHandler(sys.stderr)
+    errHdlr = StreamHandlerNoLF(sys.stderr)
     errHdlr.setLevel(logging.ERROR)
     
     Hellanzb.logger.addHandler(outHdlr)
@@ -382,7 +413,7 @@ def initLogFile(logFile = None):
     if logFile != None:
         Hellanzb.LOG_FILE = os.path.abspath(logFile)
         
-    fileHdlr = logging.handlers.RotatingFileHandler(Hellanzb.LOG_FILE)
+    fileHdlr = RotatingFileHandlerNoLF(Hellanzb.LOG_FILE)
     fileHdlr.setFormatter(logging.Formatter('%(asctime)s %(levelname)s %(message)s'))
     fileHdlr.addFilter(LogFileFilter())
     
@@ -395,7 +426,7 @@ def initLogFile(logFile = None):
                 if record.levelno > logging.DEBUG:
                     return False
                 return True
-        debugFileHdlr = logging.handlers.RotatingFileHandler(Hellanzb.LOG_FILE + '-debug')
+        debugFileHdlr = RotatingFileHandlerNoLF(Hellanzb.LOG_FILE + '-debug')
         debugFileHdlr.setFormatter(logging.Formatter('%(asctime)s %(levelname)s %(message)s'))
         debugFileHdlr.setLevel(logging.DEBUG)
         debugFileHdlr.addFilter(DebugFileFilter())

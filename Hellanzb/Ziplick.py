@@ -10,9 +10,8 @@ version 0.2
 # extracting
 """
 
-import Hellanzb, os, re, PostProcessor, asyncore
+import Hellanzb, os, re, PostProcessor
 from shutil import move
-from time import sleep
 from twisted.internet import reactor
 from Logging import *
 from Util import *
@@ -73,9 +72,6 @@ class Ziplick:
                         
                 # Nothing to do, lets wait 5 seconds and start over
                 if not self.queued_nzbs:
-                    #sleep(5)
-                    #continue
-                    # FIXME: callLater
                     reactor.callLater(5, self.scanQueueDir)
                     return
                 

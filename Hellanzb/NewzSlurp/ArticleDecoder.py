@@ -1,6 +1,13 @@
+"""
+ArticleDecoder - Decode and assemble files from usenet articles (nzbSegments)
+
+"""
 import binascii, os, re, shutil, string
+from twisted.internet import reactor
 from zlib import crc32
 from Hellanzb.Logging import *
+
+__id__ = '$Id$'
 
 # Decode types enum
 UNKNOWN, YENCODE, UUENCODE = range(3)
@@ -11,8 +18,6 @@ def decode(segment):
     decoded segment filenames exist """
     # FIXME: should need to try/ this call?
     decodeArticleData(segment)
-
-    #del segment.articleData
 
     # FIXME: maybe call everything below this postProcess. have postProcess called when --
     # during the queue instantiation?
@@ -92,6 +97,15 @@ def parseArticleData(segment, justExtractFilename = False):
             withinData = True
         elif line == '':
             continue
+        elif not withinData and encodingType == YENCODE:
+            # Found ybegin, but no ypart. withinData should have started on the previous
+            # line -- so instead we have to process the current line
+            withinData = True
+
+            # un-double-dot any lines :\
+            if line[:2] == '..':
+                line = line[1:]
+                segment.articleData[index] = line
         elif not withinData:
             # Assume this is a subsequent uuencode segment
             withinData = True
@@ -137,16 +151,19 @@ def setRealFileName(segment, filename):
 def decodeSegmentToFile(segment, encodingType = YENCODE):
     """ Decode the clean data (clean as in it's headers (mime and yenc/uudecode) have been
     removed) list to the specified destination """
+    decodedLines = []
     if encodingType == YENCODE:
         #debug('ydecoding line count: ' + str(len(segment.articleData.readlines())))
         decodedLines = yDecode(segment.articleData)
 
-        # FIXME: crc check
-        #decoded = ''.join(decodedLines)
-        #crc = '%08X' % (crc32(decoded) & 2**32L - 1)
-        #if crc != segment.crc:
-        #    warn('CRC mismatch ' + crc + ' != ' + segment.crc)
-        
+        # FIXME: crc check needs to interrupt scroll
+        decoded = ''.join(decodedLines)
+        crc = '%08X' % (crc32(decoded) & 2**32L - 1)
+        if crc != segment.crc:
+            #warn('CRC mismatch ' + crc + ' != ' + segment.crc)
+            debug('CRC mismatch ' + crc + ' != ' + segment.crc)
+        del decoded
+            
         out = open(segment.getDestination(), 'wb')
         for line in decodedLines:
             out.write(line)
@@ -156,7 +173,14 @@ def decodeSegmentToFile(segment, encodingType = YENCODE):
         debug('YDecoded articleData to file: ' + segment.getDestination())
 
     elif encodingType == UUENCODE:
-        decodedLines = UUDecode(segment.articleData)
+        try:
+            decodedLines = UUDecode(segment.articleData)
+        except binascii.Error, msg:
+            error('\n* Decode failed in file: %s (part number: %d) error: %s' % \
+                  (segment.getDestination(), segment.number, msg))
+            debug('\n* Decode failed in file: %s (part number: %d) error: %s' % \
+                  (segment.getDestination(), segment.number, msg))
+
         out = open(segment.getDestination(), 'wb')
         for line in decodedLines:
             out.write(line)
@@ -240,8 +264,9 @@ def UUDecode(dataList):
                 data = binascii.a2b_uu(line[:nbytes])
                 buffer.append(data)
             except binascii.Error, msg:
-                error('\n* Decode failed in part %d: %s' % (31337, msg))
-                error('=> %s' % (repr(line)))
+                error('\nUUDecode failed, line: ' + repr(line))
+                debug('\nUUDecode failed, line: ' + repr(line))
+                raise
 
     return buffer
 
@@ -274,8 +299,8 @@ def assembleNZBFile(nzbFile):
 
 def tryFinishNZB(nzb):
     """ Determine if the NZB download/decode process is done for the specified NZB -- if it's
-    done, notify the nzbFileDone listener threads (the Ziplick daemon). We'll call this
-    check everytime we finish processing an nzbFile """
+    done, trigger handleNZBDone. We'll call this check everytime we finish processing an
+    nzbFile """
     start = time.time()
     done = True
 
@@ -296,12 +321,7 @@ def tryFinishNZB(nzb):
 
     if done:
         debug('tryFinishNZB: finished donwloading NZB: ' + nzb.archiveName)
-        from twisted.internet import reactor
         reactor.callFromThread(Hellanzb.ziplick.handleNZBDone, nzb.nzbFileName)
-        
-        #Hellanzb.nzbfileDone.acquire()
-        #Hellanzb.nzbfileDone.notify()
-        #Hellanzb.nzbfileDone.release()
         
     finish = time.time() - start
     debug('tryFinishNZB (' + str(done) + ') took: ' + str(finish) + ' seconds')

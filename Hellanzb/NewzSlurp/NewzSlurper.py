@@ -299,7 +299,7 @@ class NewzSlurper(NNTPClient):
         """ """
         group = group[len(group) - 1]
         self.activeGroups.append(group)
-        debug(str(self.id) + 'got GROUP: ' + group)
+        debug(self.getName() + ' got GROUP: ' + group)
         # FIXME: where do i remove the group?
 
         self.fetchNextNZBSegment()
@@ -458,10 +458,10 @@ class NewzSlurpStatLog:
                 segment.nzbFile.showFilenameIsTemp = False
                 
             if lastSegment != None and lastSegment.nzbFile == segment.nzbFile:
-                line = self.connectionPrefix + ' Downloading %s' + ACODE.KILL_LINE
+                line = self.connectionPrefix + ' %s' + ACODE.KILL_LINE
                 self.currentLog += line % (str(i), rtruncate(segment.nzbFile.showFilename, length = 100))
             else:
-                line = self.connectionPrefix + ' Downloading %s - %2d%% @ %.1fKB/s' + ACODE.KILL_LINE
+                line = self.connectionPrefix + ' %s - %2d%% @ %.1fKB/s' + ACODE.KILL_LINE
                 self.currentLog += line % (str(i), rtruncate(segment.nzbFile.showFilename, length = 100),
                                            segment.nzbFile.downloadPercentage, segment.nzbFile.speed)
                 

@@ -59,7 +59,7 @@ class DecompressionThread(Thread):
         # Catch exceptions here just in case, to ensure notify() will finally be called
         archive = archiveName(os.path.dirname(self.file))
         try:
-            decompressMusicFile(self.file, self.type):
+            decompressMusicFile(self.file, self.type)
 
         except Exception, e:
             error(archive + ': There was an unexpected problem while decompressing the musc file: ' + \

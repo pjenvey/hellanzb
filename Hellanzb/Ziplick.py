@@ -34,7 +34,7 @@ class Ziplick(Thread):
                 if not os.path.isdir(dir):
                     try:
                         os.mkdir(dir)
-                    except AccessError:
+                    except IOError:
                         raise FatalError("Unable to create Hellanzb DIRs")
 
     def archiveNameFromNzb(self, nzbFileName):

@@ -7,7 +7,7 @@ looking into python's logging system. Hoho.
 
 @author pjenvey
 """
-import logging, logging.handlers, sys, xmlrpclib
+import logging, logging.handlers, sys, time, xmlrpclib
 from logging import StreamHandler
 from threading import Condition, Lock, Thread
 from Util import *
@@ -93,10 +93,10 @@ it's more of a child helper handler of ScrollableHandler, than an offical loggin
         """ Add spaces to the scroll interrupting log message, unless we've already interrupted
 scroll and already added the spaces """
         if not ScrollableHandler.scrollInterrupted:
-            record.msg = '\n\n' + record.msg + '\n'
+            record.msg = '\n\n\n\n' + record.msg + '\n\n'
             ScrollableHandler.scrollInterrupted = True
         else:
-            record.msg = record.msg + '\n'
+            record.msg = record.msg + '\n\n'
         return record
 
     def handle(self, record):
@@ -245,6 +245,11 @@ def debug(message):
 def scroll(message):
     """ Log a message at the scroll level """
     Hellanzb.logger.log(ScrollableHandler.SCROLL, message)
+    # Somehow the scroll locks end up getting blocked unless their consumers pause as
+    # short as around 1/100th of a milli every loop. You might notice this delay when
+    # nzbget scrolling looks like a slightly different FPS from within hellanzb than
+    # running it directly
+    time.sleep(.00001)
 
 def growlNotify(type, title, description, sticky):
     """ send a message to the growl daemon via an xmlrpc proxy """

@@ -2,7 +2,7 @@
 Util - hellanzb misc functions
 
 """
-import os, popen2, pty, re, string, threading, Hellanzb
+import os, popen2, pty, re, string, threading, time, Hellanzb
 from distutils import spawn
 from Logging import *
 
@@ -69,6 +69,24 @@ that created the object, for later use """
                 #_active.remove(self)
         return self.sts
 
+    def readlinesAndWait(self):
+        """ Read lines and wait for the process to finish. Don't read the lines too quickly,
+otherwise we could cause a deadlock with the scroller. Slow down the reading by pausing a
+millisecond after every read """
+        output = []
+        while 1:
+            line = self.fromchild.readline()
+            if line == '':
+                break
+            output.append(line)
+            # Somehow the scroll locks end up getting blocked unless their consumers pause
+            # as short as around 1/100th of a milli every loop. You might notice this
+            # delay when nzbget scrolling looks like a slightly different FPS from within
+            # hellanzb than running it directly
+            time.sleep(.00001)
+
+        returnStatus = self.wait()
+        return output, returnStatus
 
 def getLocalClassName(klass):
     """ Get the local name (no package/module information) of the specified class instance """

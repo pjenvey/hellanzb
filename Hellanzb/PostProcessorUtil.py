@@ -3,7 +3,7 @@ PostProcessorUtil - support functions for the PostProcessor
 
 @author pjenvey
 """
-import Hellanzb, os, popen2, re
+import Hellanzb, os, re
 from threading import Thread
 from Logging import *
 from Util import *
@@ -91,10 +91,9 @@ def isRar(fileName):
         return True
 
     # If it doesn't end in rar, use unix file(1) 
-    p = popen2.Popen4('file -b "' + absPath + '"')
-    output = p.fromchild.readlines()
-    p.fromchild.close()
-    verifyReturnCode = os.WEXITSTATUS(p.wait())
+    p = Ptyopen('file -b "' + absPath + '"')
+    output, status = p.readlinesAndWait()
+    returnCode = os.WEXITSTATUS(status)
 
     if len(output) > 0:
         line = output[0]
@@ -199,10 +198,9 @@ def decompressMusicFile(fileName, musicType):
          + ' to file: ' + os.path.basename(destFileName))
     cmd = cmd.replace('<DESTFILE>', '"' + destFileName + '"')
         
-    p = popen2.Popen4(cmd)
-    output = p.fromchild.readlines()
-    p.fromchild.close()
-    returnCode = os.WEXITSTATUS(p.wait())
+    p = Ptyopen(cmd)
+    output, status = p.readlinesAndWait()
+    returnCode = os.WEXITSTATUS(status)
 
     if returnCode == 0:
         # Successful, move the old file away
@@ -240,9 +238,9 @@ def processRars(dirName, rarPassword):
     # First, list the contents of the rar, if any filenames are preceeded with *, the rar
     # is passworded
     listCmd = Hellanzb.UNRAR_CMD + ' l -y ' + ' "' + firstRar + '"'
-    p = popen2.Popen4(listCmd)
-    output = p.fromchild.readlines()
-    p.fromchild.close()
+    p = Ptyopen(listCmd)
+    output, listStatus = p.readlinesAndWait()
+    listReturnCode = os.WEXITSTATUS(listStatus)
 
     isPassworded = False
     withinFiles = False
@@ -277,14 +275,13 @@ def processRars(dirName, rarPassword):
         cmd = Hellanzb.UNRAR_CMD + ' x -y ' + ' "' + firstRar + '"'
     
     info('Unraring..')
-    p = popen2.Popen4(cmd)
-    output = p.fromchild.readlines()
-    p.fromchild.close()
-    verifyReturnCode = os.WEXITSTATUS(p.wait())
+    p = Ptyopen(cmd)
+    output, status = p.readlinesAndWait()
+    unrarReturnCode = os.WEXITSTATUS(status)
 
     os.chdir(oldWd)
 
-    if verifyReturnCode > 0:
+    if unrarReturnCode > 0:
         errMsg = 'There was a problem during unrar, output:\n\n'
         for line in output:
             errMsg += line
@@ -310,10 +307,9 @@ there are not enough recovery blocks, raise a fatal exception """
     verifyCmd = 'par2 v "' + dirName + '*.PAR2" "' + dirName + '*.par2" "' + dirName + '*_broken"'
     repairCmd = 'par2 r "' + dirName + '*.PAR2" "' + dirName + '*.par2" "' + dirName + '*_broken"'
 
-    p = popen2.Popen4(verifyCmd)
-    output = p.fromchild.readlines()
-    p.fromchild.close()
-    verifyReturnCode = os.WEXITSTATUS(p.wait())
+    p = Ptyopen(verifyCmd)
+    output, verifyStatus = p.readlinesAndWait()
+    verifyReturnCode = os.WEXITSTATUS(verifyStatus)
         
     if verifyReturnCode == 0:
         # Verified
@@ -323,10 +319,9 @@ there are not enough recovery blocks, raise a fatal exception """
         # Repair required and possible
         info('Repairing files via par..')
         
-        p = popen2.Popen4(repairCmd)
-        output = p.fromchild.readlines()
-        p.fromchild.close()
-        repairReturnCode = os.WEXITSTATUS(p.wait())
+        p = Ptyopen(repairCmd)
+        output, repairStatus = p.readlinesAndWait()
+        repairReturnCode = os.WEXITSTATUS(repairStatus)
 
         if repairReturnCode == 0:
             # Repaired

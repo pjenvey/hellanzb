@@ -83,11 +83,8 @@ class WrapNews:
                 
         # Send a useless command to avoid idle timeouts
         def anti_idle(self):
-                command = 'HELP\r\n'
-                #self.nntp.sock.send(command)
                 self.setblocking(1)
-                self.nntp.shortcmd('mode reader')
-                self.setblocking(0)
+                self.nntp.help()
         
         # Send a BODY command
         def body(self, article):

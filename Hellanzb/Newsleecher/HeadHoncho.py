@@ -2,7 +2,6 @@
 # $Id: HeadHoncho.py,v 1.104 2004/10/09 08:27:01 freddie Exp $
 # ---------------------------------------------------------------------------
 # Main class used to control everything
-
 import binascii
 import bisect
 import nntplib
@@ -89,7 +88,19 @@ class HeadHoncho:
                 # Did we connect?
                 if not self.FDs:
                         ShowError('failed to open any server connections!')
-        
+
+        def super_anti_idle(self):
+                _select = select.select
+                ready = []
+                for swrap in self.Servers:
+                        for fd, nwrap in swrap.Conns.items():
+                                nwrap.setblocking(0)
+                                ready.append(fd)
+                can_read = _select(ready, [], [], 0)[0]                
+                for fd in ready:
+                        nwrap = self.FDs[fd].Conns[fd]
+                        nwrap.anti_idle()
+                                
         # ---------------------------------------------------------------------------
         # Our main loop, obviously
         def main_loop(self):
@@ -184,10 +195,7 @@ class HeadHoncho:
                                    pwrap.totalbytes == os.path.getsize(os.getcwd() + os.sep + file.decode('latin-1')):
                                         alreadyDownloaded = True
                                         print '\r* Skipping %s, already complete  ' % file
-                                        for fd in [fd for fd in ready if self.FDs[fd] == swrap]:
-                                                nwrap = self.FDs[fd].Conns[fd]
-                                                nwrap.anti_idle()
-                                                print '\r* Anti-IDLE!'
+                                        self.super_anti_idle()
 
                         if alreadyDownloaded:
                                 continue
@@ -251,10 +259,7 @@ class HeadHoncho:
                                         # If we're all done, run away
                                         elif not active:
                                                 if skipfile:
-                                                        for fd in [fd for fd in ready if self.FDs[fd] == swrap]:
-                                                                nwrap = self.FDs[fd].Conns[fd]
-                                                                nwrap.anti_idle()
-                                                                print '\r* Anti-IDLE!'
+                                                        self.super_anti_idle()
 
                                                 break
                                 

@@ -68,6 +68,8 @@ class Ziplick:
                 
                 # Nothing to do, lets wait 5 seconds and start over
                 if not self.queued_nzbs:
+                    if not Hellanzb.NEWSLEECHER_IS_BUGGY:
+                        self.newsleecher.super_anti_idle()
                     sleep(5)
                     continue
                 

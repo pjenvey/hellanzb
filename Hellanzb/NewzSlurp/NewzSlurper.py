@@ -19,7 +19,7 @@ from Queue import Empty
 __id__ = '$Id$'
 
 USERNAME = 'pjenvey'
-PASSWORD = 'gr7eatswitch'
+PASSWORD = 'FUCKING_GOD_DAMMIT_TO_HELL'
 
 # FIXME:
 # problem: when resuming, we dont have our real name yet (just the temp name). you need

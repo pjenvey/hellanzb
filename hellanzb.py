@@ -200,11 +200,13 @@ if __name__ == '__main__':
                 sys.exit(1)
 
             troll = Hellanzb.PostProcessor.PostProcessor(options.postProcessDir, background = False)
+            info('\nStarting post processor')
             troll.start()
             troll.join()
             shutdown()
         
         else:
+            info('\nStarting queue daemon')
             daemon = Hellanzb.Ziplick.Ziplick()
 
     except FatalError, fe:

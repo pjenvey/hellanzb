@@ -1,0 +1,3 @@
+include hellanzb
+include hellagrowler.py
+include etc/hellanzb.conf.sample

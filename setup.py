@@ -11,10 +11,13 @@ assert sys.version >= '2', "Install Python 2.0 or greater" # don't know of this 
 from distutils.core import setup, Extension
 import Hellanzb
 
+# Put this here, so we can overwrite it in build.py
+version = Hellanzb.version
+
 def runSetup():
     setup(
         name = 'hellanzb',
-        version = Hellanzb.version,
+        version = version,
         author = '#kgb',
         author_email = '<hellanzb@hellanzb.com>',
         url = 'http://www.hellanzb.com/',
@@ -22,7 +25,8 @@ def runSetup():
 
         packages = [ 'Hellanzb' ],
         scripts = [ 'hellanzb.py' ],
-        data_files = [ ( 'etc', [ 'etc/hellanzb.conf' ] ) ],
+        data_files = [ ( 'etc', [ 'etc/hellanzb.conf.sample' ] ),
+                       ( 'share/doc/hellanzb', [ 'README' ] ) ],
         )
 
 if __name__ == '__main__':

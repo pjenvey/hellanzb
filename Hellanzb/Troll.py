@@ -2,14 +2,9 @@
 troll - verify/repair/unarchive/decompress files downloaded with nzbget
 
 TODO
-o support passing in a password to the unrarer
-o better signal handling (especially re the threads -- they ignore ctrl-c)
-  # module-thread.html says:
-  # Caveats:
-  # Threads interact strangely with interrupts: the KeyboardInterrupt exception will be
-  # received by an arbitrary thread. (When the signal module is available, interrupts
-  # always go to the main thread.)
-o this class is not thread safe
+o the decompressor isn't thread safe. we'll have to convert this to a Decompressor class
+to prevent this
+o move various things out into a Util package
 
 @author pjenvey
 """
@@ -18,18 +13,17 @@ from distutils import spawn
 from StringIO import StringIO
 from threading import Thread, Condition
 
-__id__ = "$Id"
+__id__ = '$Id$'
 
 def init():
     """ initialization """
     global UNRAR_CMD, brokenFiles # FIXME
-    debug("Troll Init")
+    debug('Troll Init')
     
     # doppelganger
-    if spawn.find_executable("rar"):
-        UNRAR_CMD = "rar"
-    elif spawn.find_executable("unrar"):
-        UNRAR_CMD = "unrar"
+    for exe in [ 'rar', 'unrar' ]:
+        if spawn.find_executable(exe):
+            UNRAR_CMD = exe
 
     # global vars that users shouldn't modify
     brokenFiles = [] # list of broken files (their renamed names)
@@ -74,7 +68,7 @@ class DecompressionThread(Thread):
         try:
             decompressMusicFile(self.file, self.type)
         except:
-            error("There was an unexpected problem while decompressing the musc file: " + \
+            error('There was an unexpected problem while decompressing the musc file: ' + \
                   os.path.basename(self.file))
 
         # Decrement the thread count AND immediately notify the caller
@@ -96,11 +90,11 @@ class FatalError(Exception):
 
 def warn(message):
     """ Log a message at the warning level """
-    sys.stderr.write("Warning: " + message + "\n")
+    sys.stderr.write('Warning: ' + message + '\n')
 
 def error(message):
     """ Log a message at the error level """
-    sys.stderr.write("Error: " + message + "\n")
+    sys.stderr.write('Error: ' + message + '\n')
 
 def info(message):
     """ Log a message at the info level """
@@ -115,56 +109,66 @@ def assertIsExe(exe):
     if len(exe) > 0:
         exe = exe.split()[0]
         if spawn.find_executable(exe) == None or os.access(exe, os.X_OK):
-            raise FatalError("Cannot continue program, required executable not in path: " + exe)
+            raise FatalError('Cannot continue program, required executable not in path: ' + exe)
 
 def dirHasRars(dirName):
     """ Determine if the specified directory contains rar files """
     for file in os.listdir(dirName):
-        if isRar(file):
+        if isRar(dirName + os.sep + file):
             return True
     return False
 
 def dirHasPars(dirName):
     """ Determine if the specified directory contains par files """
-    return dirHasFileTypes(dirName, [ "par2", "PAR2" ])
+    return dirHasFileTypes(dirName, 'par2')
 
 def dirHasMusicFiles(dirName):
     """ Determine if the specified directory contains any known music files """
-    # FIXME this should be a case insensitive match
     return dirHasFileTypes(dirName, getMusicTypeExtensions())
 
-def dirHasFileType(dirName, getFileExtension):
-    return dirHasFileTypes(dirName, [ getFileExtension ])
+def dirHasFileType(dirName, fileExtension):
+    return dirHasFileTypes(dirName, [ fileExtension ])
 
-def dirHasFileTypes(dirName, getFileExtensionList):
+def dirHasFileTypes(dirName, fileExtensionList):
     """ Determine if the specified directory contains any files of the specified type -- that
-type being defined by it's filename extension """
+type being defined by it's filename extension. the match is case insensitive """
     for file in os.listdir(dirName):
-        for type in getFileExtensionList:
-            if (getFileExtension(file)) == type:
-                return True
+        ext = getFileExtension(file)
+        if ext:
+            for type in fileExtensionList:
+                if ext.lower() == type.lower():
+                    return True
     return False
 
 def isRar(fileName):
     """ Determine if the specified file is a rar """
+    absPath = fileName
     fileName = os.path.basename(fileName)
 
-    if getFileExtension(fileName) == "rar" or getFileExtension(fileName) == "RAR":
+    ext = getFileExtension(fileName)
+    if ext and ext.lower() == 'rar':
         return True
-    # FIXME either ends in .rar or has part001 or something. could also use unix file() but wont
-    # support windows
 
-    # if none, look for something containing a 001 at the end. ??
-    
-    # typical formats:
-    # blah.part01.rar
+    # If it doesn't end in rar, use unix file(1) 
+    p = popen2.Popen4('file -b ' + absPath)
+    output = p.fromchild.readlines()
+    p.fromchild.close()
+    verifyReturnCode = os.WEXITSTATUS(p.wait())
+
+    if len(output) > 0:
+        line = output[0]
+        if len(line) > 2 and line[0:3].lower() == 'rar':
+            return True
+
+    # NOTE We could check for part001 or ending in 001 or something similar if we don't
+    # want to use file(1)
     return False
 
 def isPar(fileName):
     """ Determine if the specified file is a par """
     fileName = os.path.basename(fileName)
     ext = getFileExtension(fileName)
-    if ext == "par2" or ext == "PAR2":
+    if ext and ext.lower() == 'par2':
         return True
     return False
 
@@ -214,7 +218,7 @@ def defineMusicType(extension, decompressor):
 
 def deleteDuplicates(dirName):
     for file in os.listdir(dirName):
-        if stringEndsWith(file, "_duplicate") and os.access(file, os.W_OK):
+        if stringEndsWith(file, '_duplicate') and os.access(file, os.W_OK):
             os.remove(file)
 
 def cleanUp(dirName):
@@ -225,12 +229,12 @@ def cleanUp(dirName):
     # If we had a fatal error and we moved the _broken files, put them back as to not
     # confuse anyone about what's in the directory
     for file in brokenFiles:
-        fixedName = file[:-len("_broken")]
+        fixedName = file[:-len('_broken')]
         os.rename(fixedName, file)
 
     # Delete the processed dir only if it doesn't contain anything
     try:
-        os.rmdir(dirName + os.sep + "processed")
+        os.rmdir(dirName + os.sep + 'processed')
     except OSError:
         pass
 
@@ -244,18 +248,18 @@ def getMusicTypeExtensions():
 def renameBrokenFile(fileName):
     """ Handle renaming broken files, so that their may be an attempt to repair them. Add the
 renamed file name to the specified list """
-    fixedName = fileName[:-len("_broken")]
+    fixedName = fileName[:-len('_broken')]
     
     if os.path.isfile(fixedName):
-        raise FatalError("Unable to rename broken file: " + fileName + ", the file: " + fixedName + \
-    " already exists")
+        raise FatalError('Unable to rename broken file: ' + fileName + ', the file: ' + fixedName + \
+    ' already exists')
     
-    warn("Renamed broken file: " + fileName + " to " + fixedName)
+    warn('Renamed broken file: ' + fileName + ' to ' + fixedName)
     os.rename(fileName, fixedName)
 
 def getFileExtension(fileName):
     """ Return the extenion of the specified file name """
-    if len(fileName) > 1 and fileName.find(".") > -1:
+    if len(fileName) > 1 and fileName.find('.') > -1:
         return string.lower(os.path.splitext(fileName)[1][1:])
 
 def stringEndsWith(string, match):
@@ -315,14 +319,14 @@ threads """
 
 def decompressMusicFile(fileName, musicType):
     """ Decompress the specified file according to it's musicType """
-    cmd = musicType.decompressor.replace("<FILE>", "\"" + fileName + "\"")
+    cmd = musicType.decompressor.replace('<FILE>', '"' + fileName + '"')
 
     extLen = len(getFileExtension(fileName))
-    destFileName = fileName[:-extLen] + "wav"
+    destFileName = fileName[:-extLen] + 'wav'
     
-    info("Decompressing music file: " + os.path.basename(fileName) \
-         + " to file: " + os.path.basename(destFileName))
-    cmd = cmd.replace("<DESTFILE>", "\"" + destFileName+ "\"")
+    info('Decompressing music file: ' + os.path.basename(fileName) \
+         + ' to file: ' + os.path.basename(destFileName))
+    cmd = cmd.replace('<DESTFILE>', '"' + destFileName+ '"')
         
     p = popen2.Popen4(cmd)
     output = p.fromchild.readlines()
@@ -341,24 +345,21 @@ def decompressMusicFile(fileName, musicType):
 
 def processRars(dirName, rarPassword):
     """ If the specified directory contains rars, unrar them. """
-
-    if not dirHasRars(dirName):
-        return
-    
     # sort the filenames and assume the first thing to look like a rar is what we want to
     # begin unraring with
     firstRar = None
     files = os.listdir(dirName)
     files.sort()
     for file in files:
-        if os.path.isfile(dirName + os.sep + file) and isRar(file) and not isAlbumCoverArchive(file):
+        absPath = dirName + os.sep + file
+        if os.path.isfile(absPath) and isRar(absPath) and not isAlbumCoverArchive(absPath):
             firstRar = file
             break
 
     if firstRar == None:
         # FIXME: this last part is dumb, when isAlbumCoverArchive works, this FetalError
         # could mean the only rars we found are were album covers
-        raise FatalError("Unable to locate the first rar")
+        raise FatalError('Unable to locate the first rar')
 
     # run rar from dirName, so it'll output files there
     oldWd = os.getcwd()
@@ -366,7 +367,7 @@ def processRars(dirName, rarPassword):
 
     # First, list the contents of the rar, if any filenames are preceeded with *, the rar
     # is passworded
-    listCmd = UNRAR_CMD + " l -y " + " \"" + firstRar + "\""
+    listCmd = UNRAR_CMD + ' l -y ' + ' "' + firstRar + '"'
     p = popen2.Popen4(listCmd)
     output = p.fromchild.readlines()
     p.fromchild.close()
@@ -377,31 +378,32 @@ def processRars(dirName, rarPassword):
         line = line.rstrip()
 
         if withinFiles:
-            if line[0:1] == " ":
+            if line[0:1] == ' ':
                 # not passworded
                 continue
 
-            elif line[0:1] == "*":
+            elif line[0:1] == '*':
                 # passworded
                 isPassworded = True
 
-            elif len(line) >= 79 and line[0:80] == "-"*79:
+            elif len(line) >= 79 and line[0:80] == '-'*79:
                 # done with the file listing
                 break
 
         # haven't found the file listing yet
-        elif len(line) >= 79 and line[0:80] == "-"*79:
+        elif len(line) >= 79 and line[0:80] == '-'*79:
             withinFiles = True
 
     if isPassworded and rarPassword == None:
-        raise FatalError("Cannot continue, this archive requires a RAR password and there is none set")
+        growlNotify('Archive', 'hellanzb Archive requires password:', archiveNameFromDirName(dirName))
+        raise FatalError('Cannot continue, this archive requires a RAR password and there is none set')
 
     if isPassworded:
-        cmd = UNRAR_CMD + " x -y -p" + rarPassword + " \"" + firstRar + "\""
+        cmd = UNRAR_CMD + ' x -y -p' + rarPassword + ' "' + firstRar + '"'
     else:
-        cmd = UNRAR_CMD + " x -y " + " \"" + firstRar + "\""
+        cmd = UNRAR_CMD + ' x -y ' + ' "' + firstRar + '"'
     
-    info("Unraring..")
+    info('Unraring..')
     p = popen2.Popen4(cmd)
     output = p.fromchild.readlines()
     p.fromchild.close()
@@ -410,12 +412,12 @@ def processRars(dirName, rarPassword):
     os.chdir(oldWd)
 
     if verifyReturnCode > 0:
-        errMsg = "There was a problem during unrar, output:\n\n"
+        errMsg = 'There was a problem during unrar, output:\n\n'
         for line in output:
             errMsg += line
         raise FatalError(errMsg)
 
-    processComplete(dirName, "rar",
+    processComplete(dirName, 'rar',
                     lambda file : os.path.isfile(file) and isRar(file) and not isAlbumCoverArchive(file))
 
 def processPars(dirName):
@@ -424,15 +426,15 @@ repair and there are enough recovery blocks, repair the files. If files need rep
 there are not enough recovery blocks, raise a fatal exception """
     # Just incase we're running the program again, and we already successfully processed
     # the pars, don't bother doing it again
-    if os.path.isfile(dirName + os.sep + Hellanzb.PROCESSED_SUBDIR + os.sep + ".par_done"):
-        info("Skipping par processing")
+    if os.path.isfile(dirName + os.sep + Hellanzb.PROCESSED_SUBDIR + os.sep + '.par_done'):
+        info('Skipping par processing')
         return
     
-    info("Verifying via pars..")
+    info('Verifying via pars..')
 
     dirName = dirName + os.sep
-    verifyCmd = "par2 v \"" + dirName + "*.PAR2\" \"" + dirName + "*.par2\""
-    repairCmd = "par2 r \"" + dirName + "*.PAR2\" \"" + dirName + "*.par2\""
+    verifyCmd = 'par2 v "' + dirName + '*.PAR2" "' + dirName + '*.par2"'
+    repairCmd = 'par2 r "' + dirName + '*.PAR2" "' + dirName + '*.par2"'
 
     p = popen2.Popen4(verifyCmd)
     output = p.fromchild.readlines()
@@ -441,11 +443,11 @@ there are not enough recovery blocks, raise a fatal exception """
         
     if verifyReturnCode == 0:
         # Verified
-        info("Par verification passed")
+        info('Par verification passed')
 
     elif verifyReturnCode == 1:
         # Repair required and possible
-        info("Repairing files via par..")
+        info('Repairing files via par..')
         
         p = popen2.Popen4(repairCmd)
         output = p.fromchild.readlines()
@@ -454,11 +456,11 @@ there are not enough recovery blocks, raise a fatal exception """
 
         if repairReturnCode == 0:
             # Repaired
-            info("Par repair successfully completed")
+            info('Par repair successfully completed')
         elif repairReturnCode > 0:
             # We should never get here. If verifyReturnCode is 1, we're guaranteed a
             # successful repair
-            raise FatalError("Unable to par repair: an unexpected problem has occurred")
+            raise FatalError('Unable to par repair: an unexpected problem has occurred')
             
     elif verifyReturnCode > 1:
         # Repair required and impossible
@@ -470,34 +472,36 @@ there are not enough recovery blocks, raise a fatal exception """
 
         for line in output:
             line = line.rstrip()
-            index = line.find("Target:")
-            if index > -1 and stringEndsWith(line, "missing."):
+            index = line.find('Target:')
+            if index > -1 and stringEndsWith(line, 'missing.'):
                 # Strip any preceeding curses junk
                 line = line[index:]
 
                 # Finally, get just the filename
-                line = line[len("Target: \""):]
-                file = line[:-len("\" - missing.")]
+                line = line[len('Target: "'):]
+                file = line[:-len('" - missing.')]
 
                 if isRequiredFile(file):
-                    error("Archive missing required file: " + file)
+                    error('Archive missing required file: ' + file)
                     missingAndRequired.append(file)
                 else:
-                    warn("Archive missing non-required file: " + file)
+                    warn('Archive missing non-required file: ' + file)
 
         # The archive is only totally broken when we're missing required files
         if len(missingAndRequired) > 0:
             # TODO: statistics about how many blocks are needed would be nice
-            raise FatalError("Unable to par repair: there are not enough recovery blocks")
+            growlNotify('Error', 'hellanzb Cannot par repair:', archiveNameFromDirName(dirName) + '\n :(')
+            raise FatalError('Unable to par repair: there are not enough recovery blocks')
 
-    processComplete(dirName, "par", isPar)
+    processComplete(dirName, 'par', isPar)
         
 def processComplete(dirName, processStateName, moveFileFilterFunction):
     """ Once we've finished a particular processing state, this function will be called to
 move the files we processed out of the way, and touch a file on the filesystem indicating
 this state is done """
 
-    for file in filter(moveFileFilterFunction, os.listdir(dirName)):
+    # ensure we pass the absolute path to the filter function
+    for file in filter(moveFileFilterFunction, [dirName + os.sep + file for file in os.listdir(dirName)]):
         if not Hellanzb.DEBUG_MODE:
             os.rename(dirName + os.sep + file, dirName + os.sep + Hellanzb.PROCESSED_SUBDIR + os.sep + file)
 
@@ -506,36 +510,37 @@ this state is done """
     # before calling the process function. but this is more explicit, and could be used to
     # show the overall status on the webapp
     if not Hellanzb.DEBUG_MODE:
-        touch(dirName + os.sep + Hellanzb.PROCESSED_SUBDIR + os.sep + "." + processStateName + "_done")
+        touch(dirName + os.sep + Hellanzb.PROCESSED_SUBDIR + os.sep + '.' + processStateName + '_done')
     
 def troll(dirName):
     """ main, mayn """
     global brokenFiles # FIXME gross
     
     # exit the program if we lack required binaries
-    assertIsExe("par2")
+    assertIsExe('par2')
 
     # Put files we've processed and no longer need (like pars rars) in this dir
     processedDir = dirName + os.sep + Hellanzb.PROCESSED_SUBDIR
     
     if not os.path.exists(dirName) or not os.path.isdir(dirName):
-        raise FatalError("Directory does not exist: " + dirName)
+        raise FatalError('Directory does not exist: ' + dirName)
                           
     if not os.path.exists(processedDir):
         os.mkdir(processedDir)
     elif not os.path.isdir(processedDir):
-        raise FatalError("Unable to create processed directory, a non directory already exists there")
+        raise FatalError('Unable to create processed directory, a non directory already exists there')
 
-    # First, find and rename broken files, in prep for repair. Grab the msg id while we're
-    # at it
+    # First, find and rename broken files, in prep for repair. Grab the msg id and nzb
+    # file names while we're at it
     msgId = None
+    nzbFile = None
     files = os.listdir(dirName)
     for file in files:
         absoluteFile = dirName + os.sep + file
         
         if os.path.isfile(absoluteFile):
     
-            if stringEndsWith(file, "_broken"):
+            if stringEndsWith(file, '_broken'):
                 # Keep track of the broken files
                 brokenFiles.append(absoluteFile)
                 renameBrokenFile(absoluteFile)
@@ -543,13 +548,16 @@ def troll(dirName):
             elif file[0:len('.msgid_')] == '.msgid_':
                 msgId = file[len('.msgid_'):]
 
+            elif getExtension(file).lower() == 'nzb':
+                nzbFile = file
+
     # If there are required broken files and we lack pars, punt
     if len(brokenFiles) > 0 and containsRequiredFiles(brokenFiles) and not dirHasPars(dirName):
-        errorMessage = "Unable to process directory: " + dirName + "\n" + " "*4 + \
-            "This directory has the following broken files: "
+        errorMessage = 'Unable to process directory: ' + dirName + '\n' + ' '*4 + \
+            'This directory has the following broken files: '
         for brokenFile in brokenFiles:
-            errorMessage += "\n" + " "*8 + brokenFile
-            errorMessage += "\n    and contains no par2 files for repair"
+            errorMessage += '\n' + ' '*8 + brokenFile
+            errorMessage += '\n    and contains no par2 files for repair'
         raise FatalError(errorMessage)
 
     
@@ -561,7 +569,6 @@ def troll(dirName):
     brokenFiles = []
 
     # grab the rar password if one exists
-    # FIXME:
     if dirHasRars(dirName):
         rarPassword = None
         if os.path.isdir(Hellanzb.PASSWORDS_DIR):
@@ -571,7 +578,7 @@ def troll(dirName):
 
                     absPath = Hellanzb.PASSWORDS_DIR + os.sep + msgId
                     if not os.access(absPath, os.R_OK):
-                        raise FatalError("Refusing to continue: unable to read rar password (no read access)")
+                        raise FatalError('Refusing to continue: unable to read rar password (no read access)')
                 
                 msgIdFile = open(absPath)
                 rarPassword = msgIdFile.read().rstrip()
@@ -581,12 +588,19 @@ def troll(dirName):
     if dirHasMusicFiles(dirName):
         decompressMusicFiles(dirName)
 
+    # Move other cruft out of the way
     deleteDuplicates(dirName)
+    os.rename(dirName + os.sep + nzbFile, dirName + os.sep + Hellanzb.PROCESSED_SUBDIR + os.sep + nzbFile)
 
     # We're done
+    growlNotify('Archive', 'hellanzb Done Processing:', archiveNameFromDirName(dirName))
+
+def archiveNameFromDirName(dirName):
+    """ Extract the name of the archive from the archive's absolute path """
+    # pop off separator and basename
     if dirName[len(dirName) - 1] == os.sep:
         dirName = dirName[0:len(dirName) - 2]
-    growlNotify('Archive', 'hellanzb Done Processing:', os.path.basename(dirName))
+        return os.path.basename(dirName)
 
 # FIXME: this function and a number of others should be moved out into a Util package
 def growlNotify(type, title, description):

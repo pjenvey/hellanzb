@@ -17,7 +17,7 @@ Hellanzb.PROCESSED_SUBDIR = 'processed'
 Hellanzb.PASSWORDS_DIR = Hellanzb.PREFIX_DIR + 'nzb/daemon.passwords/'
 
 # max files we should decompress at the same time
-Hellanzb.MAX_DECOMPRESSION_THREADS = 1
+Hellanzb.MAX_DECOMPRESSION_THREADS = 2
 
 # If any of the following file types are missing from the archive and cannot be repaired,
 # continue processing because they're unimportant

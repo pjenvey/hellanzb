@@ -3,9 +3,14 @@
 hellanzb - hella nzb
 
 TODO:
+o better signal handling (especially re the threads -- they ignore ctrl-c)
+  # module-thread.html says:
+  # Caveats:
+  # Threads interact strangely with interrupts: the KeyboardInterrupt exception will be
+  # received by an arbitrary thread. (When the signal module is available, interrupts
+  # always go to the main thread.)
+OR threads have a daemon mode, utilize this
 o use optparse
-o clean up the configuration options, possibly putting them in another file (that would
-lie in /etc). ideally most of those settings could be overwritten via the cmd line
 
 @author pjenvey, bbangert
 
@@ -14,7 +19,7 @@ lie in /etc). ideally most of those settings could be overwritten via the cmd li
 import os, sys, Hellanzb, Hellanzb.Troll, Hellanzb.Ziplick
 from Hellanzb.Troll import debug, defineMusicType, error, FatalError
 
-__id__ = "$Id"
+__id__ = '$Id$'
 
 def usage():
     pass
@@ -29,6 +34,7 @@ def loadConfig():
             execfile(dir + os.sep + "hellanzb.conf")
             foundConfig = True
             debug("Found config file in directory: " + dir)
+            break
         except IOError, ioe:
             pass
 
@@ -58,7 +64,10 @@ def runTroll():
         Hellanzb.Troll.cleanUp(incomingDir)
         error("An unexpected problem occurred: " + fe.message + "\n")
         sys.exit(1)
-
+    except:
+        Hellanzb.Troll.cleanUp(incomingDir)
+        error("An unexpected problem occurred!")
+        raise
     
 if __name__ == '__main__':
 

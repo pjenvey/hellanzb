@@ -18,7 +18,7 @@ from time import sleep
 from threading import Thread
 from Troll import FatalError, info, growlNotify, stringEndsWith, touch
 
-__id__ = "$Id"
+__id__ = '$Id$'
 
 class Ziplick(Thread):
 

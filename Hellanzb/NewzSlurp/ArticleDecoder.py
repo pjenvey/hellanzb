@@ -179,8 +179,12 @@ yenc42 = string.join(map(lambda x: chr((x-42) & 255), range(256)), '')
 yenc64 = string.join(map(lambda x: chr((x-64) & 255), range(256)), '')
 def yDecode(dataList):
     buffer = []
+    index = -1
     for line in dataList:
-        if not line or line[:5] == '=yend':
+        index += 1
+        if index <= 5 and (line[:7] == '=ybegin' or line[:6] == '=ypart'):
+            continue
+        elif not line or line[:5] == '=yend':
             break
 
         if line[-2:] == '\r\n':
@@ -219,7 +223,7 @@ def UUDecode(dataList):
     for line in dataList:
         index += 1
 
-        if index == 0 and (not line or line[:6] == 'begin '):
+        if index <= 5 and (not line or line[:6] == 'begin '):
             continue
         elif not line or line[:3] == 'end':
             break

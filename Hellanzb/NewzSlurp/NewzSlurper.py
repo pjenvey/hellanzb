@@ -162,7 +162,7 @@ class NewzSlurper(NNTPClient):
                 self.currentSegment = nextSegment
                 self.filename = os.path.basename(self.currentSegment.nzbFile.getDestination())
             except Empty:
-                debug('DONE!')
+                debug('DONE downloading')
                 time.sleep(10)
                 return
 

@@ -601,4 +601,10 @@ def growlNotify(type, title, description):
     # AND we could have a LOCAL_GROWL option for those who might run hellanzb on os x
     serverUrl = 'http://' + Hellanzb.SERVER + '/'
     server = xmlrpclib.Server(serverUrl)
-    server.notify(type, title, description)
+
+    # If for some reason, the XMLRPC server ain't there no more, this will blow up
+    # so we put it in a try/except block
+    try:
+        server.notify(type, title, description)
+    except:
+        return

@@ -1,16 +1,31 @@
 hellanzb 
 --------------------------------------------------
 
-Before running hellanzb:
+How to get started with hellanzb:
 
 o Copy the <prefix>/etc/hellanzb.conf.sample file to hellanzb.conf
+  (This is done for you by the ports)
 
   The prefix is typically:
-    /usr/local (FreeBSD port) or
-    /opt/local (Darwin port)
+    /usr/local (FreeBSD) or
+    /opt/local (Darwin)
     
- and edit the defineMusicType lines to match the music decompressors
- installed on your system.
+o Open the config file and edit the directories (PREFIX, DEST_DIR, etc) to
+  your liking. The most important directories are the QUEUE directory (where
+  you'll put nzb files to add to the queue) and the DEST dir (where the
+  finished files are placed)
+
+o Create at least one defineServer line. Multiple servers are supported
+
+o Edit the defineMusicType lines to match the music decompressors
+  installed on your system
+
+o [Optional] Edit the growler configuration if you want Mac OS X Growler
+  notifications. You must run the hellagrowler.py script on the Mac OS X
+  machine to accept the notifications
+
+o Run hellanzb.py. Copy files to the QUEUE directory, and after downloading
+  and processing, you'll see the finished files in the DEST dir.
 
 hellanzb -
 http://www.hellanzb.com/

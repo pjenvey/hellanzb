@@ -26,7 +26,7 @@ o Put some basic authentication (require password/secret) so it won't just spit
 
 import Growl
 import SimpleXMLRPCServer
-from AppKit import NSWorkspace, NSImage
+from AppKit import NSImage
 import sys, os.path
 
 iconPath = 'growlerIcons/'

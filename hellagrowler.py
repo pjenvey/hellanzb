@@ -26,23 +26,54 @@ o Put some basic authentication (require password/secret) so it won't just spit
 
 import Growl
 import SimpleXMLRPCServer
+from AppKit import NSWorkspace, NSImage
+import sys, os.path
+
+iconPath = 'growlerIcons/'
+Icons = { 'appIcon' : 'JuandelDiablo.tiff', \
+          'nzbCoreFuck' : 'JollyRoger.tiff', \
+          'archiveError' : 'Scudmore.tiff', \
+          'archiveSuccess' : 'PirateTreasure.tiff' }
 
 class MemberFunctions:
-    def __init__(self):
+    def __init__(self,Icons):
         gn = Growl.GrowlNotifier()
         gn.applicationName = 'hellanzb'
-        gn.notifications = ['Archive','Queue','Error']
+        gn.applicationIcon = Icons['appIcon']
+        gn.notifications = ['Archive Success','Archive Error','Queue','Error']
         gn.register()
         self.gn = gn
+        self.Icons = Icons
         
     def notify(self, ntype, title, description, sticky):
         gn = self.gn
-        gn.notify(noteType=ntype,title=title,description=description, sticky=sticky)
+        Icons = self.Icons
+        nIcon = Icons['appIcon']
+        if ntype == 'Archive Success':
+            nIcon = Icons['archiveSuccess']
+        elif ntype == 'Archive Error':
+            nIcon = Icons['archiveError']
+        elif ntype == 'Error':
+            nIcon = Icons['nzbCoreFuck']
+        gn.notify(noteType=ntype,title=title,description=description,icon=nIcon, sticky=sticky)
         return 1
-        
+
+def loadIcons(icons):
+    global iconPath
+    for icon in icons.keys():
+        filename = icons[icon]
+        nImagePath = os.path.abspath(iconPath+filename)
+        nIcon = NSImage.alloc().initWithContentsOfFile_(nImagePath).autorelease()
+        if not nIcon:
+            sys.stderr.write("Couldn't load file %s\n" % nImagePath)
+        icons[icon] = nIcon
+    return icons
+
+Icons = loadIcons(Icons)
+
 # Make our XMLRPC Server, create our instance, and assign it
 server = SimpleXMLRPCServer.SimpleXMLRPCServer(("192.168.2.4", 7300))
-memfun = MemberFunctions()
+memfun = MemberFunctions(Icons)
 server.register_function(memfun.notify)
 
 # Start the server

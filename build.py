@@ -6,7 +6,7 @@ distribution, and finally check in the version number bump change
 @author pjenvey
 
 """
-import md5, optparse, os, re, setup, sys, tarfile
+import distutils.util, md5, optparse, os, re, setup, sys, tarfile
 from Hellanzb.Util import assertIsExe, stringEndsWith
 
 __id__ = '$Id$'
@@ -41,7 +41,8 @@ def uploadToHost(version):
     """ Upload the new build of version to the UPLOAD_HOST """
     files = []
     for file in os.listdir('dist'):
-        if file.find('-' + version + '.') > -1:
+        # Upload only files for the specified version that aren't platform specific
+        if file.find('-' + version + '.') > -1 and file.find(distutils.util.get_platform()) == -1:
             files.append(file)
 
     if len(files) == 0:

@@ -13,15 +13,16 @@ import Hellanzb
 
 def runSetup():
     setup(
-        name = "hellanzb",
+        name = 'hellanzb',
         version = Hellanzb.version,
-        author = "#kgb",
-        author_email = "<hellanzb@groovie.org>",
-        url = "http://2eleet.for.u/",
-        license = "UNAUTHORIZED USE ENTITLES #kgb TO KILL YOU AND YOUR ENTIRE FAMILY",
+        author = '#kgb',
+        author_email = '<hellanzb@hellanzb.com>',
+        url = 'http://www.hellanzb.com/',
+        license = 'UNAUTHORIZED USE ENTITLES #kgb TO KILL YOU AND YOUR ENTIRE FAMILY',
 
-        packages = ["Hellanzb"],
-        scripts = [ "hellanzb" ],
+        packages = [ 'Hellanzb' ],
+        scripts = [ 'hellanzb' ],
+        data_files = [ ( 'etc', [ 'etc/hellanzb.conf' ] ) ],
         )
 
 if __name__ == '__main__':

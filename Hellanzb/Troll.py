@@ -9,17 +9,16 @@ o better signal handling (especially re the threads -- they ignore ctrl-c)
   # Threads interact strangely with interrupts: the KeyboardInterrupt exception will be
   # received by an arbitrary thread. (When the signal module is available, interrupts
   # always go to the main thread.)
+o this class is not thread safe
 
 @author pjenvey
 """
-import os, popen2, string, sys, time
+import Hellanzb, os, popen2, string, sys, time, xmlrpclib
 from distutils import spawn
 from StringIO import StringIO
 from threading import Thread, Condition
 
 __id__ = "$Id"
-
-debugMode = False 
 
 def init():
     """ initialization """
@@ -108,7 +107,7 @@ def info(message):
     print message
 
 def debug(message):
-    if debugMode:
+    if Hellanzb.DEBUG_MODE:
         print message
 
 def assertIsExe(exe):
@@ -149,7 +148,7 @@ def isRar(fileName):
     """ Determine if the specified file is a rar """
     fileName = os.path.basename(fileName)
 
-    if getFileExtension(fileName) == "rar":
+    if getFileExtension(fileName) == "rar" or getFileExtension(fileName) == "RAR":
         return True
     # FIXME either ends in .rar or has part001 or something. could also use unix file() but wont
     # support windows
@@ -191,7 +190,7 @@ program). Non-Required files are those such as .NFOs, .SFVs, etc. Other types of
 considered important (such as .RARs, .WAVs, etc). If any required files are missing or
 broken, PAR2 files will be required to repair """
     isRequired = True
-    for ext in NOT_REQUIRED_FILE_TYPES:
+    for ext in Hellanzb.NOT_REQUIRED_FILE_TYPES:
         if getFileExtension(fileName) == ext:
             isRequired = False
 
@@ -228,7 +227,7 @@ def cleanUp(dirName):
         fixedName = file[:-len("_broken")]
         os.rename(fixedName, file)
 
-    # Deleted the processed dir only if it doesn't contain anything
+    # Delete the processed dir only if it doesn't contain anything
     try:
         os.rmdir(dirName + os.sep + "processed")
     except OSError:
@@ -255,7 +254,7 @@ renamed file name to the specified list """
 
 def getFileExtension(fileName):
     """ Return the extenion of the specified file name """
-    if len(fileName) > 2 and fileName.find(".") > -1:
+    if len(fileName) > 1 and fileName.find(".") > -1:
         return string.lower(os.path.splitext(fileName)[1][1:])
 
 def stringEndsWith(string, match):
@@ -300,7 +299,7 @@ threads """
         # Block the pool until we're done spawning
         DecompressionThread.cv.acquire()
         
-        if len(DecompressionThread.pool) < MAX_DECOMPRESSION_THREADS:
+        if len(DecompressionThread.pool) < Hellanzb.MAX_DECOMPRESSION_THREADS:
             decompressor = DecompressionThread() # will pop the next music file off the
                                                  # list
             decompressor.start()
@@ -321,9 +320,9 @@ def decompressMusicFile(fileName, musicType):
     destFileName = fileName[:-extLen] + "wav"
     
     info("Decompressing music file: " + os.path.basename(fileName) \
-        + " to file: " + os.path.basename(destFileName))
+         + " to file: " + os.path.basename(destFileName))
     cmd = cmd.replace("<DESTFILE>", "\"" + destFileName+ "\"")
-
+        
     p = popen2.Popen4(cmd)
     output = p.fromchild.readlines()
     p.fromchild.close()
@@ -356,6 +355,8 @@ def processRars(dirName, rarPassword):
             break
 
     if firstRar == None:
+        # FIXME: this last part is dumb, when isAlbumCoverArchive works, this FetalError
+        # could mean the only rars we found are were album covers
         raise FatalError("Unable to locate the first rar")
 
     # run rar from dirName, so it'll output files there
@@ -392,7 +393,7 @@ def processRars(dirName, rarPassword):
             withinFiles = True
 
     if isPassworded and rarPassword == None:
-        raise FatalError("Cannot continue, this archive requires a RAR password")
+        raise FatalError("Cannot continue, this archive requires a RAR password and there is none set")
 
     if isPassworded:
         cmd = UNRAR_CMD + " x -y -p" + rarPassword + " \"" + firstRar + "\""
@@ -422,7 +423,7 @@ repair and there are enough recovery blocks, repair the files. If files need rep
 there are not enough recovery blocks, raise a fatal exception """
     # Just incase we're running the program again, and we already successfully processed
     # the pars, don't bother doing it again
-    if os.path.isfile(dirName + os.sep + PROCESSED_SUBDIR + os.sep + ".par_done"):
+    if os.path.isfile(dirName + os.sep + Hellanzb.PROCESSED_SUBDIR + os.sep + ".par_done"):
         info("Skipping par processing")
         return
     
@@ -436,37 +437,11 @@ there are not enough recovery blocks, raise a fatal exception """
     output = p.fromchild.readlines()
     p.fromchild.close()
     verifyReturnCode = os.WEXITSTATUS(p.wait())
-
-    # First, if the repair is not possible, double check the output for what files are
-    # missing. they may be unimportant
-    if verifyReturnCode > 1:
-        missingAndRequired = []
-
-        for line in output:
-            line = line.rstrip()
-            index = line.find("Target:")
-            if index > -1 and stringEndsWith(line, "missing."):
-                # Strip any preceeding curses junk
-                line = line[index:]
-
-                # Finally, get just the filename
-                line = line[len("Target: \""):]
-                file = line[:-len("\" - missing.")]
-
-                if isRequiredFile(file):
-                    error("Archive missing required file: " + file)
-                    missingAndRequired.append(file)
-                else:
-                    warn("Archive missing non-required file: " + file)
-
-        # If we didn't find any missing files that are required, act as if the archive was
-        # verified
-        if len(missingAndRequired) == 0:
-            verifyReturnCode = 0
         
     if verifyReturnCode == 0:
         # Verified
         info("Par verification passed")
+
     elif verifyReturnCode == 1:
         # Repair required and possible
         info("Repairing files via par..")
@@ -486,8 +461,33 @@ there are not enough recovery blocks, raise a fatal exception """
             
     elif verifyReturnCode > 1:
         # Repair required and impossible
-        # TODO: statistics about how many blocks are needed would be nice
-        raise FatalError("Unable to par repair: there are not enough recovery blocks")
+
+        # FIXME: this code should really handle missing AND broken files.. blah
+        # First, if the repair is not possible, double check the output for what files are
+        # missing. they may be unimportant
+        missingAndRequired = []
+
+        for line in output:
+            line = line.rstrip()
+            index = line.find("Target:")
+            if index > -1 and stringEndsWith(line, "missing."):
+                # Strip any preceeding curses junk
+                line = line[index:]
+
+                # Finally, get just the filename
+                line = line[len("Target: \""):]
+                file = line[:-len("\" - missing.")]
+
+                if isRequiredFile(file):
+                    error("Archive missing required file: " + file)
+                    missingAndRequired.append(file)
+                else:
+                    warn("Archive missing non-required file: " + file)
+
+        # The archive is only totally broken when we're missing required files
+        if len(missingAndRequired) > 0:
+            # TODO: statistics about how many blocks are needed would be nice
+            raise FatalError("Unable to par repair: there are not enough recovery blocks")
 
     processComplete(dirName, "par", isPar)
         
@@ -497,15 +497,15 @@ move the files we processed out of the way, and touch a file on the filesystem i
 this state is done """
 
     for file in filter(moveFileFilterFunction, os.listdir(dirName)):
-        if not debugMode:
-            os.rename(dirName + os.sep + file, dirName + os.sep + PROCESSED_SUBDIR + os.sep + file)
+        if not Hellanzb.DEBUG_MODE:
+            os.rename(dirName + os.sep + file, dirName + os.sep + Hellanzb.PROCESSED_SUBDIR + os.sep + file)
 
     # And make a note of the completition
     # NOTE: we've just moved the files out of dirName, and we usually do a dirHas check
     # before calling the process function. but this is more explicit, and could be used to
     # show the overall status on the webapp
-    if not debugMode:
-        touch(dirName + os.sep + PROCESSED_SUBDIR + os.sep + "." + processStateName + "_done")
+    if not Hellanzb.DEBUG_MODE:
+        touch(dirName + os.sep + Hellanzb.PROCESSED_SUBDIR + os.sep + "." + processStateName + "_done")
     
 def troll(dirName):
     """ main, mayn """
@@ -515,7 +515,7 @@ def troll(dirName):
     assertIsExe("par2")
 
     # Put files we've processed and no longer need (like pars rars) in this dir
-    processedDir = dirName + os.sep + PROCESSED_SUBDIR
+    processedDir = dirName + os.sep + Hellanzb.PROCESSED_SUBDIR
     
     if not os.path.exists(dirName) or not os.path.isdir(dirName):
         raise FatalError("Directory does not exist: " + dirName)
@@ -525,7 +525,6 @@ def troll(dirName):
     elif not os.path.isdir(processedDir):
         raise FatalError("Unable to create processed directory, a non directory already exists there")
 
-    
     # First, find and rename broken files, in prep for repair
     files = os.listdir(dirName)
     for file in files:
@@ -539,15 +538,13 @@ def troll(dirName):
                 renameBrokenFile(absoluteFile)
 
     # If there are required broken files and we lack pars, punt
-    if len(brokenFiles) > 0 and containsRequiredFiles(brokenFiles):
-    
-        if not dirHasPars(dirName):
-            errorMessage = "Unable to process directory: " + dirName + "\n" + " "*4 + \
-                "This directory has the following broken files: "
-            for brokenFile in brokenFiles:
-                errorMessage += "\n" + " "*8 + brokenFile
-                errorMessage += "\n    and contains no par2 files for repair"
-            raise FatalError(errorMessage)
+    if len(brokenFiles) > 0 and containsRequiredFiles(brokenFiles) and not dirHasPars(dirName):
+        errorMessage = "Unable to process directory: " + dirName + "\n" + " "*4 + \
+            "This directory has the following broken files: "
+        for brokenFile in brokenFiles:
+            errorMessage += "\n" + " "*8 + brokenFile
+            errorMessage += "\n    and contains no par2 files for repair"
+        raise FatalError(errorMessage)
 
     
     if dirHasPars(dirName):
@@ -562,9 +559,29 @@ def troll(dirName):
     rarPassword = None
         
     # Continue the unarchive process
+    # FIXME: dirHasRars check probably belongs here
     processRars(dirName, rarPassword)
     
     if dirHasMusicFiles(dirName):
         decompressMusicFiles(dirName)
 
     deleteDuplicates(dirName)
+
+    # We're done
+    if dirName[len(dirName) - 1] == os.sep:
+        dirName = dirName[0:len(dirName) - 2]
+    growlNotify('Archive', 'Done Processing nzb:', os.path.basename(dirName))
+
+# FIXME: this function and a number of others should be moved out into a Util package
+def growlNotify(type, title, description):
+    """ send a message to the growl daemon via an xmlrpc proxy """
+    # FIXME: should validate the server information on startup, and catch connection
+    # refused errors here
+    if not Hellanzb.ENABLE_GROWL_NOTIFY:
+        return
+
+    # NOTE: we probably want this in it's own thread to be safe, i can see this easily
+    # deadlocking for a bit on say gethostbyname()
+    serverUrl = 'http://' + Hellanzb.SERVER + '/'
+    server = xmlrpclib.Server(serverUrl)
+    server.notify(type, title, description)

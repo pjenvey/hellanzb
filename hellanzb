@@ -12,47 +12,38 @@ lie in /etc). ideally most of those settings could be overwritten via the cmd li
 """
 
 import os, sys, Hellanzb.Troll, Hellanzb.Ziplick
-from Hellanzb.Troll import defineMusicType, error, FatalError
+from Hellanzb.Troll import debug, defineMusicType, error, FatalError
 
 __id__ = "$Id"
-
-# name of the sub directory within incomingDir to move proccessed files to
-Hellanzb.Troll.PROCESSED_SUBDIR = "processed"
-
-# max files we should decompress at the same time
-Hellanzb.Troll.MAX_DECOMPRESSION_THREADS = 2
-
-# If any of the following file types are missing from the archive and cannot be repaired,
-# continue processing because they're unimportant
-Hellanzb.Troll.NOT_REQUIRED_FILE_TYPES = [ "m3u", "nfo", "sfv" ]
-
-# music types we know about
-defineMusicType("ape", "mac <FILE> <DESTFILE> -d")
-defineMusicType("flac", "flac -d <FILE>")
-defineMusicType("wav", None)
-defineMusicType("mp3", None)
 
 def usage():
     pass
 
-def runDaemon():
-    # start the daemon
-    daemon = Hellanzb.Ziplick.Ziplick()
+def loadConfig():
+    """ Load the configuration file """
+    confDirs = [ sys.prefix + os.sep + "etc", os.getcwd() + os.sep + "etc", os.getcwd() ]
+    
+    foundConfig = False
+    for dir in confDirs:
+        try:
+            execfile(dir + os.sep + "hellanzb.conf")
+            foundConfig = True
+            debug("Found config file in directory: " + dir)
+        except IOError, ioe:
+            pass
 
-    # FIXME: move these elsewhere (top of this file or a config file and or cmd line
-    # options)
-    daemon.prefix = '/ext2/'
-    #daemon.prefix = '/beans/tmp/ziplick/'
-    daemon.dest = daemon.prefix + 'usenet/'
-    daemon.working = daemon.prefix + 'nzb/daemon.working/'
-    #daemon.working = '/beans/incoming/nzbget'
-    daemon.queue = daemon.prefix + 'nzb/daemon.queue/'
-    daemon.current = daemon.prefix + 'nzb/daemon.current/'
-    daemon.temp = daemon.prefix + 'nzb/daemon.temp/'
+    if not foundConfig:
+        error("Could not find configuration file in the following dirs: " + str(confDirs))
+        sys.exit(1)
+
+def runDaemon():
+    """ start the daemon """
+    daemon = Hellanzb.Ziplick.Ziplick()
 
     daemon.start()
 
 def runTroll():
+    """ run troll as a cmd line app """
     try:
         if len(sys.argv) < 2:
             usage()
@@ -70,6 +61,8 @@ def runTroll():
 
     
 if __name__ == '__main__':
+
+    loadConfig()
     
     exe = os.path.basename(sys.argv[0])
 

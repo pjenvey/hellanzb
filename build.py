@@ -48,9 +48,8 @@ try:
     version = re.sub(r'\'', r'', versionLine)
 
     if stringEndsWith(version, '-HEAD'):
-        version = version[0:-len('-HEAD'):]
-
         # Bump the version to a stable number
+        version = version[0:-len('-HEAD'):]
         newVersion = bumpVersion(version)
         writeVersion(newVersion)
 

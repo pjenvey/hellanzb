@@ -1,3 +1,9 @@
-hellanzb
+hellanzb is a Python script designed to be run under a *nix environment to retrieve nzb
+files and fully process them. The goal being to make getting files from Usenet as
+hands-free as possible. Once fully installed, all thats required is moving an nzb file to
+the queue directory. The rest; fetching, par-checking, un-raring, etc. is taken care of by
+hellanzb.
 
 WWW: http://www.hellanzb.com
+
+- Philip Jenvey <pjenvey@groovie.org>

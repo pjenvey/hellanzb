@@ -1,6 +1,6 @@
 # New ports collection makefile for:	hellanzb
 # Date created:		Sat Sep 25 18:46:46 PDT 2004
-# Whom:			#kgb
+# Whom:			Philip Jenveey <pjenvey@groovie.org>
 #
 # $FreeBSD$
 # $Id$
@@ -38,8 +38,14 @@ PLIST_FILES=	bin/hellanzb.py \
 PLIST_DIRS=	share/doc/hellanzb \
 		%%PYTHON_SITELIBDIR%%/Hellanzb
 
-MAINTAINER=	#kgb
-COMMENT?=	leetness
+RUN_DEPENDS=	nzbget:${POSTDIR}/news/nzbget \
+		par2:${POSTDIR}/archivers/par2cmdline \
+		rar:${POSTDIR}/archivers/rar \
+		flac:${POSTDIR}/audio/flac \
+		mac:${POSTDIR}/audio/mac
+
+MAINTAINER=	pjenvey@groovie.org
+COMMENT?=	Hands free usenet file retrieval via nzb files
 
 USE_PYTHON=	yes
 USE_PYDISTUTILS=	yes

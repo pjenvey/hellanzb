@@ -7,11 +7,14 @@ PortSystem 1.0
 name             hellanzb
 version          ____VERSION____
 categories       net python
-maintainers      #kgb
-description      hella nzbs
+maintainers      pjenvey@groovie.org
+description      Hands free usenet file retrieval via nzb files
 long_description \
-	hella nzbs. \
-	hella.
+                 hellanzb is a Python script designed to be run under a *nix environment to retrieve nzb \
+                 files and fully process them. The goal being to make getting files from Usenet as \
+                 hands-free as possible. Once fully installed, all thats required is moving an nzb file to \
+                 the queue directory. The rest; fetching, par-checking, un-raring, etc. is taken care of by \
+                 hellanzb.
 homepage         http://www.hellanzb.com
 platforms        darwin
 
@@ -32,12 +35,20 @@ destroot.destdir --prefix=${destroot}${prefix}
 
 set sys_python_prefix /System/Library/Frameworks/Python.framework/Versions/Current
 
+# End Stripped
+
+depends_run  bin:nzbget:nzbget \
+             bin:par2:par2 \
+             bin:rar:rar \
+             bin:flac:flac \
+
 post-activate {
         # copy over the sample conf file if neccessary
         if { ![file exists ${prefix}/etc/${name}.conf] } {
              file copy ${prefix}/etc/${name}.conf.sample \
              ${prefix}/etc/${name}.conf
         }
+
 
         # Make sure Hellanzb is symlinked to the sys_python_prefix
         file delete -force ${sys_python_prefix}/lib/python2.3/site-packages/Hellanzb

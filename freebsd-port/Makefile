@@ -10,10 +10,8 @@ PORTNAME=	hellanzb
 PORTVERSION=	____VERSION____
 #PORTEPOCH=	1
 CATEGORIES?=	net
-#MASTER_SITES=	http://www.hellanzb.com/distfiles/
-MASTER_SITES=	http://groovie.org/~pjenvey/hellanzb/
+MASTER_SITES=	http://www.hellanzb.com/distfiles/
 DISTNAME=	${PORTNAME}-${PORTVERSION}
-NO_CHECKSUM=	yes
 
 PLIST_FILES=	bin/hellanzb.py \
 		etc/hellanzb.conf.sample \

@@ -3,6 +3,18 @@
 hellanzb - hella nzb
 
 TODO:
+o skip downloading par2 files unless they're needed:
+  need a small SAX parser to:
+   if a 'file' element, and it's attribute 'subject' contains PAR2 (case insensitive),
+   set withinPar to true.
+   
+   if ending a file element, set withinPar to false
+
+   if withinPar, write to nzbfile_JUST_PARS.nzb
+   else write to nzbfile_WITHOUT_PARS.nzb
+   
+   obviously both those files need the correct headers/footers too.
+
 o better signal handling (especially re the threads -- they ignore ctrl-c)
   # module-thread.html says:
   # Caveats:
@@ -26,7 +38,12 @@ def usage():
 
 def findAndLoadConfig(optionalConfigFile):
     """ Load the configuration file """
-    confDirs = [ sys.prefix + os.sep + 'etc', os.getcwd() + os.sep + 'etc', os.getcwd() ]
+    # Lame. But I'd rather do this then make an etc dir in os x's Python.framework directory
+    (sysname, nodename, release, version, machine) = os.uname()
+    if sysname == "Darwin":
+        confDirs = [ '/opt/local/etc', os.getcwd() + os.sep + 'etc', os.getcwd() ]
+    else:
+        confDirs = [ sys.prefix + os.sep + 'etc', os.getcwd() + os.sep + 'etc', os.getcwd() ]
 
     if optionalConfigFile != None:
         if loadConfig(optionalConfigFile):

@@ -12,7 +12,7 @@ from Hellanzb.Util import assertIsExe, stringEndsWith
 __id__ = '$Id$'
 
 VERSION_FILENAME = './Hellanzb/__init__.py'
-UPLOAD_HOST = 'groovie.org:/home/pjenvey/hellanzb/'
+UPLOAD_HOST = 'groovie.org:/usr/local/www/hellanzb.com/distfiles/'
 
 def bumpVersion(oldVersion):
     """ Bump the ver number. Is dumb and expects 0.0. Will bump by .1 """
@@ -84,13 +84,21 @@ def buildPort(version):
               destDir + os.sep + 'Makefile')
 
     # copy over the pkg-descr file
-    input = file(portStubDir + os.sep + 'pkg-descr')
+    input = open(portStubDir + os.sep + 'pkg-descr')
     lines = input.readlines()
     input.close()
     
-    output = file(destDir + os.sep + 'pkg-descr', 'w')
+    output = open(destDir + os.sep + 'pkg-descr', 'w')
     output.writelines(lines)
     output.close()
+
+    # create a distinfo with the checksum
+    distinfo = open(destDir + os.sep + 'distinfo', 'w')
+    distinfo.write('MD5 (hellanzb-' + version + '.tar.gz) = ' +
+                 md5File('dist/hellanzb-' + version + '.tar.gz') + '\n')
+    distinfo.write('SIZE (hellanzb-' + version + '.tar.gz) = ' +
+                 str(os.path.getsize('dist/hellanzb-' + version + '.tar.gz')) + '\n')
+    distinfo.close()
 
     dir = portDestDir[len('dist/'):]
     createTarBall('dist', dir, dir + '.tar.gz')
@@ -108,7 +116,7 @@ def buildDPort(version):
         os.mkdir(destDir)
 
     # replace the version, and darwinports seems to require a checksum
-    checksum = md5File('dist/hellanzb-' + version + '.tar.gz').strip()
+    checksum = md5File('dist/hellanzb-' + version + '.tar.gz')
     os.system('cat ' + portStubDir + os.sep + 'Portfile | sed s/____VERSION____/' + version + '/ | ' +
               'sed s/____MD5_CHECKSUM____/' + 'md5\ ' + checksum + '/ > ' + destDir + os.sep + 'Portfile')
 

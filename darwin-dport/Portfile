@@ -15,7 +15,7 @@ long_description \
 homepage         http://www.hellanzb.com
 platforms        darwin
 
-master_sites     http://groovie.org/~pjenvey/hellanzb/
+master_sites     http://www.hellanzb.com/distfiles/
 distname         hellanzb-${version}
 checksums        ____MD5_CHECKSUM____
 
@@ -30,11 +30,20 @@ build.target     build
 destroot.cmd     ${python.bin} setup.py
 destroot.destdir --prefix=${destroot}${prefix}
 
+set sys_python_prefix /System/Library/Frameworks/Python.framework/Versions/Current
+
 post-activate {
+        # copy over the sample conf file if neccessary
         if { ![file exists ${prefix}/etc/${name}.conf] } {
-                file copy ${prefix}/etc/${name}.conf.sample \
-                        ${prefix}/etc/${name}.conf
+             file copy ${prefix}/etc/${name}.conf.sample \
+             ${prefix}/etc/${name}.conf
         }
-# FIXME: symlink /Systtem/Library/Frameworks/Python.framework/Version/Current/lib/site-packages/Hellanzb
-# to the dir in /opt/local
+
+        # Make sure Hellanzb is symlinked to the sys_python_prefix
+        if { [file exists ${sys_python_prefix}/lib/python2.3/site-packages/Hellanzb] || \
+             [file type ${sys_python_prefix}/lib/python2.3/site-packages/Hellanzb] == "link" } {
+             file delete -force ${sys_python_prefix}/lib/python2.3/site-packages/Hellanzb
+        }
+        file link ${sys_python_prefix}/lib/python2.3/site-packages/Hellanzb \
+             ${prefix}/lib/python2.3/site-packages/Hellanzb
 }

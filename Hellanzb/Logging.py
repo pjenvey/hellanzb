@@ -291,9 +291,11 @@ def error(message, exception = None):
         
     Hellanzb.logger.error(message + '\n')
 
-def info(message):
+def info(message, appendLF = True):
     """ Log a message at the info level """
-    Hellanzb.logger.info(message + '\n')
+    if appendLF:
+        message += '\n'
+    Hellanzb.logger.info(message)
 
 def debug(message):
     """ Log a message at the debug level """

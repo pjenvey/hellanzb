@@ -31,16 +31,26 @@ def parseArticleData(segment, justExtractFilename = False):
 
     if segment.articleData == None:
         raise FatalError('Could not getFilenameFromArticleData')
-    
+
     cleanData = []
     encodingType = UNKNOWN
     withinData = False
+    index = -1
     for line in segment.articleData:
-        
+        index += 1
+
+        #info('aline: ' + line)
+        #if not withinData and line != '':
+        #    info('popping line: ' + line)
+        #    doh = segment.articleData.pop(index)
+        #    info('popped: ' + doh)
+        #    continue
+        #else:
         if withinData:
             # un-double-dot any lines :\
             if line[:2] == '..':
                 line = line[1:]
+                #segment.articleData[index] = line
                 
             cleanData.append(line)
 
@@ -53,35 +63,9 @@ def parseArticleData(segment, justExtractFilename = False):
             ybegin = ySplit(line)
             
             if not ('line' in ybegin and 'size' in ybegin and 'name' in ybegin):
-                raise FatalError('* Invalid =ybegin line in part %d!' % fileDestination)
+                raise FatalError('* Invalid =ybegin line in part %d!' % 31337)
 
-            noFileName = segment.nzbFile.filename == None
-            # FIXME:? cant check for tempFilename here. if we're resuming, and we didnt
-            # rename temp files created by an older hellanzb process, our tempFilename
-            # could be None and we wouldnt rename them. is this safe?
-            #if segment.nzbFile.tempFilename != None and justExtractFilename == True:
-            if noFileName and justExtractFilename == True:
-                # We were using temp name and just succesfully found the new filename via
-                # ySplit. Immediately rename any files that were using the temp name
-                segment.nzbFile.tempFileNameLock.acquire()
-                segment.nzbFile.filename = ybegin['name']
-
-                tempFileNames = {}
-                for nzbSegment in segment.nzbFile.nzbSegments:
-                    tempFileNames[nzbSegment.getTempFileName()] = nzbSegment.getDestination()
-    
-                from Hellanzb import WORKING_DIR
-                for file in os.listdir(WORKING_DIR):
-                    if file in tempFileNames:
-                        newDest = tempFileNames.get(file)
-                        shutil.move(WORKING_DIR + os.sep + file,
-                                    WORKING_DIR + os.sep + newDest)
-                        debug('>>>>RENAMED: ' + file + ' to: ' + newDest)
-
-                segment.nzbFile.tempFileNameLock.release()
-            else:
-                segment.nzbFile.filename = ybegin['name']
-            
+            setFileName(segment, ybegin['name'], justExtractFilename)
             encodingType = YENCODE
 
         elif line.startswith('=ypart'):
@@ -97,19 +81,62 @@ def parseArticleData(segment, justExtractFilename = False):
 
         elif line.startswith('begin '):
             debug('UUDECODE begin&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&')
-            segment.nzbFile.filename = line.rstrip().split(' ', 2)[2]
+            filename = line.rstrip().split(' ', 2)[2]
+            if not filename:
+                raise FatalError('* Invalid =begin line in part %d!' % 31337)
+            setFileName(segment, filename, justExtractFilename)
             encodingType = UUENCODE
             withinData = True
+        #elif line == '' :
+        #elif line == ''  and firstSegment is uuencode
+        #    pass
+        # FIXME: FIXME: FIXME:
+        elif not withinData and line == '':
+            encodingType = UUENCODE
+            withinData = True
+            
+            # FIXME: continue uuencode..?
 
     # FIXME: could put this check even higher up
     if justExtractFilename:
         return
 
+    #info('data: ' + str(segment.articleData))
+
     decodeCleanDataToFile(cleanData, segment.getDestination(), encodingType)
+    #decodeCleanDataToFile(segment.articleData, segment.getDestination(), encodingType)
     del cleanData
     del segment.articleData
     segment.articleData = '' # We often check it for == None
 decodeArticleData=parseArticleData
+
+def setFileName(segment, filename, justExtractFilename):
+    noFileName = segment.nzbFile.filename == None
+    # FIXME:? cant check for tempFilename here. if we're resuming, and we didnt
+    # rename temp files created by an older hellanzb process, our tempFilename
+    # could be None and we wouldnt rename them. is this safe?
+    #if segment.nzbFile.tempFilename != None and justExtractFilename == True:
+    if noFileName and justExtractFilename == True:
+        # We were using temp name and just succesfully found the new filename via
+        # ySplit. Immediately rename any files that were using the temp name
+        segment.nzbFile.tempFileNameLock.acquire()
+        segment.nzbFile.filename = filename
+
+        tempFileNames = {}
+        for nzbSegment in segment.nzbFile.nzbSegments:
+            tempFileNames[nzbSegment.getTempFileName()] = nzbSegment.getDestination()
+    
+        from Hellanzb import WORKING_DIR
+        for file in os.listdir(WORKING_DIR):
+            if file in tempFileNames:
+                newDest = tempFileNames.get(file)
+                shutil.move(WORKING_DIR + os.sep + file,
+                            WORKING_DIR + os.sep + newDest)
+                debug('>>>>RENAMED: ' + file + ' to: ' + newDest)
+
+        segment.nzbFile.tempFileNameLock.release()
+    else:
+        segment.nzbFile.filename = filename
 
 def decodeCleanDataToFile(cleanData, destination, encodingType = YENCODE):
     """ Decode the clean data (clean as in it's headers (mime and yenc/uudecode) have been
@@ -134,6 +161,7 @@ def decodeCleanDataToFile(cleanData, destination, encodingType = YENCODE):
 
     elif encodingType == UUENCODE:
         decodedLines = UUDecode(cleanData)
+        debug('dec: ' + str(len(decodedLines)) + ' orig: ' + str(len(cleanData)))
         out = open(destination, 'wb')
         for line in decodedLines:
             out.write(line)
@@ -188,6 +216,11 @@ def UUDecode(dataList):
     buffer = []
 
     for line in dataList:
+        if line == '':
+        #if not line or line[:5] == 'end':
+            # FIXME: not sure if i really want this
+            continue
+
         #if not line or line[:5] == '=yend':
         if not line:
             break
@@ -204,13 +237,15 @@ def UUDecode(dataList):
         except binascii.Error, msg:
             # Workaround for broken uuencoders by /Fredrik Lundh
             try:
-                warn('UUEncode workaround')
+                #warn('UUEncode workaround')
                 nbytes = (((ord(line[0])-32) & 63) * 4 + 5) / 3
                 data = binascii.a2b_uu(line[:nbytes])
                 buffer.append(data)
             except binascii.Error, msg:
-                print '\n* Decode failed in part %d: %s' % (nwrap._partnum, msg)
-                print '=> %s' % (repr(nwrap.lines[i]))
+                error('\n* Decode failed in part %d: %s' % (31337, msg))
+                error('=> %s' % (repr(line)))
+                #print '\n* Decode failed in part %d: %s' % (nwrap._partnum, msg)
+                #print '=> %s' % (repr(nwrap.lines[i]))
 
     return buffer
 

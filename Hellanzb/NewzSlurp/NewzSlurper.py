@@ -6,32 +6,17 @@ sys.path.append('/home/pjenvey/src/hellanzb-asynchella')
 # </DEBUGGING>
 
 import os, sys, time
+from thread import start_new_thread
 from threading import Condition
 from twisted.internet import reactor
 from twisted.news.news import UsenetClientFactory
 from twisted.protocols.nntp import NNTPClient
 from twisted.python import log
-from random import randint
 from Hellanzb.Logging import *
 from Hellanzb.NewzSlurp.ArticleDecoder import decode
 from Queue import Empty
 
 __id__ = '$Id$'
-
-USERNAME = 'pjenvey'
-PASSWORD = 'IF_A_SPERM_GETS_WASTED_GOD_GETS_REAL_IRATE'
-
-# FIXME:
-# problem: when resuming, we dont have our real name yet (just the temp name). you need
-# the real name before you can determine what is on the filesystem/whats left to d/l
-
-# SOLUTION:
-# the needsDownload() could do this, if it fails to find the filename or segment filename
-# on the FS, and we only have a temporary name, for every file in the directory, if the
-# filename matches a substr in our subject, we found it. segment we can look for the
-# correct .segment prefix.
-# This check should be done in NewzSlurper to be correct. but could cause small
-# delays. could we put this in the NZBQueue.parseNZB instead?
 
 def initNewzSlurp():
     """ Init """
@@ -50,16 +35,35 @@ def initNewzSlurp():
 
 def startNewzSlurp():
     """ gogogo """
-    for i in range(6):
+    #for i in range(6):
     #for i in range(1):
         # connect factory to this host and port
-        reactor.connectTCP("unlimited.newshosting.com", 9000, Hellanzb.nsf)
+        #reactor.connectTCP("unlimited.newshosting.com", 9000, Hellanzb.nsf)
         #reactor.connectTCP("unlimited.newshosting.com", 8000, Hellanzb.nsf)
 
+    connectionCount = 0
+    for serverId, serverInfo in Hellanzb.SERVERS.iteritems():
+        hosts = serverInfo['hosts']
+        connections = int(serverInfo['connections'])
+        info('(' + serverId + ') Connecting... ', appendLF = False)
+
+        for host in hosts:
+            host, port = host.split(':')
+            for connection in range(connections):
+                # FIXME: Is this sane?
+                Hellanzb.nsf.username = serverInfo['username']
+                Hellanzb.nsf.password = serverInfo['password']
+                reactor.connectTCP(host, int(port), Hellanzb.nsf)
+                connectionCount += 1
+
+    if connectionCount == 1:
+        info('opened ' + str(connectionCount) + ' connection.')
+    else:
+        info('opened ' + str(connectionCount) + ' connections.')
+        
     # run
-    #reactor.suggestThreadPoolSize(3)
+    #reactor.suggestThreadPoolSize(2)
     reactor.suggestThreadPoolSize(1)
-    from thread import start_new_thread
     #reactor.run(installSignalHandlers = False)
     start_new_thread(reactor.run, (), { 'installSignalHandlers': False })
     
@@ -71,7 +75,11 @@ def shutdownNewzSlurp():
 class NewzSlurperFactory(UsenetClientFactory):
 
     def __init__(self):
-        """ """
+        # FIXME: we need to have different connections use different username/passwords. i
+        # don't think we want multiple factories
+        self.username = None
+        self.password = None
+        
         # FIXME: what is this
         self.lastChecks = {}
         #self.totalStartTime = None
@@ -79,11 +87,9 @@ class NewzSlurperFactory(UsenetClientFactory):
         self.totalDownloadedFiles = 0
 
     def buildProtocol(self, addr):
-        """ """
         last = self.lastChecks.setdefault(addr, time.mktime(time.gmtime()) - (60 * 60 * 24 * 7))
         #p = nntp.UsenetClientProtocol(self.groups, last, self.storage)
-        auth = {'username':USERNAME, 'password':PASSWORD}
-        p = NewzSlurper(auth, {}, self)
+        p = NewzSlurper(self, self.username, self.password)
         p.factory = self
         return p
 
@@ -91,15 +97,14 @@ class NewzSlurper(NNTPClient):
 
     nextId = 0 # Id Pool
     
-    def __init__(self, auth, stat, factory):
+    def __init__(self, factory, username, password):
         """ """
         NNTPClient.__init__(self)
-        self.auth = auth
-        self.stat = stat
+        self.username = username
+        self.password = password
         self.factory = factory
         self.group = None
         self.id = self.getNextId()
-        #self.stat['pending'][self.id] = True
         
         #self.lineCount = 0 # FIXME:
         self.downloadStartTime = None
@@ -113,13 +118,13 @@ class NewzSlurper(NNTPClient):
 
     def authInfo(self):
         """ """
-        self.sendLine('AUTHINFO USER ' + self.auth['username'])
+        self.sendLine('AUTHINFO USER ' + self.username)
         self._newState(None, self.authInfoFailed, self._authInfoUserResponse)
 
     def _authInfoUserResponse(self, (code, message)):
         """ """
         if code == 381:
-            self.sendLine('AUTHINFO PASS ' + self.auth['password'])
+            self.sendLine('AUTHINFO PASS ' + self.password)
             self._newState(None, self.authInfoFailed, self._authInfoPassResponse)
         else:
             self.authInfoFailed('%d %s' % (code, message))
@@ -138,28 +143,18 @@ class NewzSlurper(NNTPClient):
         print 'AUTHINFO succeeded:' + message
 
         self.fetchNextNZBSegment()
-        
-        #self.fetchBody
-        # Grab pending messages
-        #self._newState(None, self.authInfoFailed, self._authInfoPassResponse)
-
-        ## uh??
-        ####self._newState(self.gotIdle,None)
-        #del self.stat['pending'][self.id]
-#        self.fetchIdle()
 
     def fetchNextNZBSegment(self):
         """ Pop nzb article from the queue, and attempt to retrieve it if it hasn't already been
         retrieved"""
-        #nzbSegment = Hellanzb.queue.get_nowait()
         if self.currentSegment is None:
             try:
-                # FIXME: act accordingly when the queue is empty
                 nextSegment = Hellanzb.queue.get_nowait()
                 while not nextSegment.needsDownload():
-                    #debug('SKIPPING segment: ' + nextSegment.getTempFileName())
-                    debug('SKIPPING segment: ' + nextSegment.getTempFileName() + ' subject: ' + nextSegment.nzbFile.subject)
+                    debug('SKIPPING segment: ' + nextSegment.getTempFileName() + \
+                          ' subject: ' + nextSegment.nzbFile.subject)
                     nextSegment = Hellanzb.queue.get_nowait()
+
                 self.currentSegment = nextSegment
                 self.filename = os.path.basename(self.currentSegment.nzbFile.getDestination())
             except Empty:
@@ -167,25 +162,25 @@ class NewzSlurper(NNTPClient):
                 time.sleep(10)
                 return
 
+        # Change group
         for i in xrange(len(self.currentSegment.nzbFile.groups)):
             # FIXME: group here is a type unicode class. fetchGroup requires str
             # objects. These should be str()'d during the nzbFile instantiation
             group = str(self.currentSegment.nzbFile.groups[i])
-            debug('NewzSlurper[' + str(self.id) + ']' + ' fetching group:' + group)
             #debug('group 4 segment: ' + self.currentSegment.getTempFileName() + ' subject: ' + self.currentSegment.nzbFile.subject)
 
-            # FIXME: should only activate one of the groups
+            # FIXME: should only activate one of the groups --??
             if group not in self.activeGroups:
+                debug('NewzSlurper[' + str(self.id) + ']' + ' fetching group:' + group)
                 self.fetchGroup(group)
                 return
             
-        # queue.pendingGroups, queue.activeGroups, def fetchPendingGroups(): # function
-        # calls a locked queue function that returns it new groups
         debug('NewzSlurper[' + str(self.id) + ']' + ' fetching article: ' + \
               #self.currentSegment.getDestination() + ' (' + self.currentSegment.messageId + ')')
               self.currentSegment.getDestination() + ' (' + self.currentSegment.nzbFile.subject + ')')
         debug('NewzSlurper[' + str(self.id) + '] going to fetch article: ' + \
               str(self.currentSegment.messageId))
+
         self.fetchArticle(str(self.currentSegment.messageId))
         
     def fetchArticle(self, index):
@@ -224,7 +219,6 @@ class NewzSlurper(NNTPClient):
 
     def gotGroup(self, group):
         """ """
-        debug('gotGroup!')
         # FIXME: wtf does fetchGroup tuple group?
         group = group[len(group) - 1]
         debug(str(self.id) + 'got group: ' + group)
@@ -286,25 +280,27 @@ class NewzSlurper(NNTPClient):
     def lineReceived(self, line):
         #self.lineCount += 1
 
-        lineLen = len(line)
-        self.readBytes += lineLen
-        self.factory.totalReadBytes += lineLen
-        if self.currentSegment != None:
-            self.currentSegment.nzbFile.totalReadBytes += lineLen
-
-        self.updatePercentage()
+        now = time.time()
+        self.updateByteCount(len(line))
+        self.updatePercentage(now)
         
         #if self.lineCount % 100 == 0:
         #    print '.',
         #sys.stdout.flush()
         NNTPClient.lineReceived(self, line)
 
-    def updatePercentage(self):
+    def updateByteCount(self, lineLen):
+        self.readBytes += lineLen
+        self.factory.totalReadBytes += lineLen
+        if self.currentSegment != None:
+            self.currentSegment.nzbFile.totalReadBytes += lineLen
+
+    def updatePercentage(self, now):
         if self.currentSegment == None:
             return
 
-        if self.filename != 'hellanzb-tmp-GhettoGaggers.com_-_Alika.file0003':
-            return
+        #if self.filename != 'hellanzb-tmp-GhettoGaggers.com_-_Alika.file0003':
+        #    return
         
         #oldPercentage = self.readPercentage
         oldPercentage = self.currentSegment.nzbFile.downloadPercentage
@@ -317,7 +313,8 @@ class NewzSlurper(NNTPClient):
         #if self.readPercentage > oldPercentage:
         if self.currentSegment.nzbFile.downloadPercentage > oldPercentage:
             #elapsed = max(0.1, time.time() - self.downloadStartTime)
-            elapsed = max(0.1, time.time() - self.currentSegment.nzbFile.downloadStartTime)
+            #elapsed = max(0.1, time.time() - self.currentSegment.nzbFile.downloadStartTime)
+            elapsed = max(0.1, now - self.currentSegment.nzbFile.downloadStartTime)
             speed = self.currentSegment.nzbFile.totalReadBytes / elapsed / 1024.0
             #print '\r* Decoding %s - %2d%% @ %.1fKB/s' % (truncate(filename), percent, speed),
             #print '\r* Downloading %s - %2d%% @ %.1fKB/s' % (truncate(self.filename),
@@ -352,4 +349,3 @@ if __name__ == '__main__':
         info('Loading: ' + sys.argv[1])
         Hellanzb.queue.parseNZB(sys.argv[1])
         startNewzSlurp()
-    

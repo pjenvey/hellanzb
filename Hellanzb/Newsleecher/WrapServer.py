@@ -4,6 +4,7 @@ import getpass
 import nntplib
 import sys
 
+from Hellanzb.Logging import *
 from WrapNews import WrapNews
 
 # ---------------------------------------------------------------------------
@@ -38,10 +39,12 @@ class WrapServer:
                         _pass = getpass.getpass(prompt)
                 
                 print '(%s) Connecting...' % (self.name),
+                #print '(%s) Connecting' % (self.name),
+                #scroll('(' + self.name + ') Connecting...')
                 sys.stdout.flush()
                 
                 # We only support 1-10 connections per server
-                self.num_connects = max(1, min(10, self.serverInfo['connections']))
+                self.num_connects = max(1, min(10, int(self.serverInfo['connections'])))
                 
                 # Build our connections
                 success = 0
@@ -52,6 +55,8 @@ class WrapServer:
                                         try:
                                                 _host, _port = _server.split(':')
                                                 nwrap = WrapNews(self, _host, int(_port), _user, _pass, _bind)
+                                                #print '.' % (),
+                                                #sys.stdout.flush()
                                         except Exception, msg:
                                                 print 'WARNING: unable to connect: %s' % (msg)
                                         else:

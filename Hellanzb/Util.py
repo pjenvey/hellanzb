@@ -178,8 +178,10 @@ def checkShutdown(message = 'Shutting down..'):
         print 'Error in Util.checkShutdown' + str(e)
         raise SystemExit(Hellanzb.SHUTDOWN_CODE)
 
-def defineServer(id, hosts, username, password, connections, priority, bindto = None):
+def defineServer(**args):
     """ Define a usenet server """
+    id = args['id']
     Hellanzb.SERVERS[id] = {}
-    for var in ('hosts', 'username', 'password', 'connections', 'priority', 'bindto'):
-        exec 'Hellanzb.SERVERS[id][\'' + var + '\'] = ' + var
+    
+    for var in (args):
+        exec 'Hellanzb.SERVERS[id][\'' + var + '\'] = args[\'' + var + '\']'

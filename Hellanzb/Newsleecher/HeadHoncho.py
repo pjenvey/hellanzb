@@ -14,6 +14,7 @@ import sys
 import time
 
 import Hellanzb
+from Hellanzb.Logging import *
 
 from zlib import crc32
 
@@ -58,17 +59,14 @@ class HeadHoncho:
                 # Groups we've updated already
                 self.Updated = {}
 
-                self._incomplete_threshold = Hellanzb.Newsleecher.INCOMPLETE_THRESHOLD
+                self._incomplete_threshold = int(Hellanzb.Newsleecher.INCOMPLETE_THRESHOLD)
                 
                 # Work out our servers. First we sort by priority, then name.
                 servers = []
-                
                 for id in Hellanzb.SERVERS:
                         serverInfo = Hellanzb.SERVERS[id]
-                        # We're keying by the id here, store it for later use
-                        serverInfo['id'] = id
 
-                        priority = serverInfo['priority']
+                        priority = int(serverInfo['priority'])
                         servers.append((priority, serverInfo))
                         
                 servers.sort()
@@ -104,6 +102,7 @@ class HeadHoncho:
                         # Wtf is it then?
                         else:
                                 ShowError("unknown job type '%s'", job)
+                                #scroll('Unknown file type: ' + job)
         
         # ---------------------------------------------------------------------------
         # Does all the stuff we need for a 'nzb' job.
@@ -111,6 +110,7 @@ class HeadHoncho:
                 # Make sure the file exists first
                 if not os.access(job, os.R_OK):
                         print "File '%s' does not exist or is not readable!"
+                        #scroll('File ' + job + ' does not exist or is not readable!')
                         return
                 
                 print "Attempting to parse '%s'..." % job,
@@ -173,11 +173,12 @@ class HeadHoncho:
                 for subject in subjects:
                         pwrap = posts[subject]
 
+                        # First check if we've already downloaded this file
                         alreadyDownloaded = False
-                        # First check if we've already downloaded
                         for file in os.listdir(os.getcwd()):
                                 if file == '.' or file == '..' or file[0] == '.':
                                         continue
+                                
                                 if subject.find(file) > -1 and \
                                 pwrap.totalbytes == os.path.getsize(os.getcwd() + os.sep + file):
                                         alreadyDownloaded = True
@@ -423,6 +424,7 @@ class HeadHoncho:
                                                         # Decode the data and check the crc32
                                                         if HAVE_YENC:
                                                                 decoded, tempcrc = _yenc.decode_string(''.join(nwrap.lines))[:2]
+                                                                #yenc.decode(
                                                                 partcrc = '%08X' % ((tempcrc ^ -1) & 2**32L - 1)
                                                         else:
                                                                 decoded = yDecode(''.join(nwrap.lines))

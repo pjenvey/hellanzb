@@ -104,7 +104,7 @@ class WrapNews:
                         try:
                                 chunk = self.recv(4096)
                         except:
-                                atempts += 1
+                                attempts += 1
                                 self.reconnect()
                         else:
                                 break

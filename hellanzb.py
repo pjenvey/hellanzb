@@ -77,10 +77,9 @@ def loadConfig(fileName):
         error('A problem occurred while reading the config file', fe)
         raise
     except Exception, e:
-        # FIXME: log stack trace of original Exception!
         msg = 'An unexpected error occurred while reading the config file'
         error(msg, e)
-        raise FatalError(msg)
+        raise
 
 def signalHandler(signum, frame):
     """ The main and only signal handler. Handle cleanup/managing child processes before

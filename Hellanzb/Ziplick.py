@@ -16,7 +16,7 @@ version 0.2
 import Hellanzb, os, re, Troll
 from time import sleep
 from threading import Thread
-from Troll import FatalError, info, growlNotify, stringEndsWith, touch
+from Troll import FatalError, info, growlNotify, stringEndsWith, touch, error
 
 __id__ = '$Id$'
 
@@ -103,9 +103,9 @@ class Ziplick(Thread):
             if os.WCOREDUMP(result):
                 coreFucked = True
                 newdir = newdir + '_corefucked'
-                error('Archive: ' + archiveNameFromNzb(nzbfilename) + ' is core fucked :(')
-                growlNotify('Error' + 'hellanzb Archive is core fucked',
-                            archiveNameFromNzb(nzbfilename) + '\n:(', True)
+                error('Archive: ' + self.archiveNameFromNzb(nzbfilename) + ' is core fucked :(')
+                growlNotify('Error', 'hellanzb Archive is core fucked',
+                            self.archiveNameFromNzb(nzbfilename) + '\n:(', True)
                 
             # Move our nzb contents to their new location, clear out the temp dir
             # FIXME: rename actually sucks here -- it blows up if you're
@@ -122,9 +122,9 @@ class Ziplick(Thread):
                     Troll.troll(newdir)
                 except FatalError, fe:
                     Troll.cleanUp(newdir)
-                    error('An unexpected problem occurred for archive: ' + archiveNameFromNzb(nzbfilename) +
+                    error('An unexpected problem occurred for archive: ' + self.archiveNameFromNzb(nzbfilename) +
                           ', problem: ' + fe.message)
                 except:
                     Troll.cleanUp(newdir)
-                    error('An unexpected problem occurred for archive: ' + archiveNameFromNzb(nzbfilename) +
+                    error('An unexpected problem occurred for archive: ' + self.archiveNameFromNzb(nzbfilename) +
                           '!')

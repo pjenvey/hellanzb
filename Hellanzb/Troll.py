@@ -123,8 +123,8 @@ def isRar(fileName):
         if len(line) > 2 and line[0:3].lower() == 'rar':
             return True
 
-    # NOTE We could check for part001 or ending in 001 or something similar if we don't
-    # want to use file(1)
+    # NOTE We could check for part001 or ending in 001, r01 or something similar if we
+    # don't want to use file(1)
     return False
 
 def isPar(fileName):
@@ -564,7 +564,8 @@ def troll(dirName):
 
     # Move other cruft out of the way
     deleteDuplicates(dirName)
-    os.rename(dirName + os.sep + nzbFile, dirName + os.sep + Hellanzb.PROCESSED_SUBDIR + os.sep + nzbFile)
+    if os.isfile(dirName + os.sep + nzbFile) and os.access(dirName + os.sep + nzbFile, os.R_OK):
+        os.rename(dirName + os.sep + nzbFile, dirName + os.sep + Hellanzb.PROCESSED_SUBDIR + os.sep + nzbFile)
 
     # We're done
     info("Finished processing: " + archiveNameFromDirName(dirName))

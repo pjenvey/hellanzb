@@ -47,22 +47,24 @@ class DecompressionThread(Thread):
         self.parent = parent
 
         Thread.__init__(self)
-        
+
+    def failure(self):
+	""" There was a problem decompressing -- let the parent know """
+	self.parent.failedLock.acquire()
+	self.parent.failedToProcesses.append(self.file)
+	self.parent.failedLock.release()
+	    
     def run(self):
         """ decompress the song, then remove ourself from the active thread pool """
         # Catch exceptions here just in case, to ensure notify() will finally be called
         archive = archiveName(os.path.dirname(self.file))
         try:
-            if not decompressMusicFile(self.file, self.type):
-                # There was a problem decompressing -- let the parent
-                # know
-                self.parent.failedLock.acquire()
-                self.parent.failedToProcesses.append(self.file)
-                self.parent.failedLock.release()
+            decompressMusicFile(self.file, self.type):
 
         except Exception, e:
             error(archive + ': There was an unexpected problem while decompressing the musc file: ' + \
                   os.path.basename(self.file), e)
+            self.failure()
 
         # Decrement the thread count AND immediately notify the caller
         self.parent.removeDecompressor(self)
@@ -222,16 +224,12 @@ def decompressMusicFile(fileName, musicType):
         os.rename(fileName, os.path.dirname(fileName) + os.sep + Hellanzb.PROCESSED_SUBDIR + os.sep +
                   os.path.basename(fileName))
         
-        return True
-    
     elif returnCode > 0:
         msg = 'There was a problem while decompressing music file: ' + os.path.basename(fileName) + \
             ' output:\n'
         for line in output:
             msg += line
-        error(msg)
-        
-        return False
+        raise FatalError(msg)
 
 def processRars(dirName, rarPassword):
     """ If the specified directory contains rars, unrar them. """

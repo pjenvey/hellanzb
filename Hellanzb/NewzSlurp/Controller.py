@@ -69,7 +69,8 @@ class Controller:
                 for i in range(num_connects):
                     name = serverInfo['id'] + str(i) + host + port
                     try:
-                        self.dmap[name] = nntp_client(host, int(port), serverInfo['username'], serverInfo['password'])
+                        self.dmap[name] = nntp_client(host=host, port=int(port), user=serverInfo['username'],
+                                                      password=serverInfo['password'],readermode=1)
                     except Exception, msg:
                         print 'WARNING: unable to connect: %s' % (msg)
                     else:

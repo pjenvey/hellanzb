@@ -296,9 +296,12 @@ def tryFinishNZB(nzb):
 
     if done:
         debug('tryFinishNZB: finished donwloading NZB: ' + nzb.archiveName)
-        Hellanzb.nzbfileDone.acquire()
-        Hellanzb.nzbfileDone.notify()
-        Hellanzb.nzbfileDone.release()
+        from twisted.internet import reactor
+        reactor.callFromThread(Hellanzb.ziplick.handleNZBDone, nzb.nzbFileName)
+        
+        #Hellanzb.nzbfileDone.acquire()
+        #Hellanzb.nzbfileDone.notify()
+        #Hellanzb.nzbfileDone.release()
         
     finish = time.time() - start
     debug('tryFinishNZB (' + str(done) + ') took: ' + str(finish) + ' seconds')

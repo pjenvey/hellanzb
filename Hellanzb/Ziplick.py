@@ -13,6 +13,7 @@ version 0.2
 import Hellanzb, os, re, PostProcessor, asyncore
 from shutil import move
 from time import sleep
+from twisted.internet import reactor
 from Logging import *
 from Util import *
 
@@ -22,8 +23,6 @@ class Ziplick:
 
     def __init__(self):
         self.ensureDirs()
-        from Hellanzb.NewzSlurp.NewzSlurper import initNewzSlurp, startNewzSlurp
-        initNewzSlurp()
 
     def ensureDirs(self):
         """ Ensure that all the required directories exist, otherwise attempt to create them """
@@ -37,16 +36,26 @@ class Ziplick:
                         raise FatalError("Unable to create Hellanzb DIRs")
 
     def run(self):
+        """ """
+        reactor.callLater(0, info, 'hellanzb - Now monitoring queue...')
+        reactor.callLater(0, growlNotify, 'Queue', 'hellanzb', 'Now monitoring queue..', False)
+        reactor.callLater(0, self.scanQueueDir)
+        from Hellanzb.NewzSlurp.NewzSlurper import initNewzSlurp
+        initNewzSlurp()
+
+    def scanQueueDir(self):
+        """ Find new/resume old NZB download sessions """
         self.queued_nzbs = []
         self.current_nzbs = [x for x in os.listdir(Hellanzb.CURRENT_DIR) if re.search(r'\.nzb$',x)]
+
+        debug('Ziplick scanning queue dir..')
 
         # Intermittently check if the app is in the process of shutting down when it's
         # safe (in between long processes)
         checkShutdown()
         
-        info('hellanzb - Now monitoring queue...')
-        growlNotify('Queue', 'hellanzb', 'Now monitoring queue..', False)
-        while 1 and not checkShutdown():
+        #while 1 and not checkShutdown():
+        if not checkShutdown():
             # See if we're resuming a nzb fetch
             if not self.current_nzbs:
                 
@@ -64,15 +73,19 @@ class Ziplick:
                         
                 # Nothing to do, lets wait 5 seconds and start over
                 if not self.queued_nzbs:
-                    sleep(5)
-                    continue
+                    #sleep(5)
+                    #continue
+                    # FIXME: callLater
+                    reactor.callLater(5, self.scanQueueDir)
+                    return
                 
                 nzbfilename = self.queued_nzbs[0]
                 del self.queued_nzbs[0]
                 
                 # nzbfile will always be a absolute filename 
                 nzbfile = Hellanzb.QUEUE_DIR + nzbfilename
-                os.spawnlp(os.P_WAIT, 'mv', 'mv', nzbfile, Hellanzb.CURRENT_DIR)
+                #os.spawnlp(os.P_WAIT, 'mv', 'mv', nzbfile, Hellanzb.CURRENT_DIR)
+                move(nzbfile, Hellanzb.CURRENT_DIR)
             else:
                 nzbfilename = self.current_nzbs[0]
                 info('Resuming: ' + archiveName(nzbfilename))
@@ -83,61 +96,62 @@ class Ziplick:
             # Change the cwd for Newsleecher, and download the files
             # FIXME: scroll stuff is broken. Needs to be rethought now that we control the
             # nzb getter
-            oldDir = os.getcwd()
+            #oldDir = os.getcwd()
             os.chdir(Hellanzb.WORKING_DIR)
 
+            # The scroll level will flood the console with constantly updating statistics
+            # -- the logging system can interrupt this scroll temporarily (after
+            # scrollBegin)
             scrollBegin()
 
-            statusCode = None
-            
-            # Initialize our nntp client
-            #slurp = Controller()
-            #slurp.process(nzbfile)
-            # if parseNZB has work to do, we'll wait() until it's done. otherwise it's
-            # done now
+            # Parse the NZB file into the Queue. Unless the NZB file is deemed already
+            # fully processed at the end of parseNZB, tell the factory to start
+            # downloading it
             if not Hellanzb.queue.parseNZB(nzbfile):
-                Hellanzb.nzbfileDone.acquire()
                 Hellanzb.nsf.fetchNextNZBSegment()
-                Hellanzb.nzbfileDone.wait()
-                Hellanzb.nzbfileDone.release()
 
-            scrollEnd()
+    def handleNZBDone(self, nzbfilename):
+        """ Hand-off from the downloader -- make a dir for the NZB with it's contents, then post
+        process it in a separate thread"""
+        # Back to normal logging behavior
+        scrollEnd()
 
-            # Append \n
-            info('')
+        # Append \n
+        info('')
 
-            os.chdir(oldDir)
+        checkShutdown()
+        
+        # Make our new directory, minus the .nzb
+        newdir = Hellanzb.DEST_DIR + archiveName(nzbfilename)
+                    
+        # Grab the message id, we'll store it in the newdir for later use
+        msgId = re.sub(r'.*msgid_', r'', nzbfilename)
+        msgId = re.sub(r'_.*', r'', msgId)
+
+        # Move our nzb contents to their new location, clear out the temp dir
+        if os.path.exists(newdir):
+            # Rename the dir if it exists already
+            renamedDir = newdir + '_hellanzb_renamed'
+            i = 0
+            while os.path.exists(renamedDir + str(i)):
+                i = i + 1
+            move(newdir, renamedDir + str(i))
             
-            checkShutdown()
-            
-            # Make our new directory, minus the .nzb
-            newdir = Hellanzb.DEST_DIR + archiveName(nzbfilename)
-                        
-            # Grab the message id, we'll store it in the newdir for later use
-            msgId = re.sub(r'.*msgid_', r'', nzbfilename)
-            msgId = re.sub(r'_.*', r'', msgId)
+        move(Hellanzb.WORKING_DIR,newdir)
+        touch(newdir + os.sep + '.msgid_' + msgId)
+        nzbfile = Hellanzb.CURRENT_DIR + os.path.basename(nzbfilename)
+        move(nzbfile, newdir)
+        os.mkdir(Hellanzb.WORKING_DIR)
 
-            # Move our nzb contents to their new location, clear out the temp dir
-            if os.path.exists(newdir):
-                # Rename the dir if it exists already
-                renamedDir = newdir + '_hellanzb_renamed'
-                i = 0
-                while os.path.exists(renamedDir + str(i)):
-                    i = i + 1
-                move(newdir, renamedDir + str(i))
-                
-            move(Hellanzb.WORKING_DIR,newdir)
-            touch(newdir + os.sep + '.msgid_' + msgId)
-            move(nzbfile, newdir)
-            os.mkdir(Hellanzb.WORKING_DIR)
+        # FIXME: if this ctrl-c is caught we will never bother Trolling the newdir. If
+        # we were signaled after the last shutdown check, we would have wanted the
+        # previous code block to have completed. But we definitely don't want to
+        # proceed to processing
+        
+        # Finally unarchive/process the directory in another thread, and continue
+        # nzbing
+        if not checkShutdown():
+            troll = PostProcessor.PostProcessor(newdir)
+            troll.start()
 
-            # FIXME: if this ctrl-c is caught we will never bother Trolling the newdir. If
-            # we were signaled after the last shutdown check, we would have wanted the
-            # previous code block to have completed. But we definitely don't want to
-            # proceed to processing
-            
-            # Finally unarchive/process the directory in another thread, and continue
-            # nzbing
-            if not checkShutdown():
-                troll = PostProcessor.PostProcessor(newdir)
-                troll.start()
+        reactor.callLater(0, self.scanQueueDir)

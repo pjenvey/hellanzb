@@ -9,10 +9,6 @@ from Hellanzb.Logging import *
 from Hellanzb.PostProcessorUtil import defineMusicType
 from Hellanzb.Util import *
 
-# FIXME
-from Hellanzb.NewzSlurp.NewzSlurper import shutdownNewzSlurp
-from twisted.internet import reactor
-
 __id__ = '$Id$'
 
 def findAndLoadConfig(optionalConfigFile = None):
@@ -68,12 +64,8 @@ def loadConfig(fileName):
 def signalHandler(signum, frame):
     """ The main and only signal handler. Handle cleanup/managing child processes before
     exiting """
-    reactor.callLater(0, reactor.stop)
-    reactor.wakeUp()
     # CTRL-C
     if signum == signal.SIGINT:
-        shutdownNewzSlurp()
-
         # lazily notify everyone they should stop immediately
         Hellanzb.shutdown = True
         
@@ -213,8 +205,10 @@ def processArgs(options):
     
     else:
         info('\nStarting queue daemon')
-        daemon = Hellanzb.Ziplick.Ziplick()
-        daemon.run()
+        #daemon = Hellanzb.Ziplick.Ziplick()
+        #daemon.run()
+        Hellanzb.ziplick = Hellanzb.Ziplick.Ziplick()
+        Hellanzb.ziplick.run()
 
 def main():
     """ Program main loop """

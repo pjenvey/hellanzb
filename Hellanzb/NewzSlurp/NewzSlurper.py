@@ -8,6 +8,7 @@ from twisted.internet import reactor
 from twisted.news.news import UsenetClientFactory
 from twisted.protocols.nntp import NNTPClient
 from twisted.python import log
+from Hellanzb.Core import shutdown
 from Hellanzb.Logging import *
 from Hellanzb.NewzSlurp.ArticleDecoder import decode
 from Hellanzb.NewzSlurp.NZBModel import NZBQueue
@@ -31,6 +32,11 @@ def initNewzSlurp():
     Hellanzb.nzbfileDone = Condition()
     
     startNewzSlurp()
+
+def niceShutdown():
+    info('Caught interrupt, exiting..')
+    sys.stdout.flush()
+    shutdown()
 
 def startNewzSlurp():
     """ gogogo """
@@ -58,8 +64,11 @@ def startNewzSlurp():
     #reactor.suggestThreadPoolSize(2)
     reactor.suggestThreadPoolSize(1)
 
-    start_new_thread(reactor.run, (), { 'installSignalHandlers': False })
+    reactor.addSystemEventTrigger('before', 'shutdown', niceShutdown)
+    
+    #start_new_thread(reactor.run, (), { 'installSignalHandlers': False })
     #reactor.run(installSignalHandlers = False )
+    reactor.run()
 
     #reactor.callLater(4, checkShutdownTwisted)
 
@@ -125,11 +134,7 @@ class NewzSlurperFactory(UsenetClientFactory):
 
     def fetchNextNZBSegment(self):
         for p in self.clients:
-            #p.fetchNextNZBSegment
-            #debug('GO-' + p.getName())
-            p.fetchNextNZBSegment()
-            # HMM: Why can't the reactor do this
-            #reactor.callLater(0, p.fetchNextNZBSegment)
+            reactor.callLater(0, p.fetchNextNZBSegment)
 
 class NewzSlurper(NNTPClient):
 
@@ -215,6 +220,7 @@ class NewzSlurper(NNTPClient):
                     self.factory.sessionReadBytes = 0
                     self.factory.sessionSpeed = 0
                     self.factory.sessionStartTime = None
+                    self.factory.scroller.currentLog = None
                 return
 
         # Change group
@@ -338,7 +344,9 @@ class NewzSlurper(NNTPClient):
 
     def connectionLost(self, reason):
         NNTPClient.connectionLost(self) # calls self.factory.clientConnectionLost(self, reason)
-        error(self.getName() + ' lost connection: ' + str(reason))
+        
+        if not Hellanzb.shutdown:
+            error(self.getName() + ' lost connection: ' + str(reason))
 
         self.activeGroups = []
         self.factory.clients.remove(self)
@@ -380,6 +388,24 @@ class NewzSlurper(NNTPClient):
             #                                                 speed))
         self.factory.scroller.updateLog()
 
+class ASCIICodes:
+    def __init__(self):
+        self.map = {
+            'ESCAPE': '\033',
+            'DBLUE': '34',
+            'RESET': '0',
+            'KILL_LINE': 'K'
+            }
+        
+    def __getattr__(self, name):
+        val = self.map[name]
+        if name != 'ESCAPE':
+            val = self.map['ESCAPE'] + '[' + val
+            if name != 'KILL_LINE':
+                val += 'm'
+        return val
+ACODE = ASCIICodes()
+        
 class NewzSlurpStatLog:
     def __init__(self, factory):
         self.factory = factory
@@ -390,62 +416,66 @@ class NewzSlurpStatLog:
         # Only bother doing the whole UI update after running updateStats this many times
         self.delay = 70
         self.wait = 0
+
+        self.connectionPrefix = ACODE.DBLUE + '[' + ACODE.RESET + '%s' + ACODE.DBLUE + ']' + ACODE.RESET
         
     def updateLog(self):
         """ Log ticker """
-        # Delay logging so we don't over-log
+        # Delay the actual log work -- so we don't over-log (too much CPU work in the
+        # async loop)
         self.wait += 1
         if self.wait < self.delay:
             return
         else:
             self.wait = 0
 
-        logNow = False
         currentLog = self.currentLog
+        logNow = False
         if self.currentLog != None:
-            # Kill previous lines
+            # Kill previous lines,
             self.currentLog = '\r\033[' + str(self.size) + 'A'
         else:
-            # unless we have just began logging. explicitly log the first message
-            logNow = True
+            # unless we have just began logging. and in that case, explicitly log the
+            # first message
             self.currentLog = ''
+            logNow = True
 
         # HACKY:
-        # sort by filename, then blink out connections download segments for the same
-        # file. only show the file download totals
+        # sort by filename, then we'll hide KB/s/percentage for subsequent segments with
+        # the same nzbFile as the previous segment
         sortedSegments = self.segments[:]
         sortedSegments.sort(lambda x, y : cmp(x.nzbFile.showFilename, y.nzbFile.showFilename))
         
-        #totalSpeed = 0
         lastSegment = None
         i = 0
         for segment in sortedSegments:
+            i += 1
+            
+            # Determine when we've just found the real file name, then use that as the
+            # show name
             if segment.nzbFile.showFilenameIsTemp == True and segment.nzbFile.filename != None:
                 segment.nzbFile.showFilename = segment.nzbFile.filename
                 segment.nzbFile.showFilenameIsTemp = False
-            i += 1
+                
             if lastSegment != None and lastSegment.nzbFile == segment.nzbFile:
-                self.currentLog += '\033[34m[\033[39m%d\033[34m]\033[39m Downloading %s\033[K' % \
-                    (i, rtruncate(segment.nzbFile.showFilename, length = 100))
-                    #(i, truncate(segment.nzbFile.showFilename, length = 100, reverse = True))
+                line = self.connectionPrefix + ' Downloading %s' + ACODE.KILL_LINE
+                self.currentLog += line % (str(i), rtruncate(segment.nzbFile.showFilename, length = 100))
             else:
-                self.currentLog += '\033[34m[\033[39m%d\033[34m]\033[39m Downloading %s - %2d%% @ %.1fKB/s\033[K' % \
-                    (i, rtruncate(segment.nzbFile.showFilename, length = 100),
-                    #(i, truncate(segment.nzbFile.showFilename, length = 100, reverse = True),
-                     segment.nzbFile.downloadPercentage, segment.nzbFile.speed)
-                #totalSpeed += segment.nzbFile.speed
+                line = self.connectionPrefix + ' Downloading %s - %2d%% @ %.1fKB/s' + ACODE.KILL_LINE
+                self.currentLog += line % (str(i), rtruncate(segment.nzbFile.showFilename, length = 100),
+                                           segment.nzbFile.downloadPercentage, segment.nzbFile.speed)
                 
             self.currentLog += '\n\r'
 
             lastSegment = segment
                 
         for fill in range(i + 1, self.size + 1):
-            self.currentLog += '\033[34m[\033[39m%d\033[34m]\033[39m\033[K' % (fill)
+            self.currentLog += self.connectionPrefix % (fill)
             self.currentLog += '\n\r'
 
-        self.currentLog += '\033[34m[\033[39mTotal\033[34m]\033[39m %.1fKB/s, %d MB queued \033[K' % \
-            (self.factory.sessionSpeed, Hellanzb.queue.totalQueuedBytes / 1024 / 1024)
-            #(totalSpeed, Hellanzb.queue.totalQueuedBytes / 1024 / 1024)
+        line = self.connectionPrefix + ' %.1fKB/s, %d MB queued ' + ACODE.KILL_LINE
+        self.currentLog += line % ('Total', self.factory.sessionSpeed,
+                                   Hellanzb.queue.totalQueuedBytes / 1024 / 1024)
 
         if logNow or self.currentLog != currentLog:
             scroll(self.currentLog)

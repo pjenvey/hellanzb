@@ -5,8 +5,10 @@ Util - hellanzb misc functions
 import os, popen2, pty, re, string, threading, time, Hellanzb
 from distutils import spawn
 from heapq import heappop, heappush
+from traceback import print_stack
 from Logging import *
 from Queue import Queue
+from StringIO import StringIO
 
 __id__ = '$Id$'
 
@@ -260,3 +262,10 @@ those three periods are included in the specified length"""
         return str[0:int(length) - 3] + '...'
     
     return str
+
+def getStack():
+    """ Return the current execution stack as a string """
+    s = StringIO()
+    print_stack(file=s)
+    s = s.getvalue()
+    return s

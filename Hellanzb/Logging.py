@@ -416,7 +416,9 @@ def initLogFile(logFile = None):
 
     class LogFileFilter(logging.Filter):
         def filter(self, record):
-            if record.levelno == ScrollableHandler.SCROLL:
+            #if record.levelno == ScrollableHandler.SCROLL:
+            # FIXME:
+            if record.levelno == ScrollableHandler.SCROLL or record.levelno == logging.DEBUG:
                 return False
             return True
     

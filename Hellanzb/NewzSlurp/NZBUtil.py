@@ -283,7 +283,8 @@ class NZBQueue(PriorityQueue):
         final contents. Segments are really stored independantly of individual Files in
         the queue, hence this function """
         self.nzbFilesLock.acquire()
-        self.nzbFiles.remove(nzbFile)
+        if nzbFile in self.nzbFiles:
+            self.nzbFiles.remove(nzbFile)
         self.nzbFilesLock.release()
 
     def parseNZB(self, fileName):
@@ -351,9 +352,8 @@ class NZBParser(ContentHandler):
             #self.file = NZBFile(attrs.get('subject'), attrs.get('date'), attrs.get('poster'),
             self.file = NZBFile(subject, attrs.get('date'), attrs.get('poster'),
                                 self.nzb)
-            info('number: ' + str(self.file.number) + ' subject: ' + subject)
             self.fileNeedsDownload = self.file.needsDownload()
-            debug('fileNeeds: ' + str(self.fileNeedsDownload))
+            #debug('fileNeeds: ' + str(self.fileNeedsDownload))
             self.fileCount += 1
             self.file.number = self.fileCount
                 

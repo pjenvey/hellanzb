@@ -273,8 +273,8 @@ def assembleNZBFile(nzbFile):
         os.remove(nzbSegment.getDestination())
 
     file.close()
-    # FIXME: could tell the queue hte file is done here
-    #Hellanzb.queue
+    Hellanzb.queue.fileDone(nzbFile)
+    
     debug('Assembled file: ' + nzbFile.getDestination() + ' from segment files: ' + \
           str([ nzbSegment.getDestination() for nzbSegment in nzbFile.nzbSegments ]))
 

@@ -19,16 +19,13 @@ __id__ = '$Id$'
 
 def init():
     """ initialization """
-    global UNRAR_CMD, brokenFiles # FIXME
+    global UNRAR_CMD
     debug('Troll Init')
     
     # doppelganger
     for exe in [ 'rar', 'unrar' ]:
         if spawn.find_executable(exe):
             UNRAR_CMD = exe
-
-    # global vars that users shouldn't modify
-    brokenFiles = [] # list of broken files (their renamed names)
 
 # FIXME: this class should be a KnownFileType class, or something. file types other than
 # music might want to be decompressed

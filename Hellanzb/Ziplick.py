@@ -36,8 +36,6 @@ class Ziplick(Thread):
                         os.mkdir(dir)
                     except AccessError:
                         raise FatalError("Unable to create Hellanzb DIRs")
-                                                
-
 
     def archiveNameFromNzb(self, nzbFileName):
         """ Strip the msg_id and .nzb extension from an nzb file name """

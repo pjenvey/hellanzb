@@ -1,1 +1,1 @@
-version = '0.2-HEAD'
+version = '0.3-HEAD'

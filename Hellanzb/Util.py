@@ -28,10 +28,11 @@ class Ptyopen(popen2.Popen3):
 instead of pipes, to allow inline reading (instead of potential i/o buffering) of output
 from the child process. It also stores the cmd it's running (as a string) and the thread
 that created the object, for later use """
-        # NOTE: this is all stolen from Popen minus the openpty calls
+        # NOTE: most of this is cutnpaste from Popen3 minus the openpty calls
         #popen2._cleanup()
         self.cmd = cmd
         self.thread = threading.currentThread()
+
         p2cread, p2cwrite = pty.openpty()
         c2pread, c2pwrite = pty.openpty()
         if capturestderr:
@@ -87,6 +88,7 @@ shortly after every read """
             if line == '': # EOF
                 break
             output.append(line)
+
             # Somehow the scroll locks end up getting blocked unless their consumers pause
             # as short as around 1/100th of a milli every loop. You might notice this
             # delay when nzbget scrolling looks like a slightly different FPS from within
@@ -95,6 +97,36 @@ shortly after every read """
 
         returnStatus = self.wait()
         return output, returnStatus
+
+class Ptyopen2(Ptyopen):
+    """ Ptyopen = Popen3
+        Ptyopen2 = Popen4
+	Python was lame for naming it that way and I am just as lame
+	for following suit """
+    def __init__(self, cmd, bufsize = -1):
+        """ Popen3 class (isn't this actually Popen4, capturestderr = False?) that uses ptys
+instead of pipes, to allow inline reading (instead of potential i/o buffering) of output
+from the child process. It also stores the cmd it's running (as a string) and the thread
+that created the object, for later use """
+        #popen2._cleanup()
+        self.cmd = cmd
+        self.thread = threading.currentThread()
+
+        p2cread, p2cwrite = pty.openpty()
+        c2pread, c2pwrite = pty.openpty()
+        self.pid = os.fork()
+        if self.pid == 0:
+            # Child
+            os.dup2(p2cread, 0)
+            os.dup2(c2pwrite, 1)
+            os.dup2(c2pwrite, 2)
+            self._run_child(cmd)
+        os.close(p2cread)
+        self.tochild = os.fdopen(p2cwrite, 'w', bufsize)
+        os.close(c2pwrite)
+        self.fromchild = os.fdopen(c2pread, 'r', bufsize)
+        #popen2._active.append(self)
+    
 
 def getLocalClassName(klass):
     """ Get the local name (no package/module information) of the specified class instance """

@@ -4,7 +4,7 @@ nzbget
 
 @author pjenvey
 """
-import Hellanzb, os
+import Hellanzb, os, re, time
 from threading import Thread, Condition, Lock
 from Logging import *
 from PostProcessorUtil import *
@@ -19,6 +19,10 @@ class PostProcessor(Thread):
     decompressorCondition = None
     background = None
     musicFiles = None
+    brokenFiles = None
+
+    failedLock = None
+    failedToProcesses = None
     
     msgId = None
     nzbFile = None
@@ -80,6 +84,7 @@ class PostProcessor(Thread):
             
         except SystemExit, se:
             # sys.exit throws this. collect $200
+            # FIXME: can I safely raise here instead?
             pass
         
         except FatalError, fe:
@@ -118,7 +123,11 @@ class PostProcessor(Thread):
                 
         info(archiveName(self.dirName) + ': Decompressing ' + str(len(self.musicFiles)) + \
              ' files via ' + str(int(Hellanzb.MAX_DECOMPRESSION_THREADS)) + ' threads..')
-    
+
+	# Failed decompress threads put their file names in this list
+	self.failedToProcesses = []
+	self.failedLock = Lock()
+
         # Maintain a pool of threads of the specified size until we've exhausted the
         # musicFiles list
         while len(self.musicFiles) > 0:
@@ -143,6 +152,12 @@ class PostProcessor(Thread):
         for decompressor in self.decompressionThreadPool:
             decompressor.join()
 
+	if len(self.failedToProcesses) > 0:
+	    # Let the threads finish their logging (ScrollInterrupter can
+	    # lag)
+	    time.sleep(.1)
+	    raise FatalError('Failed to complete music decompression')
+
         processComplete(self.dirName, 'music', None)
         info(archiveName(self.dirName) + ': Finished decompressing')
 
@@ -157,10 +172,19 @@ class PostProcessor(Thread):
                 os.rename(self.dirName + os.sep + self.nzbFile,
                           self.dirName + os.sep + Hellanzb.PROCESSED_SUBDIR + os.sep + self.nzbFile)
 
-        # Move out anything else that is tagged as not required
-        for file in os.listdir(self.dirName):
+        # Move out anything else that's broken, a dupe or tagged as
+        # not required
+	for file in self.brokenFiles:
+	    os.rename(self.dirName + os.sep + file,
+		      self.dirName + os.sep + Hellanzb.PROCESSED_SUBDIR + os.sep + file)
+
+	for file in os.listdir(self.dirName):
             ext = getFileExtension(file)
             if ext != None and len(ext) > 0 and ext in Hellanzb.NOT_REQUIRED_FILE_TYPES:
+                os.rename(self.dirName + os.sep + file,
+                          self.dirName + os.sep + Hellanzb.PROCESSED_SUBDIR + os.sep + file)
+                
+            elif re.match(r'.*_duplicate\d{0,4}', file):
                 os.rename(self.dirName + os.sep + file,
                           self.dirName + os.sep + Hellanzb.PROCESSED_SUBDIR + os.sep + file)
     
@@ -187,14 +211,14 @@ class PostProcessor(Thread):
     
         # First, find broken files, in prep for repair. Grab the msg id and nzb
         # file names while we're at it
-        brokenFiles = []
+        self.brokenFiles = []
         files = os.listdir(self.dirName)
         for file in files:
             absoluteFile = self.dirName + os.sep + file
             if os.path.isfile(absoluteFile):
                 if stringEndsWith(file, '_broken'):
                     # Keep track of the broken files
-                    brokenFiles.append(absoluteFile)
+                    self.brokenFiles.append(absoluteFile)
                     
                 elif len(file) > 7 and file[0:len('.msgid_')] == '.msgid_':
                     self.msgId = file[len('.msgid_'):]
@@ -203,10 +227,10 @@ class PostProcessor(Thread):
                     self.nzbFile = file
     
         # If there are required broken files and we lack pars, punt
-        if len(brokenFiles) > 0 and containsRequiredFiles(brokenFiles) and not dirHasPars(self.dirName):
+        if len(self.brokenFiles) > 0 and containsRequiredFiles(self.brokenFiles) and not dirHasPars(self.dirName):
             errorMessage = 'Unable to process directory: ' + self.dirName + '\n' + ' '*4 + \
                 'This directory has the following broken files: '
-            for brokenFile in brokenFiles:
+            for brokenFile in self.brokenFiles:
                 errorMessage += '\n' + ' '*8 + brokenFile
                 errorMessage += '\n    and contains no par2 files for repair'
             raise FatalError(errorMessage)

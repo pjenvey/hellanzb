@@ -173,7 +173,7 @@ def init(options):
 
     Hellanzb.Logging.initLogFile(options.logFile)
 
-def shutdown(returnCode = 0):
+def shutdown():
     """ turn the knob that tells all parts of the program we're shutting down """
     Hellanzb.shutdown = True
 
@@ -184,7 +184,7 @@ def shutdown(returnCode = 0):
     
 def shutdownNow(returnCode = 0):
     """ shutdown the program ASAP """
-    shutdown(returnCode)
+    shutdown()
 
     sys.exit(returnCode)
     
@@ -212,12 +212,12 @@ if __name__ == '__main__':
         if options.postProcessDir:
             if not os.path.isdir(options.postProcessDir):
                 error('Unable to process, not a directory: ' + options.postProcessDir)
-                sys.exit(1)
+                shutdownNow(1)
 
             if not os.access(options.postProcessDir, os.R_OK):
                 error('Unable to process, no read access to directory: ' + options.postProcessDir)
-                sys.exit(1)
-
+                shutdownNow(1)
+                
             troll = Hellanzb.PostProcessor.PostProcessor(options.postProcessDir, background = False)
             info('\nStarting post processor')
             troll.start()
@@ -230,12 +230,12 @@ if __name__ == '__main__':
             daemon.run()
 
     except SystemExit, se:
-        # sys.exit throws this. collect $200
-        pass
+        # sys.exit throws this, let it go
+        raise
     except FatalError, fe:
         error('Exiting', fe)
         shutdownNow(1)
     except Exception, e:
         error('An unexpected problem occurred, exiting', e)
-        shutdown(1)
+        shutdown()
         raise

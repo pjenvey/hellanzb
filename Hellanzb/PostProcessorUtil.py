@@ -53,7 +53,13 @@ class DecompressionThread(Thread):
         # Catch exceptions here just in case, to ensure notify() will finally be called
         archive = archiveName(os.path.dirname(self.file))
         try:
-            decompressMusicFile(self.file, self.type)
+	    if not decompressMusicFile(self.file, self.type):
+		# There was a problem decompressing -- let the parent
+		# know
+		self.parent.failedLock.acquire()
+		self.parent.failedToProcesses.append(self.file)
+		self.parent.failedLock.release()
+
         except Exception, e:
             error(archive + ': There was an unexpected problem while decompressing the musc file: ' + \
                   os.path.basename(self.file), e)
@@ -207,10 +213,7 @@ def decompressMusicFile(fileName, musicType):
          os.path.basename(fileName))
     cmd = cmd.replace('<DESTFILE>', '"' + destFileName + '"')
 
-    # user defined cmds might spit out to stderr
-    p = Ptyopen(cmd, capturestderr = True)
-    # Ignore stderr
-    p.childerr.close()
+    p = Ptyopen2(cmd)
     output, status = p.readlinesAndWait()
     returnCode = os.WEXITSTATUS(status)
 
@@ -218,18 +221,17 @@ def decompressMusicFile(fileName, musicType):
         # Successful, move the old file away
         os.rename(fileName, os.path.dirname(fileName) + os.sep + Hellanzb.PROCESSED_SUBDIR + os.sep +
                   os.path.basename(fileName))
+        
+        return True
     
     elif returnCode > 0:
-        # FIXME: not getting stderr here
         msg = 'There was a problem while decompressing music file: ' + os.path.basename(fileName) + \
             ' output:\n'
         for line in output:
             msg = msg + line
         error(msg)
-
-        # FIXME - could propagate this to parent
-        # see threading.thread.interrupt_main()
-        #raise FatalError("Unable to decompress music file: " + fileName)
+        
+        return False
 
 def processRars(dirName, rarPassword):
     """ If the specified directory contains rars, unrar them. """
@@ -244,9 +246,9 @@ def processRars(dirName, rarPassword):
     files.sort()
     for file in files:
         absPath = os.path.normpath(dirName + os.sep + file)
-	
+        
         if isRar(absPath) and not isAlbumCoverArchive(absPath) and absPath not in processedRars:
-	    processedRars.extend(unrar(absPath, rarPassword))
+            processedRars.extend(unrar(absPath, rarPassword))
     
     processComplete(dirName, 'rar',
                     lambda file : os.path.isfile(file) and isRar(file) and not isAlbumCoverArchive(file))
@@ -263,7 +265,7 @@ def unrar(fileName, rarPassword = None, pathToExtract = None):
 
     # By default extract to the file's dir
     if pathToExtract == None:
-	pathToExtract = dirName
+        pathToExtract = dirName
 
     # First, list the contents of the rar, if any filenames are preceeded with *, the rar
     # is passworded
@@ -311,7 +313,7 @@ def unrar(fileName, rarPassword = None, pathToExtract = None):
         cmd = Hellanzb.UNRAR_CMD + ' x -y ' + ' "' + fileName + '" "' + pathToExtract + '"'
     
     info(archiveName(dirName) + ': Unraring ' + os.path.basename(fileName))
-    p = Ptyopen(cmd)
+    p = Ptyopen2(cmd)
     output, status = p.readlinesAndWait()
     unrarReturnCode = os.WEXITSTATUS(status)
 

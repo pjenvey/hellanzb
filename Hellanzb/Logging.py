@@ -149,6 +149,7 @@ scroll and already added the spaces """
             # this happens during shutdown
             pass
         except SystemExit:
+	    # FIXME: Can I safely raise here instead?
             pass
         except Exception, e:
             print 'Error in ScrollInterrupter: ' + str(e)

@@ -47,10 +47,6 @@ class PostProcessor(Thread):
         self.background = background
         
         self.decompressionThreadPool = []
-
-        # NOTE/FIXME: was considering a Lock instead of RLock here. but even though the
-        # function calls are in this object, they're being called by the decompressor
-        # threads, so RLock is fine
         self.decompressorCondition = Condition()
 
         Thread.__init__(self)
@@ -229,11 +225,11 @@ class PostProcessor(Thread):
     
         # If there are required broken files and we lack pars, punt
         if len(self.brokenFiles) > 0 and containsRequiredFiles(self.brokenFiles) and not dirHasPars(self.dirName):
-            errorMessage = 'Unable to process directory: ' + self.dirName + '\n' + ' '*4 + \
+            errorMessage = 'Unable to process directory: ' + self.dirName + '\n' + \
                 'This directory has the following broken files: '
             for brokenFile in self.brokenFiles:
-                errorMessage += '\n' + ' '*8 + brokenFile
-                errorMessage += '\n    and contains no par2 files for repair'
+                errorMessage += '\n' + ' '*4 + brokenFile
+            errorMessage += '\nand contains no par2 files for repair'
             raise FatalError(errorMessage)
 
         if dirHasPars(self.dirName):

@@ -172,7 +172,20 @@ class HeadHoncho:
                 
                 for subject in subjects:
                         pwrap = posts[subject]
-                        
+
+                        alreadyDownloaded = False
+                        # First check if we've already downloaded
+                        for file in os.listdir(os.getcwd()):
+                                if file == '.' or file == '..' or file[0] == '.':
+                                        continue
+                                if subject.find(file) > -1 and \
+                                pwrap.totalbytes == os.path.getsize(os.getcwd() + os.sep + file):
+                                        alreadyDownloaded = True
+                                        print '\r* Skipping %s, already complete  ' % file
+
+                        if alreadyDownloaded:
+                                continue
+                                
                         haveparts = len(pwrap.parts)
                         
                         # If we don't have enough parts to bother with, skip it
@@ -295,6 +308,7 @@ class HeadHoncho:
                                                                         if os.path.isfile(filename):
                                                                                 currsize = os.path.getsize(filename)
                                                                                 if currsize == int(ybegin['size']):
+                                                                                        # FIXME: this is done up above now
                                                                                         print '\r* Skipping %s, already complete  ' % filename
                                                                                         
                                                                                         # Skip it

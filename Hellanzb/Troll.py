@@ -207,18 +207,6 @@ def getMusicTypeExtensions():
             musicTypeExtensions.append(musicType.extension)
     return musicTypeExtensions
 
-def renameBrokenFile(fileName):
-    """ Handle renaming broken files, so that their may be an attempt to repair them. Add the
-renamed file name to the specified list """
-    fixedName = fileName[:-len('_broken')]
-    
-    if os.path.isfile(fixedName):
-        raise FatalError('Unable to rename broken file: ' + fileName + ', the file: ' + fixedName + \
-    ' already exists')
-    
-    warn('Renamed broken file: ' + fileName + ' to ' + fixedName)
-    os.rename(fileName, fixedName)
-
 def getMusicType(fileName):
     """ Determine the specified file's MusicType instance """
     ext = getFileExtension(fileName)
@@ -388,7 +376,7 @@ there are not enough recovery blocks, raise a fatal exception """
 
     dirName = dirName + os.sep
     verifyCmd = 'par2 v "' + dirName + '*.PAR2" "' + dirName + '*.par2"'
-    repairCmd = 'par2 r "' + dirName + '*.PAR2" "' + dirName + '*.par2"'
+    repairCmd = 'par2 r "' + dirName + '*.PAR2" "' + dirName + '*.par2"' + ' *_broken' 
 
     p = popen2.Popen4(verifyCmd)
     output = p.fromchild.readlines()
@@ -487,7 +475,6 @@ this state is done """
     
 def trollmain(dirName):
     """ main, mayn """
-    global brokenFiles # FIXME gross
     
     # exit the program if we lack required binaries
     assertIsExe('par2')
@@ -503,20 +490,18 @@ def trollmain(dirName):
     elif not os.path.isdir(processedDir):
         raise FatalError('Unable to create processed directory, a non directory already exists there')
 
-    # First, find and rename broken files, in prep for repair. Grab the msg id and nzb
+    # First, find broken files, in prep for repair. Grab the msg id and nzb
     # file names while we're at it
     msgId = None
     nzbFile = None
+    brokenFiles = []
     files = os.listdir(dirName)
     for file in files:
         absoluteFile = dirName + os.sep + file
-        
         if os.path.isfile(absoluteFile):
-    
             if stringEndsWith(file, '_broken'):
                 # Keep track of the broken files
                 brokenFiles.append(absoluteFile)
-                renameBrokenFile(absoluteFile)
                 
             elif file[0:len('.msgid_')] == '.msgid_':
                 msgId = file[len('.msgid_'):]
@@ -533,13 +518,8 @@ def trollmain(dirName):
             errorMessage += '\n    and contains no par2 files for repair'
         raise FatalError(errorMessage)
 
-    
     if dirHasPars(dirName):
         processPars(dirName)
-
-    # If we've made it this far, we've simply verified the integrity of the existing
-    # directory, or fixed all the broken files and no longer need to worry about them
-    brokenFiles = []
 
     # grab the rar password if one exists
     if dirHasRars(dirName):
@@ -575,11 +555,11 @@ def troll(dirName,archiveName):
     try:
         self.trollmain(dirName)
     except FatalError, fe:
-        self.cleanUp(dirName)
+        cleanUp(dirName)
         error('An unexpected problem occurred for archive: ' +
               archiveName + ', problem: ' + fe.message)
     except Exception, e:
-        self.cleanUp(newdir)
+        cleanUp(newdir)
         error('An unexpected problem occurred for archive: ' +
               archiveName + ': ' + str(e.__class__) + ': ' + str(e))
 

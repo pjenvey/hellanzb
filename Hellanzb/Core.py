@@ -195,9 +195,9 @@ def parseArgs():
     #parser.add_option('-d', '--debug-file', type='string', dest='debugFile',
     #                  help='specify the debug log file (overwrites the DEUBG_MODE config file setting)')
     parser.add_option('-p', '--post-process-dir', type='string', dest='postProcessDir',
-                      help='don\'t run the daemon: post-process the specified dir and exit')
+                      help='don\'t run the daemon: post-process the specified nzb archive dir and exit')
     parser.add_option('-P', '--rar-password', type='string', dest='rarPassword',
-                      help='when used with the -p option, specifies the rar password')
+                      help='when used with the -p option, specifies the nzb archive\'s rar password')
     return parser.parse_args()
 
 def processArgs(options):

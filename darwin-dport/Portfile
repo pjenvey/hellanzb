@@ -40,6 +40,7 @@ set sys_python_prefix /System/Library/Frameworks/Python.framework/Versions/Curre
 depends_run  bin:par2:par2 \
              bin:rar:rar \
              bin:flac:flac \
+             bin:shorten:shorten \
              lib:XXX:py-twisted \
 
 post-activate {

@@ -19,6 +19,9 @@ PLIST_FILES=	bin/hellanzb.py \
 		%%PYTHON_SITELIBDIR%%/Hellanzb/Core.py \
 		%%PYTHON_SITELIBDIR%%/Hellanzb/Core.pyc \
 		%%PYTHON_SITELIBDIR%%/Hellanzb/Core.pyo \
+		%%PYTHON_SITELIBDIR%%/Hellanzb/Growl.py \
+		%%PYTHON_SITELIBDIR%%/Hellanzb/Growl.pyc \
+		%%PYTHON_SITELIBDIR%%/Hellanzb/Growl.pyo \
 		%%PYTHON_SITELIBDIR%%/Hellanzb/PostProcessor.py \
 		%%PYTHON_SITELIBDIR%%/Hellanzb/PostProcessor.pyc \
 		%%PYTHON_SITELIBDIR%%/Hellanzb/PostProcessor.pyo \
@@ -63,6 +66,7 @@ RUN_DEPENDS=	par2:${POSTDIR}/archivers/par2cmdline \
 		rar:${POSTDIR}/archivers/rar \
 		flac:${POSTDIR}/audio/flac \
 		mac:${POSTDIR}/audio/mac \
+		shorten:${POSTDIR}/audio/shorten \
 		${PYTHON_SITELIBDIR}/twisted/__init__.py:${PORTSDIR}/devel/py-twisted
 
 MAINTAINER=	pjenvey@groovie.org

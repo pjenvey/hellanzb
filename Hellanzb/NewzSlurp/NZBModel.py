@@ -105,6 +105,7 @@ class NZBFile:
 
         self.number = len(self.nzb.nzbFileElements)
         self.totalBytes = 0
+        self.totalSkippedBytes = 0
 
         # The real filename, determined from the actual decoded articleData
         self.filename = None

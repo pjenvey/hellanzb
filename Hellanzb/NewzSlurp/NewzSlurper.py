@@ -210,6 +210,11 @@ class NewzSlurper(NNTPClient, AntiIdleMixin):
                     # there). needsDownload() could call this if it finds a match on the
                     # filesystem. easy way to maintain what/when is done all the time (i
                     # think)
+                    
+                    nextSegment.nzbFile.totalSkippedBytes += nextSegment.bytes
+                    # TODO: decrement the skippedBytes from the Queue (queue should
+                    # maintain the byte count down to the segment intstead of file)
+                    
                     debug(self.getName() + ' SKIPPING segment: ' + nextSegment.getTempFileName() + \
                           ' subject: ' + nextSegment.nzbFile.subject)
                     nextSegment = Hellanzb.queue.get_nowait()
@@ -305,7 +310,6 @@ class NewzSlurper(NNTPClient, AntiIdleMixin):
         group = group[len(group) - 1]
         self.activeGroups.append(group)
         debug(self.getName() + ' got GROUP: ' + group)
-        # FIXME: where do i remove the group?
 
         self.fetchNextNZBSegment()
 
@@ -329,7 +333,6 @@ class NewzSlurper(NNTPClient, AntiIdleMixin):
         debug(self.getName() + ' fetching HELP')
         self.sendLine('HELP')
         self.myState = 'HELP'
-        #self._newState(self._stateHelp, self.getHelpFailed)
         self._newState(self._stateHelp, self.getHelpFailed)
 
     def gotHelp(self, idle):
@@ -340,7 +343,6 @@ class NewzSlurper(NNTPClient, AntiIdleMixin):
         "Override for getHelpFailed"
         self.myState = None
         debug(self.getName() + ' got HELP failed: ' + str(err))
-        #pass
         
     def authInfoFailed(self, err):
         "Override for notification when authInfoFailed() action fails"
@@ -402,10 +404,11 @@ class NewzSlurper(NNTPClient, AntiIdleMixin):
     def updateStats(self, now):
         if self.currentSegment == None:
             return
-        
+
         oldPercentage = self.currentSegment.nzbFile.downloadPercentage
         self.currentSegment.nzbFile.downloadPercentage = min(100,
-                                                             int(float(self.currentSegment.nzbFile.totalReadBytes) /
+                                                             int(float(self.currentSegment.nzbFile.totalReadBytes + \
+                                                                       self.currentSegment.nzbFile.totalSkippedBytes) /
                                                                  max(1, self.currentSegment.nzbFile.totalBytes) * 100))
 
         if self.currentSegment.nzbFile.downloadPercentage > oldPercentage:
@@ -456,6 +459,11 @@ class NewzSlurpStatLog:
         self.wait = 0
 
         self.connectionPrefix = ACODE.DBLUE + '[' + ACODE.RESET + '%s' + ACODE.DBLUE + ']' + ACODE.RESET
+
+        self.prefixScrolls = []
+
+    def prefixScroll(self, message):
+        self.prefixScrolls.append(message)
         
     def updateLog(self):
         """ Log ticker """
@@ -477,6 +485,16 @@ class NewzSlurpStatLog:
             # first message
             self.currentLog = ''
             logNow = True
+
+        # Log information we want to prefix the scroll (so it stays on the screen)
+        # FIXME: these messages aren't going out to any log file
+        if len(self.prefixScrolls) > 0:
+            prefixScroll = ''
+            for message in self.prefixScrolls:
+                debug('GOT SOME!')
+                prefixScroll += message + ACODE.KILL_LINE + '\n'
+                
+            self.currentLog =+ prefixScroll
 
         # HACKY:
         # sort by filename, then we'll hide KB/s/percentage for subsequent segments with
@@ -518,3 +536,4 @@ class NewzSlurpStatLog:
 
         if logNow or self.currentLog != currentLog:
             scroll(self.currentLog)
+            self.prefixScrolls = []

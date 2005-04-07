@@ -155,13 +155,15 @@ def decodeSegmentToFile(segment, encodingType = YENCODE):
     if encodingType == YENCODE:
         decodedLines = yDecode(segment.articleData)
 
-        # FIXME: crc check needs to be shown through the scroll (but not via
-        # Hellanzb.Logging.ScrollInterrupter)
+        # CRC check
         decoded = ''.join(decodedLines)
         crc = '%08X' % (crc32(decoded) & 2**32L - 1)
         if crc != segment.crc:
-            #warn('CRC mismatch ' + crc + ' != ' + segment.crc)
-            debug('CRC mismatch ' + crc + ' != ' + segment.crc)
+            message = segment.nzbFile.showFilename + ' segment ' + str(segment.number) + \
+                ': CRC mismatch ' + crc + ' != ' + segment.crc
+            reactor.callFromThread(Hellanzb.nsf.scroller.prefixScroll, message)
+            # FIXME: this needs to go out to the normal log file
+            debug(message)
         del decoded
             
         out = open(segment.getDestination(), 'wb')

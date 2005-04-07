@@ -156,15 +156,22 @@ def decodeSegmentToFile(segment, encodingType = YENCODE):
         decodedLines = yDecode(segment.articleData)
 
         # CRC check
-        decoded = ''.join(decodedLines)
-        crc = '%08X' % (crc32(decoded) & 2**32L - 1)
-        if crc != segment.crc:
-            message = segment.nzbFile.showFilename + ' segment ' + str(segment.number) + \
-                ': CRC mismatch ' + crc + ' != ' + segment.crc
-            reactor.callFromThread(Hellanzb.nsf.scroller.prefixScroll, message)
-            # FIXME: this needs to go out to the normal log file
-            debug(message)
-        del decoded
+        if segment.crc == None:
+            reactor.callFromThread(Hellanzb.scroller.prefixScroll, segment.nzbFile.showFilename + \
+                                   ' segment: ' + str(segment.number) + \
+                                   ' does not have a valid CRC/yend line!')
+            reactor.callFromThread(Hellanzb.scroller.updateLog, True)
+        else:
+            decoded = ''.join(decodedLines)
+            crc = '%08X' % (crc32(decoded) & 2**32L - 1)
+            if crc != segment.crc:
+                message = segment.nzbFile.showFilename + ' segment ' + str(segment.number) + \
+                    ': CRC mismatch ' + crc + ' != ' + segment.crc
+                reactor.callFromThread(Hellanzb.scroller.prefixScroll, message)
+                reactor.callFromThread(Hellanzb.scroller.updateLog, True)
+                # FIXME: this needs to go out to the normal log file
+                debug(message)
+            del decoded
             
         out = open(segment.getDestination(), 'wb')
         for line in decodedLines:

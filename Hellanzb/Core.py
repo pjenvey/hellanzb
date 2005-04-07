@@ -2,12 +2,18 @@
 Core - All of our main()ish functions. Initialization/shutdown/etc
 
 """
-import optparse, os, signal, sys, threading, Hellanzb, Hellanzb.PostProcessor, Hellanzb.Ziplick
+# Install our custom twisted reactor immediately
+from Hellanzb.HellaReactor import HellaReactor
+HellaReactor.install()
+
+import optparse, os, signal, sys, threading, Hellanzb, Hellanzb.PostProcessor
 from distutils import spawn
 from threading import Lock
+from twisted.internet import reactor
 from Hellanzb.Logging import *
 from Hellanzb.PostProcessorUtil import defineMusicType
 from Hellanzb.Util import *
+from Hellanzb.Ziplick import Ziplick
 
 __id__ = '$Id$'
 
@@ -160,7 +166,11 @@ def init(options = {}):
 
 def shutdown():
     """ turn the knob that tells all parts of the program we're shutting down """
+    # that knob, that threads will constantly check
     Hellanzb.shutdown = True
+
+    # stop the twisted reactor
+    reactor.callLater(0, reactor.stop)
 
     # wakeup the doofus scroll interrupter thread (to die) if it's waiting
     if hasattr(ScrollInterrupter, 'pendingMonitor'):
@@ -181,7 +191,9 @@ def parseArgs():
                       help='specify the configuration file')
     parser.add_option('-l', '--log-file', type='string', dest='logFile',
                       help='specify the log file (overwrites the config file setting)')
-    # run troll as a cmd line app
+    # FIXME: TODO
+    #parser.add_option('-d', '--debug-file', type='string', dest='debugFile',
+    #                  help='specify the debug log file (overwrites the DEUBG_MODE config file setting)')
     parser.add_option('-p', '--post-process-dir', type='string', dest='postProcessDir',
                       help='don\'t run the daemon: post-process the specified dir and exit')
     parser.add_option('-P', '--rar-password', type='string', dest='rarPassword',
@@ -212,9 +224,9 @@ def processArgs(options):
     
     else:
         info('\nStarting queue daemon')
-        #daemon = Hellanzb.Ziplick.Ziplick()
-        #daemon.run()
-        Hellanzb.ziplick = Hellanzb.Ziplick.Ziplick()
+        # FIXME: Ziplick class -> Hellanzb.Daemon module functions
+        # Hellanzb.Daemon.run()
+        Hellanzb.ziplick = Ziplick()
         Hellanzb.ziplick.run()
 
 def main():

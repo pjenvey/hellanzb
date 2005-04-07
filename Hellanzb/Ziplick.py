@@ -100,7 +100,8 @@ class Ziplick:
             # fully processed at the end of parseNZB, tell the factory to start
             # downloading it
             if not Hellanzb.queue.parseNZB(nzbfile):
-                Hellanzb.nsf.fetchNextNZBSegment()
+                for nsf in Hellanzb.nsfs:
+                    nsf.fetchNextNZBSegment()
 
     def handleNZBDone(self, nzbfilename):
         """ Hand-off from the downloader -- make a dir for the NZB with it's contents, then post
@@ -116,8 +117,9 @@ class Ziplick:
         # Make our new directory, minus the .nzb
         newdir = Hellanzb.DEST_DIR + archiveName(nzbfilename)
                     
+        
         # Grab the message id, we'll store it in the newdir for later use
-        msgId = re.sub(r'.*msgid_', r'', nzbfilename)
+        msgId = re.sub(r'.*msgid_', r'', os.path.basename(nzbfilename))
         msgId = re.sub(r'_.*', r'', msgId)
 
         # Move our nzb contents to their new location, clear out the temp dir

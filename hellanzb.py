@@ -11,7 +11,7 @@ Command line interface into Hellanzb library.
 
 """
 
-from Hellanzb.Core import *
+from Hellanzb.Core import main
 
 __id__ = '$Id$'
 

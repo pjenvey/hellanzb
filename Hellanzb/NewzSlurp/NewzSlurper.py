@@ -5,7 +5,7 @@ import os, time
 from threading import Condition
 from twisted.internet import reactor
 from twisted.internet.protocol import ReconnectingClientFactory
-from twisted.protocols.nntp import NNTPClient
+from twisted.protocols.nntp import NNTPClient, extractCode
 from twisted.protocols.policies import TimeoutMixin
 from twisted.python import log
 from Hellanzb.Core import shutdown
@@ -25,21 +25,22 @@ def initNewzSlurp():
     # Create the one and only download queue
     Hellanzb.queue = NZBQueue()
 
-    # Create the one and only twisted factory
-    Hellanzb.nsf = NewzSlurperFactory()
+    # The NewzSlurperFactories
+    Hellanzb.nsfs = []
+    Hellanzb.totalSpeed = 0
+
+    # this class handles updating statistics via the SCROLL level (the UI)
+    Hellanzb.scroller = NewzSlurpStatLog()
 
     # notified when an NZB file has finished donwloading
     Hellanzb.nzbfileDone = Condition()
-    
-    startNewzSlurp()
 
-def hellaShutdown():
-    info('Caught interrupt, exiting..')
-    sys.stdout.flush()
-    shutdown()
+    startNewzSlurp()
 
 def startNewzSlurp():
     """ gogogo """
+    defaultAntiIdle = 7 * 60
+    
     connectionCount = 0
     for serverId, serverInfo in Hellanzb.SERVERS.iteritems():
         hosts = serverInfo['hosts']
@@ -47,12 +48,21 @@ def startNewzSlurp():
         info('(' + serverId + ') Connecting... ', appendLF = False)
 
         for host in hosts:
+            if serverInfo.has_key('antiIdle') and serverInfo['antiIdle'] != None and \
+                    serverInfo['antiIdle'] != '':
+                antiIdle = serverInfo['antiIdle']
+            else:
+                antiIdle = defaultAntiIdle
+            nsf = NewzSlurperFactory(serverInfo['username'], serverInfo['password'], antiIdle)
+            Hellanzb.nsfs.append(nsf)
+
             host, port = host.split(':')
             for connection in range(connections):
-                # FIXME: Is this sane?
-                Hellanzb.nsf.username = serverInfo['username']
-                Hellanzb.nsf.password = serverInfo['password']
-                reactor.connectTCP(host, int(port), Hellanzb.nsf)
+                if serverInfo.has_key('bindTo') and serverInfo['bindTo'] != None and \
+                        serverInfo['bindTo'] != '':
+                    reactor.connectTCP(host, int(port), nsf, bindAddress = serverInfo['bindTo'])
+                else:
+                    reactor.connectTCP(host, int(port), nsf)
                 connectionCount += 1
 
     if connectionCount == 1:
@@ -61,18 +71,15 @@ def startNewzSlurp():
         info('opened ' + str(connectionCount) + ' connections.')
         
     reactor.suggestThreadPoolSize(1)
-
-    reactor.addSystemEventTrigger('before', 'shutdown', hellaShutdown)
     
     reactor.run()
 
 class NewzSlurperFactory(ReconnectingClientFactory):
 
-    def __init__(self):
-        # FIXME: we need to have different connections use different username/passwords. i
-        # don't think we want multiple factories
-        self.username = None
-        self.password = None
+    def __init__(self, username, password, antiIdleTimeout):
+        self.username = username
+        self.password = password
+        self.antiIdleTimeout = antiIdleTimeout
 
         # FIXME: don't think these are actually used
         #self.totalStartTime = None
@@ -93,24 +100,17 @@ class NewzSlurperFactory(ReconnectingClientFactory):
         from sets import Set
         self.activeClients = Set()
 
-        # this class handles updating statistics via the SCROLL level (the UI)
-        self.scroller = NewzSlurpStatLog(self)
-
-        # FIXME: maybe make this a defineServer var
-        #self.timeOut = 0
-        #if hasattr(Hellanzb, 'ANTI_IDLE_DELAY_SECONDS'):
-        #    self.timeOut = int(Hellanzb.ANTI_IDLE_DELAY_SECONDS)
-
     def buildProtocol(self, addr):
         p = NewzSlurper(self.username, self.password)
         p.factory = self
-        #p.timeOut = self.timeOut # FIXME:
+        p.timeOut = self.antiIdleTimeout
         
         # FIXME: Is it safe to maintain the clients in this list? no other twisted
         # examples do this. no twisted base factory classes seem to maintain this list
         self.clients.append(p)
-        
-        self.scroller.size += 1
+
+        # FIXME: registerScrollingClient
+        Hellanzb.scroller.size += 1
         return p
 
     def fetchNextNZBSegment(self):
@@ -157,12 +157,10 @@ class NewzSlurper(NNTPClient, AntiIdleMixin):
         # staistics/for the ui
         self.downloadStartTime = None
         self.readBytes = 0
-        #self.filename = None
 
         self.myState = None
 
         # How long we must be idle for in seconds until we send an anti idle request
-        #self.timeOut = 0
         self.timeOut = 7 * 60
 
     def authInfo(self):
@@ -210,6 +208,10 @@ class NewzSlurper(NNTPClient, AntiIdleMixin):
                     # there). needsDownload() could call this if it finds a match on the
                     # filesystem. easy way to maintain what/when is done all the time (i
                     # think)
+
+                    # FIXME: we should maybe notify the user we skipped a file that wasn't
+                    # the expected size. passing an argument to needsDownload could do the
+                    # work for us
                     
                     nextSegment.nzbFile.totalSkippedBytes += nextSegment.bytes
                     # TODO: decrement the skippedBytes from the Queue (queue should
@@ -230,10 +232,20 @@ class NewzSlurper(NNTPClient, AntiIdleMixin):
                     self.factory.sessionReadBytes = 0
                     self.factory.sessionSpeed = 0
                     self.factory.sessionStartTime = None
-                    self.factory.scroller.currentLog = None
+
+                totalActiveClients = 0
+                for nsf in Hellanzb.nsfs:
+                    totalActiveClients += len(nsf.activeClients)
+                if totalActiveClients == 0:
+                    Hellanzb.totalSpeed = 0
+                    Hellanzb.scroller.currentLog = None
+                    
+                # FIXME: 'Transferred %s in %.1fs at %.1fKB/s' % (ldb, dur, speed)
+                                    
                 return
 
         # Change group
+        #gotActiveGroup = False
         for i in xrange(len(self.currentSegment.nzbFile.groups)):
             group = str(self.currentSegment.nzbFile.groups[i])
 
@@ -243,7 +255,14 @@ class NewzSlurper(NNTPClient, AntiIdleMixin):
                 debug(self.getName() + ' getting GROUP: ' + group)
                 self.fetchGroup(group)
                 return
+            #else:
+            #    gotActiveGroup = True
 
+        #if not gotActiveGroup:
+            # FIXME: prefix with segment name
+        #    Hellanzb.scroller.prefixScroll('No valid group found!')
+        #    Hellanzb.scroller.updateLog(logNow = True)
+            
         debug(self.getName() + ' getting BODY: <' + self.currentSegment.messageId + '> ' + \
               self.currentSegment.getDestination())
         self.fetchBody(str(self.currentSegment.messageId))
@@ -256,7 +275,7 @@ class NewzSlurper(NNTPClient, AntiIdleMixin):
             self.currentSegment.nzbFile.downloadStartTime = start
         self.downloadStartTime = start
         
-        self.factory.scroller.segments.append(self.currentSegment)
+        Hellanzb.scroller.segments.append(self.currentSegment)
         NNTPClient.fetchBody(self, '<' + index + '>')
 
     def getName(self):
@@ -283,6 +302,12 @@ class NewzSlurper(NNTPClient, AntiIdleMixin):
               self.currentSegment.messageId + '> ' + self.currentSegment.getDestination() + \
               ' expected size: ' + str(self.currentSegment.bytes))
         
+        code = extractCode(err)
+        if code is not None and code in ('423', '430'):
+            # FIXME: show filename and segment number
+            Hellanzb.scroller.prefixScroll(self.currentSegment.showFilename + ' Article is missing!')
+            Hellanzb.scroller.updateLog(logNow = True)
+        
         self.processBodyAndContinue('')
 
     def processBodyAndContinue(self, articleData):
@@ -290,7 +315,7 @@ class NewzSlurper(NNTPClient, AntiIdleMixin):
         continue fetching the next queued segment """
         self.myState = None
 
-        self.factory.scroller.segments.remove(self.currentSegment)
+        Hellanzb.scroller.segments.remove(self.currentSegment)
 
         self.currentSegment.articleData = articleData
         self.deferSegmentDecode(self.currentSegment)
@@ -374,7 +399,7 @@ class NewzSlurper(NNTPClient, AntiIdleMixin):
 
         self.activeGroups = []
         self.factory.clients.remove(self)
-        self.factory.scroller.size -= 1
+        Hellanzb.scroller.size -= 1
 
     def lineReceived(self, line):
         # We got data -- reset the anti idle timeout
@@ -418,7 +443,7 @@ class NewzSlurper(NNTPClient, AntiIdleMixin):
             self.currentSegment.nzbFile.speed = self.currentSegment.nzbFile.totalReadBytes / elapsed / 1024.0
             self.factory.sessionSpeed = self.factory.sessionReadBytes / elapsedSession / 1024.0
             
-        self.factory.scroller.updateLog()
+        Hellanzb.scroller.updateLog()
 
     def antiIdleConnection(self):
         self.fetchHelp()
@@ -431,9 +456,11 @@ class NewzSlurper(NNTPClient, AntiIdleMixin):
 
 class ASCIICodes:
     def __init__(self):
+        # f/b_ = fore/background
+        # d/l  = dark/light
         self.map = {
             'ESCAPE': '\033',
-            'DBLUE': '34',
+            'F_DBLUE': '34',
             'RESET': '0',
             'KILL_LINE': 'K'
             }
@@ -448,8 +475,7 @@ class ASCIICodes:
 ACODE = ASCIICodes()
         
 class NewzSlurpStatLog:
-    def __init__(self, factory):
-        self.factory = factory
+    def __init__(self):
         self.size = 0
         self.segments = []
         self.currentLog = None
@@ -458,25 +484,25 @@ class NewzSlurpStatLog:
         self.delay = 70
         self.wait = 0
 
-        self.connectionPrefix = ACODE.DBLUE + '[' + ACODE.RESET + '%s' + ACODE.DBLUE + ']' + ACODE.RESET
+        self.connectionPrefix = ACODE.F_DBLUE + '[' + ACODE.RESET + '%s' + ACODE.F_DBLUE + ']' + ACODE.RESET
 
         self.prefixScrolls = []
 
     def prefixScroll(self, message):
         self.prefixScrolls.append(message)
         
-    def updateLog(self):
+    def updateLog(self, logNow = False):
         """ Log ticker """
         # Delay the actual log work -- so we don't over-log (too much CPU work in the
         # async loop)
-        self.wait += 1
-        if self.wait < self.delay:
-            return
-        else:
-            self.wait = 0
+        if not logNow:
+            self.wait += 1
+            if self.wait < self.delay:
+                return
+            else:
+                self.wait = 0
 
         currentLog = self.currentLog
-        logNow = False
         if self.currentLog != None:
             # Kill previous lines,
             self.currentLog = '\r\033[' + str(self.size) + 'A'
@@ -488,13 +514,13 @@ class NewzSlurpStatLog:
 
         # Log information we want to prefix the scroll (so it stays on the screen)
         # FIXME: these messages aren't going out to any log file
+        # FIXME: ? i dont have to cache these, i could just logNow
         if len(self.prefixScrolls) > 0:
             prefixScroll = ''
             for message in self.prefixScrolls:
-                debug('GOT SOME!')
                 prefixScroll += message + ACODE.KILL_LINE + '\n'
                 
-            self.currentLog =+ prefixScroll
+            self.currentLog += prefixScroll
 
         # HACKY:
         # sort by filename, then we'll hide KB/s/percentage for subsequent segments with
@@ -530,8 +556,14 @@ class NewzSlurpStatLog:
             self.currentLog += self.connectionPrefix % (fill)
             self.currentLog += '\n\r'
 
+        # FIXME: FIXME HA-HA-HACK FIXME
+        totalSpeed = 0
+        for nsf in Hellanzb.nsfs:
+            totalSpeed += nsf.sessionSpeed
+
         line = self.connectionPrefix + ' %.1fKB/s, %d MB queued ' + ACODE.KILL_LINE
-        self.currentLog += line % ('Total', self.factory.sessionSpeed,
+        #self.currentLog += line % ('Total', Hellanzb.totalSpeed,
+        self.currentLog += line % ('Total', totalSpeed,
                                    Hellanzb.queue.totalQueuedBytes / 1024 / 1024)
 
         if logNow or self.currentLog != currentLog:

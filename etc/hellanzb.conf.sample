@@ -7,7 +7,7 @@
 Hellanzb.LOG_FILE = '/var/tmp/hellanzb.log'
 
 
-# Define server connections. Servers can have multiple hosts, Newsleecher will
+# Define server connections. Servers can have multiple hosts, hellanzb will
 # persist the number of connections to each specified server. There may be
 # mulitple defineServer lines
 defineServer(id = 'changeme',
@@ -15,8 +15,8 @@ defineServer(id = 'changeme',
              username = 'changeme',
              password = 'fuckbush',
              connections = 4,
-             priority = 1,
-             bindto = '')
+             bindTo = '',
+             antiIdle = 7 * 60) # 7 minutes
 
 
 # Important locations

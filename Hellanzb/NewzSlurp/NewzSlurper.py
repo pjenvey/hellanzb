@@ -371,7 +371,7 @@ class NewzSlurper(NNTPClient, AntiIdleMixin):
         
     def authInfoFailed(self, err):
         "Override for notification when authInfoFailed() action fails"
-        error('AUTHINFO failed: ' + str(err))
+        debug('AUTHINFO failed: ' + str(err))
 
     def connectionMade(self):
         NNTPClient.connectionMade(self)

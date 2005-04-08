@@ -36,7 +36,7 @@ class PostProcessor(Thread):
         
         Thread.start(self)
 
-    def __init__(self, dirName, background = True):
+    def __init__(self, dirName, background = True, rarPassword = None):
         """ Ensure sanity of this instance before starting """
         # abort if we lack required binaries
         assertIsExe('par2')
@@ -48,6 +48,8 @@ class PostProcessor(Thread):
         
         self.decompressionThreadPool = []
         self.decompressorCondition = Condition()
+
+        self.rarPassword = rarPassword
 
         Thread.__init__(self)
 
@@ -238,10 +240,11 @@ class PostProcessor(Thread):
         
         if dirHasRars(self.dirName):
             # grab the rar password if one exists
-            rarPassword = getRarPassword(self.msgId)
+            if self.rarPassword == None:
+                self.rarPassword = getRarPassword(self.msgId)
             
             checkShutdown()
-            processRars(self.dirName, rarPassword)
+            processRars(self.dirName, self.rarPassword)
         
         if dirHasMusic(self.dirName):
             checkShutdown()

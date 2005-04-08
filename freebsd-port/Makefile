@@ -62,12 +62,12 @@ PLIST_FILES=	bin/hellanzb.py \
 PLIST_DIRS=	share/doc/hellanzb \
 		%%PYTHON_SITELIBDIR%%/Hellanzb
 
-RUN_DEPENDS=	nzbget:${POSTDIR}/news/nzbget \
-		par2:${POSTDIR}/archivers/par2cmdline \
+RUN_DEPENDS=	par2:${POSTDIR}/archivers/par2cmdline \
 		rar:${POSTDIR}/archivers/rar \
 		flac:${POSTDIR}/audio/flac \
 		mac:${POSTDIR}/audio/mac \
-		shorten:${POSTDIR}/audio/shorten
+		shorten:${POSTDIR}/audio/shorten \
+		${PYTHON_SITELIBDIR}/twisted/__init__.py:${PORTSDIR}/devel/py-twisted
 
 MAINTAINER=	pjenvey@groovie.org
 COMMENT?=	Hands free usenet file retrieval via nzb files

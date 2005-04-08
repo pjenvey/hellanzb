@@ -2,16 +2,22 @@
 Core - All of our main()ish functions. Initialization/shutdown/etc
 
 """
-import optparse, os, signal, sys, threading, Hellanzb, Hellanzb.PostProcessor, Hellanzb.Ziplick
+# Install our custom twisted reactor immediately
+from Hellanzb.HellaReactor import HellaReactor
+HellaReactor.install()
+
+import optparse, os, signal, sys, threading, Hellanzb, Hellanzb.PostProcessor
 from distutils import spawn
 from threading import Lock
+from twisted.internet import reactor
 from Hellanzb.Logging import *
 from Hellanzb.PostProcessorUtil import defineMusicType
 from Hellanzb.Util import *
+from Hellanzb.Ziplick import Ziplick
 
 __id__ = '$Id$'
 
-def findAndLoadConfig(optionalConfigFile):
+def findAndLoadConfig(optionalConfigFile = None):
     """ Load the configuration file """
     if optionalConfigFile != None:
         if loadConfig(optionalConfigFile):
@@ -63,8 +69,7 @@ def loadConfig(fileName):
 
 def signalHandler(signum, frame):
     """ The main and only signal handler. Handle cleanup/managing child processes before
-exiting """
-
+    exiting """
     # CTRL-C
     if signum == signal.SIGINT:
         # lazily notify everyone they should stop immediately
@@ -124,7 +129,7 @@ exiting """
 
             shutdownNow(Hellanzb.SHUTDOWN_CODE)
 
-def init(options):
+def init(options = {}):
     """ initialize the app """
     # Whether or not the app is in the process of shutting down
     Hellanzb.shutdown = False
@@ -146,27 +151,32 @@ def init(options):
             Hellanzb.UNRAR_CMD = exe
     assertIsExe(Hellanzb.UNRAR_CMD)
 
-    # FIXME: cruft
-    Hellanzb.Newsleecher.INCOMPLETE_THRESHOLD = 90
-
-    # FIXME
-    Hellanzb.NEWSLEECHER_IS_BUGGY = False
-
     # One and only signal handler
     signal.signal(signal.SIGINT, signalHandler)
 
-    findAndLoadConfig(options.configFile)
+    if hasattr(options, 'configFile'):
+        findAndLoadConfig(options.configFile)
+    else:
+        findAndLoadConfig()
 
-    Hellanzb.Logging.initLogFile(options.logFile)
+    if hasattr(options, 'logFile'):
+        Hellanzb.Logging.initLogFile(options.logFile)
+    else:
+        Hellanzb.Logging.initLogFile()
 
 def shutdown():
     """ turn the knob that tells all parts of the program we're shutting down """
+    # that knob, that threads will constantly check
     Hellanzb.shutdown = True
 
+    # stop the twisted reactor
+    reactor.callLater(0, reactor.stop)
+
     # wakeup the doofus scroll interrupter thread (to die) if it's waiting
-    ScrollInterrupter.pendingMonitor.acquire()
-    ScrollInterrupter.pendingMonitor.notify()
-    ScrollInterrupter.pendingMonitor.release()
+    if hasattr(ScrollInterrupter, 'pendingMonitor'):
+        ScrollInterrupter.pendingMonitor.acquire()
+        ScrollInterrupter.pendingMonitor.notify()
+        ScrollInterrupter.pendingMonitor.release()
     
 def shutdownNow(returnCode = 0):
     """ shutdown the program ASAP """
@@ -181,9 +191,13 @@ def parseArgs():
                       help='specify the configuration file')
     parser.add_option('-l', '--log-file', type='string', dest='logFile',
                       help='specify the log file (overwrites the config file setting)')
-    # run troll as a cmd line app
+    # FIXME: TODO
+    #parser.add_option('-d', '--debug-file', type='string', dest='debugFile',
+    #                  help='specify the debug log file (overwrites the DEUBG_MODE config file setting)')
     parser.add_option('-p', '--post-process-dir', type='string', dest='postProcessDir',
-                      help='don\'t run the daemon: post-process the specified dir and exit')
+                      help='don\'t run the daemon: post-process the specified nzb archive dir and exit')
+    parser.add_option('-P', '--rar-password', type='string', dest='rarPassword',
+                      help='when used with the -p option, specifies the nzb archive\'s rar password')
     return parser.parse_args()
 
 def processArgs(options):
@@ -196,8 +210,13 @@ def processArgs(options):
         if not os.access(options.postProcessDir, os.R_OK):
             error('Unable to process, no read access to directory: ' + options.postProcessDir)
             shutdownNow(1)
+
+        rarPassword = None
+        if options.rarPassword:
+            rarPassword = options.rarPassword
             
-        troll = Hellanzb.PostProcessor.PostProcessor(options.postProcessDir, background = False)
+        troll = Hellanzb.PostProcessor.PostProcessor(options.postProcessDir, background = False,
+                                                     rarPassword = rarPassword)
         info('\nStarting post processor')
         troll.start()
         troll.join()
@@ -205,8 +224,10 @@ def processArgs(options):
     
     else:
         info('\nStarting queue daemon')
-        daemon = Hellanzb.Ziplick.Ziplick()
-        daemon.run()
+        # FIXME: Ziplick class -> Hellanzb.Daemon module functions
+        # Hellanzb.Daemon.run()
+        Hellanzb.ziplick = Ziplick()
+        Hellanzb.ziplick.run()
 
 def main():
     """ Program main loop """
@@ -226,4 +247,3 @@ def main():
         error('An unexpected problem occurred, exiting', e)
         shutdown()
         raise
-

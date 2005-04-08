@@ -4,7 +4,11 @@ Util - hellanzb misc functions
 """
 import os, popen2, pty, re, string, threading, time, Hellanzb
 from distutils import spawn
+from heapq import heappop, heappush
+from traceback import print_stack
 from Logging import *
+from Queue import Queue
+from StringIO import StringIO
 
 __id__ = '$Id$'
 
@@ -126,7 +130,37 @@ that created the object, for later use """
         os.close(c2pwrite)
         self.fromchild = os.fdopen(c2pread, 'r', bufsize)
         #popen2._active.append(self)
+
+# Future optimization: Faster way to init this from xml files would be to set the entire
+# list backing the queue in one operation (instead of putting 20k times)
+# can heapq.heapify(list) help?
+class PriorityQueue(Queue):
+    """ Thread safe priority queue. This is the easiest way to do it (Queue.Queue providing the thread safety
+    and heapq providing priority). We may be able to get better performance by using something other than
+    heapq, but hellanzb use of pqueues is limited -- so performance is not so important. Notes on performance:
     
+    o An O(1) priority queue is always preferable, but I'm not sure that's even feasible w/ this collection 
+      type and/or python.
+    o From various google'd python hacker benchmarks it looks like python lists backed pqueues & bisect give
+      you pretty good performance, and you probably won't benefit from heap based pqueues unless you're
+      dealing with > 10k items. And dicts don't actually seem to help
+    """
+    def __init__(self):
+        """ Python 2.4 replaces the list backed queue with a collections.deque, so we'll just
+        emulate 2.3 behavior everywhere for now """
+        Queue.__init__(self)
+        self.queue = []
+        
+    def _put(self, item):
+        """ Assume Queue is backed by a list. Add the new item to the list, taking into account
+            priority via heapq """
+        heappush(self.queue, item)
+
+    def _get(self):
+        """ Assume Queue is backed by a list. Pop off the first item, taking into account priority
+            via heapq """
+        return heappop(self.queue)
+
 
 def getLocalClassName(klass):
     """ Get the local name (no package/module information) of the specified class instance """
@@ -218,13 +252,26 @@ def defineServer(**args):
     for var in (args):
         exec 'Hellanzb.SERVERS[id][\'' + var + '\'] = args[\'' + var + '\']'
 
-def truncate(str, length = 60):
+def truncate(str, length = 60, reverse = False):
     """ Truncate a string to certain length. Appends '...' to the string if truncated -- and
 those three periods are included in the specified length"""
     if str == None:
         return str
     
     if len(str) > int(length):
-        return str[0:int(length) - 3] + '...'
+        if reverse:
+            return '...' + str[-(int(length) - 3):]
+        else:
+            return str[0:int(length) - 3] + '...'
     
     return str
+
+def rtruncate(*args, **kwargs):
+    return truncate(reverse = True, *args, **kwargs)
+
+def getStack():
+    """ Return the current execution stack as a string """
+    s = StringIO()
+    print_stack(file = s)
+    s = s.getvalue()
+    return s

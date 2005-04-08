@@ -11,8 +11,8 @@ __id__ = '$Id$'
 class HellanzbTestCase(unittest.TestCase):
     def setUp(self):
         """ Initialize hellanzb core """
-        Hellanzb.Core.init({})
+        #Hellanzb.Core.init()
 
     def tearDown(self):
         """ Take it down """
-        Hellanzb.Core.shutdown()
+        #Hellanzb.Core.shutdown()

@@ -395,7 +395,7 @@ class NewzSlurper(NNTPClient, AntiIdleMixin):
 
         # Continue being quiet about things if we're shutting down
         if not Hellanzb.shutdown:
-            error(self.getName() + ' lost connection: ' + str(reason))
+            debug(self.getName() + ' lost connection: ' + str(reason))
 
         self.activeGroups = []
         self.factory.clients.remove(self)

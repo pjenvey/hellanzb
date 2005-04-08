@@ -70,6 +70,8 @@ def startNewzSlurp():
     else:
         info('opened ' + str(connectionCount) + ' connections.')
         
+    Hellanzb.scroller.maxCount = connectionCount
+        
     reactor.suggestThreadPoolSize(1)
     
     reactor.run()
@@ -99,6 +101,12 @@ class NewzSlurperFactory(ReconnectingClientFactory):
 
         from sets import Set
         self.activeClients = Set()
+
+        # FIXME: factories need to know when we're idle (done downloading). then it can
+        # turn the auto reconnect maxDelay up back to the default value (3600)
+        #self.maxDelay = 5
+        # turning this off for now -- but it might be useful for when usenet servers start
+        # shitting themselves
 
     def buildProtocol(self, addr):
         p = NewzSlurper(self.username, self.password)
@@ -162,6 +170,10 @@ class NewzSlurper(NNTPClient, AntiIdleMixin):
 
         # How long we must be idle for in seconds until we send an anti idle request
         self.timeOut = 7 * 60
+
+        # I'm not sure why this needs to be raised from the default value -- but we can
+        # definitely get longer lines than LineReceiver expects
+        self.MAX_LENGTH = 65536
 
     def authInfo(self):
         """ """
@@ -276,6 +288,7 @@ class NewzSlurper(NNTPClient, AntiIdleMixin):
         self.downloadStartTime = start
         
         Hellanzb.scroller.segments.append(self.currentSegment)
+
         NNTPClient.fetchBody(self, '<' + index + '>')
 
     def getName(self):
@@ -393,6 +406,13 @@ class NewzSlurper(NNTPClient, AntiIdleMixin):
 
         NNTPClient.connectionLost(self) # calls self.factory.clientConnectionLost(self, reason)
 
+        if self.currentSegment != None:
+            Hellanzb.scroller.segments.remove(self.currentSegment)
+            # twisted doesn't reconnect our same client connections, we have to pitch
+            # stuff back into the queue that hasn't finished before the connectionLost
+            # occurred
+            Hellanzb.queue.put((Hellanzb.queue.NZB_CONTENT_P, self.currentSegment))
+        
         # Continue being quiet about things if we're shutting down
         if not Hellanzb.shutdown:
             debug(self.getName() + ' lost connection: ' + str(reason))
@@ -418,6 +438,9 @@ class NewzSlurper(NNTPClient, AntiIdleMixin):
             return
             
         NNTPClient.lineReceived(self, line)
+
+    def lineLengthExceeded(self, line):
+        debug('EXCEEDED line length, len: ' + str(len(line)) + ' line: ' + line)
 
     def updateByteCount(self, lineLen):
         self.readBytes += lineLen
@@ -480,6 +503,8 @@ class NewzSlurpStatLog:
         self.segments = []
         self.currentLog = None
 
+        self.maxCount = 0 # FIXME: var name
+
         # Only bother doing the whole UI update after running updateStats this many times
         self.delay = 70
         self.wait = 0
@@ -505,7 +530,8 @@ class NewzSlurpStatLog:
         currentLog = self.currentLog
         if self.currentLog != None:
             # Kill previous lines,
-            self.currentLog = '\r\033[' + str(self.size) + 'A'
+            #self.currentLog = '\r\033[' + str(self.size) + 'A'
+            self.currentLog = '\r\033[' + str(self.maxCount) + 'A'
         else:
             # unless we have just began logging. and in that case, explicitly log the
             # first message
@@ -552,8 +578,8 @@ class NewzSlurpStatLog:
 
             lastSegment = segment
                 
-        for fill in range(i + 1, self.size + 1):
-            self.currentLog += self.connectionPrefix % (fill)
+        for fill in range(i + 1, self.maxCount + 1):
+            self.currentLog += (self.connectionPrefix + ACODE.KILL_LINE) % (fill)
             self.currentLog += '\n\r'
 
         # FIXME: FIXME HA-HA-HACK FIXME

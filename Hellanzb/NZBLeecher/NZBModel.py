@@ -8,7 +8,7 @@ from threading import Lock, RLock
 from xml.sax import make_parser
 from xml.sax.handler import ContentHandler, feature_external_ges, feature_namespaces
 from Hellanzb.Logging import *
-from Hellanzb.NewzSlurp.ArticleDecoder import parseArticleData, setRealFileName, tryFinishNZB
+from Hellanzb.NZBLeecher.ArticleDecoder import parseArticleData, setRealFileName, tryFinishNZB
 from Hellanzb.Util import archiveName, getFileExtension, PriorityQueue
 
 __id__ = '$Id$'

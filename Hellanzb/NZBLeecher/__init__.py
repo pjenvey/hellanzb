@@ -17,13 +17,13 @@ from twisted.protocols.policies import TimeoutMixin
 from twisted.python import log
 from Hellanzb.Core import shutdown
 from Hellanzb.Logging import *
-from Hellanzb.NewzSlurp.ArticleDecoder import decode
-from Hellanzb.NewzSlurp.NZBModel import NZBQueue
+from Hellanzb.NZBLeecher.ArticleDecoder import decode
+from Hellanzb.NZBLeecher.NZBModel import NZBQueue
 from Queue import Empty
 
-__id__ = '$Id$'
+__id__ = '$Id: NZBLeecher.py 199 2005-04-09 01:36:46Z pjenvey $'
 
-def initNewzSlurp():
+def initNZBLeecher():
     """ Init """
     # Direct the twisted output to the debug level
     fileStream = LogOutputStream(debug)
@@ -32,19 +32,19 @@ def initNewzSlurp():
     # Create the one and only download queue
     Hellanzb.queue = NZBQueue()
 
-    # The NewzSlurperFactories
+    # The NZBLeecherFactories
     Hellanzb.nsfs = []
     Hellanzb.totalSpeed = 0
 
     # this class handles updating statistics via the SCROLL level (the UI)
-    Hellanzb.scroller = NewzSlurpStatLog()
+    Hellanzb.scroller = NZBLeecherStatLog()
 
     # notified when an NZB file has finished donwloading
     Hellanzb.nzbfileDone = Condition()
 
-    startNewzSlurp()
+    startNZBLeecher()
 
-def startNewzSlurp():
+def startNZBLeecher():
     """ gogogo """
     defaultAntiIdle = 7 * 60
     
@@ -60,7 +60,7 @@ def startNewzSlurp():
                 antiIdle = serverInfo['antiIdle']
             else:
                 antiIdle = defaultAntiIdle
-            nsf = NewzSlurperFactory(serverInfo['username'], serverInfo['password'], antiIdle)
+            nsf = NZBLeecherFactory(serverInfo['username'], serverInfo['password'], antiIdle)
             Hellanzb.nsfs.append(nsf)
 
             host, port = host.split(':')
@@ -83,7 +83,7 @@ def startNewzSlurp():
     
     reactor.run()
 
-class NewzSlurperFactory(ReconnectingClientFactory):
+class NZBLeecherFactory(ReconnectingClientFactory):
 
     def __init__(self, username, password, antiIdleTimeout):
         self.username = username
@@ -116,7 +116,7 @@ class NewzSlurperFactory(ReconnectingClientFactory):
         # shitting themselves
 
     def buildProtocol(self, addr):
-        p = NewzSlurper(self.username, self.password)
+        p = NZBLeecher(self.username, self.password)
         p.factory = self
         p.timeOut = self.antiIdleTimeout
         
@@ -150,7 +150,7 @@ class AntiIdleMixin(TimeoutMixin):
         # still connected, we need to manually reset the timeout
         self.setTimeout(self.timeOut)
 
-class NewzSlurper(NNTPClient, AntiIdleMixin):
+class NZBLeecher(NNTPClient, AntiIdleMixin):
     """ Extend the Twisted NNTPClient to download NZB segments from our queue in a
     loop """
 
@@ -299,12 +299,12 @@ class NewzSlurper(NNTPClient, AntiIdleMixin):
         NNTPClient.fetchBody(self, '<' + index + '>')
 
     def getName(self):
-        """ Return the name of this NewzSlurper instance """
+        """ Return the name of this NZBLeecher instance """
         return self.__class__.__name__ + '[' + str(self.id) + ']'
 
     def getNextId(self):
-        id = NewzSlurper.nextId
-        NewzSlurper.nextId += 1
+        id = NZBLeecher.nextId
+        NZBLeecher.nextId += 1
         return id
 
     def gotBody(self, body):
@@ -504,8 +504,8 @@ class ASCIICodes:
         return val
 ACODE = ASCIICodes()
         
-class NewzSlurpStatLog:
-    """ A basic logger for NewzSlurp. It's uh, not what I really want. I'd rather put more
+class NZBLeecherStatLog:
+    """ A basic logger for NZBLeecher. It's uh, not what I really want. I'd rather put more
     time into writing a curses interface. Code submissions greatly appreciated. -pjenvey
     """
     def __init__(self):
@@ -636,6 +636,6 @@ class NewzSlurpStatLog:
  * OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF
  * SUCH DAMAGE.
  *
- * $Id$
+ * $Id: NZBLeecher.py 199 2005-04-09 01:36:46Z pjenvey $
  */
 """

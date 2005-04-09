@@ -32,8 +32,8 @@ def initDaemon():
     reactor.callLater(0, growlNotify, 'Queue', 'hellanzb', 'Now monitoring queue..', False)
     reactor.callLater(0, scanQueueDir)
 
-    from Hellanzb.NewzSlurp.NewzSlurper import initNewzSlurp
-    initNewzSlurp()
+    from Hellanzb.NZBLeecher import initNZBLeecher
+    initNZBLeecher()
     
 def scanQueueDir():
     """ Find new/resume old NZB download sessions """

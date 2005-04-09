@@ -25,7 +25,7 @@ def runSetup():
         url = 'http://www.hellanzb.com',
         license = 'BSD',
 
-        packages = [ 'Hellanzb', 'Hellanzb.Newsleecher', 'Hellanzb.NewzSlurp' ],
+        packages = [ 'Hellanzb', 'Hellanzb.NZBLeecher' ],
         scripts = [ 'hellanzb.py', 'hellagrowler.py' ],
         data_files = [ ( 'etc', [ 'etc/hellanzb.conf.sample' ] ),
                        ( 'share/doc/hellanzb', [ 'README', 'LICENSE' ] ) ],

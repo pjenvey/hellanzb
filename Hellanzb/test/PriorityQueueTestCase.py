@@ -3,7 +3,7 @@ from time import time
 from Hellanzb.test import HellanzbTestCase
 from Hellanzb.Logging import debug, info
 from Hellanzb.Util import PriorityQueue
-from Hellanzb.NewzSlurp.NZBModel import NZBQueue
+from Hellanzb.NZBLeecher.NZBModel import NZBQueue
 
 class PriorityQueueTestCase(HellanzbTestCase):
 
@@ -87,7 +87,7 @@ class ReactorThread(threading.Thread):
         from twisted.python import log
         import sys
         # FIXME: fix this namespace
-        from Hellanzb.NewzSlurp.NewzSlurper import NewzSlurperFactory
+        from Hellanzb.NZBLeecher import NZBLeecherFactory
 
         #from twisted.internet import cReactor
         #cReactor.install()
@@ -96,9 +96,9 @@ class ReactorThread(threading.Thread):
         log.startLogging(sys.stdout)
     
         # create factory protocol and application
-        nsf = NewzSlurperFactory()
+        nsf = NZBLeecherFactory()
     
-        #from Hellanzb.NewzSlurp.NZBModel import NZBQueue
+        #from Hellanzb.NZBLeecher.NZBModel import NZBQueue
         #Hellanzb.queue = NZBQueue(sys.argv[1])
     
         # connect factory to this host and port
@@ -155,7 +155,7 @@ if __name__ == '__main__2':
 
 
 notes = """
-hellanzb NewzSlurp only downloading 4 connections (no decoding)
+hellanzb NZBLeecher only downloading 4 connections (no decoding)
 72385 pjenvey   28   0 29344K 27580K CPU0   1   0:05 11.66%  8.79% python
 72385 pjenvey    2   0 29276K 27684K poll   0   0:08 10.38%  9.81% python
 

@@ -1,4 +1,5 @@
 """
+
 Logging - hellanzb's logging facility. Ties in with python's logging system, with a bunch
 of added locks to support interrupting nzbget scroll with other log messages. This is
 pretty elaborate for a basic app like hellanzb, but I felt like playing with threads and

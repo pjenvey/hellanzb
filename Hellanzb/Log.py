@@ -1,4 +1,5 @@
 """
+
 Log - The basic log API functions, only -- to discourage polluting namespaces, e.g.:
 
       Bad: 

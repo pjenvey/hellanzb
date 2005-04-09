@@ -1,4 +1,5 @@
 """
+
 Core - All of our main()ish functions. Initialization/shutdown/etc
 
 (c) Copyright 2005 Philip Jenvey, Ben Bangert

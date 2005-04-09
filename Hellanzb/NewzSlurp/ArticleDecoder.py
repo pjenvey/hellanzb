@@ -5,6 +5,7 @@ ArticleDecoder - Decode and assemble files from usenet articles (nzbSegments)
 import binascii, os, re, shutil, string
 from twisted.internet import reactor
 from zlib import crc32
+from Hellanzb.Daemon import handleNZBDone
 from Hellanzb.Logging import *
 
 __id__ = '$Id$'
@@ -160,6 +161,8 @@ def decodeSegmentToFile(segment, encodingType = YENCODE):
             reactor.callFromThread(Hellanzb.scroller.prefixScroll, segment.nzbFile.showFilename + \
                                    ' segment: ' + str(segment.number) + \
                                    ' does not have a valid CRC/yend line!')
+            # FIXME: I've seen CRC errors at the end of archive cause logNow = True to
+            # print I think after handleNZBDone appends a newline (looks like crap)
             reactor.callFromThread(Hellanzb.scroller.updateLog, True)
         else:
             decoded = ''.join(decodedLines)
@@ -330,7 +333,7 @@ def tryFinishNZB(nzb):
 
     if done:
         debug('tryFinishNZB: finished donwloading NZB: ' + nzb.archiveName)
-        reactor.callFromThread(Hellanzb.ziplick.handleNZBDone, nzb.nzbFileName)
+        reactor.callFromThread(handleNZBDone, nzb.nzbFileName)
         
     finish = time.time() - start
     debug('tryFinishNZB (' + str(done) + ') took: ' + str(finish) + ' seconds')

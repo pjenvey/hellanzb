@@ -330,6 +330,8 @@ class NZBQueue(PriorityQueue):
         return tryFinishNZB(nzb)
         
 class NZBParser(ContentHandler):
+    """ Parse an NZB 1.0 file into an NZBQueue
+    http://www.newzbin.com/DTD/nzb/nzb-1.0.dtd """
     def __init__(self, queue, nzb):
         # downloading queue to add NZB segments to
         self.queue = queue

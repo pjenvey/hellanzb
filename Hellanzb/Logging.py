@@ -1,13 +1,13 @@
 """
-
 Logging - hellanzb's logging facility. Ties in with python's logging system, with a bunch
 of added locks to support interrupting nzbget scroll with other log messages. This is
 pretty elaborate for a basic app like hellanzb, but I felt like playing with threads and
 looking into python's logging system. Hoho.
 
-@author pjenvey
+(c) Copyright 2005 Philip Jenvey
+[See end of file]
 """
-import logging, os.path, sys, time, types, xmlrpclib
+import logging, os.path, sys, time, termios, types, xmlrpclib
 from logging import StreamHandler
 from logging.handlers import RotatingFileHandler
 from threading import Condition, Lock, Thread
@@ -348,14 +348,40 @@ def growlNotify(type, title, description, sticky):
     s.close()
 
     return
+
+def stdinEchoOff():
+    # Stolen from python's getpass
+    try:
+        fd = sys.stdin.fileno()
+    except:
+        pass
+
+    Hellanzb.oldStdin = termios.tcgetattr(fd)     # a copy to save
+    new = Hellanzb.oldStdin[:]
+
+    new[3] = new[3] & ~termios.ECHO # 3 == 'lflags'
+    try:
+        termios.tcsetattr(fd, termios.TCSADRAIN, new)
+    except:
+        pass
+    
+def stdinEchoOn():
+    if hasattr(Hellanzb, 'oldStdin'):
+        try:
+            fd = sys.stdin.fileno()
+            termios.tcsetattr(fd, termios.TCSADRAIN, Hellanzb.oldStdin)
+        except:
+            pass
     
 def scrollBegin():
     """ Let the logger know we're beginning to scroll """
     ScrollableHandler.scrollFlag = True
     ScrollableHandler.scrollLock = Lock()
+    stdinEchoOff()
 
 def scrollEnd():
     """ Let the logger know we're done scrolling """
+    stdinEchoOn()
     ScrollableHandler.scrollFlag = False
     del ScrollableHandler.scrollLock
 
@@ -454,3 +480,36 @@ def initLogFile(logFile = None):
         debugFileHdlr.setLevel(logging.DEBUG)
         debugFileHdlr.addFilter(DebugFileFilter())
         Hellanzb.logger.addHandler(debugFileHdlr)
+
+"""
+/*
+ * Copyright (c) 2005 Philip Jenvey <pjenvey@groovie.org>
+ * All rights reserved.
+ *
+ * Redistribution and use in source and binary forms, with or without
+ * modification, are permitted provided that the following conditions
+ * are met:
+ * 1. Redistributions of source code must retain the above copyright
+ *    notice, this list of conditions and the following disclaimer.
+ * 2. Redistributions in binary form must reproduce the above copyright
+ *    notice, this list of conditions and the following disclaimer in the
+ *    documentation and/or other materials provided with the distribution.
+ * 3. The name of the author or contributors may not be used to endorse or
+ *    promote products derived from this software without specific prior
+ *    written permission.
+ *
+ * THIS SOFTWARE IS PROVIDED BY THE AUTHOR AND CONTRIBUTORS ``AS IS'' AND
+ * ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE
+ * IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE
+ * ARE DISCLAIMED.  IN NO EVENT SHALL THE AUTHOR OR CONTRIBUTORS BE LIABLE
+ * FOR ANY DIRECT, INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY, OR CONSEQUENTIAL
+ * DAMAGES (INCLUDING, BUT NOT LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS
+ * OR SERVICES; LOSS OF USE, DATA, OR PROFITS; OR BUSINESS INTERRUPTION)
+ * HOWEVER CAUSED AND ON ANY THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT
+ * LIABILITY, OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY
+ * OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF
+ * SUCH DAMAGE.
+ *
+ * $Id$
+ */
+"""

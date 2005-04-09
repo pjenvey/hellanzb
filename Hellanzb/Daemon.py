@@ -8,8 +8,8 @@ the twisted reactor loop, except for initialization functions
 import Hellanzb, os, re, PostProcessor
 from shutil import move
 from twisted.internet import reactor
-from Logging import *
-from Util import *
+from Hellanzb.Log import *
+from Hellanzb.Util import *
 
 __id__ = '$Id$'
 

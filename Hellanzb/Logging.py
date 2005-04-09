@@ -7,14 +7,11 @@ looking into python's logging system. Hoho.
 (c) Copyright 2005 Philip Jenvey
 [See end of file]
 """
-import logging, os.path, sys, time, termios, types, xmlrpclib
+import logging, os, sys, termios, types
 from logging import StreamHandler
 from logging.handlers import RotatingFileHandler
 from threading import Condition, Lock, Thread
-from traceback import print_exc
-from Growl import *
-from StringIO import StringIO
-from Util import *
+from Hellanzb.Util import *
 
 __id__ = '$Id$'
 
@@ -280,75 +277,6 @@ class LogOutputStream:
     def truncate(self, size=None): raise NotImplementedError()
     def writelines(self, list): raise NotImplementedError()
 
-def warn(message):
-    """ Log a message at the warning level """
-    Hellanzb.logger.warn(message + '\n')
-
-def error(message, exception = None):
-    """ Log a message at the error level. Optionally log exception information """
-    message = message
-    
-    if exception != None:
-        if isinstance(exception, Exception):
-            message += ': ' + getLocalClassName(exception.__class__) + ': ' + str(exception)
-            
-            if not isinstance(exception, FatalError):
-                # Unknown/unexpected exception -- also show the stack trace
-                stackTrace = StringIO()
-                print_exc(file=stackTrace)
-                stackTrace = stackTrace.getvalue()
-                message += '\n' + stackTrace
-        
-    Hellanzb.logger.error(message + '\n')
-
-def info(message, appendLF = True):
-    """ Log a message at the info level """
-    if appendLF:
-        message += '\n'
-    Hellanzb.logger.info(message)
-
-def debug(message):
-    """ Log a message at the debug level """
-    Hellanzb.logger.debug(message + '\n')
-
-def scroll(message):
-    """ Log a message at the scroll level """
-    Hellanzb.logger.log(ScrollableHandler.SCROLL, message)
-    # Somehow the scroll locks end up getting blocked unless their consumers pause as
-    # short as around 1/100th of a milli every loop. You might notice this delay when
-    # nzbget scrolling looks like a slightly different FPS from within hellanzb than
-    # running it directly
-    time.sleep(.00001)
-
-def growlNotify(type, title, description, sticky):
-    """ send a message to the growl daemon via an xmlrpc proxy """
-    # NOTE: growl doesn't tie in with logging yet because all it's sublevels/args makes it
-    # not play well with the rest of the logging.py
-    
-    # FIXME: should validate the server information on startup, and catch connection
-    # refused errors here
-    if not Hellanzb.GROWL_NOTIFY:
-        return
-
-    addr = (Hellanzb.GROWL_SERVER, GROWL_UDP_PORT)
-    s = socket(AF_INET,SOCK_DGRAM)
-
-    p = GrowlRegistrationPacket(application="hellanzb", password=Hellanzb.GROWL_PASSWORD)
-    p.addNotification("Archive Error", enabled=True)
-    p.addNotification("Archive Success", enabled=True)
-    p.addNotification("Error", enabled=True)
-    p.addNotification("Queue", enabled=True)
-    s.sendto(p.payload(), addr)
-    
-    p = GrowlNotificationPacket(application="hellanzb",
-                                notification=type, title=title,
-                                description=description, priority=1,
-                                sticky=sticky)
-    s.sendto(p.payload(),addr)
-    s.close()
-
-    return
-
 def stdinEchoOff():
     # Stolen from python's getpass
     try:
@@ -372,18 +300,6 @@ def stdinEchoOn():
             termios.tcsetattr(fd, termios.TCSADRAIN, Hellanzb.oldStdin)
         except:
             pass
-    
-def scrollBegin():
-    """ Let the logger know we're beginning to scroll """
-    ScrollableHandler.scrollFlag = True
-    ScrollableHandler.scrollLock = Lock()
-    stdinEchoOff()
-
-def scrollEnd():
-    """ Let the logger know we're done scrolling """
-    stdinEchoOn()
-    ScrollableHandler.scrollFlag = False
-    del ScrollableHandler.scrollLock
 
 def isDebugEnabled():
     if hasattr(Hellanzb, 'DEBUG_MODE') and Hellanzb.DEBUG_MODE != None and Hellanzb.DEBUG_MODE != False:

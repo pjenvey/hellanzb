@@ -6,9 +6,9 @@ nzbget
 """
 import Hellanzb, os, re, time
 from threading import Thread, Condition, Lock
-from Logging import *
-from PostProcessorUtil import *
-from Util import *
+from Hellanzb.Log import *
+from Hellanzb.PostProcessorUtil import *
+from Hellanzb.Util import *
 
 __id__ = '$Id$'
 

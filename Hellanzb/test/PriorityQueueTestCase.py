@@ -1,7 +1,7 @@
 import unittest, Hellanzb
 from time import time
 from Hellanzb.test import HellanzbTestCase
-from Hellanzb.Logging import debug, info
+from Hellanzb.Log import *
 from Hellanzb.Util import PriorityQueue
 from Hellanzb.NZBLeecher.NZBModel import NZBQueue
 

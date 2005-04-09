@@ -13,7 +13,8 @@ from distutils import spawn
 from threading import Lock
 from twisted.internet import reactor
 from Hellanzb.Daemon import initDaemon
-from Hellanzb.Logging import *
+from Hellanzb.Log import *
+from Hellanzb.Logging import initLogging, stdinEchoOn, ScrollInterrupter
 from Hellanzb.PostProcessorUtil import defineMusicType
 from Hellanzb.Util import *
 
@@ -135,8 +136,9 @@ def init(options = {}):
     """ initialize the app """
     # Whether or not the app is in the process of shutting down
     Hellanzb.shutdown = False
-    
-    Hellanzb.Logging.initLogging()
+
+    # Get logging going ASAP
+    initLogging()
 
     # FIXME: ?
     Hellanzb.SHUTDOWN_CODE = 20

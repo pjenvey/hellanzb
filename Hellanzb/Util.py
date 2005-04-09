@@ -6,7 +6,7 @@ import os, popen2, pty, re, string, threading, time, Hellanzb
 from distutils import spawn
 from heapq import heappop, heappush
 from traceback import print_stack
-from Logging import *
+from Hellanzb.Log import *
 from Queue import Queue
 from StringIO import StringIO
 

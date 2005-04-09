@@ -2,12 +2,12 @@
 NZBModel - Representations of the NZB file format in memory
 
 """
-import re, time
+import os, re, time
 from sets import Set
 from threading import Lock, RLock
 from xml.sax import make_parser
 from xml.sax.handler import ContentHandler, feature_external_ges, feature_namespaces
-from Hellanzb.Logging import *
+from Hellanzb.Log import *
 from Hellanzb.NZBLeecher.ArticleDecoder import parseArticleData, setRealFileName, tryFinishNZB
 from Hellanzb.Util import archiveName, getFileExtension, PriorityQueue
 

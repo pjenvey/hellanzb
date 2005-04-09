@@ -6,7 +6,7 @@ import binascii, os, re, shutil, string
 from twisted.internet import reactor
 from zlib import crc32
 from Hellanzb.Daemon import handleNZBDone
-from Hellanzb.Logging import *
+from Hellanzb.Log import *
 
 __id__ = '$Id$'
 

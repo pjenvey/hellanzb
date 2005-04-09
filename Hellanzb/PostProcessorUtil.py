@@ -5,8 +5,8 @@ PostProcessorUtil - support functions for the PostProcessor
 """
 import Hellanzb, os, re
 from threading import Thread
-from Logging import *
-from Util import *
+from Hellanzb.Log import *
+from Hellanzb.Util import *
 
 __id__ = '$Id$'
 

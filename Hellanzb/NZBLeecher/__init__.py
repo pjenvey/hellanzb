@@ -16,12 +16,14 @@ from twisted.protocols.nntp import NNTPClient, extractCode
 from twisted.protocols.policies import TimeoutMixin
 from twisted.python import log
 from Hellanzb.Core import shutdown
-from Hellanzb.Logging import *
+from Hellanzb.Log import *
+from Hellanzb.Logging import LogOutputStream
+from Hellanzb.Util import rtruncate
 from Hellanzb.NZBLeecher.ArticleDecoder import decode
 from Hellanzb.NZBLeecher.NZBModel import NZBQueue
 from Queue import Empty
 
-__id__ = '$Id: NZBLeecher.py 199 2005-04-09 01:36:46Z pjenvey $'
+__id__ = '$Id$'
 
 def initNZBLeecher():
     """ Init """
@@ -180,7 +182,7 @@ class NZBLeecher(NNTPClient, AntiIdleMixin):
 
         # I'm not sure why this needs to be raised from the default value -- but we can
         # definitely get longer lines than LineReceiver expects
-        self.MAX_LENGTH = 65536
+        self.MAX_LENGTH = 262144
 
     def authInfo(self):
         """ """
@@ -636,6 +638,6 @@ class NZBLeecherStatLog:
  * OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF
  * SUCH DAMAGE.
  *
- * $Id: NZBLeecher.py 199 2005-04-09 01:36:46Z pjenvey $
+ * $Id$
  */
 """

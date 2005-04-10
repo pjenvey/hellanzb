@@ -16,6 +16,12 @@ __id__ = '$Id$'
 # Decode types enum
 UNKNOWN, YENCODE, UUENCODE = range(3)
 
+# FIXME: FatalErrors shouldn't really be thrown. They should print the problem and
+# continue on. These FatalErrors could make the segment it died on lack a file on the
+# filesystem -- this is bad. hellanzb won't assemble the final File unless all the
+# segments are on the filesystem. The decode() function could catch them and act
+# appropriately
+
 def decode(segment):
     """ Decode the NZBSegment's articleData to it's destination. Toggle the NZBSegment
     instance as having been decoded, then assemble all the segments together if all their
@@ -76,7 +82,8 @@ def parseArticleData(segment, justExtractFilename = False):
             ybegin = ySplit(line)
             
             if not ('line' in ybegin and 'size' in ybegin and 'name' in ybegin):
-                raise FatalError('* Invalid =ybegin line in part %d!' % 31337)
+                # FIXME: show filename information
+                raise FatalError('* Invalid =ybegin line in part %d!' % segment.number)
 
             setRealFileName(segment, ybegin['name'])
             encodingType = YENCODE
@@ -95,7 +102,8 @@ def parseArticleData(segment, justExtractFilename = False):
         elif line.startswith('begin '):
             filename = line.rstrip().split(' ', 2)[2]
             if not filename:
-                raise FatalError('* Invalid =begin line in part %d!' % 31337)
+                # FIXME: show filename information
+                raise FatalError('* Invalid begin line in part %d!' % segment.number)
             setRealFileName(segment, filename)
             encodingType = UUENCODE
             withinData = True

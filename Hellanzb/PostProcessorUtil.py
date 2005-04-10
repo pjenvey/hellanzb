@@ -25,7 +25,7 @@ decompress the music (to wav, generally) if it comes across this type of file ""
     def __init__(self, extension, decompressor, decompressToType):
         self.extension = extension
 
-        if decompressor != None and decompressor != "":
+        if decompressor != None and decompressor != '':
             # exit if we lack the required decompressor
             assertIsExe(decompressor)
             self.decompressor = decompressor

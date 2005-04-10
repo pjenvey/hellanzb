@@ -102,10 +102,10 @@ class ReactorThread(threading.Thread):
         #Hellanzb.queue = NZBQueue(sys.argv[1])
     
         # connect factory to this host and port
-        reactor.connectTCP("unlimited.newshosting.com", 9000, nsf)
-        #reactor.connectTCP("unlimited.newshosting.com", 9000, nsf)
-        #reactor.connectTCP("unlimited.newshosting.com", 9000, nsf)
-        #reactor.connectTCP("unlimited.newshosting.com", 9000, nsf)
+        reactor.connectTCP('unlimited.newshosting.com', 9000, nsf)
+        #reactor.connectTCP('unlimited.newshosting.com', 9000, nsf)
+        #reactor.connectTCP('unlimited.newshosting.com', 9000, nsf)
+        #reactor.connectTCP('unlimited.newshosting.com', 9000, nsf)
     
         # run
         #reactor.run()
@@ -131,7 +131,7 @@ if __name__ == '__main__2':
         #(newsgroups, posts) = ParseNZB(sys.argv[1], [1, 2])
         (newsgroups, posts) = ParseNZB(sys.argv[1])
         for n in newsgroups:
-                print "n: " + n
+                print 'n: ' + n
         print 'l: ' + str(len(posts))
         total = 0
         from Hellanzb.Util import PriorityQueue
@@ -140,8 +140,8 @@ if __name__ == '__main__2':
         from time import time
         start = time()
         for p in posts:
-                print "p: " + p
-                print "contents: " + posts[p].__repr__()
+                print 'p: ' + p
+                print 'contents: ' + posts[p].__repr__()
                 total += posts[p].numparts
                 for part in posts[p].parts:
                         pq.put((NZB_CONTENT_P, posts[p].parts[part]))

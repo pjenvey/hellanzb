@@ -6,7 +6,7 @@ nzbget
 (c) Copyright 2005 Philip Jenvey, Ben Bangert
 [See end of file]
 """
-import Hellanzb, os, re, time
+import Hellanzb, os, re, sys, time
 from threading import Thread, Condition, Lock
 from Hellanzb.Log import *
 from Hellanzb.PostProcessorUtil import *

@@ -34,7 +34,6 @@ def initNZBLeecher():
 
     # Create the one and only download queue
     Hellanzb.queue = NZBQueue()
-
     # The NZBLeecherFactories
     Hellanzb.nsfs = []
     Hellanzb.totalSpeed = 0
@@ -216,7 +215,6 @@ class NZBLeecher(NNTPClient, AntiIdleMixin):
     def fetchNextNZBSegment(self):
         """ Pop nzb article from the queue, and attempt to retrieve it if it hasn't already been
         retrieved"""
-        time.sleep(.1)
         if self.currentSegment is None:
             if self not in self.factory.activeClients:
                 if len(self.factory.activeClients) == 0:

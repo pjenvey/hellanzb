@@ -1,5 +1,4 @@
-import unittest, Hellanzb
-from time import time
+import time, unittest, Hellanzb
 from Hellanzb.test import HellanzbTestCase
 from Hellanzb.Log import *
 from Hellanzb.Util import PriorityQueue
@@ -22,32 +21,72 @@ class PriorityQueueTestCase(HellanzbTestCase):
 
         #info('NZBQueue')
 
+    def testGetBenchmark(self):
+        info('Putting NZB')
+        start = time.time()
+        q = NZBQueue('/home/pjenvey/src/hellanzb/Hellanzb/test/testdata/test_get.nzb')
+        elapsed = time.time() - start
+        info('Took: ' + str(elapsed) + ' to load nzb file. Approx size: ' + str(q.qsize()))
+
+        from Queue import Empty
+        import sys
+        info('Getting all items..')
+        start = time.time()
+        try:
+            while 1:
+                segment = q.get_nowait()
+        except Empty:
+            pass
+        elapsed = time.time() - start
+        info('Took: ' + str(elapsed) + ' to get them all out')
+
+        info('better statistics..')
+        stats = []
+        q2 = NZBQueue('/home/pjenvey/src/hellanzb/Hellanzb/test/testdata/test_get.nzb')
+        try:
+            while 1:
+                start = time.time()
+                segment = q2.get_nowait()
+                elapsed = time.time() - start
+                stats.append(elapsed)
+        except Empty:
+            pass
+
+        avg = 0 
+        for i in stats:
+            avg += i
+        avg = avg / len(stats)
+        info('Average get took: ' + str(avg))
+        stats.sort()
+        info('Fastest: ' + str(stats[0]))
+        info('Slowest: ' + str(stats[-1]))
+
     def dtestNZBQueue(self):
         """ Benchmark loading a typical NZB file into an NZBQueue via the parser, and also via a
         simple put() loop """
-        start = time()
+        start = time.time()
         temp = NZBQueue('Hellanzb/test/testdata/msgid_1008115_Bring__Um_Young_#2.nzb')
         
         list = temp.queue
-        elapsed = time() - start
+        elapsed = time.time() - start
         info('Took: ' + str(elapsed) + ' to load nzb file')
 
-        start = time()
+        start = time.time()
 
         del temp
         nzbq = NZBQueue()
         for i in list:
             nzbq.put((NZBQueue.NZB_CONTENT_P, i))
         
-        elapsed = time() - start
+        elapsed = time.time() - start
         info('Took: ' + str(elapsed) + ' to create NZBQueue')
 
-    def testNZBSlurp(self):
-        start = time()
+    def dtestNZBSlurp(self):
+        start = time.time()
         
         Hellanzb.queue = NZBQueue('Hellanzb/test/testdata/msgid_1008115_Bring__Um_Young_#2.nzb')
         
-        elapsed = time() - start
+        elapsed = time.time() - start
         info('Took: ' + str(elapsed) + ' to load nzb file')
 
         #from thread import start_new_thread
@@ -63,19 +102,19 @@ class PriorityQueueTestCase(HellanzbTestCase):
         
         parCount = count * (1 / percentPar2ExtraP)
         
-        start = time()
+        start = time.time()
         for i in xrange(count - parCount):
             pq.put((NZBQueue.NZB_CONTENT_P, i))
 
         for i in xrange(count):
             pq.put((NZBQueue.EXTRA_PAR2_P, i))
             
-        putElapsed = time() - start
+        putElapsed = time.time() - start
 
-        start = time()
+        start = time.time()
         for i in xrange(count):
             pq.get()
-        popElapsed = time() - start
+        popElapsed = time.time() - start
 
         print 'Took: ' + str(putElapsed) + ' to put ' + str(count) + ' items.'
         print 'Took: ' + str(popElapsed) + ' to pop'
@@ -138,7 +177,7 @@ if __name__ == '__main__2':
         pq = PriorityQueue()
         NZB_CONTENT_P = 25
         from time import time
-        start = time()
+        start = time.time()
         for p in posts:
                 print 'p: ' + p
                 print 'contents: ' + posts[p].__repr__()
@@ -146,7 +185,7 @@ if __name__ == '__main__2':
                 for part in posts[p].parts:
                         pq.put((NZB_CONTENT_P, posts[p].parts[part]))
 
-        elapsed = time() - start
+        elapsed = time.time() - start
         print 'elapsed: ' + str(elapsed)
         print 'total: ' + str(total)
 

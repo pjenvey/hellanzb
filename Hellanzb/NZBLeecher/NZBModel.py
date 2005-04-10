@@ -267,10 +267,10 @@ class NZBQueue(PriorityQueue):
         self.nzbFiles = Set()
         self.nzbFilesLock = Lock()
         
+        self.totalQueuedBytes = 0
+
         if fileName is not None:
             self.parseNZB(fileName)
-
-        self.totalQueuedBytes = 0
 
     def _put(self, item):
         """ """
@@ -330,7 +330,8 @@ class NZBQueue(PriorityQueue):
 
         # In the case the NZBParser determined the entire archive's contents are already
         # on the filesystem, try to finish up (and move onto post processing)
-        return tryFinishNZB(nzb)
+        if hasattr(Hellanzb, 'queue'):
+            return tryFinishNZB(nzb)
         
 class NZBParser(ContentHandler):
     """ Parse an NZB 1.0 file into an NZBQueue

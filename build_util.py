@@ -7,11 +7,13 @@ build_util.py - Build related functions
 [See end of file]
 """
 import distutils.util, md5, os, setup, shutil, sys, tarfile
+from Hellanzb.Log import *
 from Hellanzb.Util import Ptyopen2
 
 __id__ = '$Id$'
 
 VERSION_FILENAME = './Hellanzb/__init__.py'
+BDIST_RPM_REQUIRES = 'pararchive rar flac shorten python-twisted'
 
 def assertUpToDate(workingCopyDir = None):
     """ Ensure the working copy is up to date with the repository """
@@ -44,7 +46,7 @@ def branchRelease(version):
     os.system('svn switch ' + branchURL)
 
 def buildDist():
-    """ build a binary distribution """
+    """ build the source and binary distributions """
     oldArg = sys.argv
 
     # Build source and binary distributions
@@ -53,6 +55,10 @@ def buildDist():
     
     sys.argv = [ 'setup.py', 'bdist' ]
     setup.runSetup()
+
+    sys.argv = [ 'setup.py', 'bdist_rpm', '--requires', BDIST_RPM_REQUIRES ]
+    setup.runSetup()
+    
     sys.argv = oldArg
 
 def buildPort(version):

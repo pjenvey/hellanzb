@@ -10,9 +10,9 @@ Freddie (freddie@madcowdisease.org) utilizing the twisted framework
 [See end of file]
 """
 import os, time
-from threading import Condition
 from twisted.internet import reactor
 from twisted.internet.protocol import ReconnectingClientFactory
+from twisted.protocols.basic import LineReceiver
 from twisted.protocols.nntp import NNTPClient, extractCode
 from twisted.protocols.policies import TimeoutMixin
 from twisted.python import log
@@ -28,21 +28,19 @@ __id__ = '$Id$'
 
 def initNZBLeecher():
     """ Init """
-    # Direct the twisted output to the debug level
+    # Direct twisted log output to the debug level
     fileStream = LogOutputStream(debug)
     log.startLogging(fileStream)
 
     # Create the one and only download queue
     Hellanzb.queue = NZBQueue()
+    
     # The NZBLeecherFactories
     Hellanzb.nsfs = []
     Hellanzb.totalSpeed = 0
 
     # this class handles updating statistics via the SCROLL level (the UI)
     Hellanzb.scroller = NZBLeecherStatLog()
-
-    # notified when an NZB file has finished donwloading
-    Hellanzb.nzbfileDone = Condition()
 
     startNZBLeecher()
 
@@ -62,14 +60,17 @@ def startNZBLeecher():
                 antiIdle = serverInfo['antiIdle']
             else:
                 antiIdle = defaultAntiIdle
-            nsf = NZBLeecherFactory(serverInfo['username'], serverInfo['password'], antiIdle)
+
+            nsf = NZBLeecherFactory(serverInfo['username'], serverInfo['password'],
+                                    antiIdle)
             Hellanzb.nsfs.append(nsf)
 
             host, port = host.split(':')
             for connection in range(connections):
                 if serverInfo.has_key('bindTo') and serverInfo['bindTo'] != None and \
                         serverInfo['bindTo'] != '':
-                    reactor.connectTCP(host, int(port), nsf, bindAddress = serverInfo['bindTo'])
+                    reactor.connectTCP(host, int(port), nsf,
+                                       bindAddress = serverInfo['bindTo'])
                 else:
                     reactor.connectTCP(host, int(port), nsf)
                 connectionCount += 1
@@ -80,7 +81,8 @@ def startNZBLeecher():
         info('opened ' + str(connectionCount) + ' connections.')
         
     Hellanzb.scroller.maxCount = connectionCount
-        
+
+    # Allocate only one thread, just for decoding
     reactor.suggestThreadPoolSize(1)
     
     reactor.run()
@@ -153,8 +155,8 @@ class AntiIdleMixin(TimeoutMixin):
         self.setTimeout(self.timeOut)
 
 class NZBLeecher(NNTPClient, AntiIdleMixin):
-    """ Extend the Twisted NNTPClient to download NZB segments from our queue in a
-    loop """
+    """ Extends twisted NNTPClient to download NZB segments from the queue, until the queue
+    contents are exhausted """
 
     nextId = 0 # Id Pool
     
@@ -183,6 +185,13 @@ class NZBLeecher(NNTPClient, AntiIdleMixin):
         # I'm not sure why this needs to be raised from the default value -- but we can
         # definitely get longer lines than LineReceiver expects
         self.MAX_LENGTH = 262144
+
+        # Lameness -- these are from LineReceiver. Needed for the imported Twisted 2.0
+        # dataReceieved
+        self.line_mode = 1
+        self.__buffer = ''
+        self.delimiter = '\r\n'
+        self.paused = False
 
     def authInfo(self):
         """ """
@@ -291,7 +300,7 @@ class NZBLeecher(NNTPClient, AntiIdleMixin):
         """ """
         self.myState = 'BODY'
         start = time.time()
-        if self.currentSegment != None and self.currentSegment.nzbFile.downloadStartTime == None:
+        if self.currentSegment.nzbFile.downloadStartTime == None:
             self.currentSegment.nzbFile.downloadStartTime = start
         self.downloadStartTime = start
         
@@ -482,6 +491,46 @@ class NZBLeecher(NNTPClient, AntiIdleMixin):
     def antiIdleConnection(self):
         self.fetchHelp()
 
+    def dataReceived(self, data):
+        """ *From Twisted-2.0*
+        Supposed to be at least 3x as fast.
+        
+        Protocol.dataReceived.
+        Translates bytes into lines, and calls lineReceived (or
+        rawDataReceived, depending on mode.)
+        """
+        self.__buffer = self.__buffer+data
+        lastoffset=0
+        while self.line_mode and not self.paused:
+            offset=self.__buffer.find(self.delimiter, lastoffset)
+            if offset == -1:
+                self.__buffer=self.__buffer[lastoffset:]
+                if len(self.__buffer) > self.MAX_LENGTH:
+                    line=self.__buffer
+                    self.__buffer=''
+                    return self.lineLengthExceeded(line)
+                break
+            
+            line=self.__buffer[lastoffset:offset]
+            lastoffset=offset+len(self.delimiter)
+            
+            if len(line) > self.MAX_LENGTH:
+                line=self.__buffer[lastoffset:]
+                self.__buffer=''
+                return self.lineLengthExceeded(line)
+            why = self.lineReceived(line)
+            if why or self.transport and self.transport.disconnecting:
+                self.__buffer = self.__buffer[lastoffset:]
+                return why
+        else:
+            if self.paused:
+                self.__buffer=self.__buffer[lastoffset:]
+            else:
+                data=self.__buffer[lastoffset:]
+                self.__buffer=''
+                if data:
+                    return self.rawDataReceived(data)
+
     #def __str__(self):
     #    return 'str' + self.getName()
     #def __repr__(self):
@@ -572,6 +621,10 @@ class NZBLeecherStatLog:
         i = 0
         for segment in sortedSegments:
             i += 1
+            if self.maxCount > 9:
+                prettyId = str(i).zfill(2)
+            else:
+                prettyId = str(i)
             
             # Determine when we've just found the real file name, then use that as the
             # show name
@@ -582,10 +635,12 @@ class NZBLeecherStatLog:
             if lastSegment != None and lastSegment.nzbFile == segment.nzbFile:
                 line = self.connectionPrefix + ' %s' + ACODE.KILL_LINE
                 # 58 line width -- approximately 80 - 4 (prefix) - 18 (max suffix)
-                self.currentLog += line % (str(i), rtruncate(segment.nzbFile.showFilename, length = 58))
+                self.currentLog += line % (prettyId,
+                                           rtruncate(segment.nzbFile.showFilename, length = 58))
             else:
                 line = self.connectionPrefix + ' %s - %2d%% @ %.1fKB/s' + ACODE.KILL_LINE
-                self.currentLog += line % (str(i), rtruncate(segment.nzbFile.showFilename, length = 58),
+                self.currentLog += line % (prettyId,
+                                           rtruncate(segment.nzbFile.showFilename, length = 58),
                                            segment.nzbFile.downloadPercentage, segment.nzbFile.speed)
                 
             self.currentLog += '\n\r'
@@ -593,7 +648,11 @@ class NZBLeecherStatLog:
             lastSegment = segment
                 
         for fill in range(i + 1, self.maxCount + 1):
-            self.currentLog += (self.connectionPrefix + ACODE.KILL_LINE) % (fill)
+            if self.maxCount > 9:
+                prettyId = str(fill).zfill(2)
+            else:
+                prettyId = str(fill)
+            self.currentLog += (self.connectionPrefix + ACODE.KILL_LINE) % (prettyId)
             self.currentLog += '\n\r'
 
         # FIXME: FIXME HA-HA-HACK FIXME

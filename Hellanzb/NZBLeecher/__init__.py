@@ -179,6 +179,9 @@ class NZBLeecher(NNTPClient, AntiIdleMixin):
 
         self.myState = None
 
+        self.isLoggedIn = False
+        self.setReaderAfterLogin = False
+            
         # How long we must be idle for in seconds until we send an anti idle request
         self.timeOut = 7 * 60
 
@@ -216,11 +219,91 @@ class NZBLeecher(NNTPClient, AntiIdleMixin):
         self._endState()
 
     def gotauthInfoOk(self, message):
-        "Override for notification when authInfo() action is successful"
+        """ Override for notification when authInfo() action is successful """
         debug(self.getName() + ' AUTHINFO succeeded: ' + message)
+        self.isLoggedIn = True
 
-        reactor.callLater(0, self.fetchNextNZBSegment)
+        if self.setReaderAfterLogin:
+            self.setReader()
+        else:
+            reactor.callLater(0, self.fetchNextNZBSegment)
 
+    def authInfoFailed(self, err):
+        "Override for notification when authInfoFailed() action fails"
+        debug('AUTHINFO failed: ' + str(err))
+
+    def connectionMade(self):
+        NNTPClient.connectionMade(self)
+        self.setTimeout(self.timeOut)
+
+        # 'mode reader' is sometimes necessary to enable 'reader' mode.
+        # However, the order in which 'mode reader' and 'authinfo' need to
+        # arrive differs between some NNTP servers. Try to send
+        # 'mode reader', and if it fails with an authorization failed
+        # error, try again after sending authinfo.
+        self.setReader()
+
+    def connectionLost(self, reason):
+        self.setTimeout(None)
+        # FIXME: could put failed segments into a failed queue. connections that are
+        # flaged as being fill servers would try to attempt to d/l the failed files. you
+        # couldn't write a 0 byte file to disk in that case -- not until all fill servers
+        # had tried downloading
+        
+        # ReconnectingClientFactory will pretend it wants to reconnect after we CTRL-C --
+        # we'll quiet it by canceling it
+        if Hellanzb.shutdown:
+            self.factory.stopTrying()
+
+        NNTPClient.connectionLost(self) # calls self.factory.clientConnectionLost(self, reason)
+
+        if self.currentSegment != None:
+            if self.currentSegment in Hellanzb.scroller.segments:
+                Hellanzb.scroller.segments.remove(self.currentSegment)
+            # twisted doesn't reconnect our same client connections, we have to pitch
+            # stuff back into the queue that hasn't finished before the connectionLost
+            # occurred
+            Hellanzb.queue.put((Hellanzb.queue.NZB_CONTENT_P, self.currentSegment))
+        
+        # Continue being quiet about things if we're shutting down
+        if not Hellanzb.shutdown:
+            debug(self.getName() + ' lost connection: ' + str(reason))
+
+        self.activeGroups = []
+        self.factory.clients.remove(self)
+        Hellanzb.scroller.size -= 1
+        self.isLoggedIn = False
+        self.setReaderAfterLogin = False
+
+    def setReader(self):
+        """ Tell the server we're a news reading client (MODE READER) """
+        self.sendLine('MODE READER')
+        self._newState(None, self.setReaderFailed, self.setReaderModeResponse)
+
+    def setReaderModeResponse(self, (code, message)):
+        if code in (200, 201):
+            self.setReaderSuccess()
+        else:
+            self.setReaderFailed((code, message))
+        self._endState()
+        
+    def setReaderSuccess(self):
+        """ """
+        debug(self.getName() + ' MODE READER successful')
+        if self.setReaderAfterLogin:
+            reactor.callLater(0, self.fetchNextNZBSegment)
+        else:
+            self.authInfo()
+        
+    def setReaderFailed(self, err):
+        """ If the MODE READER failed prior to login, this server probably only accepts it after
+        login """
+        if not self.isLoggedIn:
+            self.setReaderAfterLogin = True
+            self.authInfo()
+        else:
+            debug(self.getName() + 'MODE READER failed, err: ' + str(err))
+        
     def fetchNextNZBSegment(self):
         """ Pop nzb article from the queue, and attempt to retrieve it if it hasn't already been
         retrieved"""
@@ -398,46 +481,6 @@ class NZBLeecher(NNTPClient, AntiIdleMixin):
         "Override for getHelpFailed"
         self.myState = None
         debug(self.getName() + ' got HELP failed: ' + str(err))
-        
-    def authInfoFailed(self, err):
-        "Override for notification when authInfoFailed() action fails"
-        debug('AUTHINFO failed: ' + str(err))
-
-    def connectionMade(self):
-        NNTPClient.connectionMade(self)
-        self.setTimeout(self.timeOut)
-        self.setStream()
-        self.authInfo()
-
-    def connectionLost(self, reason):
-        self.setTimeout(None)
-        # FIXME: could put failed segments into a failed queue. connections that are
-        # flaged as being fill servers would try to attempt to d/l the failed files. you
-        # couldn't write a 0 byte file to disk in that case -- not until all fill servers
-        # had tried downloading
-        
-        # ReconnectingClientFactory will pretend it wants to reconnect after we CTRL-C --
-        # we'll quiet it by canceling it
-        if Hellanzb.shutdown:
-            self.factory.stopTrying()
-
-        NNTPClient.connectionLost(self) # calls self.factory.clientConnectionLost(self, reason)
-
-        if self.currentSegment != None:
-            if self.currentSegment in Hellanzb.scroller.segments:
-                Hellanzb.scroller.segments.remove(self.currentSegment)
-            # twisted doesn't reconnect our same client connections, we have to pitch
-            # stuff back into the queue that hasn't finished before the connectionLost
-            # occurred
-            Hellanzb.queue.put((Hellanzb.queue.NZB_CONTENT_P, self.currentSegment))
-        
-        # Continue being quiet about things if we're shutting down
-        if not Hellanzb.shutdown:
-            debug(self.getName() + ' lost connection: ' + str(reason))
-
-        self.activeGroups = []
-        self.factory.clients.remove(self)
-        Hellanzb.scroller.size -= 1
 
     def lineReceived(self, line):
         # We got data -- reset the anti idle timeout

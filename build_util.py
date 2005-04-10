@@ -13,7 +13,7 @@ from Hellanzb.Util import Ptyopen2
 __id__ = '$Id$'
 
 VERSION_FILENAME = './Hellanzb/__init__.py'
-BDIST_RPM_REQUIRES = 'pararchive rar flac shorten python-twisted'
+BDIST_RPM_REQUIRES = 'python >= 2.3 python-twisted pararchive rar flac shorten'
 
 def assertUpToDate(workingCopyDir = None):
     """ Ensure the working copy is up to date with the repository """

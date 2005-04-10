@@ -5,9 +5,10 @@ NZBModel - Representations of the NZB file format in memory
 (c) Copyright 2005 Philip Jenvey
 [See end of file]
 """
-import os, re, time
+import Hellanzb, os, re, time
 from sets import Set
 from threading import Lock, RLock
+from twisted.internet import reactor
 from xml.sax import make_parser
 from xml.sax.handler import ContentHandler, feature_external_ges, feature_namespaces
 from Hellanzb.Log import *
@@ -16,7 +17,8 @@ from Hellanzb.Util import archiveName, getFileExtension, PriorityQueue
 
 __id__ = '$Id$'
 
-def needsDownload(object):
+segmentEndRe = re.compile(r'^segment\d{4}$')
+def needsDownload(object, threadRealNameWork = False):
     """ Whether or not this object needs to be downloaded (isn't on the file system). This
     function is generalized to support both NZBFile and NZBSegment objects. A NZBFile
     needs to be downloaded when it's file does not exist on the filesystem. An NZBSegment
@@ -44,12 +46,11 @@ def needsDownload(object):
     elif filename == None:
         # We only know about the temp filename. In that case, fall back to matching
         # filenames in our subject line
-        from Hellanzb import WORKING_DIR
-        for file in os.listdir(WORKING_DIR):
+        for file in os.listdir(Hellanzb.WORKING_DIR):
             ext = getFileExtension(file)
 
             # Segment Match
-            if isSegment and ext != None and re.match(r'^segment\d{4}$', ext):
+            if isSegment and ext != None and segmentEndRe.match(ext):
 
                 # Quickest/easiest way to determine this file is not this segment's
                 # file is by checking it's segment number
@@ -68,7 +69,10 @@ def needsDownload(object):
                     # we've figured out the real filename (hopefully!)
                     if object.number == 1:
                         #debug('needsDownload: GOT real file name from PREFIX! ')
-                        setRealFileName(object, prefix)
+                        if threadRealNameWork:
+                            reactor.callInThread(setRealFileName, object, prefix)
+                        else:
+                            setRealFileName(object, prefix)
 
                     tempFileNameLock.release()
                     return False

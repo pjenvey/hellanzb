@@ -219,7 +219,7 @@ class NZBLeecher(NNTPClient, AntiIdleMixin):
         "Override for notification when authInfo() action is successful"
         debug(self.getName() + ' AUTHINFO succeeded: ' + message)
 
-        self.fetchNextNZBSegment()
+        reactor.callLater(0, self.fetchNextNZBSegment)
 
     def fetchNextNZBSegment(self):
         """ Pop nzb article from the queue, and attempt to retrieve it if it hasn't already been
@@ -231,7 +231,7 @@ class NZBLeecher(NNTPClient, AntiIdleMixin):
                 self.factory.activeClients.add(self)
             try:
                 nextSegment = Hellanzb.queue.get_nowait()
-                while not nextSegment.needsDownload():
+                while not nextSegment.needsDownload(threadRealNameWork = True):
                     # FIXME: could do a segment.fileDone(). would add segment to
                     # nzbFile.finishedSegments list (if it isn't already
                     # there). needsDownload() could call this if it finds a match on the
@@ -294,7 +294,7 @@ class NZBLeecher(NNTPClient, AntiIdleMixin):
             
         debug(self.getName() + ' getting BODY: <' + self.currentSegment.messageId + '> ' + \
               self.currentSegment.getDestination())
-        self.fetchBody(str(self.currentSegment.messageId))
+        reactor.callLater(0, self.fetchBody, str(self.currentSegment.messageId))
         
     def fetchBody(self, index):
         """ """
@@ -306,7 +306,7 @@ class NZBLeecher(NNTPClient, AntiIdleMixin):
         
         Hellanzb.scroller.segments.append(self.currentSegment)
 
-        NNTPClient.fetchBody(self, '<' + index + '>')
+        reactor.callLater(0, NNTPClient.fetchBody, self, '<' + index + '>')
 
     def getName(self):
         """ Return the name of this NZBLeecher instance """
@@ -323,7 +323,7 @@ class NZBLeecher(NNTPClient, AntiIdleMixin):
               self.currentSegment.getDestination() + ' lines: ' + str(len(body)) + ' expected size: ' + \
               str(self.currentSegment.bytes))
 
-        self.processBodyAndContinue(body)
+        reactor.callLater(0, self.processBodyAndContinue, body)
         
     def gotBodyFailed(self, err):
         """ Handle a failure of the BODY command. Ensure the failed segment gets a 0 byte file
@@ -338,7 +338,7 @@ class NZBLeecher(NNTPClient, AntiIdleMixin):
             Hellanzb.scroller.prefixScroll(self.currentSegment.showFilename + ' Article is missing!')
             Hellanzb.scroller.updateLog(logNow = True)
         
-        self.processBodyAndContinue('')
+        reactor.callLater(0, self.processBodyAndContinue, '')
 
     def processBodyAndContinue(self, articleData):
         """ Defer decoding of the specified articleData of the currentSegment, reset our state and
@@ -354,7 +354,7 @@ class NZBLeecher(NNTPClient, AntiIdleMixin):
         self.downloadStartTime = None
         self.readBytes = 0
 
-        self.fetchNextNZBSegment()
+        reactor.callLater(0, self.fetchNextNZBSegment)
         
     def deferSegmentDecode(self, segment):
         """ Decode the specified segment in a separate thread """
@@ -366,7 +366,7 @@ class NZBLeecher(NNTPClient, AntiIdleMixin):
         self.activeGroups.append(group)
         debug(self.getName() + ' got GROUP: ' + group)
 
-        self.fetchNextNZBSegment()
+        reactor.callLater(0, self.fetchNextNZBSegment)
 
     def _stateBody(self, line):
         """ The normal _stateBody converts the list of lines downloaded to a string, we want to

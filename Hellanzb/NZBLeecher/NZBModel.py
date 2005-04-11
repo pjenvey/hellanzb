@@ -119,6 +119,10 @@ class NZBFile:
         # The filename used temporarily until the real filename is determined
         self.tempFilename = None
 
+        # direct pointer to the first segment of this file, when we have a tempFilename we
+        # look at this segment frequently until we find the real file name
+        self.firstSegment = None
+
         # re-entrant lock for maintaing temp filenames/renaming temp -> real file names in
         # separate threads. FIXME: This is a lot of RLock() construction
         self.tempFileNameLock = RLock()
@@ -142,32 +146,20 @@ class NZBFile:
         articleData (hasn't been downloaded yet), a temp filename will be
         returned. Downloading segments out of order can easily occur in app like hellanzb
         that downloads the segments in parallel """
-        # FIXME: blah imports
-        from Hellanzb import WORKING_DIR
-
-        if self.filename == None:
-
-            firstSegment = None
-            if len(self.nzbSegments) > 0:
-                firstSegment = self.nzbSegments[0]
-
-            # Return the cached tempFilename until the firstSegment is downloaded
-            if self.tempFilename != None and (firstSegment == None or firstSegment.articleData == None):
-                return WORKING_DIR + os.sep + self.tempFilename
-
-            # this will set either filename or tempFilename
-            if firstSegment != None:
-                firstSegment.getFilenameFromArticleData()
+        try:
+            if self.filename != None:
+                return Hellanzb.WORKING_DIR + os.sep + self.filename
+            elif self.tempFilename != None and self.firstSegment.articleData == None:
+                return Hellanzb.WORKING_DIR + os.sep + self.tempFilename
             else:
-                self.tempFilename = self.getTempFileName()
-
-            # Again return tempFilename until we find the real filename
-            # NOTE: seems like there'd be no notification if we're unable to retrieve the
-            # real filename, we'd just be stuck with the temp
-            if self.filename == None:
-                return WORKING_DIR + os.sep + self.tempFilename
-                    
-        return WORKING_DIR + os.sep + self.filename
+                # FIXME: i should only have to call this once after i get article
+                # data. that is if it fails, it should set the real filename to the
+                # incorrect tempfilename
+                self.firstSegment.getFilenameFromArticleData()
+                return Hellanzb.WORKING_DIR + os.sep + self.tempFilename
+        except AttributeError:
+            self.tempFilename = self.getTempFileName()
+            return Hellanzb.WORKING_DIR + os.sep + self.tempFilename
 
     def getTempFileName(self):
         """ Generate a temporary filename for this file, for when we don't have it's actual file
@@ -240,10 +232,10 @@ class NZBSegment:
         # all other segments will end up using when they call
         # getDestination(). tempFilename is only used when that first segment lacks
         # articleData and can't determine the real filename
-        if self.articleData == None and self.number == 1:
-            #self.nzbFile.tempFilename = self.getTempFileName()
-            self.nzbFile.tempFilename = self.nzbFile.getTempFileName()
-            return
+        
+        #if self.articleData == None and self.number == 1:
+        #    self.nzbFile.tempFilename = self.nzbFile.getTempFileName()
+        #    return
 
         # We have article data, get the filename from it
         parseArticleData(self, justExtractFilename = True)
@@ -397,6 +389,8 @@ class NZBParser(ContentHandler):
 
             messageId = self.parseUnicode(''.join(self.chars))
             nzbs = NZBSegment(self.bytes, self.number, messageId, self.file)
+            if self.segmentCount == 1:
+                self.file.firstSegment = nzbs
 
             if self.fileNeedsDownload:
                 # HACK: Maintain the order in which we encountered the segments by adding

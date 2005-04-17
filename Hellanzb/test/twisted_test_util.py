@@ -11,8 +11,6 @@ def parseNZB(fileName):
     parser.setFeature(feature_external_ges, 0)
     
     # Create the handler
-    #nzb = NZB(fileName)
-    #dh = NZBParser(self, nzb)
     dh = NZBParser()
     
     # Tell the parser to use it
@@ -20,11 +18,6 @@ def parseNZB(fileName):
 
     # Parse the input
     parser.parse(fileName)
-
-    # In the case the NZBParser determined the entire archive's contents are already
-    # on the filesystem, try to finish up (and move onto post processing)
-    #if hasattr(Hellanzb, 'queue'):
-    #    return tryFinishNZB(nzb)
 
     return (dh.groups, dh.queue)
         
@@ -54,11 +47,7 @@ class NZBParser(ContentHandler):
             subject = self.parseUnicode(attrs.get('subject'))
             poster = self.parseUnicode(attrs.get('poster'))
 
-            #self.file = NZBFile(subject, attrs.get('date'), poster, self.nzb)
-            #self.fileNeedsDownload = self.file.needsDownload()
-
             self.fileCount += 1
-            #self.file.number = self.fileCount
                 
         elif name == 'group':
             self.chars = []
@@ -79,9 +68,10 @@ class NZBParser(ContentHandler):
             self.fileNeedsDownload = None
                 
         elif name == 'group':
-            newsgroup = ''.join(self.chars)
-            #self.file.groups.append(newsgroup)
-            self.groups.append(self.parseUnicode(newsgroup))
+            newsgroup = self.parseUnicode(''.join(self.chars))
+            
+            if newsgroup not in self.groups:
+                self.groups.append(newsgroup)
                         
             self.chars = None
                 
@@ -89,16 +79,6 @@ class NZBParser(ContentHandler):
             self.segmentCount += 1
 
             messageId = self.parseUnicode(''.join(self.chars))
-            #nzbs = NZBSegment(self.bytes, self.number, messageId, self.file)
-            #if self.segmentCount == 1:
-            #    self.file.firstSegment = nzbs
-
-            #if self.fileNeedsDownload:
-                # HACK: Maintain the order in which we encountered the segments by adding
-                # segmentCount to the priority. lame afterthought -- after realizing
-                # heapqs aren't ordered. NZB_CONTENT_P must now be large enough so that it
-                # won't ever clash with EXTRA_PAR2_P + i
-            #    self.queue.put((NZBQueue.NZB_CONTENT_P + self.segmentCount, nzbs))
             self.queue.append(messageId)
 
             self.chars = None

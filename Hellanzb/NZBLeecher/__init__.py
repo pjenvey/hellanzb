@@ -230,7 +230,7 @@ class NZBLeecher(NNTPClient, AntiIdleMixin):
 
     def authInfoFailed(self, err):
         "Override for notification when authInfoFailed() action fails"
-        debug('AUTHINFO failed: ' + str(err))
+        debug(self.getName() + ' AUTHINFO failed: ' + str(err))
 
     def connectionMade(self):
         NNTPClient.connectionMade(self)

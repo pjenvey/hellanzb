@@ -10,6 +10,7 @@ from twisted.internet import reactor
 from zlib import crc32
 from Hellanzb.Daemon import handleNZBDone
 from Hellanzb.Log import *
+from Hellanzb.Util import touch
 
 __id__ = '$Id$'
 
@@ -26,8 +27,14 @@ def decode(segment):
     """ Decode the NZBSegment's articleData to it's destination. Toggle the NZBSegment
     instance as having been decoded, then assemble all the segments together if all their
     decoded segment filenames exist """
-    # FIXME: should need to try/ this call?
-    decodeArticleData(segment)
+    try:
+        decodeArticleData(segment)
+    except Exception, e:
+        touch(segment.getDestination())
+        reactor.callFromThread(Hellanzb.scroller.prefixScroll, segment.nzbFile.showFilename + \
+                               ' segment: ' + str(segment.number) + \
+                               ' a problem occurred during decoding: ' + str(e))
+        reactor.callFromThread(Hellanzb.scroller.updateLog, True)
 
     # FIXME: maybe call everything below this postProcess. have postProcess called when --
     # during the queue instantiation?
@@ -211,7 +218,7 @@ def decodeSegmentToFile(segment, encodingType = YENCODE):
 
         # Get rid of all this data now that we're done with it
         debug('UUDecoded articleData to file: ' + segment.getDestination())
-        
+
     else:
         debug('FIXME: Did not YY/UDecode!!')
         #raise FatalError('doh!')

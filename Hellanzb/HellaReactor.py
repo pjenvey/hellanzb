@@ -13,6 +13,22 @@ from Hellanzb.Log import *
 
 __id__ = '$Id$'
 
+# FIXME: this class is unnecessary, from the mailing list:
+#
+# | Hi,
+# | 
+# | There was a discussion here recently about registering
+# | a callback to be called prior to shutdown (using
+# | addSystemEventTrigger), and I just wanted to ask, what
+# | does Twisted allow before shutdown, and what gets
+# | stopped in the middle; ex. if I want to do something
+# | prior to shutdown that involves communication with
+# | some server, and hence a deffered chain, how do I make
+# | sure that it gets a chance to happen?
+#
+#You can return a Deferred from your shutdown function and Twisted will
+#wait until it's got a result before shutting down.
+
 class HellaReactor(SelectReactor):
     """ Handle taking care of PostProcessors during a SIGINT """
 

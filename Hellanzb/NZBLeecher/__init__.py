@@ -223,6 +223,9 @@ class NZBLeecher(NNTPClient, AntiIdleMixin):
         debug(self.getName() + ' AUTHINFO succeeded: ' + message)
         self.isLoggedIn = True
 
+        # Reset the auto-reconnect delay
+        self.factory.resetDelay()
+
         if self.setReaderAfterLogin:
             self.setReader()
         else:

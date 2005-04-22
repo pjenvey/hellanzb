@@ -398,6 +398,8 @@ class NZBParser(ContentHandler):
                 # heapqs aren't ordered. NZB_CONTENT_P must now be large enough so that it
                 # won't ever clash with EXTRA_PAR2_P + i
                 self.queue.put((NZBQueue.NZB_CONTENT_P + self.segmentCount, nzbs))
+            # FIXME: could maintain what was skipped and alert the user?
+            #else:
 
             self.chars = None
             self.number = None

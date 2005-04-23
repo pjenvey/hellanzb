@@ -50,7 +50,8 @@ def info(message, appendLF = True):
 
 def debug(message):
     """ Log a message at the debug level """
-    Hellanzb.logger.debug(message + '\n')
+    if Hellanzb.DEBUG_MODE_ENABLED:
+        Hellanzb.logger.debug(message + '\n')
 
 def scroll(message):
     """ Log a message at the scroll level """

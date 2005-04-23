@@ -6,6 +6,9 @@ Core - All of our main()ish functions. Initialization/shutdown/etc
 [See end of file]
 """
 # Install our custom twisted reactor immediately
+import twisted.internet.abstract
+twisted.internet.abstract.FileDescriptor.bufferSize = 4096
+
 from Hellanzb.HellaReactor import HellaReactor
 HellaReactor.install()
 
@@ -31,7 +34,7 @@ def findAndLoadConfig(optionalConfigFile = None):
             sys.exit(1)
 
     # look for conf in this order: sys.prefix, ./, or ./etc/
-    confDirs = [ sys.prefix + os.sep + 'etc', os.getcwd() + os.sep + 'etc', os.getcwd() ]
+    confDirs = [ os.getcwd() + os.sep + 'etc', os.getcwd() ]
 
     # hard coding preferred Darwin config file location, kind of lame. but I'd rather do
     # this then make an etc dir in os x's Python.framework directory
@@ -240,7 +243,6 @@ def main():
     
     try:
         init(options)
-        processArgs(options)
     
     except SystemExit, se:
         # sys.exit throws this, let it go
@@ -252,6 +254,8 @@ def main():
         error('An unexpected problem occurred, exiting', e)
         shutdown()
         raise
+
+    processArgs(options)
 
 """
 /*

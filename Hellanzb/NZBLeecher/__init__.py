@@ -317,7 +317,7 @@ class NZBLeecher(NNTPClient, AntiIdleMixin):
                 self.factory.activeClients.add(self)
             try:
                 nextSegment = Hellanzb.queue.get_nowait()
-                while not nextSegment.needsDownload(threadRealNameWork = True):
+                #while not nextSegment.needsDownload(threadRealNameWork = True):
                     # FIXME: could do a segment.fileDone(). would add segment to
                     # nzbFile.finishedSegments list (if it isn't already
                     # there). needsDownload() could call this if it finds a match on the
@@ -328,13 +328,13 @@ class NZBLeecher(NNTPClient, AntiIdleMixin):
                     # the expected size. passing an argument to needsDownload could do the
                     # work for us
                     
-                    nextSegment.nzbFile.totalSkippedBytes += nextSegment.bytes
+               #     nextSegment.nzbFile.totalSkippedBytes += nextSegment.bytes
                     # TODO: decrement the skippedBytes from the Queue (queue should
                     # maintain the byte count down to the segment intstead of file)
                     
-                    debug(self.getName() + ' SKIPPING segment: ' + nextSegment.getTempFileName() + \
-                          ' subject: ' + nextSegment.nzbFile.subject)
-                    nextSegment = Hellanzb.queue.get_nowait()
+               #     debug(self.getName() + ' SKIPPING segment: ' + nextSegment.getTempFileName() + \
+               #           ' subject: ' + nextSegment.nzbFile.subject)
+               #     nextSegment = Hellanzb.queue.get_nowait()
 
                 self.currentSegment = nextSegment
                 if self.currentSegment.nzbFile.showFilename == None:
@@ -392,7 +392,8 @@ class NZBLeecher(NNTPClient, AntiIdleMixin):
         
         Hellanzb.scroller.segments.append(self.currentSegment)
 
-        reactor.callLater(0, NNTPClient.fetchBody, self, '<' + index + '>')
+        #reactor.callLater(0, NNTPClient.fetchBody, self, '<' + index + '>')
+        NNTPClient.fetchBody(self, '<' + index + '>')
 
     def getName(self):
         """ Return the name of this NZBLeecher instance """
@@ -405,11 +406,14 @@ class NZBLeecher(NNTPClient, AntiIdleMixin):
 
     def gotBody(self, body):
         """ Queue the article body for decoding and continue fetching the next article """
+        #debug(self.getName() + ' got BODY: ' + ' <' + self.currentSegment.messageId + '> ' + \
+        #      self.currentSegment.getDestination() + ' lines: ' + str(len(body)) + ' expected size: ' + \
+        #      str(self.currentSegment.bytes))
         debug(self.getName() + ' got BODY: ' + ' <' + self.currentSegment.messageId + '> ' + \
-              self.currentSegment.getDestination() + ' lines: ' + str(len(body)) + ' expected size: ' + \
-              str(self.currentSegment.bytes))
+              self.currentSegment.getDestination())
 
-        reactor.callLater(0, self.processBodyAndContinue, body)
+        #reactor.callLater(0, self.processBodyAndContinue, body)
+        self.processBodyAndContinue(body)
         
     def gotBodyFailed(self, err):
         """ Handle a failure of the BODY command. Ensure the failed segment gets a 0 byte file
@@ -424,7 +428,8 @@ class NZBLeecher(NNTPClient, AntiIdleMixin):
             Hellanzb.scroller.prefixScroll(self.currentSegment.showFilename + ' Article is missing!')
             Hellanzb.scroller.updateLog(logNow = True)
         
-        reactor.callLater(0, self.processBodyAndContinue, '')
+        #reactor.callLater(0, self.processBodyAndContinue, '')
+        self.processBodyAndContinue('')
 
     def processBodyAndContinue(self, articleData):
         """ Defer decoding of the specified articleData of the currentSegment, reset our state and
@@ -485,21 +490,24 @@ class NZBLeecher(NNTPClient, AntiIdleMixin):
         self.myState = None
         debug(self.getName() + ' got HELP failed: ' + str(err))
 
-    def lineReceived(self, line):
+    def lineReceived2(self, line):
         # We got data -- reset the anti idle timeout
-        self.resetTimeout()
         
         # Update stats for current segment if we're issuing a BODY command
-        if self.myState == 'BODY':
-            now = time.time()
-            self.updateByteCount(len(line))
-            self.updateStats(now)
+        #if self.myState == 'BODY':
+        #    now = time.time()
+        #    self.updateByteCount(len(line))
+        #    self.updateStats(now)
             
-        elif self.myState == 'HELP':
-            # UsenetClient.lineReceived thinks the appropriate HELP response code (100) is
-            # an error. circumvent it
-            self._state[0](line)
-            return
+        #elif self.myState == 'HELP':
+        #    # UsenetClient.lineReceived thinks the appropriate HELP response code (100) is
+        #    # an error. circumvent it
+        #    self._state[0](line)
+        #    return
+        
+        #now = time.time()
+        #self.updateByteCount(len(line))
+        #self.updateStats(now)
             
         NNTPClient.lineReceived(self, line)
 
@@ -532,7 +540,10 @@ class NZBLeecher(NNTPClient, AntiIdleMixin):
             self.currentSegment.nzbFile.speed = self.currentSegment.nzbFile.totalReadBytes / elapsed / 1024.0
             self.factory.sessionSpeed = self.factory.sessionReadBytes / elapsedSession / 1024.0
             
-        Hellanzb.scroller.updateLog()
+            Hellanzb.scroller.updateLog()
+            #if self.currentSegment.nzbFile.downloadPercentage > oldPercentage + 1:
+                #reactor.callLater(0, Hellanzb.scroller.updateLog)
+            #    Hellanzb.scroller.updateLog()
 
     def antiIdleConnection(self):
         self.fetchHelp()
@@ -545,6 +556,10 @@ class NZBLeecher(NNTPClient, AntiIdleMixin):
         Translates bytes into lines, and calls lineReceived (or
         rawDataReceived, depending on mode.)
         """
+        self.resetTimeout()
+        self.updateByteCount(len(data))
+        self.updateStats(time.time())
+
         self.__buffer = self.__buffer+data
         lastoffset=0
         while self.line_mode and not self.paused:
@@ -615,7 +630,8 @@ class NZBLeecherStatLog:
         self.maxCount = 0 # FIXME: var name
 
         # Only bother doing the whole UI update after running updateStats this many times
-        self.delay = 70
+        #self.delay = 2100
+        self.delay = 3
         self.wait = 0
 
         self.connectionPrefix = ACODE.F_DBLUE + '[' + ACODE.RESET + '%s' + ACODE.F_DBLUE + ']' + ACODE.RESET

@@ -302,11 +302,6 @@ def stdinEchoOn():
         except:
             pass
 
-def isDebugEnabled():
-    if hasattr(Hellanzb, 'DEBUG_MODE') and Hellanzb.DEBUG_MODE != None and Hellanzb.DEBUG_MODE != False:
-        return True
-    return False
-
 def initLogging():
     """ Setup logging """
     logging.addLevelName(ScrollableHandler.SCROLL, 'SCROLL')
@@ -361,6 +356,10 @@ def initLogging():
     scrollInterrupter = ScrollInterrupter()
     scrollInterrupter.start()
 
+    Hellanzb.DEBUG_MODE_ENABLED = False
+    if hasattr(Hellanzb, 'DEBUG_MODE') and Hellanzb.DEBUG_MODE != None and Hellanzb.DEBUG_MODE != False:
+        Hellanzb.DEBUG_MODE_ENABLED = True
+
 def initLogFile(logFile = None):
     """ Initialize the log file. This has to be done after the config is loaded """
     maxBytes = backupCount = 0
@@ -386,7 +385,7 @@ def initLogFile(logFile = None):
     
     Hellanzb.logger.addHandler(fileHdlr)
 
-    if isDebugEnabled():
+    if Hellanzb.DEBUG_MODE_ENABLED:
         class DebugFileFilter(logging.Filter):
             def filter(self, record):
                 if record.levelno > logging.DEBUG:

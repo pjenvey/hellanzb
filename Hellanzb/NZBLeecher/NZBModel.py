@@ -161,6 +161,33 @@ class NZBFile:
             self.tempFilename = self.getTempFileName()
             return Hellanzb.WORKING_DIR + os.sep + self.tempFilename
 
+    # FIXME: try = slow. just simply check if tempFilename exists after
+    # getFilenamefromArticleData. does exactly the same thing w/ no try. should probably
+    # looked at the 2nd revised version of this and make sure it's still as functional as
+    # the original
+    def getDestination2(self):
+        """ Return the destination of where this file will lie on the filesystem. The filename
+        information is grabbed from the first segment's articleData (uuencode's fault --
+        yencode includes the filename in every segment's articleData). In the case where a
+        segment needs to know it's filename, and that first segment doesn't have
+        articleData (hasn't been downloaded yet), a temp filename will be
+        returned. Downloading segments out of order can easily occur in app like hellanzb
+        that downloads the segments in parallel """
+        try:
+            if self.filename != None:
+                return Hellanzb.WORKING_DIR + os.sep + self.filename
+            elif self.tempFilename != None and self.firstSegment.articleData == None:
+                return Hellanzb.WORKING_DIR + os.sep + self.tempFilename
+            else:
+                # FIXME: i should only have to call this once after i get article
+                # data. that is if it fails, it should set the real filename to the
+                # incorrect tempfilename
+                self.firstSegment.getFilenameFromArticleData()
+                return Hellanzb.WORKING_DIR + os.sep + self.tempFilename
+        except AttributeError:
+            self.tempFilename = self.getTempFileName()
+            return Hellanzb.WORKING_DIR + os.sep + self.tempFilename
+
     def getTempFileName(self):
         """ Generate a temporary filename for this file, for when we don't have it's actual file
         name on hand """
@@ -392,14 +419,15 @@ class NZBParser(ContentHandler):
             if self.segmentCount == 1:
                 self.file.firstSegment = nzbs
 
-            if self.fileNeedsDownload:
+            if self.fileNeedsDownload and nzbs.needsDownload():
                 # HACK: Maintain the order in which we encountered the segments by adding
                 # segmentCount to the priority. lame afterthought -- after realizing
                 # heapqs aren't ordered. NZB_CONTENT_P must now be large enough so that it
                 # won't ever clash with EXTRA_PAR2_P + i
                 self.queue.put((NZBQueue.NZB_CONTENT_P + self.segmentCount, nzbs))
-            # FIXME: could maintain what was skipped and alert the user?
-            #else:
+            else:
+                debug('SKIPPING segment: ' + nzbs.getTempFileName() + ' subject: ' + \
+                      nzbs.nzbFile.subject)
 
             self.chars = None
             self.number = None

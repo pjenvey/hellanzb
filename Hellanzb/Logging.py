@@ -356,10 +356,6 @@ def initLogging():
     scrollInterrupter = ScrollInterrupter()
     scrollInterrupter.start()
 
-    Hellanzb.DEBUG_MODE_ENABLED = False
-    if hasattr(Hellanzb, 'DEBUG_MODE') and Hellanzb.DEBUG_MODE != None and Hellanzb.DEBUG_MODE != False:
-        Hellanzb.DEBUG_MODE_ENABLED = True
-
 def initLogFile(logFile = None):
     """ Initialize the log file. This has to be done after the config is loaded """
     maxBytes = backupCount = 0

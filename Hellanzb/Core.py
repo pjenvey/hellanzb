@@ -63,6 +63,14 @@ def loadConfig(fileName):
 
     try:        
         execfile(fileName)
+        
+        # Cache this operation (whether or not we're in debug mode) for faster (hardly)
+        # debug spamming (from NZBLeecher)
+        Hellanzb.DEBUG_MODE_ENABLED = False
+        if hasattr(Hellanzb, 'DEBUG_MODE') and Hellanzb.DEBUG_MODE != None and \
+                Hellanzb.DEBUG_MODE != False:
+            Hellanzb.DEBUG_MODE_ENABLED = True
+            
         debug('Found config file in directory: ' + os.path.dirname(fileName))
         return True
     
@@ -166,7 +174,7 @@ def init(options = {}):
         findAndLoadConfig(options.configFile)
     else:
         findAndLoadConfig()
-
+        
     if hasattr(options, 'logFile'):
         Hellanzb.Logging.initLogFile(options.logFile)
     else:

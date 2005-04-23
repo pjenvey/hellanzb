@@ -247,6 +247,9 @@ def checkShutdown(message = 'Shutting down..'):
         print 'Error in Util.checkShutdown' + str(e)
         raise SystemExit(Hellanzb.SHUTDOWN_CODE)
 
+# FIXME: defineServer and anything else called from the config file should be moved into
+# their own ConfigFileFunctions Module. all config file functions should: Never call
+# debug()
 def defineServer(**args):
     """ Define a usenet server """
     id = args['id']

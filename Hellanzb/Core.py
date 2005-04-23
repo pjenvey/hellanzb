@@ -34,7 +34,7 @@ def findAndLoadConfig(optionalConfigFile = None):
             sys.exit(1)
 
     # look for conf in this order: sys.prefix, ./, or ./etc/
-    confDirs = [ os.getcwd() + os.sep + 'etc', os.getcwd() ]
+    confDirs = [ sys.prefix + os.sep + 'etc', os.getcwd() + os.sep + 'etc', os.getcwd() ]
 
     # hard coding preferred Darwin config file location, kind of lame. but I'd rather do
     # this then make an etc dir in os x's Python.framework directory

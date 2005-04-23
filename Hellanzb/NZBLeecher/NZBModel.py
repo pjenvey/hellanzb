@@ -25,6 +25,7 @@ def needsDownload(object, threadRealNameWork = False):
     needs to be downloaded when either it's segment file, or it's parent NZBFile's file
     does not exist on the filesystem. This function does some magic to handle
     tempFileNames """
+    start = time.time()
     # We need to ensure that we're not in the process of renaming from a temp file
     # name, so we have to lock.
     isSegment = isinstance(object, NZBSegment)
@@ -41,6 +42,8 @@ def needsDownload(object, threadRealNameWork = False):
 
     if os.path.isfile(object.getDestination()):
         tempFileNameLock.release()
+        end = time.time() - start
+        debug('needsDownload took: ' + str(end))
         return False
 
     elif filename == None:
@@ -75,14 +78,20 @@ def needsDownload(object, threadRealNameWork = False):
                             setRealFileName(object, prefix)
 
                     tempFileNameLock.release()
+                    end = time.time() - start
+                    debug('needsDownload took: ' + str(end))
                     return False
 
             # Whole file match
             elif subject.find(file) > -1:
                 tempFileNameLock.release()
+                end = time.time() - start
+                debug('needsDownload took: ' + str(end))
                 return False
 
     tempFileNameLock.release()
+    end = time.time() - start
+    debug('needsDownload took: ' + str(end))
     return True
 
 class NZB:

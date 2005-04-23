@@ -385,8 +385,9 @@ class NZBParser(ContentHandler):
         self.fileCount = 0
         self.segmentCount = 0
 
-        # HACKISH: Don't resume segment downloads if the working dir is HUGE
-        self.isLargeArchiveResume = len(os.listdir(Hellanzb.WORKING_DIR)) > 400
+        # HACKISH: Don't resume segment downloads if the working dir is HUGE. FIXME: try
+        # this with a higher number
+        self.isLargeArchiveResume = len(os.listdir(Hellanzb.WORKING_DIR)) > 500
         
     def startElement(self, name, attrs):
         if name == 'file':
@@ -431,7 +432,7 @@ class NZBParser(ContentHandler):
             if self.segmentCount == 1:
                 self.file.firstSegment = nzbs
 
-            if self.fileNeedsDownload and (not self.isLargeArchiveResume and nzbs.needsDownload()):
+            if self.fileNeedsDownload and self.isLargeArchiveResume or nzbs.needsDownload():
                 # HACK: Maintain the order in which we encountered the segments by adding
                 # segmentCount to the priority. lame afterthought -- after realizing
                 # heapqs aren't ordered. NZB_CONTENT_P must now be large enough so that it

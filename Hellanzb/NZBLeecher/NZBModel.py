@@ -113,7 +113,7 @@ def segmentsNeedDownload(segmentList):
             segmentNumber = int(ext[-4:])
             
             if segmentsByNumber.has_key(segmentNumber):
-                segmentFileNames = segmentsByNumber(segmentNumber)
+                segmentFileNames = segmentsByNumber[segmentNumber]
             else:
                 segmentFileNames = []
                 segmentsByNumber[segmentNumber] = segmentFileNames

@@ -31,10 +31,8 @@ def decode(segment):
         decodeArticleData(segment)
     except Exception, e:
         touch(segment.getDestination())
-        reactor.callFromThread(Hellanzb.scroller.prefixScroll, segment.nzbFile.showFilename + \
-                               ' segment: ' + str(segment.number) + \
-                               ' a problem occurred during decoding: ' + str(e))
-        reactor.callFromThread(Hellanzb.scroller.updateLog, True)
+        error(segment.nzbFile.showFilename + ' segment: ' + str(segment.number) + \
+              ' a problem occurred during decoding: ' + str(e))
 
     # FIXME: maybe call everything below this postProcess. have postProcess called when --
     # during the queue instantiation?
@@ -176,22 +174,17 @@ def decodeSegmentToFile(segment, encodingType = YENCODE):
 
         # CRC check
         if segment.crc == None:
-            reactor.callFromThread(Hellanzb.scroller.prefixScroll, segment.nzbFile.showFilename + \
-                                   ' segment: ' + str(segment.number) + \
-                                   ' does not have a valid CRC/yend line!')
             # FIXME: I've seen CRC errors at the end of archive cause logNow = True to
             # print I think after handleNZBDone appends a newline (looks like crap)
-            reactor.callFromThread(Hellanzb.scroller.updateLog, True)
+            error(segment.nzbFile.showFilename + ' segment: ' + str(segment.number) + \
+                  ' does not have a valid CRC/yend line!')
         else:
             decoded = ''.join(decodedLines)
             crc = '%08X' % (crc32(decoded) & 2**32L - 1)
             if crc != segment.crc:
                 message = segment.nzbFile.showFilename + ' segment ' + str(segment.number) + \
                     ': CRC mismatch ' + crc + ' != ' + segment.crc
-                reactor.callFromThread(Hellanzb.scroller.prefixScroll, message)
-                reactor.callFromThread(Hellanzb.scroller.updateLog, True)
-                # FIXME: this needs to go out to the normal log file
-                debug(message)
+                error(message)
             del decoded
             
         out = open(segment.getDestination(), 'wb')

@@ -56,11 +56,9 @@ def debug(message):
 def scroll(message):
     """ Log a message at the scroll level """
     Hellanzb.logger.log(ScrollableHandler.SCROLL, message)
-    # Somehow the scroll locks end up getting blocked unless their consumers pause as
-    # short as around 1/100th of a milli every loop. You might notice this delay when
-    # nzbget scrolling looks like a slightly different FPS from within hellanzb than
-    # running it directly
-    time.sleep(.00001)
+
+def logShutdown(message):
+    Hellanzb.logger.log(ScrollableHandler.SHUTDOWN, message)
 
 def growlNotify(type, title, description, sticky):
     """ send a message to the growl daemon via an xmlrpc proxy """
@@ -94,14 +92,12 @@ def growlNotify(type, title, description, sticky):
 def scrollBegin():
     """ Let the logger know we're beginning to scroll """
     ScrollableHandler.scrollFlag = True
-    ScrollableHandler.scrollLock = Lock()
     stdinEchoOff()
 
 def scrollEnd():
     """ Let the logger know we're done scrolling """
     stdinEchoOn()
     ScrollableHandler.scrollFlag = False
-    del ScrollableHandler.scrollLock
 
 """
 /*

@@ -29,6 +29,7 @@ class FatalError(Exception):
 # dumped, not your process. The solution to this is to pass the cmd as a list -- the cmd
 # and it's args. This tells pty/popen to run the process directly instead of via /bin/sh,
 # and you get the right WCOREDUMP *status*
+SPLIT_CMDLINE_ARGS_RE = re.compile(r'( |"[^"]*")')
 class Ptyopen(popen2.Popen3):
     def __init__(self, cmd, capturestderr = False, bufsize = -1):
         """ Popen3 class (isn't this actually Popen4, capturestderr = False?) that uses ptys
@@ -37,6 +38,8 @@ from the child process. It also stores the cmd it's running (as a string) and th
 that created the object, for later use """
         # NOTE: most of this is cutnpaste from Popen3 minus the openpty calls
         #popen2._cleanup()
+        self.prettyCmd = cmd
+        cmd = self.parseCmdToList(cmd)
         self.cmd = cmd
         self.thread = threading.currentThread()
 
@@ -61,7 +64,17 @@ that created the object, for later use """
             self.childerr = os.fdopen(errout, 'r', bufsize)
         else:
             self.childerr = None
-        #popen2._active.append(self)
+        popen2._active.append(self)
+
+    def parseCmdToList(self, cmd):
+        cleanDoubleQuotesRe = re.compile(r'^"|"$')
+        args = []
+        fields = SPLIT_CMDLINE_ARGS_RE.split(cmd)
+        for field in fields:
+            if field == '' or field == ' ':
+                continue
+            args.append(cleanDoubleQuotesRe.sub('', field))
+        return args
 
     def poll(self):
         """Return the exit status of the child process if it has finished,
@@ -71,7 +84,7 @@ that created the object, for later use """
                 pid, sts = os.waitpid(self.pid, os.WNOHANG)
                 if pid == self.pid:
                     self.sts = sts
-                    #_active.remove(self)
+                    popen2._active.remove(self)
             except os.error:
                 pass
         return self.sts
@@ -82,7 +95,7 @@ that created the object, for later use """
             pid, sts = os.waitpid(self.pid, 0)
             if pid == self.pid:
                 self.sts = sts
-                #_active.remove(self)
+                popen2._active.remove(self)
         return self.sts
 
     def readlinesAndWait(self):
@@ -100,7 +113,7 @@ shortly after every read """
             # as short as around 1/100th of a milli every loop. You might notice this
             # delay when nzbget scrolling looks like a slightly different FPS from within
             # hellanzb than running it directly
-            time.sleep(.00001)
+            time.sleep(.0001)
 
         returnStatus = self.wait()
         return output, returnStatus
@@ -116,6 +129,7 @@ instead of pipes, to allow inline reading (instead of potential i/o buffering) o
 from the child process. It also stores the cmd it's running (as a string) and the thread
 that created the object, for later use """
         #popen2._cleanup()
+        cmd = self.parseCmdToList(cmd)
         self.cmd = cmd
         self.thread = threading.currentThread()
 
@@ -132,7 +146,7 @@ that created the object, for later use """
         self.tochild = os.fdopen(p2cwrite, 'w', bufsize)
         os.close(c2pwrite)
         self.fromchild = os.fdopen(c2pread, 'r', bufsize)
-        #popen2._active.append(self)
+        popen2._active.append(self)
 
 # Future optimization: Faster way to init this from xml files would be to set the entire
 # list backing the queue in one operation (instead of putting 20k times)

@@ -8,10 +8,11 @@ looking into python's logging system. Hoho.
 (c) Copyright 2005 Philip Jenvey
 [See end of file]
 """
-import logging, os, sys, termios, types
+import logging, os, sys, termios, thread, types
 from logging import StreamHandler
 from logging.handlers import RotatingFileHandler
 from threading import Condition, Lock, Thread
+from twisted.internet import reactor
 from Hellanzb.Util import *
 
 __id__ = '$Id$'
@@ -47,38 +48,29 @@ class RotatingFileHandlerNoLF(RotatingFileHandler):
         logging.FileHandler.emit(self, record)
 
 class ScrollableHandler(StreamHandlerNoLF):
-    """ ScrollableHandler is a StreamHandler that specially handles scrolling (log messages at the SCROLL level). It allows you to temporarily interrupt the constant scroll with other log messages of different levels. It also slightly pauses the scroll output, giving you time to read the message  """
+    """ ScrollableHandler is a StreamHandler that specially handles scrolling (log
+    messages at the SCROLL level). It allows you to temporarily interrupt the constant
+    scroll with other log messages of different levels. It also slightly pauses the scroll
+    output, giving you time to read the message"""
     # the SCROLL level (a class var)
     SCROLL = 11
+    SHUTDOWN = 12
 
     def handle(self, record):
         """ The 'scroll' level is a constant scroll that can be interrupted. This interruption is
-done via a lock (ScrollableHandler.scrollLock) -- if this Handler is logging a scroll
-record, it will only emit the record if the handler can immediately acquire the scroll
-lock. If it fails to acquire the lock it will throw away the scroll record. """
+        done via prepending text to the scroll area """
         rv = self.filter(record)
         if rv:
 
             if record.levelno == ScrollableHandler.SCROLL:
-                # Only print scroll if we can immediately acquire the scroll lock
-                if ScrollableHandler.scrollLock.acquire(False):
-
-                    # got the lock -- scroll is now on and no longer interrupted
-                    ScrollableHandler.scrollInterrupted = False
-
-                    try:
-                        self.emitSynchronized(record)
-                    finally:
-                        ScrollableHandler.scrollLock.release()
-
-                else:
-                    # no scroll for you
-                    return rv
+                self.emitSynchronized(record)
+            elif record.levelno == ScrollableHandler.SHUTDOWN:
+                record.msg = '\n\n\n' + record.msg + '\n'
+                self.emitSynchronized(record)
             else:
-                # If scroll is on, queue the message for the ScrollInterrupter
+                # If scroll is on, interrupt scroll
                 if ScrollableHandler.scrollFlag:
-                    self.queueScrollInterrupt(record)
-
+                    self.scrollInterrupt(record)
                 else:
                     # otherwise if scroll isn't on, just log the message normally
                     self.emitSynchronized(record)
@@ -93,170 +85,20 @@ lock. If it fails to acquire the lock it will throw away the scroll record. """
         finally:
             self.release()
 
-    def queueScrollInterrupt(self, record):
-        """ Lock the list of pending interrupt records, then notify the interrupter it has work to
-do """
-        # Give the interrupter a reference back to where it will actually emit the log
-        # record (ourself)
-        record.scrollableHandler = self
-        
-        try:
-            ScrollInterrupter.pendingMonitor.acquire()
-            ScrollInterrupter.pendingLogRecords.append(record)
-            ScrollInterrupter.pendingMonitor.notify()
-            ScrollInterrupter.notifiedMonitor = True
-        finally:
-            ScrollInterrupter.pendingMonitor.release()
-
-class ScrollInterrupter(Thread):
-    """ The scroll interrupter handles printing out a message and pausing the scroll for a
-short time after those messages are printed. Even though this is only a brief pause, we
-don't want logging to block while this pause happens. Thus the pause is handled by this
-permanent thread. This is modeled after a logging.Handler, but it does not extend it --
-it's more of a child helper handler of ScrollableHandler, than an offical logging Handler
-"""
-    def acquire(self, record):
-        """ Acquire the ScrollableHandler lock (log a message atomically via pythons logging) """ 
-        record.scrollableHandler.acquire()
-        
-    def release(self, record):
-        """ Release the ScrollableHandler lock """
-        record.scrollableHandler.release()
-
-    def format(self, record):
-        """ Add spaces to the scroll interrupting log message, unless we've already interrupted
-scroll and already added the spaces """
-        if not ScrollableHandler.scrollInterrupted:
-            record.msg = '\n\n\n\n' + record.msg + '\n\n'
-            ScrollableHandler.scrollInterrupted = True
-        else:
-            record.msg = record.msg + '\n\n'
-        return record
-
-    def handle(self, record):
-        """ Handle the locking required to atomically log a message
-        @see Handler.handle(self, record) """
-        # atomically log the the message.
-        self.acquire(record)
-        try:
-            self.emit(record)
-        finally:
-            self.release(record)
-
-    def emit(self, record):
-        """ Do the actual logging work
-        @see Handler.emit(self, record)"""
-        record = self.format(record)
-        self.emitToParent(record)
-        
-    def emitToParent(self, record):
-        """ Pass the log message back to the ScrollableHandler """
-        record.scrollableHandler.emit(record)
-
-    def wait(self, timeout = None):
-        """ Wait for notification of new log messages """
-        # FIXME: this lock should never really be released by this function, except by
-        # wait. does that fly with the temporary wait below?
-        ScrollInterrupter.pendingMonitor.acquire()
-        
-        result = ScrollInterrupter.pendingMonitor.wait(timeout)
-        if timeout == None and ScrollInterrupter.notifiedMonitor:
-           ScrollInterrupter.notifiedMonitor = False
-
-        ScrollInterrupter.pendingMonitor.release()
-
-        return result
-
-    def checkShutdown(self):
-        """ Simply return false causing this thread to die if we're shutting down """
-        if Hellanzb.shutdown:
-            raise SystemExit(Hellanzb.SHUTDOWN_CODE)
+    def inMainThread(self):
+        if Hellanzb.MAIN_THREAD_IDENT == thread.get_ident():
+            return True
         return False
 
-    def run(self):
-        """ do the work and allow the thread to shutdown cleanly under all circumstances """
-        try:
-            self.waitLoop()
-        except (AttributeError, NameError), e:
-            # this can occur during shutdown
-            pass
-        except SystemExit:
-            # FIXME: Can I safely raise here instead?
-            pass
-        except Exception, e:
-            # Fatal logging problems should avoid printing via actual Hellanzb.Logging
-            # methods
-            print 'Error in ScrollInterrupter: ' + str(e)
-
-    def lockScrollOutput(self):
-        """ Prevent scroll output """
-        ScrollableHandler.scrollLock.acquire()
-        
-    def releaseScrollOutput(self):
-        """ Continue scroll output """
-        ScrollableHandler.scrollLock.release()
-
-    # FIXME: change self.wait to self.waitForRecord
-    # make the wait(timeout) use the same function. shouldn't i just acquire the pending
-    # monitor lock at the beginning and never release it?
-
-    # FIXME: problem with this function is, you can definitely have a case where you were
-    # notified and weren't wait()ing. you sort of have to manually look for any pending
-    # records at the beginning of the loop or if i can never release the lock
-    def waitLoop(self):
-        """ wait for scroll interrupts, then break the scroll to print them """
-        # hadQuickWait explained below. basically toggles whether or not we release the
-        # scroll locks during the loop
-        hadQuickWait = False
-
-        # Continue waiting for scroll interrupts until shutdown
-        while not self.checkShutdown():
-
-            # See below
-            if not hadQuickWait:
-                # Wait until we're notified of a new log message
-                self.wait()
-                
-                # We've been notified -- block the scroll output,
-                ScrollableHandler.scrollLock.acquire()
-                # and lock the data structure containing the new log messages
-                ScrollInterrupter.pendingMonitor.acquire()
-            else:
-                # release the locks next time around unless we hadQuickWait again (see
-                # below)
-                hadQuickWait = False
-            
-            # copy all the new log messages and remove them from the pending list
-            #records = self.scrollableHandler.scrollInterruptRecords[:]
-            records = ScrollInterrupter.pendingLogRecords[:]
-            ScrollInterrupter.pendingLogRecords = []
-
-            # Print the new messages.
-            for record in records:
-                self.handle(record)
-                
-            self.checkShutdown()
-            # Now that we've printed the log messages, we want to continue blocking the
-            # scroll output for a few seconds. However if we're notified of a new pending
-            # log (scroll interrupt) messages, we want to print it immediately, and
-            # restart the 3 second count
-            ScrollInterrupter.pendingMonitor.wait(Hellanzb.Logging.SCROLL_INTERRUPT_WAIT)
-
-            # wait() won't tell us whether or not we were actually notified. If we were,
-            # this would have been set to true (while notify() acquired the lock during
-            # our wait())
-            if ScrollInterrupter.notifiedMonitor:
-                ScrollInterrupter.notifiedMonitor = False
-                # We caught new log messages and want to continue interrutping the
-                # scroll. So we won't release the locks the next time around the loop
-                hadQuickWait = True
-                
-            else:
-                # We waited a few seconds and weren't notified of new messages. Let the
-                # scroll continue
-                ScrollInterrupter.pendingMonitor.release()
-                
-                ScrollableHandler.scrollLock.release()
+    def scrollInterrupt(self, record):
+        """ Print a log message so that the user can see it during a SCROLL """
+        msg = self.format(record)
+        if self.inMainThread():
+            # FIXME: scrollBegin() should really be creating the scroller instance
+            # FIXME: no unicode crap from normal python log emit
+            Hellanzb.scroller.prefixScroll(msg)
+        else:
+            reactor.callFromThread(Hellanzb.scroller.prefixScroll, msg)
 
 class LogOutputStream:
     """ Provides somewhat of a file-like interface (supporting only the typical writing
@@ -305,6 +147,7 @@ def stdinEchoOn():
 def initLogging():
     """ Setup logging """
     logging.addLevelName(ScrollableHandler.SCROLL, 'SCROLL')
+    logging.addLevelName(ScrollableHandler.SHUTDOWN, 'SHUTDOWN')
 
     Hellanzb.logger = logging.getLogger('hellanzb')
     #Hellanzb.logger.setLevel(ScrollableHandler.SCROLL)
@@ -331,30 +174,8 @@ def initLogging():
     Hellanzb.logger.addHandler(outHdlr)
     Hellanzb.logger.addHandler(errHdlr)
 
-    # FIXME: could move this to config file
-    # How many seconds to delay the scroll for
-    Hellanzb.Logging.SCROLL_INTERRUPT_WAIT = 5
-    # 2 is for testing
-    #Hellanzb.Logging.SCROLL_INTERRUPT_WAIT = 2
-
-
     # Whether or not scroll mode is on
     ScrollableHandler.scrollFlag = False
-    # Whether or not there is currently output interrupting the scroll
-    ScrollableHandler.scrollInterrupted = True
-    # the lock that allows us interrupt scroll (is initialized via scrollEnd())
-    ScrollableHandler.scrollLock = None
-
-    # For communication to the scroll interrupter
-    # FIXME: could put these in interrupter cstrctr. interrupter can throw an exception if
-    # its instantiated twice
-    ScrollInterrupter.pendingMonitor = Condition(Lock())
-    ScrollInterrupter.notifiedMonitor = False
-    ScrollInterrupter.pendingLogRecords = []
-
-    # Start the thread after initializing all those variables (singleton)
-    scrollInterrupter = ScrollInterrupter()
-    scrollInterrupter.start()
 
 def initLogFile(logFile = None):
     """ Initialize the log file. This has to be done after the config is loaded """

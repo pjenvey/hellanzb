@@ -12,13 +12,13 @@ twisted.internet.abstract.FileDescriptor.bufferSize = 4096
 from Hellanzb.HellaReactor import HellaReactor
 HellaReactor.install()
 
-import optparse, os, signal, sys, threading, Hellanzb, Hellanzb.PostProcessor
+import optparse, os, signal, sys, thread, threading, Hellanzb, Hellanzb.PostProcessor
 from distutils import spawn
 from threading import Lock
 from twisted.internet import reactor
 from Hellanzb.Daemon import initDaemon
 from Hellanzb.Log import *
-from Hellanzb.Logging import initLogging, stdinEchoOn, ScrollInterrupter
+from Hellanzb.Logging import initLogging, stdinEchoOn
 from Hellanzb.PostProcessorUtil import defineMusicType
 from Hellanzb.Util import *
 
@@ -89,27 +89,25 @@ def signalHandler(signum, frame):
     if signum == signal.SIGINT:
         # lazily notify everyone they should stop immediately
         Hellanzb.shutdown = True
-        
-        info('Caught interrupt, exiting..')
-        # we expect immediate gratification from a CTRL-C
-        sys.stdout.flush()
 
         # If there aren't any proceses to wait for exit immediately
         if len(popen2._active) == 0:
+            logShutdown('Caught interrupt, exiting..')
             shutdownNow(Hellanzb.SHUTDOWN_CODE)
 
         # The idea here is to 'cheat' again to exit the program ASAP if all the processes
         # are associated with the main thread (the processes would have already gotten the
         # signal. I'm not exactly sure why)
         threadsOutsideMain = False
-        for popen in popen2._active:
+        for ptyopen in popen2._active:
             # signal guarantees us to be within the main thread
-            if popen.thread != threading.currentThread():
+            if ptyopen.thread != threading.currentThread():
                 # FIXME: only Ptyopen has a popen.thread. And Do I need to bother to look
                 # at this _active list? since everything is Ptyopen now
                 threadsOutsideMain = True
 
         if not threadsOutsideMain:
+            logShutdown('Caught interrupt, exiting..')
             shutdownNow(Hellanzb.SHUTDOWN_CODE)
 
         # We couldn't cheat our way out of the program, tell the user the processes
@@ -120,34 +118,39 @@ def signalHandler(signum, frame):
             # feedback after the CTRL-C, and all the threads might have gone away right
             # before/after the second CTRL-C
             Hellanzb.stopSignalCount = 0
+            info('Caught interrupt, exiting..')
 
         Hellanzb.stopSignalCount = Hellanzb.stopSignalCount + 1
 
         if Hellanzb.stopSignalCount < 2:
             msg = 'Caught CTRL-C, waiting for the child processes to finish:\n'
-            for popen in popen2._active:
-                msg += ' '*4 + popen.cmd + '\n'
+            for ptyopen in popen2._active:
+                msg += ' '*4 + ptyopen.prettyCmd + '\n'
             msg += '(Press CTRL-C again to kill them and exit immediately)..'
             warn(msg)
-            sys.stdout.flush()
             
         else:
             # Simply kill anything. If any processes are lying around after a kill -9,
             # it's either an o/s problem (we don't care) or a bug in hellanzb (we aren't
             # allowing the process to exit/still reading from it)
-            warn('Killing children (wait a second..)')
-            for popen in popen2._active:
+            warn('Killing child processes (wait a second..)')
+            for ptyopen in popen2._active:
                 try:
-                    os.kill(popen.pid, signal.SIGKILL)
+                    os.kill(ptyopen.pid, signal.SIGKILL)
                 except OSError, ose:
-                    error('Unexpected problem while kill -9ing process' + popen.cmd, ose)
+                    logShutdown('Unexpected problem while kill -9ing process' + ptyopen.cmd, ose)
 
+            logShutdown('Killed child processes, exiting..')
             shutdownNow(Hellanzb.SHUTDOWN_CODE)
 
 def init(options = {}):
     """ initialize the app """
     # Whether or not the app is in the process of shutting down
     Hellanzb.shutdown = False
+
+    # we can compare the current thread's ident to our MAIN_THREAD's to determine whether
+    # or not we may need to route things through twisted's callFromThread
+    Hellanzb.MAIN_THREAD_IDENT = thread.get_ident()
 
     # Get logging going ASAP
     initLogging()
@@ -187,12 +190,6 @@ def shutdown():
 
     # stop the twisted reactor
     reactor.callLater(0, reactor.stop)
-
-    # wakeup the doofus scroll interrupter thread (to die) if it's waiting
-    if hasattr(ScrollInterrupter, 'pendingMonitor'):
-        ScrollInterrupter.pendingMonitor.acquire()
-        ScrollInterrupter.pendingMonitor.notify()
-        ScrollInterrupter.pendingMonitor.release()
 
     # Just in case we left it off
     stdinEchoOn()
@@ -246,9 +243,9 @@ def processArgs(options):
         initDaemon()
 
 def main():
-    """ Program main loop """
+    """ Program main loop. Always called from the main thread """
     options, args = parseArgs()
-    
+
     try:
         init(options)
     

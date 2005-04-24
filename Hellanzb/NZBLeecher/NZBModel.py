@@ -104,8 +104,9 @@ def segmentsNeedDownload(segmentList):
 
     segmentsByNumber = {}
     needsDownloading = []
+    onDisk = []
 
-    # Cache all WORKING_DIR filenames in a map of lists
+    # Cache all WORKING_DIR segment filenames in a map of lists
     for file in os.listdir(Hellanzb.WORKING_DIR):
         ext = getFileExtension(file)
         if ext != None and segmentEndRe.match(ext):
@@ -117,6 +118,7 @@ def segmentsNeedDownload(segmentList):
                 segmentFileNames = []
                 segmentsByNumber[segmentNumber] = segmentFileNames
 
+            # cut off .segmentXXXX
             fileNoExt = file[:-12]
             segmentFileNames.append(fileNoExt)
 
@@ -138,11 +140,13 @@ def segmentsNeedDownload(segmentList):
 
         if not found:
             needsDownloading.append(segment)
+        else:
+            onDisk.append(segment)
         #else:
         #    debug('SKIPPING SEGMENT: ' + segment.getTempFileName() + ' subject: ' + \
         #          segment.nzbFile.subject)
     
-    return needsDownloading
+    return needsDownloading, onDisk
 
 class NZB:
     """ Representation of an nzb file -- the root <nzb> tag """
@@ -383,12 +387,16 @@ class NZBQueue(PriorityQueue):
         # The parser will add all the segments of all the NZBFiles that have not already
         # been downloaded. After the parsing, we'll check if each of those segments have
         # already been downloaded. it's faster to check all segments at one time
-        needDownloading = segmentsNeedDownload(interimQueue)
+        needDownloading, onDisk = segmentsNeedDownload(interimQueue)
         e = time.time() - s
         debug('segmentsNeedDownload TOOK: ' + str(e))
         
         for nzbSegment in needDownloading:
             self.put((nzbSegment.priority, nzbSegment))
+
+        # Tally what was skipped for correct percentages in the UI
+        for nzbSegment in onDisk:
+            nzbSegment.nzbFile.totalSkippedBytes += nzbSegment.bytes
         
         self.calculateTotalQueuedBytes()
 

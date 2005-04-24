@@ -155,6 +155,7 @@ class PostProcessor(Thread):
         if len(self.failedToProcesses) > 0:
             # Let the threads finish their logging (ScrollInterrupter can
             # lag)
+            # FIXME: is this still necessary?
             time.sleep(.1)
             raise FatalError('Failed to complete music decompression')
 

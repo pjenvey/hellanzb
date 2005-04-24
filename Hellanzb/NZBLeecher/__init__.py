@@ -9,7 +9,7 @@ Freddie (freddie@madcowdisease.org) utilizing the twisted framework
 (c) Copyright 2005 Philip Jenvey, Ben Bangert
 [See end of file]
 """
-import os, time
+import os, re, time
 from sets import Set
 from twisted.internet import reactor
 from twisted.internet.protocol import ReconnectingClientFactory
@@ -85,7 +85,7 @@ def startNZBLeecher():
 
     # Allocate only one thread, just for decoding
     reactor.suggestThreadPoolSize(1)
-    
+
     reactor.run()
 
 class NZBLeecherFactory(ReconnectingClientFactory):
@@ -375,7 +375,6 @@ class NZBLeecher(NNTPClient, AntiIdleMixin):
         #if not gotActiveGroup:
             # FIXME: prefix with segment name
         #    Hellanzb.scroller.prefixScroll('No valid group found!')
-        #    Hellanzb.scroller.updateLog(logNow = True)
             
         debug(str(self) + ' getting BODY: <' + self.currentSegment.messageId + '> ' + \
               self.currentSegment.getDestination())
@@ -414,7 +413,6 @@ class NZBLeecher(NNTPClient, AntiIdleMixin):
         if code is not None and code in ('423', '430'):
             # FIXME: show filename and segment number
             Hellanzb.scroller.prefixScroll(self.currentSegment.showFilename + ' Article is missing!')
-            Hellanzb.scroller.updateLog(logNow = True)
         
         self.processBodyAndContinue('')
 
@@ -474,7 +472,6 @@ class NZBLeecher(NNTPClient, AntiIdleMixin):
 
     def lineLengthExceeded(self, line):
         Hellanzb.scroller.prefixScroll('Error!!: LineReceiver.MAX_LENGTH exceeded. size: ' + str(len(line)))
-        Hellanzb.scroller.updateLog(True)
         debug('EXCEEDED line length, len: ' + str(len(line)) + ' line: ' + line)
 
     def updateByteCount(self, lineLen):
@@ -485,7 +482,7 @@ class NZBLeecher(NNTPClient, AntiIdleMixin):
             self.currentSegment.nzbFile.totalReadBytes += lineLen
 
     def updateStats(self, now):
-        if self.currentSegment == None:
+        if self.currentSegment == None or self.currentSegment.nzbFile.downloadStartTime == None:
             return
 
         oldPercentage = self.currentSegment.nzbFile.downloadPercentage
@@ -577,7 +574,8 @@ class ASCIICodes:
                 val += 'm'
         return val
 ACODE = ASCIICodes()
-        
+
+NEWLINE_RE = re.compile('\n')
 class NZBLeecherStatLog:
     """ A basic logger for NZBLeecher. It's uh, not what I really want. I'd rather put more
     time into writing a curses interface. Code submissions greatly appreciated. -pjenvey
@@ -600,6 +598,7 @@ class NZBLeecherStatLog:
 
     def prefixScroll(self, message):
         self.prefixScrolls.append(message)
+        self.updateLog(True)
         
     def updateLog(self, logNow = False):
         """ Log ticker """
@@ -629,6 +628,7 @@ class NZBLeecherStatLog:
         if len(self.prefixScrolls) > 0:
             prefixScroll = ''
             for message in self.prefixScrolls:
+                message = NEWLINE_RE.sub(ACODE.KILL_LINE + '\n', message)
                 prefixScroll += message + ACODE.KILL_LINE + '\n'
                 
             self.currentLog += prefixScroll

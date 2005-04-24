@@ -10,6 +10,7 @@ Freddie (freddie@madcowdisease.org) utilizing the twisted framework
 [See end of file]
 """
 import os, time
+from sets import Set
 from twisted.internet import reactor
 from twisted.internet.protocol import ReconnectingClientFactory
 from twisted.protocols.basic import LineReceiver
@@ -94,23 +95,21 @@ class NZBLeecherFactory(ReconnectingClientFactory):
         self.password = password
         self.antiIdleTimeout = antiIdleTimeout
 
-        # FIXME: don't think these are actually used
-        #self.totalStartTime = None
         self.totalReadBytes = 0
-        self.totalDownloadedFiles = 0
+        #self.totalStartTime = None
+        #self.totalDownloadedFiles = 0
 
-        # statistics for the current session (sessions end when we stop downloading on all
-        # ports). used for the more accurate total speeds shown in the UI
+        # statistics for the current session (sessions end when downloading stops on all
+        # clients). used for the more accurate total speeds shown in the UI
         self.sessionReadBytes = 0
         self.sessionSpeed = 0
         self.sessionStartTime = None
-        
-        # FIXME: idle the connection by: returning nothing, having a callLater handle an
-        # idle call. whenever there's activity, we cancel the idle call and reschedule for
-        # later
+
+        # all of this factory's clients 
         self.clients = []
 
-        from sets import Set
+        # all clients that are actively leeching
+        # FIXME: is a Set necessary here
         self.activeClients = Set()
 
         # FIXME: factories need to know when we're idle (done downloading). then it can
@@ -122,10 +121,10 @@ class NZBLeecherFactory(ReconnectingClientFactory):
     def buildProtocol(self, addr):
         p = NZBLeecher(self.username, self.password)
         p.factory = self
+        
+        # All clients inherit the factory's anti idle timeout setting
         p.timeOut = self.antiIdleTimeout
         
-        # FIXME: Is it safe to maintain the clients in this list? no other twisted
-        # examples do this. no twisted base factory classes seem to maintain this list
         self.clients.append(p)
 
         # FIXME: registerScrollingClient
@@ -138,8 +137,8 @@ class NZBLeecherFactory(ReconnectingClientFactory):
 
 class AntiIdleMixin(TimeoutMixin):
     """ policies.TimeoutMixin calls self.timeoutConnection after the connection has been idle
-    too long. Anti-idling the connection involves the same operation, so we extend
-    TimeoutMixin, anti-idle instead, and reset the timeout after anti-idling (to repeat
+    too long. Anti-idling the connection involves the same operation -- extend
+    TimeoutMixin to anti-idle instead, and reset the timeout after anti-idling (to repeat
     the process -- unlike TimeoutMixin) """
     def antiIdleConnection(self):
         """ """
@@ -151,7 +150,7 @@ class AntiIdleMixin(TimeoutMixin):
         self.antiIdleConnection()
 
         # TimeoutMixin assumes we're done (timed out) after timeoutConnection. Since we're
-        # still connected, we need to manually reset the timeout
+        # still connected, manually reset the timeout
         self.setTimeout(self.timeOut)
 
 class NZBLeecher(NNTPClient, AntiIdleMixin):
@@ -177,19 +176,20 @@ class NZBLeecher(NNTPClient, AntiIdleMixin):
         self.downloadStartTime = None
         self.readBytes = 0
 
-        self.myState = None
-
         self.isLoggedIn = False
         self.setReaderAfterLogin = False
             
-        # How long we must be idle for in seconds until we send an anti idle request
+        # Idle time -- after being idle this long send anti idle requests
         self.timeOut = 7 * 60
 
-        # I'm not sure why this needs to be raised from the default value -- but we can
-        # definitely get longer lines than LineReceiver expects
+        # This value exists in twisted and doesn't do much (except call lineLimitExceeded
+        # when a line that long is exceeded). Knowing twisted that function is probably a
+        # hook for defering processing when it might take too long with too much received
+        # data. hellanzb can definitely receive much longer lines than LineReceiver's
+        # default value. i doubt higher limits degrade it's performance much
         self.MAX_LENGTH = 262144
 
-        # Lameness -- these are from LineReceiver. Needed for the imported Twisted 2.0
+        # From Twisted 2.0 LineReceiver, specifically for the imported Twisted 2.0
         # dataReceieved
         self.line_mode = 1
         self.__buffer = ''
@@ -220,7 +220,7 @@ class NZBLeecher(NNTPClient, AntiIdleMixin):
 
     def gotauthInfoOk(self, message):
         """ Override for notification when authInfo() action is successful """
-        debug(self.getName() + ' AUTHINFO succeeded: ' + message)
+        debug(str(self) + ' AUTHINFO succeeded: ' + message)
         self.isLoggedIn = True
 
         # Reset the auto-reconnect delay
@@ -233,7 +233,7 @@ class NZBLeecher(NNTPClient, AntiIdleMixin):
 
     def authInfoFailed(self, err):
         "Override for notification when authInfoFailed() action fails"
-        debug(self.getName() + ' AUTHINFO failed: ' + str(err))
+        debug(str(self) + ' AUTHINFO failed: ' + str(err))
 
     def connectionMade(self):
         NNTPClient.connectionMade(self)
@@ -270,7 +270,7 @@ class NZBLeecher(NNTPClient, AntiIdleMixin):
         
         # Continue being quiet about things if we're shutting down
         if not Hellanzb.shutdown:
-            debug(self.getName() + ' lost connection: ' + str(reason))
+            debug(str(self) + ' lost connection: ' + str(reason))
 
         self.activeGroups = []
         self.factory.clients.remove(self)
@@ -292,7 +292,7 @@ class NZBLeecher(NNTPClient, AntiIdleMixin):
         
     def setReaderSuccess(self):
         """ """
-        debug(self.getName() + ' MODE READER successful')
+        debug(str(self) + ' MODE READER successful')
         if self.setReaderAfterLogin:
             reactor.callLater(0, self.fetchNextNZBSegment)
         else:
@@ -305,58 +305,57 @@ class NZBLeecher(NNTPClient, AntiIdleMixin):
             self.setReaderAfterLogin = True
             self.authInfo()
         else:
-            debug(self.getName() + 'MODE READER failed, err: ' + str(err))
-        
-    def fetchNextNZBSegment(self):
-        """ Pop nzb article from the queue, and attempt to retrieve it if it hasn't already been
-        retrieved"""
-        if self.currentSegment is None:
+            debug(str(self) + 'MODE READER failed, err: ' + str(err))
+
+    def isActive(self, isActiveBool):
+        """ Activate/Deactivate this client -- notify the factory, etc"""
+        if isActiveBool:
             if self not in self.factory.activeClients:
                 if len(self.factory.activeClients) == 0:
                     self.factory.sessionStartTime = time.time()
                 self.factory.activeClients.add(self)
-            try:
-                nextSegment = Hellanzb.queue.get_nowait()
-                #while not nextSegment.needsDownload(threadRealNameWork = True):
-                    # FIXME: could do a segment.fileDone(). would add segment to
-                    # nzbFile.finishedSegments list (if it isn't already
-                    # there). needsDownload() could call this if it finds a match on the
-                    # filesystem. easy way to maintain what/when is done all the time (i
-                    # think)
-
-                    # FIXME: we should maybe notify the user we skipped a file that wasn't
-                    # the expected size. passing an argument to needsDownload could do the
-                    # work for us
-                    
-               #     nextSegment.nzbFile.totalSkippedBytes += nextSegment.bytes
-                    # TODO: decrement the skippedBytes from the Queue (queue should
-                    # maintain the byte count down to the segment intstead of file)
-                    
-               #     debug(self.getName() + ' SKIPPING segment: ' + nextSegment.getTempFileName() + \
-               #           ' subject: ' + nextSegment.nzbFile.subject)
-               #     nextSegment = Hellanzb.queue.get_nowait()
-
-                self.currentSegment = nextSegment
-                if self.currentSegment.nzbFile.showFilename == None:
-                    if self.currentSegment.nzbFile.filename == None:
-                        self.currentSegment.nzbFile.showFilenameIsTemp = True
-                    self.currentSegment.nzbFile.showFilename = os.path.basename(self.currentSegment.nzbFile.getDestination())
-            except Empty:
+                
+        else:
                 self.factory.activeClients.remove(self)
+
+                # Reset stats if necessary
                 if len(self.factory.activeClients) == 0:
                     self.factory.sessionReadBytes = 0
                     self.factory.sessionSpeed = 0
                     self.factory.sessionStartTime = None
 
+                # Check if we're completely done
                 totalActiveClients = 0
                 for nsf in Hellanzb.nsfs:
                     totalActiveClients += len(nsf.activeClients)
                 if totalActiveClients == 0:
                     Hellanzb.totalSpeed = 0
                     Hellanzb.scroller.currentLog = None
+        
+    def fetchNextNZBSegment(self):
+        """ Pop nzb article from the queue, and attempt to retrieve it if it hasn't already been
+        retrieved"""
+        if self.currentSegment is None:
+
+            # gogogo
+            self.isActive(True)
+            
+            try:
+                self.currentSegment = Hellanzb.queue.get_nowait()
+
+                # Determine the filename to show in the UI
+                if self.currentSegment.nzbFile.showFilename == None:
+                    if self.currentSegment.nzbFile.filename == None:
+                        self.currentSegment.nzbFile.showFilenameIsTemp = True
+                        
+                    self.currentSegment.nzbFile.showFilename = \
+                                                             os.path.basename(self.currentSegment.nzbFile.getDestination())
                     
+            except Empty:
+                # all done
+                self.isActive(False)
+                
                 # FIXME: 'Transferred %s in %.1fs at %.1fKB/s' % (ldb, dur, speed)
-                                    
                 return
 
         # Change group
@@ -367,7 +366,7 @@ class NZBLeecher(NNTPClient, AntiIdleMixin):
             # NOTE: we could get away with activating only one of the groups instead of
             # all
             if group not in self.activeGroups:
-                debug(self.getName() + ' getting GROUP: ' + group)
+                debug(str(self) + ' getting GROUP: ' + group)
                 self.fetchGroup(group)
                 return
             #else:
@@ -378,13 +377,11 @@ class NZBLeecher(NNTPClient, AntiIdleMixin):
         #    Hellanzb.scroller.prefixScroll('No valid group found!')
         #    Hellanzb.scroller.updateLog(logNow = True)
             
-        debug(self.getName() + ' getting BODY: <' + self.currentSegment.messageId + '> ' + \
+        debug(str(self) + ' getting BODY: <' + self.currentSegment.messageId + '> ' + \
               self.currentSegment.getDestination())
         reactor.callLater(0, self.fetchBody, str(self.currentSegment.messageId))
         
     def fetchBody(self, index):
-        """ """
-        self.myState = 'BODY'
         start = time.time()
         if self.currentSegment.nzbFile.downloadStartTime == None:
             self.currentSegment.nzbFile.downloadStartTime = start
@@ -392,12 +389,7 @@ class NZBLeecher(NNTPClient, AntiIdleMixin):
         
         Hellanzb.scroller.segments.append(self.currentSegment)
 
-        #reactor.callLater(0, NNTPClient.fetchBody, self, '<' + index + '>')
         NNTPClient.fetchBody(self, '<' + index + '>')
-
-    def getName(self):
-        """ Return the name of this NZBLeecher instance """
-        return self.__class__.__name__ + '[' + str(self.id) + ']'
 
     def getNextId(self):
         id = NZBLeecher.nextId
@@ -406,19 +398,15 @@ class NZBLeecher(NNTPClient, AntiIdleMixin):
 
     def gotBody(self, body):
         """ Queue the article body for decoding and continue fetching the next article """
-        #debug(self.getName() + ' got BODY: ' + ' <' + self.currentSegment.messageId + '> ' + \
-        #      self.currentSegment.getDestination() + ' lines: ' + str(len(body)) + ' expected size: ' + \
-        #      str(self.currentSegment.bytes))
-        debug(self.getName() + ' got BODY: ' + ' <' + self.currentSegment.messageId + '> ' + \
+        debug(str(self) + ' got BODY: ' + ' <' + self.currentSegment.messageId + '> ' + \
               self.currentSegment.getDestination())
 
-        #reactor.callLater(0, self.processBodyAndContinue, body)
         self.processBodyAndContinue(body)
         
     def gotBodyFailed(self, err):
         """ Handle a failure of the BODY command. Ensure the failed segment gets a 0 byte file
         written to the filesystem when this occurs """
-        debug(self.getName() + ' got BODY FAILED, error: ' + str(err) + ' for messageId: <' + \
+        debug(str(self) + ' got BODY FAILED, error: ' + str(err) + ' for messageId: <' + \
               self.currentSegment.messageId + '> ' + self.currentSegment.getDestination() + \
               ' expected size: ' + str(self.currentSegment.bytes))
         
@@ -428,14 +416,11 @@ class NZBLeecher(NNTPClient, AntiIdleMixin):
             Hellanzb.scroller.prefixScroll(self.currentSegment.showFilename + ' Article is missing!')
             Hellanzb.scroller.updateLog(logNow = True)
         
-        #reactor.callLater(0, self.processBodyAndContinue, '')
         self.processBodyAndContinue('')
 
     def processBodyAndContinue(self, articleData):
         """ Defer decoding of the specified articleData of the currentSegment, reset our state and
         continue fetching the next queued segment """
-        self.myState = None
-
         Hellanzb.scroller.segments.remove(self.currentSegment)
 
         self.currentSegment.articleData = articleData
@@ -455,7 +440,7 @@ class NZBLeecher(NNTPClient, AntiIdleMixin):
         """ """
         group = group[len(group) - 1]
         self.activeGroups.append(group)
-        debug(self.getName() + ' got GROUP: ' + group)
+        debug(str(self) + ' got GROUP: ' + group)
 
         reactor.callLater(0, self.fetchNextNZBSegment)
 
@@ -476,40 +461,16 @@ class NZBLeecher(NNTPClient, AntiIdleMixin):
             self.gotHelp('\n'.join(self._endState()))
 
     def fetchHelp(self):
-        debug(self.getName() + ' fetching HELP')
+        debug(str(self) + ' fetching HELP')
         self.sendLine('HELP')
-        self.myState = 'HELP'
         self._newState(self._stateHelp, self.getHelpFailed)
 
     def gotHelp(self, idle):
-        self.myState = None
-        debug(self.getName() + ' got HELP')
+        debug(str(self) + ' got HELP')
 
     def getHelpFailed(self, err):
         "Override for getHelpFailed"
-        self.myState = None
-        debug(self.getName() + ' got HELP failed: ' + str(err))
-
-    def lineReceived2(self, line):
-        # We got data -- reset the anti idle timeout
-        
-        # Update stats for current segment if we're issuing a BODY command
-        #if self.myState == 'BODY':
-        #    now = time.time()
-        #    self.updateByteCount(len(line))
-        #    self.updateStats(now)
-            
-        #elif self.myState == 'HELP':
-        #    # UsenetClient.lineReceived thinks the appropriate HELP response code (100) is
-        #    # an error. circumvent it
-        #    self._state[0](line)
-        #    return
-        
-        #now = time.time()
-        #self.updateByteCount(len(line))
-        #self.updateStats(now)
-            
-        NNTPClient.lineReceived(self, line)
+        debug(str(self) + ' got HELP failed: ' + str(err))
 
     def lineLengthExceeded(self, line):
         Hellanzb.scroller.prefixScroll('Error!!: LineReceiver.MAX_LENGTH exceeded. size: ' + str(len(line)))
@@ -541,9 +502,6 @@ class NZBLeecher(NNTPClient, AntiIdleMixin):
             self.factory.sessionSpeed = self.factory.sessionReadBytes / elapsedSession / 1024.0
             
             Hellanzb.scroller.updateLog()
-            #if self.currentSegment.nzbFile.downloadPercentage > oldPercentage + 1:
-                #reactor.callLater(0, Hellanzb.scroller.updateLog)
-            #    Hellanzb.scroller.updateLog()
 
     def antiIdleConnection(self):
         self.fetchHelp()
@@ -556,10 +514,14 @@ class NZBLeecher(NNTPClient, AntiIdleMixin):
         Translates bytes into lines, and calls lineReceived (or
         rawDataReceived, depending on mode.)
         """
+        # got data -- reset the anti idle timeout
         self.resetTimeout()
+        
+        # Update statistics
         self.updateByteCount(len(data))
         self.updateStats(time.time())
 
+        # Below on from Twisted 2.0
         self.__buffer = self.__buffer+data
         lastoffset=0
         while self.line_mode and not self.paused:
@@ -592,11 +554,9 @@ class NZBLeecher(NNTPClient, AntiIdleMixin):
                 if data:
                     return self.rawDataReceived(data)
 
-    #def __str__(self):
-    #    return 'str' + self.getName()
-    #def __repr__(self):
-    #    return 'repr' + self.getName()
-    
+    def __str__(self):
+        """ Return the name of this NZBLeecher instance """
+        return self.__class__.__name__ + '[' + str(self.id) + ']'
 
 class ASCIICodes:
     def __init__(self):

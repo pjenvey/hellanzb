@@ -18,6 +18,7 @@ from Hellanzb.Util import archiveName, getFileExtension, PriorityQueue
 __id__ = '$Id$'
 
 segmentEndRe = re.compile(r'^segment\d{4}$')
+# FIXME: i believe needsDownload just needs to work for files now
 def needsDownload(object, threadRealNameWork = False):
     """ Whether or not this object needs to be downloaded (isn't on the file system). This
     function is generalized to support both NZBFile and NZBSegment objects. A NZBFile
@@ -82,7 +83,7 @@ def needsDownload(object, threadRealNameWork = False):
                     debug('needsDownload took: ' + str(end))
                     return False
 
-            # Whole file match
+            # Whole file match #FIXME: for segments this needs to be file minus the .segment suffix
             elif subject.find(file) > -1:
                 tempFileNameLock.release()
                 end = time.time() - start
@@ -93,6 +94,55 @@ def needsDownload(object, threadRealNameWork = False):
     end = time.time() - start
     debug('needsDownload took: ' + str(end))
     return True
+
+def segmentsNeedDownload(segmentList):
+    """ Faster version of needsDownload for multiple segments that do not have their real file
+    name (for use by the Queue) """
+    # Arrange all WORKING_DIR segment's filenames in a list. Key this list by segment
+    # number in a map. Loop through the specified segmentList, doing a subject.find for
+    # each segment filename with a matching segment number
+
+    segmentsByNumber = {}
+    needsDownloading = []
+
+    # Cache all WORKING_DIR filenames in a map of lists
+    for file in os.listdir(Hellanzb.WORKING_DIR):
+        ext = getFileExtension(file)
+        if ext != None and segmentEndRe.match(ext):
+            segmentNumber = int(ext[-4:])
+            
+            if segmentsByNumber.has_key(segmentNumber):
+                segmentFileNames = segmentsByNumber(segmentNumber)
+            else:
+                segmentFileNames = []
+                segmentsByNumber[segmentNumber] = segmentFileNames
+
+            fileNoExt = file[:-12]
+            segmentFileNames.append(fileNoExt)
+
+    # Determine if each segment needs to be downloaded
+    for segment in segmentList:
+
+        if not segmentsByNumber.has_key(segment.number):
+            # No matching segment numbers, obviously needs to be downloaded
+            needsDownloading.append(segment)
+            continue
+
+        segmentFileNames = segmentsByNumber[segment.number]
+        
+        found = False
+        for segmentFileName in segmentFileNames:
+            if segment.nzbFile.subject.find(segmentFileName) > -1:
+                found = True
+                break
+
+        if not found:
+            needsDownloading.append(segment)
+        #else:
+        #    debug('SKIPPING SEGMENT: ' + segment.getTempFileName() + ' subject: ' + \
+        #          segment.nzbFile.subject)
+    
+    return needsDownloading
 
 class NZB:
     """ Representation of an nzb file -- the root <nzb> tag """
@@ -156,33 +206,10 @@ class NZBFile:
         returned. Downloading segments out of order can easily occur in app like hellanzb
         that downloads the segments in parallel """
         try:
-            if self.filename != None:
-                return Hellanzb.WORKING_DIR + os.sep + self.filename
-            elif self.tempFilename != None and self.firstSegment.articleData == None:
-                return Hellanzb.WORKING_DIR + os.sep + self.tempFilename
-            else:
-                # FIXME: i should only have to call this once after i get article
-                # data. that is if it fails, it should set the real filename to the
-                # incorrect tempfilename
-                self.firstSegment.getFilenameFromArticleData()
-                return Hellanzb.WORKING_DIR + os.sep + self.tempFilename
-        except AttributeError:
-            self.tempFilename = self.getTempFileName()
-            return Hellanzb.WORKING_DIR + os.sep + self.tempFilename
-
-    # FIXME: try = slow. just simply check if tempFilename exists after
-    # getFilenamefromArticleData. does exactly the same thing w/ no try. should probably
-    # looked at the 2nd revised version of this and make sure it's still as functional as
-    # the original
-    def getDestination2(self):
-        """ Return the destination of where this file will lie on the filesystem. The filename
-        information is grabbed from the first segment's articleData (uuencode's fault --
-        yencode includes the filename in every segment's articleData). In the case where a
-        segment needs to know it's filename, and that first segment doesn't have
-        articleData (hasn't been downloaded yet), a temp filename will be
-        returned. Downloading segments out of order can easily occur in app like hellanzb
-        that downloads the segments in parallel """
-        try:
+            # FIXME: try = slow. just simply check if tempFilename exists after
+            # getFilenamefromArticleData. does exactly the same thing w/ no try. should probably
+            # looked at the 2nd revised version of this and make sure it's still as functional as
+            # the original
             if self.filename != None:
                 return Hellanzb.WORKING_DIR + os.sep + self.filename
             elif self.tempFilename != None and self.firstSegment.articleData == None:
@@ -226,11 +253,6 @@ class NZBFile:
         #debug('isAllSegmentsDecoded (False) took: ' + str(finish) + ' ' + self.getDestination())
         return False
 
-    def __repr__(self):
-        # FIXME
-        return 'NZBFile subject: ' + str(self.subject) + 'fileName: ' + str(self.filename) + \
-            ' date: ' + str(self.date) + ' poster: ' + str(self.poster)
-
 class NZBSegment:
     """ <file><segment/></file> """
     needsDownload = needsDownload
@@ -253,6 +275,9 @@ class NZBSegment:
 
         # the CRC value specified by the downloaded yEncode data, if it exists
         self.crc = None
+
+        # copy of the priority as set in the Queue
+        self.priority = None
 
     def getDestination(self):
         """ Where this decoded segment will reside on the fs """
@@ -279,11 +304,6 @@ class NZBSegment:
         if self.nzbFile.filename == None and self.nzbFile.tempFilename == None:
             raise FatalError('Could not getFilenameFromArticleData, file:' + str(self.nzbFile) +
                              ' segment: ' + str(self))
-
-    def __repr__(self):
-        # FIXME
-        return 'messageId: ' + str(self.messageId) + ' number: ' + str(self.number) + ' bytes: ' + \
-            str(self.bytes)
 
 class NZBQueue(PriorityQueue):
     """ priority fifo queue of segments to download. lower numbered segments are downloaded
@@ -350,7 +370,8 @@ class NZBQueue(PriorityQueue):
         
         # Create the handler
         nzb = NZB(fileName)
-        dh = NZBParser(self, nzb)
+        interimQueue = []
+        dh = NZBParser(interimQueue, nzb)
         
         # Tell the parser to use it
         parser.setContentHandler(dh)
@@ -358,6 +379,17 @@ class NZBQueue(PriorityQueue):
         # Parse the input
         parser.parse(fileName)
 
+        s = time.time()
+        # The parser will add all the segments of all the NZBFiles that have not already
+        # been downloaded. After the parsing, we'll check if each of those segments have
+        # already been downloaded. it's faster to check all segments at one time
+        needDownloading = segmentsNeedDownload(interimQueue)
+        e = time.time() - s
+        debug('segmentsNeedDownload TOOK: ' + str(e))
+        
+        for nzbSegment in needDownloading:
+            self.put((nzbSegment.priority, nzbSegment))
+        
         self.calculateTotalQueuedBytes()
 
         # In the case the NZBParser determined the entire archive's contents are already
@@ -385,10 +417,6 @@ class NZBParser(ContentHandler):
         self.fileCount = 0
         self.segmentCount = 0
 
-        # HACKISH: Don't resume segment downloads if the working dir is HUGE. FIXME: try
-        # this with a higher number
-        self.isLargeArchiveResume = len(os.listdir(Hellanzb.WORKING_DIR)) > 500
-        
     def startElement(self, name, attrs):
         if name == 'file':
             subject = self.parseUnicode(attrs.get('subject'))
@@ -396,6 +424,9 @@ class NZBParser(ContentHandler):
 
             self.file = NZBFile(subject, attrs.get('date'), poster, self.nzb)
             self.fileNeedsDownload = self.file.needsDownload()
+            if not self.fileNeedsDownload:
+                debug('SKIPPING FILE: ' + self.file.getTempFileName() + ' subject: ' + \
+                      self.file.subject)
 
             self.fileCount += 1
             self.file.number = self.fileCount
@@ -432,15 +463,13 @@ class NZBParser(ContentHandler):
             if self.segmentCount == 1:
                 self.file.firstSegment = nzbs
 
-            if self.fileNeedsDownload and self.isLargeArchiveResume or nzbs.needsDownload():
+            if self.fileNeedsDownload:
                 # HACK: Maintain the order in which we encountered the segments by adding
                 # segmentCount to the priority. lame afterthought -- after realizing
                 # heapqs aren't ordered. NZB_CONTENT_P must now be large enough so that it
                 # won't ever clash with EXTRA_PAR2_P + i
-                self.queue.put((NZBQueue.NZB_CONTENT_P + self.segmentCount, nzbs))
-            else:
-                debug('SKIPPING segment: ' + nzbs.getTempFileName() + ' subject: ' + \
-                      nzbs.nzbFile.subject)
+                nzbs.priority = NZBQueue.NZB_CONTENT_P + self.segmentCount
+                self.queue.append(nzbs)
 
             self.chars = None
             self.number = None

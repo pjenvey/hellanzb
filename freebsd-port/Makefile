@@ -25,6 +25,12 @@ PLIST_FILES=	bin/hellanzb.py \
 		%%PYTHON_SITELIBDIR%%/Hellanzb/Growl.py \
 		%%PYTHON_SITELIBDIR%%/Hellanzb/Growl.pyc \
 		%%PYTHON_SITELIBDIR%%/Hellanzb/Growl.pyo \
+		%%PYTHON_SITELIBDIR%%/Hellanzb/HellaReactor.py \
+		%%PYTHON_SITELIBDIR%%/Hellanzb/HellaReactor.pyc \
+		%%PYTHON_SITELIBDIR%%/Hellanzb/HellaReactor.pyo \
+		%%PYTHON_SITELIBDIR%%/Hellanzb/Log.py \
+		%%PYTHON_SITELIBDIR%%/Hellanzb/Log.pyc \
+		%%PYTHON_SITELIBDIR%%/Hellanzb/Log.pyo \
 		%%PYTHON_SITELIBDIR%%/Hellanzb/Logging.py \
 		%%PYTHON_SITELIBDIR%%/Hellanzb/Logging.pyc \
 		%%PYTHON_SITELIBDIR%%/Hellanzb/Logging.pyo \
@@ -43,12 +49,12 @@ PLIST_FILES=	bin/hellanzb.py \
 		%%PYTHON_SITELIBDIR%%/Hellanzb/NZBLeecher/ArticleDecoder.py \
 		%%PYTHON_SITELIBDIR%%/Hellanzb/NZBLeecher/ArticleDecoder.pyc \
 		%%PYTHON_SITELIBDIR%%/Hellanzb/NZBLeecher/ArticleDecoder.pyo \
-		%%PYTHON_SITELIBDIR%%/Hellanzb/NZBLeecher/__init__.py \
-		%%PYTHON_SITELIBDIR%%/Hellanzb/NZBLeecher/__init__.pyc \
-		%%PYTHON_SITELIBDIR%%/Hellanzb/NZBLeecher/__init__.pyo \
 		%%PYTHON_SITELIBDIR%%/Hellanzb/NZBLeecher/NZBModel.py \
 		%%PYTHON_SITELIBDIR%%/Hellanzb/NZBLeecher/NZBModel.pyc \
-		%%PYTHON_SITELIBDIR%%/Hellanzb/NZBLeecher/NZBModel.pyo
+		%%PYTHON_SITELIBDIR%%/Hellanzb/NZBLeecher/NZBModel.pyo \
+		%%PYTHON_SITELIBDIR%%/Hellanzb/NZBLeecher/__init__.py \
+		%%PYTHON_SITELIBDIR%%/Hellanzb/NZBLeecher/__init__.pyc \
+		%%PYTHON_SITELIBDIR%%/Hellanzb/NZBLeecher/__init__.pyo
 
 PLIST_DIRS=	share/doc/hellanzb \
 		%%PYTHON_SITELIBDIR%%/Hellanzb

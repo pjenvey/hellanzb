@@ -20,7 +20,7 @@ from twisted.python import log
 from Hellanzb.Core import shutdown
 from Hellanzb.Log import *
 from Hellanzb.Logging import LogOutputStream
-from Hellanzb.Util import rtruncate
+from Hellanzb.Util import rtruncate, truncate
 from Hellanzb.NZBLeecher.ArticleDecoder import decode
 from Hellanzb.NZBLeecher.NZBModel import NZBQueue
 from Queue import Empty
@@ -134,6 +134,8 @@ class NZBLeecherFactory(ReconnectingClientFactory):
     def fetchNextNZBSegment(self):
         for p in self.clients:
             reactor.callLater(0, p.fetchNextNZBSegment)
+        Hellanzb.scroller.started = True
+        Hellanzb.scroller.killedHistory = False
 
 class AntiIdleMixin(TimeoutMixin):
     """ policies.TimeoutMixin calls self.timeoutConnection after the connection has been idle
@@ -331,6 +333,7 @@ class NZBLeecher(NNTPClient, AntiIdleMixin):
                 if totalActiveClients == 0:
                     Hellanzb.totalSpeed = 0
                     Hellanzb.scroller.currentLog = None
+                    Hellanzb.scroller.killHistory()
         
     def fetchNextNZBSegment(self):
         """ Pop nzb article from the queue, and attempt to retrieve it if it hasn't already been
@@ -596,9 +599,23 @@ class NZBLeecherStatLog:
 
         self.prefixScrolls = []
 
+        self.started = False
+        self.killedHistory = False
+
     def prefixScroll(self, message):
-        self.prefixScrolls.append(message)
+        self.prefixScrolls.append(truncate(message, length = 80))
         self.updateLog(True)
+
+    def killHistory(self):
+        """ clear scroll off the screen """
+        if not self.killedHistory and self.started:
+            msg = '\r\033[' + str(self.maxCount + 1) + 'A'
+            for i in range(self.maxCount + 1):
+                msg += '\n\r' + ACODE.KILL_LINE
+            msg += '\r\033[' + str(self.maxCount + 1) + 'A'
+            scroll(msg)
+            self.killedHistory = True
+            self.started = False
         
     def updateLog(self, logNow = False):
         """ Log ticker """
@@ -665,11 +682,11 @@ class NZBLeecherStatLog:
                 line = self.connectionPrefix + ' %s' + ACODE.KILL_LINE
                 # 58 line width -- approximately 80 - 4 (prefix) - 18 (max suffix)
                 self.currentLog += line % (prettyId,
-                                           rtruncate(segment.nzbFile.showFilename, length = 58))
+                                           rtruncate(segment.nzbFile.showFilename, length = 57))
             else:
                 line = self.connectionPrefix + ' %s - %2d%% @ %.1fKB/s' + ACODE.KILL_LINE
                 self.currentLog += line % (prettyId,
-                                           rtruncate(segment.nzbFile.showFilename, length = 58),
+                                           rtruncate(segment.nzbFile.showFilename, length = 57),
                                            segment.nzbFile.downloadPercentage, segment.nzbFile.speed)
                 
             self.currentLog += '\n\r'

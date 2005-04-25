@@ -89,7 +89,6 @@ class ScrollableHandler(StreamHandlerNoLF):
         """ Print a log message so that the user can see it during a SCROLL """
         msg = self.format(record).rstrip() # Scroller appends newline for us
         from twisted.internet import reactor
-        from Hellanzb.Util import inMainThread
         if inMainThread():
             # FIXME: scrollBegin() should really be creating the scroller instance
             # FIXME: no unicode crap from normal python log emit

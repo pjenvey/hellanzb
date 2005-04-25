@@ -1,31 +1,57 @@
-hellanzb 
+hellanzb -                                                                README
+           hands free usenet file retrieval and post processing
+--------------------------------------------------------------------------------
+
+INSTALLING:
 --------------------------------------------------
+It is recommended that you install hellanzb via one of the packaging systems
+(FreeBSD ports, Mac OS X darwinports, Linux RPM). The latest port files are
+available from:
 
-How to get started with hellanzb:
+http://www.hellanzb.com/distfiles
 
-o Copy the <prefix>/etc/hellanzb.conf.sample file to hellanzb.conf
+Otherwise, to install hellanzb manually:
+
+Prerequisites:
+
+Unix                    E.g.: http://www.freebsd.org, http://www.apple.com/macosx
+Python >= 2.3           http://www.python.org
+Twisted >= 1.3          http://www.twistedmartrix.com
+parachive =~ 0.4        http://parchive.sourceforge.net
+rar or unrar =~ 3.41    http://www.rarlab.com
+
+hellanzb can either be ran from it's own directory, or to install it system wide,
+simply run (as root):
+
+    "python setup.py install"
+
+CONFIGURING
+--------------------------------------------------
+o Copy the <prefix>/etc/hellanzb.conf.sample file to hellanzb.conf in the
+  same directory
   (This is done for you by the ports)
 
   The prefix is typically:
     /usr/local (FreeBSD) or
     /opt/local (Darwin)
+    or the hellanzb directory if ran locally within it
     
 o Open the config file and edit the directories (PREFIX, DEST_DIR, etc) to
-  your liking. The most important directories are the QUEUE directory (where
+  your liking. The important directories are the QUEUE directory (where
   you'll put nzb files to add to the queue) and the DEST dir (where the
   finished files are placed)
 
-o Create at least one defineServer line. Multiple servers are supported
+o Configure your usenet connection with a defineServer line
 
 o Edit the defineMusicType lines to match the music decompressors
   installed on your system
 
-o [Optional] Edit the growler configuration if you want Mac OS X Growler
-  notifications. You must run the hellagrowler.py script on the Mac OS X
-  machine to accept the notifications
+o [Optional] Edit the growler configuration to enable Mac OS X Growl
+  notifications.
 
-o Run hellanzb.py. Copy files to the QUEUE directory, and after downloading
-  and processing, you'll see the finished files in the DEST dir.
+o Run hellanzb.py. Copy files to the QUEUE directory, watch hellanzb (or go do
+  something else) download and process your nzb archives, leaving the finished
+  files in the DEST dir.
 
 hellanzb -
 http://www.hellanzb.com/

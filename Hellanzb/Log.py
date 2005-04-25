@@ -83,7 +83,7 @@ def growlNotify(type, title, description, sticky):
     p = GrowlNotificationPacket(application="hellanzb",
                                 notification=type, title=title,
                                 description=description, priority=1,
-                                sticky=sticky)
+                                sticky=sticky, password=Hellanzb.GROWL_PASSWORD)
     s.sendto(p.payload(),addr)
     s.close()
 

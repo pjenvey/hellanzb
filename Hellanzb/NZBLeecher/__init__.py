@@ -174,10 +174,6 @@ class NZBLeecher(NNTPClient, AntiIdleMixin):
         # current article (<segment>) we're dealing with
         self.currentSegment = None
 
-        # staistics/for the ui
-        self.downloadStartTime = None
-        self.readBytes = 0
-
         self.isLoggedIn = False
         self.setReaderAfterLogin = False
             
@@ -314,6 +310,8 @@ class NZBLeecher(NNTPClient, AntiIdleMixin):
         if isActiveBool:
             if self not in self.factory.activeClients:
                 if len(self.factory.activeClients) == 0:
+                    self.factory.sessionReadBytes = 0
+                    self.factory.sessionSpeed = 0
                     self.factory.sessionStartTime = time.time()
                 self.factory.activeClients.add(self)
                 
@@ -387,7 +385,6 @@ class NZBLeecher(NNTPClient, AntiIdleMixin):
         start = time.time()
         if self.currentSegment.nzbFile.downloadStartTime == None:
             self.currentSegment.nzbFile.downloadStartTime = start
-        self.downloadStartTime = start
         
         Hellanzb.scroller.segments.append(self.currentSegment)
 
@@ -428,8 +425,6 @@ class NZBLeecher(NNTPClient, AntiIdleMixin):
         self.deferSegmentDecode(self.currentSegment)
 
         self.currentSegment = None
-        self.downloadStartTime = None
-        self.readBytes = 0
 
         reactor.callLater(0, self.fetchNextNZBSegment)
         
@@ -478,7 +473,6 @@ class NZBLeecher(NNTPClient, AntiIdleMixin):
         debug('EXCEEDED line length, len: ' + str(len(line)) + ' line: ' + line)
 
     def updateByteCount(self, lineLen):
-        self.readBytes += lineLen
         self.factory.totalReadBytes += lineLen
         self.factory.sessionReadBytes += lineLen
         if self.currentSegment != None:
@@ -499,7 +493,12 @@ class NZBLeecher(NNTPClient, AntiIdleMixin):
             elapsedSession = max(0.1, now - self.factory.sessionStartTime)
 
             self.currentSegment.nzbFile.speed = self.currentSegment.nzbFile.totalReadBytes / elapsed / 1024.0
-            self.factory.sessionSpeed = self.factory.sessionReadBytes / elapsedSession / 1024.0
+            ##self.factory.sessionSpeed = self.factory.sessionReadBytes / elapsedSession / 1024.0
+            elapsed = now - self.factory.sessionStartTime
+            if elapsed > 5:
+                self.factory.sessionSpeed = self.factory.sessionReadBytes / max(0.1, elapsed) / 1024.0
+                self.factory.sessionReadBytes = 0
+                self.factory.sessionStartTime = now
             
             Hellanzb.scroller.updateLog()
 
@@ -514,12 +513,12 @@ class NZBLeecher(NNTPClient, AntiIdleMixin):
         Translates bytes into lines, and calls lineReceived (or
         rawDataReceived, depending on mode.)
         """
-        # got data -- reset the anti idle timeout
-        self.resetTimeout()
-        
         # Update statistics
         self.updateByteCount(len(data))
-        self.updateStats(time.time())
+        self.updateStats(Hellanzb.preReadTime)
+
+        # got data -- reset the anti idle timeout
+        self.resetTimeout()
 
         # Below on from Twisted 2.0
         self.__buffer = self.__buffer+data
@@ -561,12 +560,26 @@ class NZBLeecher(NNTPClient, AntiIdleMixin):
 class ASCIICodes:
     def __init__(self):
         # f/b_ = fore/background
-        # d/l  = dark/light
+        # d/l/b  = dark/light/bright
         self.map = {
             'ESCAPE': '\033',
-            'F_DBLUE': '34',
             'RESET': '0',
-            'KILL_LINE': 'K'
+            'KILL_LINE': 'K',
+            
+            'F_DRED': '31',
+            'F_LRED': '31;1',
+            'F_DGREEN': '32',
+            'F_LGREEN': '32;1',
+            'F_BROWN': '33',
+            'F_YELLOW': '33;1',
+            'F_DBLUE': '34',
+            'F_LBLUE': '34;1',
+            'F_DMAGENTA': '35',
+            'F_LMAGENTA': '35;1',
+            'F_DCYAN': '36',
+            'F_LCYAN': '36;1',
+            'F_WHITE': '37',
+            'F_BWHITE': '37;1',
             }
         
     def __getattr__(self, name):
@@ -591,7 +604,6 @@ class NZBLeecherStatLog:
         self.maxCount = 0 # FIXME: var name
 
         # Only bother doing the whole UI update after running updateStats this many times
-        #self.delay = 2100
         self.delay = 3
         self.wait = 0
 
@@ -603,7 +615,9 @@ class NZBLeecherStatLog:
         self.killedHistory = False
 
     def prefixScroll(self, message):
-        self.prefixScrolls.append(truncate(message, length = 80))
+        fields = message.split('\n')
+        for field in fields:
+            self.prefixScrolls.append(truncate(field, length = 80))
         self.updateLog(True)
 
     def killHistory(self):
@@ -631,7 +645,6 @@ class NZBLeecherStatLog:
         currentLog = self.currentLog
         if self.currentLog != None:
             # Kill previous lines,
-            #self.currentLog = '\r\033[' + str(self.size) + 'A'
             self.currentLog = '\r\033[' + str(self.maxCount) + 'A'
         else:
             # unless we have just began logging. and in that case, explicitly log the
@@ -640,8 +653,6 @@ class NZBLeecherStatLog:
             logNow = True
 
         # Log information we want to prefix the scroll (so it stays on the screen)
-        # FIXME: these messages aren't going out to any log file
-        # FIXME: ? i dont have to cache these, i could just logNow
         if len(self.prefixScrolls) > 0:
             prefixScroll = ''
             for message in self.prefixScrolls:
@@ -680,11 +691,12 @@ class NZBLeecherStatLog:
                 
             if lastSegment != None and lastSegment.nzbFile == segment.nzbFile:
                 line = self.connectionPrefix + ' %s' + ACODE.KILL_LINE
-                # 58 line width -- approximately 80 - 4 (prefix) - 18 (max suffix)
+                # 57 line width -- approximately 80 - 5 (prefix) - 18 (max suffix)
                 self.currentLog += line % (prettyId,
                                            rtruncate(segment.nzbFile.showFilename, length = 57))
             else:
-                line = self.connectionPrefix + ' %s - %2d%% @ %.1fKB/s' + ACODE.KILL_LINE
+                line = self.connectionPrefix + ' %s - ' + ACODE.F_DGREEN + '%2d%%' + ACODE.RESET + \
+                       ACODE.F_DBLUE + ' @ ' + ACODE.RESET + ACODE.F_DRED + '%.1fKB/s' + ACODE.KILL_LINE
                 self.currentLog += line % (prettyId,
                                            rtruncate(segment.nzbFile.showFilename, length = 57),
                                            segment.nzbFile.downloadPercentage, segment.nzbFile.speed)
@@ -706,8 +718,8 @@ class NZBLeecherStatLog:
         for nsf in Hellanzb.nsfs:
             totalSpeed += nsf.sessionSpeed
 
-        line = self.connectionPrefix + ' %.1fKB/s, %d MB queued ' + ACODE.KILL_LINE
-        #self.currentLog += line % ('Total', Hellanzb.totalSpeed,
+        line = self.connectionPrefix + ACODE.F_DRED + ' %.1fKB/s' + ACODE.RESET + \
+               ', ' + ACODE.F_DGREEN + '%d MB' + ACODE.RESET + ' queued ' + ACODE.KILL_LINE
         self.currentLog += line % ('Total', totalSpeed,
                                    Hellanzb.queue.totalQueuedBytes / 1024 / 1024)
 

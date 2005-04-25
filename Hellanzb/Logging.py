@@ -163,8 +163,7 @@ def initLogging():
     #outHdlr.setLevel(ScrollableHandler.SCROLL)
     outHdlr.addFilter(OutFilter())
 
-    #errHdlr = ScrollableHandler(sys.stderr)
-    errHdlr = StreamHandlerNoLF(sys.stderr)
+    errHdlr = ScrollableHandler(sys.stderr)
     errHdlr.setLevel(logging.ERROR)
     
     Hellanzb.logger.addHandler(outHdlr)

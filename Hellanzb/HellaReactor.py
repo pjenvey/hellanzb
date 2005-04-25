@@ -6,10 +6,14 @@ reactor system so it can catch signals, and shutdown hellanzb cleanly
 (c) Copyright 2005 Philip Jenvey
 [See end of file]
 """
-import Hellanzb, sys
+import Hellanzb, sys, time
 from twisted.internet.default import SelectReactor
 from twisted.internet.main import installReactor
+from twisted.python import failure
 from Hellanzb.Log import *
+
+# overwrite Log.error
+from twisted.internet import error
 
 __id__ = '$Id$'
 
@@ -39,6 +43,32 @@ class HellaReactor(SelectReactor):
             signalHandler(*args)
         except SystemExit:
             pass
+
+    def _doReadOrWrite(self, selectable, method, dict, faildict={
+        error.ConnectionDone: failure.Failure(error.ConnectionDone()),
+        error.ConnectionLost: failure.Failure(error.ConnectionLost())
+        }):
+        """ set the preReadTime value before running doRead (socket.recv). To emulate
+        pyNewsleecher's timing/statistics"""
+        try:
+            Hellanzb.preReadTime = time.time()
+            why = getattr(selectable, method)()
+            handfn = getattr(selectable, 'fileno', None)
+            if not handfn:
+                why = _NO_FILENO
+            elif handfn() == -1:
+                why = _NO_FILEDESC
+        except:
+            why = sys.exc_info()[1]
+            log.err()
+        if why:
+            self.removeReader(selectable)
+            self.removeWriter(selectable)
+            f = faildict.get(why.__class__)
+            if f:
+                selectable.connectionLost(f)
+            else:
+                selectable.connectionLost(failure.Failure(why))
 
     def install(klass):
         """ Install custom reactor """

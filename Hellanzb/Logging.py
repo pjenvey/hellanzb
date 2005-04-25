@@ -85,15 +85,12 @@ class ScrollableHandler(StreamHandlerNoLF):
         finally:
             self.release()
 
-    def inMainThread(self):
-        if Hellanzb.MAIN_THREAD_IDENT == thread.get_ident():
-            return True
-        return False
-
     def scrollInterrupt(self, record):
         """ Print a log message so that the user can see it during a SCROLL """
-        msg = self.format(record)
-        if self.inMainThread():
+        msg = self.format(record).rstrip() # Scroller appends newline for us
+        from twisted.internet import reactor
+        from Hellanzb.Util import inMainThread
+        if inMainThread():
             # FIXME: scrollBegin() should really be creating the scroller instance
             # FIXME: no unicode crap from normal python log emit
             Hellanzb.scroller.prefixScroll(msg)

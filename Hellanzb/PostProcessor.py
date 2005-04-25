@@ -105,8 +105,8 @@ class PostProcessor(Thread):
     
     def processMusic(self):
         """ Assume the integrity of the files in the specified directory have been
-    verified. Iterate through the music files, and decompres them when appropriate in multiple
-    threads """
+        verified. Iterate through the music files, and decompres them when appropriate in
+        multiple threads """
         if not isFreshState(self.dirName, 'music'):
             info(archiveName(self.dirName) + ': Skipping music file decompression')
             return

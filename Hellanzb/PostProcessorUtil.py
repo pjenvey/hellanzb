@@ -5,7 +5,7 @@ PostProcessorUtil - support functions for the PostProcessor
 (c) Copyright 2005 Philip Jenvey, Ben Bangert
 [See end of file]
 """
-import Hellanzb, os, re
+import Hellanzb, os, re, sys
 from threading import Thread
 from Hellanzb.Log import *
 from Hellanzb.Util import *
@@ -16,7 +16,7 @@ __id__ = '$Id$'
 # music might want to be decompressed
 class MusicType:
     """ Defines a music file type, and whether or not this program should attempt to
-decompress the music (to wav, generally) if it comes across this type of file """
+    decompress the music (to wav, generally) if it comes across this type of file """
     extension = None
     decompressor = None
     decompressToType = None
@@ -106,9 +106,8 @@ def isRar(fileName):
         return True
 
     # If it doesn't end in rar, use unix file(1) 
-    p = Ptyopen('file -b "' + absPath + '"')
-    output, status = p.readlinesAndWait()
-    returnCode = os.WEXITSTATUS(status)
+    t = Topen('file -b "' + absPath + '"')
+    output, returnCode = t.readlinesAndWait()
 
     if len(output) > 0:
         line = output[0]
@@ -137,7 +136,7 @@ def isDuplicate(fileName):
 
 def isAlbumCoverArchive(fileName):
     """ determine if the archive (zip or rar) file likely contains album cover art, which
-requires special handling """
+    requires special handling """
     # FIXME: check for images jpg/gif/tiff, and or look for key words like 'cover',
     # 'front' 'back' in the file name, AND within the archive
 
@@ -153,10 +152,10 @@ requires special handling """
 
 def isRequiredFile(fileName):
     """ Given the specified of file name, determine if the file is required for the full
-completition of the unarchiving process (ie, the completition of this
-program). Non-Required files are those such as .NFOs, .SFVs, etc. Other types of files are
-considered important (such as .RARs, .WAVs, etc). If any required files are missing or
-broken, PAR2 files will be required to repair """
+    completition of the unarchiving process (ie, the completition of this
+    program). Non-Required files are those such as .NFOs, .SFVs, etc. Other types of files
+    are considered important (such as .RARs, .WAVs, etc). If any required files are
+    missing or broken, PAR2 files will be required to repair """
     isRequired = True
     for ext in Hellanzb.NOT_REQUIRED_FILE_TYPES:
         if getFileExtension(fileName) == ext:
@@ -165,11 +164,11 @@ broken, PAR2 files will be required to repair """
     return isRequired
 
 def containsRequiredFiles(fileList):
-    """ Given the list of file names, determine if any of the files are required for the full
-completition of the unarchiving process (ie, the completition of this
-program). Non-Required files are those such as .NFOs, .SFVs, etc. Other types of files are
-considered important (such as .RARs, .WAVs, etc). If any required files are missing or
-broken, PAR2 files will be required to repair """
+    """ Given the list of file names, determine if any of the files are required for the
+    full completition of the unarchiving process (ie, the completition of this
+    program). Non-Required files are those such as .NFOs, .SFVs, etc. Other types of files
+    are considered important (such as .RARs, .WAVs, etc). If any required files are
+    missing or broken, PAR2 files will be required to repair """
     for file in fileList:
         if isRequiredFile(file):
             return True
@@ -224,9 +223,8 @@ def decompressMusicFile(fileName, musicType):
          os.path.basename(fileName))
     cmd = cmd.replace('<DESTFILE>', '"' + destFileName + '"')
 
-    p = Ptyopen2(cmd)
-    output, status = p.readlinesAndWait()
-    returnCode = os.WEXITSTATUS(status)
+    t = Topen(cmd)
+    output, returnCode = t.readlinesAndWait()
 
     if returnCode == 0:
         # Successful, move the old file away
@@ -261,6 +259,11 @@ def processRars(dirName, rarPassword):
                 not stringEndsWith(absPath, '_broken') and not isAlbumCoverArchive(absPath) and \
                 absPath not in processedRars:
             processedRars.extend(unrar(absPath, rarPassword))
+            # FIXME: move rars into processed immediately
+            # justProcessedRars = unrar(absPath, rarPassword)
+            # processedRars.extend(justProcessedRars) # is this still necessary?
+            # for rar in justProcessedRars:
+            #     moveToProcessed(rar)
     
     processComplete(dirName, 'rar',
                     lambda file : os.path.isfile(file) and isRar(file) and not isAlbumCoverArchive(file))
@@ -284,9 +287,8 @@ def unrar(fileName, rarPassword = None, pathToExtract = None):
     # First, list the contents of the rar, if any filenames are preceeded with *, the rar
     # is passworded
     listCmd = Hellanzb.UNRAR_CMD + ' l -y ' + ' "' + fileName + '"'
-    p = Ptyopen2(listCmd)
-    output, listStatus = p.readlinesAndWait()
-    listReturnCode = os.WEXITSTATUS(listStatus)
+    t = Topen(listCmd)
+    output, listReturnCode = t.readlinesAndWait()
 
     if listReturnCode > 0:
         errMsg = 'There was a problem during the rar listing, output:\n\n'
@@ -324,7 +326,7 @@ def unrar(fileName, rarPassword = None, pathToExtract = None):
         # known passwords for this loop are all known passwords minus those in that file
         growlNotify('Archive Error', 'hellanzb Archive requires password:', archiveName(dirName),
                     True)
-        raise FatalError('Cannot continue, this archive requires a RAR password and there is none set')
+        raise FatalError('Cannot continue, this archive requires a RAR password. Run ' + sys.argv[0] + ' with the -P option to specify a password')
         
     if isPassworded:
         cmd = Hellanzb.UNRAR_CMD + ' x -y -p' + rarPassword + ' "' + fileName + '" "' + \
@@ -333,9 +335,8 @@ def unrar(fileName, rarPassword = None, pathToExtract = None):
         cmd = Hellanzb.UNRAR_CMD + ' x -y' + ' "' + fileName + '" "' + pathToExtract + '"'
     
     info(archiveName(dirName) + ': Unraring ' + os.path.basename(fileName))
-    p = Ptyopen2(cmd)
-    output, status = p.readlinesAndWait()
-    unrarReturnCode = os.WEXITSTATUS(status)
+    t = Topen(cmd)
+    output, unrarReturnCode = t.readlinesAndWait()
 
     if unrarReturnCode > 0:
         errMsg = 'There was a problem during unrar, output:\n\n'
@@ -348,17 +349,17 @@ def unrar(fileName, rarPassword = None, pathToExtract = None):
     prefix = 'Extracting from '
     for line in output:
         if len(line) > len(prefix) + 1 and line.find(prefix) == 0:
-           rarFile = line[len(prefix):].rstrip()
-           # Distrust the dirname rar returns (just incase)
-           rarFile = os.path.normpath(os.path.dirname(fileName) + os.sep + os.path.basename(rarFile))
-           processedRars.append(rarFile)
+            rarFile = line[len(prefix):].rstrip()
+            # Distrust the dirname rar returns (just incase)
+            rarFile = os.path.normpath(os.path.dirname(fileName) + os.sep + os.path.basename(rarFile))
+            processedRars.append(rarFile)
 
     return processedRars
 
 def processPars(dirName):
-    """ Verify the integrity of the files in the specified directory via par2. If files need
-repair and there are enough recovery blocks, repair the files. If files need repair and
-there are not enough recovery blocks, raise a fatal exception """
+    """ Verify the integrity of the files in the specified directory via par2. If files
+    need repair and there are enough recovery blocks, repair the files. If files need
+    repair and there are not enough recovery blocks, raise a fatal exception """
     # Just incase we're running the program again, and we already successfully processed
     # the pars, don't bother doing it again
     if not isFreshState(dirName, 'par'):
@@ -370,9 +371,8 @@ there are not enough recovery blocks, raise a fatal exception """
     dirName += os.sep
     repairCmd = 'par2 r "' + dirName + '*.PAR2" "' + dirName + '*.par2" "' + dirName + '*_broken"'
 
-    p = Ptyopen(repairCmd)
-    output, status = p.readlinesAndWait()
-    returnCode = os.WEXITSTATUS(status)
+    t = Topen(repairCmd)
+    output, returnCode = t.readlinesAndWait()
         
     if returnCode == 0:
         # FIXME: checkout for 'repaired blah' messages.
@@ -417,9 +417,9 @@ there are not enough recovery blocks, raise a fatal exception """
     processComplete(dirName, 'par', isPar)
 
 def parseParNeedsBlocksOutput(archive, output):
-    """ Return a list of broken or damaged required files from par2 v output, and the required
-blocks needed. Will also log warn the user when it finds either of these kinds of files,
-or log error when they're required """
+    """ Return a list of broken or damaged required files from par2 v output, and the
+    required blocks needed. Will also log warn the user when it finds either of these
+    kinds of files, or log error when they're required """
     damagedAndRequired = []
     neededBlocks = None
     damagedRE = re.compile(r'"\ -\ damaged\.\ Found\ \d+\ of\ \d+\ data\ blocks\.')
@@ -458,16 +458,20 @@ or log error when they're required """
             neededBlocks = line[:-len(' more recovery blocks to be able to repair.')]
             
     return damagedAndRequired, neededBlocks
+
+def moveToProcessed(file):
+    """ Move files to the processed dir """
+    os.rename(file, os.path.dirname(file) + os.sep + Hellanzb.PROCESSED_SUBDIR + os.sep + \
+              os.path.basename(file))
         
 def processComplete(dirName, processStateName, moveFileFilterFunction):
     """ Once we've finished a particular processing state, this function will be called to
-move the files we processed out of the way, and touch a file on the filesystem indicating
-this state is done """
+    move the files we processed out of the way, and touch a file on the filesystem
+    indicating this state is done """
     # ensure we pass the absolute path to the filter function
     if moveFileFilterFunction != None:
         for file in filter(moveFileFilterFunction, [dirName + os.sep + file for file in os.listdir(dirName)]):
-            os.rename(file, os.path.dirname(file) + os.sep + Hellanzb.PROCESSED_SUBDIR + os.sep + \
-                      os.path.basename(file))
+            moveToProcessed(file)
 
     # And make a note of the completition
     touch(dirName + os.sep + Hellanzb.PROCESSED_SUBDIR + os.sep + '.' + processStateName + '_done')

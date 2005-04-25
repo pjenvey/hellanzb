@@ -12,7 +12,7 @@ twisted.internet.abstract.FileDescriptor.bufferSize = 4096
 from Hellanzb.HellaReactor import HellaReactor
 HellaReactor.install()
 
-import optparse, os, signal, sys, thread, threading, Hellanzb, Hellanzb.PostProcessor
+import optparse, os, signal, sys, time, thread, threading, Hellanzb, Hellanzb.PostProcessor
 from distutils import spawn
 from threading import Lock
 from twisted.internet import reactor
@@ -91,7 +91,7 @@ def signalHandler(signum, frame):
         Hellanzb.shutdown = True
 
         # If there aren't any proceses to wait for exit immediately
-        if len(popen2._active) == 0:
+        if len(TopenTwisted.activePool) == 0:
             logShutdown('Caught interrupt, exiting..')
             shutdownNow(Hellanzb.SHUTDOWN_CODE)
 
@@ -99,11 +99,8 @@ def signalHandler(signum, frame):
         # are associated with the main thread (the processes would have already gotten the
         # signal. I'm not exactly sure why)
         threadsOutsideMain = False
-        for ptyopen in popen2._active:
-            # signal guarantees us to be within the main thread
-            if ptyopen.thread != threading.currentThread():
-                # FIXME: only Ptyopen has a popen.thread. And Do I need to bother to look
-                # at this _active list? since everything is Ptyopen now
+        for topen in TopenTwisted.activePool:
+            if topen.threadIdent != Hellanzb.MAIN_THREAD_IDENT:
                 threadsOutsideMain = True
 
         if not threadsOutsideMain:
@@ -112,35 +109,28 @@ def signalHandler(signum, frame):
 
         # We couldn't cheat our way out of the program, tell the user the processes
         # (threads) we're waiting on, and wait for another signal
-        if not 'stopSignalCount' in dir(Hellanzb):
-            # NOTE: initiazing this HERE means we'll run through the above block of code
-            # after the second signal. this is preferable because it gives quicker
-            # feedback after the CTRL-C, and all the threads might have gone away right
-            # before/after the second CTRL-C
-            Hellanzb.stopSignalCount = 0
-            info('Caught interrupt, exiting..')
-
-        Hellanzb.stopSignalCount = Hellanzb.stopSignalCount + 1
+        if Hellanzb.stopSignalCount == 0 or (time.time() - Hellanzb.firstSignal > 5):
+            Hellanzb.firstSignal = time.time()
+            Hellanzb.stopSignalCount = 1
+        else:
+            Hellanzb.stopSignalCount = Hellanzb.stopSignalCount + 1
 
         if Hellanzb.stopSignalCount < 2:
-            msg = 'Caught CTRL-C, waiting for the child processes to finish:\n'
-            for ptyopen in popen2._active:
-                msg += ' '*4 + ptyopen.prettyCmd + '\n'
-            msg += '(Press CTRL-C again to kill them and exit immediately)..'
+            msg = 'Caught interrupt, waiting for these child processes to finish:\n'
+            for topen in TopenTwisted.activePool:
+                msg += truncateToMultiLine(topen.prettyCmd, length = 68,
+                                           prefix = str(topen.getPid()) + '  ',
+                                           indentPrefix = ' '*8) + '\n'
+            msg += '(CTRL-C again within 5 seconds to kill them and exit immediately)'
             warn(msg)
             
         else:
             # Simply kill anything. If any processes are lying around after a kill -9,
             # it's either an o/s problem (we don't care) or a bug in hellanzb (we aren't
             # allowing the process to exit/still reading from it)
-            warn('Killing child processes (wait a second..)')
-            for ptyopen in popen2._active:
-                try:
-                    os.kill(ptyopen.pid, signal.SIGKILL)
-                except OSError, ose:
-                    logShutdown('Unexpected problem while kill -9ing process' + ptyopen.cmd, ose)
-
-            logShutdown('Killed child processes, exiting..')
+            warn('Killing child processes..')
+            TopenTwisted.killAll()
+            logShutdown('Killed all child processes, exiting..')
             shutdownNow(Hellanzb.SHUTDOWN_CODE)
 
 def init(options = {}):
@@ -158,6 +148,8 @@ def init(options = {}):
     # FIXME: ?
     Hellanzb.SHUTDOWN_CODE = 20
 
+    Hellanzb.stopSignalCount = 0
+    
     Hellanzb.SERVERS = {}
 
     # Troll threads
@@ -169,6 +161,8 @@ def init(options = {}):
         if spawn.find_executable(exe):
             Hellanzb.UNRAR_CMD = exe
     assertIsExe(Hellanzb.UNRAR_CMD)
+
+    assertIsExe('file')
 
     # One and only signal handler
     signal.signal(signal.SIGINT, signalHandler)

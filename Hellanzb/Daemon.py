@@ -24,7 +24,6 @@ def ensureDaemonDirs():
                     os.mkdir(dir)
                 except IOError:
                     raise FatalError('Unable to create Hellanzb DIRs')
-
 def initDaemon():
     """ Start the daemon """
     ensureDaemonDirs()

@@ -639,6 +639,13 @@ class NZBLeecherStatLog:
         sortedSegments = self.segments[:]
         sortedSegments.sort(lambda x, y : cmp(x.nzbFile.showFilename, y.nzbFile.showFilename))
         
+        # HACKY: when new files trickle in, and 'hellanzb-tmp' comes first in the sort
+        # order and there are non 'hellanzb-tmp' file names, reverse the sort
+        # order. (looks prettier)
+        if sortedSegments[0].nzbFile.showFilename.find('hellanzb-tmp') == 0 and \
+               sortedSegments[-1].nzbFile.showFilename.find('hellanzb-tmp') == -1:
+            sortedSegments.reverse()
+            
         lastSegment = None
         i = 0
         for segment in sortedSegments:

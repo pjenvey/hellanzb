@@ -12,7 +12,7 @@ from twisted.internet import reactor
 from xml.sax import make_parser
 from xml.sax.handler import ContentHandler, feature_external_ges, feature_namespaces
 from Hellanzb.Log import *
-from Hellanzb.NZBLeecher.ArticleDecoder import parseArticleData, setRealFileName, tryFinishNZB
+from Hellanzb.NZBLeecher.ArticleDecoder import assembleNZBFile, parseArticleData, setRealFileName, tryFinishNZB
 from Hellanzb.Util import archiveName, getFileExtension, PriorityQueue
 
 __id__ = '$Id$'
@@ -132,15 +132,24 @@ def segmentsNeedDownload(segmentList):
 
         segmentFileNames = segmentsByNumber[segment.number]
         
-        found = False
+        foundFileName = None
         for segmentFileName in segmentFileNames:
+            # FIXME: should prbobably check if they match the tempfilename as well
             if segment.nzbFile.subject.find(segmentFileName) > -1:
-                found = True
+                foundFileName = segmentFileName
                 break
 
-        if not found:
+        if not foundFileName:
             needsDownloading.append(segment)
         else:
+            if segment.number == 1:
+                # HACK: filename is None. so we only have the temporary name in
+                # memory. since we didnt see the temporary name on the filesystem, but
+                # we found a subject match, that means we have the real name on the
+                # filesystem. In the case where this happens, and we are segment #1,
+                # we've figured out the real filename (hopefully!)
+                setRealFileName(segment, foundFileName)
+                
             onDisk.append(segment)
         #else:
         #    debug('SKIPPING SEGMENT: ' + segment.getTempFileName() + ' subject: ' + \
@@ -375,13 +384,16 @@ class NZBQueue(PriorityQueue):
         # Create the handler
         nzb = NZB(fileName)
         interimQueue = []
-        dh = NZBParser(interimQueue, nzb)
+        interimQueueNzbFiles = Set()
+        dh = NZBParser(interimQueue, interimQueueNzbFiles, nzb)
         
         # Tell the parser to use it
         parser.setContentHandler(dh)
 
         # Parse the input
         parser.parse(fileName)
+
+        completeArchive = False
 
         s = time.time()
         # The parser will add all the segments of all the NZBFiles that have not already
@@ -390,7 +402,11 @@ class NZBQueue(PriorityQueue):
         needDownloading, onDisk = segmentsNeedDownload(interimQueue)
         e = time.time() - s
         debug('segmentsNeedDownload TOOK: ' + str(e))
-        
+
+        if len(needDownloading) == 0 and not completeArchive:
+            for nzbFile in interimQueueNzbFiles:
+                completeArchive = assembleNZBFile(nzbFile)
+
         for nzbSegment in needDownloading:
             self.put((nzbSegment.priority, nzbSegment))
 
@@ -402,15 +418,16 @@ class NZBQueue(PriorityQueue):
 
         # In the case the NZBParser determined the entire archive's contents are already
         # on the filesystem, try to finish up (and move onto post processing)
-        if hasattr(Hellanzb, 'queue'):
+        if hasattr(Hellanzb, 'queue') and not completeArchive:
             return tryFinishNZB(nzb)
         
 class NZBParser(ContentHandler):
     """ Parse an NZB 1.0 file into an NZBQueue
     http://www.newzbin.com/DTD/nzb/nzb-1.0.dtd """
-    def __init__(self, queue, nzb):
+    def __init__(self, queue, queueNzbFiles, nzb):
         # downloading queue to add NZB segments to
         self.queue = queue
+        self.queueNzbFiles = queueNzbFiles
 
         # nzb file to parse
         self.nzb = nzb
@@ -454,6 +471,9 @@ class NZBParser(ContentHandler):
         
     def endElement(self, name):
         if name == 'file':
+            if self.fileNeedsDownload:
+                self.queueNzbFiles.add(self.file)
+            
             self.file = None
             self.fileNeedsDownload = None
                 

@@ -5,10 +5,12 @@ Util - hellanzb misc functions
 (c) Copyright 2005 Philip Jenvey, Ben Bangert
 [See end of file]
 """
-import os, popen2, pty, re, string, threading, time, Hellanzb
+import os, popen2, pty, re, signal, string, thread, threading, time, Hellanzb
 from distutils import spawn
 from heapq import heappop, heappush
+from threading import Condition
 from traceback import print_stack
+from twisted.internet import protocol, utils
 from Hellanzb.Log import *
 from Queue import Queue
 from StringIO import StringIO
@@ -21,6 +23,105 @@ class FatalError(Exception):
         self.args = [message]
         self.message = message
 
+SPLIT_CMDLINE_ARGS_RE = re.compile(r'( |"[^"]*")')
+class TopenTwisted(protocol.ProcessProtocol):
+    """ Ptyopen (popen + extra hellanzb stuff)-like class for Twisted. Runs a sub process
+    and wait()s for output """
+
+    activePool = []
+    
+    def __init__(self, cmd, captureStdErr = True):
+        # FIXME: seems like twisted just writes something to stderr if there was a
+        # problem. this class should probably always capture stderr, optionally to another
+        # stream
+        self.cmd = cmd
+        self.prettyCmd = cmd # FIXME: for compat. with ptyopen
+        self.captureStdErr = captureStdErr
+        self.args = self.parseCmdToList(cmd)
+        self.outBuf = []
+        self.finished = Condition()
+        self.returnCode = None
+        self.isRunning = False
+
+        self.threadIdent = thread.get_ident()
+
+        # ProcessProtocol has no instructor (when I wrote this). just incase
+        if hasattr(protocol.ProcessProtocol, '__init__') and callable(protocol.ProcessProtocol.__init__):
+            protocol.ProcessProtocol.__init__(self)
+
+    def received(self, data):
+        lines = data.split('\n')
+        for line in lines:
+            self.outBuf.append(line + '\n')
+        
+    def outReceived(self, data):
+        self.received(data)
+
+    def errReceived(self, data):
+        if self.captureStdErr:
+            self.received(data)
+
+    def outputError(self, err):
+        self.transport.loseConnection()
+
+    def processEnded(self, reason):
+        self.returnCode = reason.value.exitCode
+
+        self.finished.acquire()
+        self.finished.notify()
+        self.finished.release()
+
+        self.isRunning = False
+        TopenTwisted.activePool.remove(self)
+
+    def kill(self):
+        if self.isRunning:
+            try:
+                os.kill(self.transport.pid, signal.SIGKILL)
+            except OSError, ose:
+                error('Unexpected problem while kill -9ing pid: ' + str(self.transport.pid) + \
+                      ' process: ' + self.cmd, ose)
+                
+        self.finished.acquire()
+        self.finished.notify()
+        self.finished.release()
+
+    def parseCmdToList(self, cmd):
+        cleanDoubleQuotesRe = re.compile(r'^"|"$')
+        args = []
+        fields = SPLIT_CMDLINE_ARGS_RE.split(cmd)
+        for field in fields:
+            if field == '' or field == ' ':
+                continue
+            args.append(cleanDoubleQuotesRe.sub('', field))
+        return args
+
+    def readlinesAndWait(self):
+        from twisted.internet import reactor
+        reactor.spawnProcess(self, self.args[0], args = self.args, env = os.environ)
+        self.isRunning = True
+        TopenTwisted.activePool.append(self)
+        
+        self.finished.acquire()
+        self.finished.wait()
+        self.finished.release()
+
+        # Here is where PostProcessor will typically die. After a process has been killed
+        checkShutdown()
+
+        return self.outBuf, self.returnCode
+
+    def getPid(self):
+        # FIXME: this is for compat. w/ ptyopen
+        return self.transport.pid
+    
+    def killAll():
+        """ kill -9 all active topens """
+        for active in TopenTwisted.activePool:
+            active.kill()
+    killAll = staticmethod(killAll)
+
+# FIXME: Don't use ptyopen/popen at all any longer
 # NOTE: Ptyopen, like popens, is odd with return codes and their status. You seem to be
 # able to get the correct *return code* from a Ptyopen.wait(), but you won't be able to
 # get the correct WCOREDUMP *status*. This is because pty/popen run your executable via
@@ -29,7 +130,6 @@ class FatalError(Exception):
 # dumped, not your process. The solution to this is to pass the cmd as a list -- the cmd
 # and it's args. This tells pty/popen to run the process directly instead of via /bin/sh,
 # and you get the right WCOREDUMP *status*
-SPLIT_CMDLINE_ARGS_RE = re.compile(r'( |"[^"]*")')
 class Ptyopen(popen2.Popen3):
     def __init__(self, cmd, capturestderr = False, bufsize = -1):
         """ Popen3 class (isn't this actually Popen4, capturestderr = False?) that uses ptys
@@ -41,7 +141,7 @@ that created the object, for later use """
         self.prettyCmd = cmd
         cmd = self.parseCmdToList(cmd)
         self.cmd = cmd
-        self.thread = threading.currentThread()
+        self.threadIdent = thread.get_ident()
 
         p2cread, p2cwrite = pty.openpty()
         c2pread, c2pwrite = pty.openpty()
@@ -64,7 +164,7 @@ that created the object, for later use """
             self.childerr = os.fdopen(errout, 'r', bufsize)
         else:
             self.childerr = None
-        popen2._active.append(self)
+        TopenTwisted.activePool.append(self)
 
     def parseCmdToList(self, cmd):
         cleanDoubleQuotesRe = re.compile(r'^"|"$')
@@ -76,6 +176,12 @@ that created the object, for later use """
             args.append(cleanDoubleQuotesRe.sub('', field))
         return args
 
+    def getPid(self):
+        return self.pid
+
+    def kill(self):
+        os.kill(self.pid, signal.SIGKILL)
+
     def poll(self):
         """Return the exit status of the child process if it has finished,
         or -1 if it hasn't finished yet."""
@@ -84,7 +190,7 @@ that created the object, for later use """
                 pid, sts = os.waitpid(self.pid, os.WNOHANG)
                 if pid == self.pid:
                     self.sts = sts
-                    popen2._active.remove(self)
+                    TopenTwisted.activePool.remove(self)
             except os.error:
                 pass
         return self.sts
@@ -95,7 +201,7 @@ that created the object, for later use """
             pid, sts = os.waitpid(self.pid, 0)
             if pid == self.pid:
                 self.sts = sts
-                popen2._active.remove(self)
+                TopenTwisted.activePool.remove(self)
         return self.sts
 
     def readlinesAndWait(self):
@@ -116,7 +222,7 @@ shortly after every read """
             time.sleep(.0001)
 
         returnStatus = self.wait()
-        return output, returnStatus
+        return output, os.WEXITSTATUS(returnStatus)
 
 class Ptyopen2(Ptyopen):
     """ Ptyopen = Popen3
@@ -131,7 +237,7 @@ that created the object, for later use """
         #popen2._cleanup()
         cmd = self.parseCmdToList(cmd)
         self.cmd = cmd
-        self.thread = threading.currentThread()
+        self.threadIdent = thread.get_ident()
 
         p2cread, p2cwrite = pty.openpty()
         c2pread, c2pwrite = pty.openpty()
@@ -146,7 +252,16 @@ that created the object, for later use """
         self.tochild = os.fdopen(p2cwrite, 'w', bufsize)
         os.close(c2pwrite)
         self.fromchild = os.fdopen(c2pread, 'r', bufsize)
-        popen2._active.append(self)
+        TopenTwisted.activePool.append(self)
+
+def Topen(cmd):
+    """ FIXME: Don't use ptyopen anymore at all. Rename TopenTwisted to Topen (or
+    something better)"""
+    from twisted.internet import reactor
+    if reactor.running:
+        return TopenTwisted(cmd)
+    else:
+        return Ptyopen2(cmd)
 
 # Future optimization: Faster way to init this from xml files would be to set the entire
 # list backing the queue in one operation (instead of putting 20k times)
@@ -289,12 +404,30 @@ those three periods are included in the specified length"""
 def rtruncate(*args, **kwargs):
     return truncate(reverse = True, *args, **kwargs)
 
+def truncateToMultiLine(line, length = 60, prefix = '', indentPrefix = None):
+    """ Parse a message into multiple lines of the specified length """
+    multiLine = ''
+    numLines = ((len(line) - 1) / 60) + 1
+    offset = 0
+    for i in range(numLines):
+        if indentPrefix != None and i > 0:
+            multiLine += indentPrefix + line[offset:length * (i + 1)] + '\n'
+        else:
+            multiLine += prefix + line[offset:length * (i + 1)] + '\n'
+        offset += length
+    return multiLine
+
 def getStack():
     """ Return the current execution stack as a string """
     s = StringIO()
     print_stack(file = s)
     s = s.getvalue()
     return s
+
+def inMainThread():
+    if Hellanzb.MAIN_THREAD_IDENT == thread.get_ident():
+        return True
+    return False
 
 """
 /*

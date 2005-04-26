@@ -50,8 +50,9 @@ class RotatingFileHandlerNoLF(RotatingFileHandler):
 class ScrollableHandler(StreamHandlerNoLF):
     """ ScrollableHandler is a StreamHandler that specially handles scrolling (log
     messages at the SCROLL level). It allows you to temporarily interrupt the constant
-    scroll with other log messages of different levels. It also slightly pauses the scroll
-    output, giving you time to read the message"""
+    scroll with other log messages of different levels (printed at the top of the scroll
+    area) """
+
     # the SCROLL level (a class var)
     SCROLL = 11
     SHUTDOWN = 12
@@ -70,7 +71,7 @@ class ScrollableHandler(StreamHandlerNoLF):
             else:
                 # If scroll is on, interrupt scroll
                 if ScrollableHandler.scrollFlag:
-                    self.scrollInterrupt(record)
+                    self.scrollHeader(record)
                 else:
                     # otherwise if scroll isn't on, just log the message normally
                     self.emitSynchronized(record)
@@ -85,16 +86,16 @@ class ScrollableHandler(StreamHandlerNoLF):
         finally:
             self.release()
 
-    def scrollInterrupt(self, record):
+    def scrollHeader(self, record):
         """ Print a log message so that the user can see it during a SCROLL """
         msg = self.format(record).rstrip() # Scroller appends newline for us
         from twisted.internet import reactor
         if inMainThread():
             # FIXME: scrollBegin() should really be creating the scroller instance
             # FIXME: no unicode crap from normal python log emit
-            Hellanzb.scroller.prefixScroll(msg)
+            Hellanzb.scroller.scrollHeader(msg)
         else:
-            reactor.callFromThread(Hellanzb.scroller.prefixScroll, msg)
+            reactor.callFromThread(Hellanzb.scroller.scrollHeader, msg)
 
 class LogOutputStream:
     """ Provides somewhat of a file-like interface (supporting only the typical writing

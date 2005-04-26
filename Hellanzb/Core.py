@@ -132,6 +132,16 @@ def signalHandler(signum, frame):
             TopenTwisted.killAll()
             logShutdown('Killed all child processes, exiting..')
             shutdownNow(Hellanzb.SHUTDOWN_CODE)
+            
+def assertHasARar():
+    """ assertIsExe rar or it's doppelganger """
+    Hellanzb.UNRAR_CMD = None
+    for exe in [ 'rar', 'unrar' ]:
+        if spawn.find_executable(exe):
+            Hellanzb.UNRAR_CMD = exe
+    if not Hellanzb.UNRAR_CMD:
+        raise FatalError('Cannot continue program, required executable \'rar\' or \'unrar\' not in path')
+    assertIsExe(Hellanzb.UNRAR_CMD)
 
 def init(options = {}):
     """ initialize the app """
@@ -156,12 +166,7 @@ def init(options = {}):
     Hellanzb.postProcessors = []
     Hellanzb.postProcessorLock = Lock()
 
-    # doppelganger
-    for exe in [ 'rar', 'unrar' ]:
-        if spawn.find_executable(exe):
-            Hellanzb.UNRAR_CMD = exe
-    assertIsExe(Hellanzb.UNRAR_CMD)
-
+    assertHasARar()
     assertIsExe('file')
 
     # One and only signal handler

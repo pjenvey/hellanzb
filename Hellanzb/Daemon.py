@@ -18,12 +18,13 @@ def ensureDaemonDirs():
     """ Ensure that all the required directories exist, otherwise attempt to create them """
     for arg in dir(Hellanzb):
         if stringEndsWith(arg, "_DIR") and arg == arg.upper():
-            exec 'dir = Hellanzb.' + arg
-            if not os.path.isdir(dir):
+            exec 'dirName = Hellanzb.' + arg
+            if not os.path.isdir(dirName):
                 try:
-                    os.mkdir(dir)
-                except IOError:
-                    raise FatalError('Unable to create Hellanzb DIRs')
+                    os.makedirs(dirName)
+                except OSError, ose:
+                    raise FatalError('Unable to create directory for option: Hellanzb.' + \
+                                     arg + ' dirName: ' + dirName + ' error: ' + str(ose))
 def initDaemon():
     """ Start the daemon """
     ensureDaemonDirs()
@@ -32,51 +33,57 @@ def initDaemon():
     reactor.callLater(0, growlNotify, 'Queue', 'hellanzb', 'Now monitoring queue..', False)
     reactor.callLater(0, scanQueueDir)
 
+    Hellanzb.queued_nzbs = []
+
     from Hellanzb.NZBLeecher import initNZBLeecher
     initNZBLeecher()
     
 def scanQueueDir():
     """ Find new/resume old NZB download sessions """
-    queued_nzbs = []
-    current_nzbs = [x for x in os.listdir(Hellanzb.CURRENT_DIR) if re.search(r'\.nzb$',x)]
-
     debug('Ziplick scanning queue dir..')
+
+    current_nzbs = [x for x in os.listdir(Hellanzb.CURRENT_DIR) if re.search(r'\.nzb$',x)]
 
     # Intermittently check if the app is in the process of shutting down when it's
     # safe (in between long processes)
     checkShutdown()
     
     # See if we're resuming a nzb fetch
+    resuming = False
     if not current_nzbs:
-        
         # Refresh our queue and append the new nzb's, 
         new_nzbs = [x for x in os.listdir(Hellanzb.QUEUE_DIR) \
-                    if x not in queued_nzbs and re.search(r'\.nzb$',x)]
+                    if x not in Hellanzb.queued_nzbs and re.search(r'\.nzb$',x)]
 
         if len(new_nzbs) > 0:
-            queued_nzbs.extend(new_nzbs)
-            queued_nzbs.sort()
+            Hellanzb.queued_nzbs.extend(new_nzbs)
+            Hellanzb.queued_nzbs.sort()
             for nzb in new_nzbs:
-                msg = 'Found new nzb:'
+                msg = 'Found new nzb: '
                 info(msg + archiveName(nzb))
                 growlNotify('Queue', 'hellanzb ' + msg,archiveName(nzb), False)
                 
         # Nothing to do, lets wait 5 seconds and start over
-        if not queued_nzbs:
+        if not Hellanzb.queued_nzbs:
             reactor.callLater(5, scanQueueDir)
             return
         
-        nzbfilename = queued_nzbs[0]
-        del queued_nzbs[0]
+        nzbfilename = Hellanzb.queued_nzbs[0]
+        del Hellanzb.queued_nzbs[0]
         
         # nzbfile will always be a absolute filename 
         nzbfile = Hellanzb.QUEUE_DIR + nzbfilename
         move(nzbfile, Hellanzb.CURRENT_DIR)
     else:
+        resuming = True
         nzbfilename = current_nzbs[0]
         info('Resuming: ' + archiveName(nzbfilename))
         growlNotify('Queue', 'hellanzb Resuming:', archiveName(nzbfilename), False)
         del current_nzbs[0]
+        
+    if not resuming and len(Hellanzb.queued_nzbs):
+        info('Downloading: ' + archiveName(nzbfilename))
+        
     nzbfile = Hellanzb.CURRENT_DIR + nzbfilename
 
     # Change the cwd for Newsleecher, and download the files

@@ -14,10 +14,10 @@ Otherwise, to install hellanzb manually:
 
 Prerequisites:
 
-Unix                    E.g.: http://www.freebsd.org, http://www.apple.com/macosx
+Unix O/S                E.g.: http://www.freebsd.org, http://www.apple.com/macosx
 Python >= 2.3           http://www.python.org
 Twisted >= 1.3          http://www.twistedmartrix.com
-parachive =~ 0.4        http://parchive.sourceforge.net
+par2cmdline =~ 0.4      http://parchive.sourceforge.net
 rar or unrar =~ 3.41    http://www.rarlab.com
 
 hellanzb can either be ran from it's own directory, or to install it system wide,
@@ -52,6 +52,12 @@ o [Optional] Edit the growler configuration to enable Mac OS X Growl
 o Run hellanzb.py. Copy files to the QUEUE directory, watch hellanzb (or go do
   something else) download and process your nzb archives, leaving the finished
   files in the DEST dir.
+
+MISCELLANEOUS
+--------------------------------------------------
+
+o Make sure your terminal is at least 80 columns wide otherwise you'll see
+  download status lines scroll off the screen
 
 hellanzb -
 http://www.hellanzb.com/

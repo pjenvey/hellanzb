@@ -311,7 +311,8 @@ def assertIsExe(exe):
         fullPath = spawn.find_executable(exe)
         if fullPath != None and os.access(fullPath, os.X_OK):
             return
-    raise FatalError('Cannot continue program, required executable not in path: ' + exe)
+    raise FatalError('Cannot continue program, required executable not in path: \'' + \
+                     exe + '\'')
 
 def dirHasFileType(dirName, fileExtension):
     return dirHasFileTypes(dirName, [ fileExtension ])

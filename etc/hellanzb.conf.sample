@@ -58,7 +58,7 @@ Hellanzb.MAX_DECOMPRESSION_THREADS = 2
 
 
 # Enable grow notifications for 31337 Mac OS X people
-Hellanzb.GROWL_NOTIFY = True
+Hellanzb.GROWL_NOTIFY = False
 
 # The growl notification server, in the format 'hostname'
 Hellanzb.GROWL_SERVER = 'IP'

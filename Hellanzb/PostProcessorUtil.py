@@ -176,7 +176,11 @@ def containsRequiredFiles(fileList):
 
 def defineMusicType(extension, decompressor, decompressToType):
     """ Create a new instance of a MusicType and add it to the list of known music types """
-    MusicType.musicTypes.append(MusicType(extension, decompressor, decompressToType))
+    try:
+        MusicType.musicTypes.append(MusicType(extension, decompressor, decompressToType))
+    except FatalError:
+        error('Problem in config file with defineMusicType() for extension: ' + str(extension))
+        raise
 
 def deleteDuplicates(dirName):
     """ Delete _duplicate files """
@@ -334,7 +338,7 @@ def unrar(fileName, rarPassword = None, pathToExtract = None):
     else:
         cmd = Hellanzb.UNRAR_CMD + ' x -y' + ' "' + fileName + '" "' + pathToExtract + '"'
     
-    info(archiveName(dirName) + ': Unraring ' + os.path.basename(fileName))
+    info(archiveName(dirName) + ': Unraring ' + os.path.basename(fileName) + '..')
     t = Topen(cmd)
     output, unrarReturnCode = t.readlinesAndWait()
 

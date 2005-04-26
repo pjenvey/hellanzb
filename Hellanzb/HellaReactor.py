@@ -9,7 +9,7 @@ reactor system so it can catch signals, and shutdown hellanzb cleanly
 import Hellanzb, sys, time
 from twisted.internet.default import SelectReactor
 from twisted.internet.main import installReactor
-from twisted.python import failure
+from twisted.python import log, failure
 from Hellanzb.Log import *
 
 # overwrite Log.error

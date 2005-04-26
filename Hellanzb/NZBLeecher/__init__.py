@@ -35,6 +35,10 @@ def initNZBLeecher():
 
     # Create the one and only download queue
     Hellanzb.queue = NZBQueue()
+
+    Hellanzb.totalReadBytes = 0
+    Hellanzb.totalStartTime = None
+    #Hellanzb.totalDownloadedFiles = 0
     
     # The NZBLeecherFactories
     Hellanzb.nsfs = []
@@ -94,10 +98,6 @@ class NZBLeecherFactory(ReconnectingClientFactory):
         self.username = username
         self.password = password
         self.antiIdleTimeout = antiIdleTimeout
-
-        self.totalReadBytes = 0
-        #self.totalStartTime = None
-        #self.totalDownloadedFiles = 0
 
         # statistics for the current session (sessions end when downloading stops on all
         # clients). used for the more accurate total speeds shown in the UI
@@ -179,6 +179,8 @@ class NZBLeecher(NNTPClient, AntiIdleMixin):
             
         # Idle time -- after being idle this long send anti idle requests
         self.timeOut = 7 * 60
+
+        self.activated = False
 
         # This value exists in twisted and doesn't do much (except call lineLimitExceeded
         # when a line that long is exceeded). Knowing twisted that function is probably a
@@ -305,44 +307,63 @@ class NZBLeecher(NNTPClient, AntiIdleMixin):
         else:
             debug(str(self) + 'MODE READER failed, err: ' + str(err))
 
+    # change this to inFetchLoop(). move factory stuff into factory clientInFetchLoop
     def isActive(self, isActiveBool):
         """ Activate/Deactivate this client -- notify the factory, etc"""
-        if isActiveBool:
+        if isActiveBool and not self.activated:
+            self.activated = True
             if self not in self.factory.activeClients:
                 if len(self.factory.activeClients) == 0:
+                    now = time.time()
                     self.factory.sessionReadBytes = 0
                     self.factory.sessionSpeed = 0
-                    self.factory.sessionStartTime = time.time()
+                    self.factory.sessionStartTime = now
+                    totalActiveClients = 0
+                    for nsf in Hellanzb.nsfs:
+                        totalActiveClients += len(nsf.activeClients)
+                    if not totalActiveClients:
+                        Hellanzb.totalReadBytes = 0
+                        Hellanzb.totalStartTime = now
                 self.factory.activeClients.add(self)
                 
-        else:
-                self.factory.activeClients.remove(self)
+        elif not isActiveBool and self.activated:
+            self.activated = False
+            self.factory.activeClients.remove(self)
 
-                # Reset stats if necessary
-                if len(self.factory.activeClients) == 0:
-                    self.factory.sessionReadBytes = 0
-                    self.factory.sessionSpeed = 0
-                    self.factory.sessionStartTime = None
+            # Reset stats if necessary
+            if not len(self.factory.activeClients):
+                self.factory.sessionReadBytes = 0
+                self.factory.sessionSpeed = 0
+                self.factory.sessionStartTime = None
 
-                # Check if we're completely done
-                totalActiveClients = 0
-                for nsf in Hellanzb.nsfs:
-                    totalActiveClients += len(nsf.activeClients)
-                if totalActiveClients == 0:
-                    Hellanzb.totalSpeed = 0
-                    Hellanzb.scroller.currentLog = None
-                    Hellanzb.scroller.killHistory()
+            # Check if we're completely done
+            totalActiveClients = 0
+            for nsf in Hellanzb.nsfs:
+                totalActiveClients += len(nsf.activeClients)
+            if totalActiveClients == 0:
+                dur = time.time() - Hellanzb.totalStartTime
+                speed = Hellanzb.totalReadBytes / 1024.0 / dur
+                leeched = self.prettySize(Hellanzb.totalReadBytes)
+                #Hellanzb.scroller.scrollHeader('Transferred %s in %.1fs at %.1fKB/s' % \
+                #                               (leeched, dur, speed))
+                info('Transferred %s in %.1fs at %.1fKB/s' % (leeched, dur, speed))
+                
+                Hellanzb.totalReadBytes = 0
+                Hellanzb.totalStartTime = None
+                Hellanzb.totalSpeed = 0
+                Hellanzb.scroller.currentLog = None
+                Hellanzb.scroller.killHistory()
         
     def fetchNextNZBSegment(self):
         """ Pop nzb article from the queue, and attempt to retrieve it if it hasn't already been
         retrieved"""
         if self.currentSegment is None:
 
-            # gogogo
-            self.isActive(True)
-            
             try:
                 self.currentSegment = Hellanzb.queue.get_nowait()
+
+                # got a segment - set ourselves as active unless we're already set as so
+                self.isActive(True)
 
                 # Determine the filename to show in the UI
                 if self.currentSegment.nzbFile.showFilename == None:
@@ -355,8 +376,6 @@ class NZBLeecher(NNTPClient, AntiIdleMixin):
             except Empty:
                 # all done
                 self.isActive(False)
-                
-                # FIXME: 'Transferred %s in %.1fs at %.1fKB/s' % (ldb, dur, speed)
                 return
 
         # Change group
@@ -375,7 +394,7 @@ class NZBLeecher(NNTPClient, AntiIdleMixin):
 
         #if not gotActiveGroup:
             # FIXME: prefix with segment name
-        #    Hellanzb.scroller.prefixScroll('No valid group found!')
+        #    Hellanzb.scroller.scrollHeader('No valid group found!')
             
         debug(str(self) + ' getting BODY: <' + self.currentSegment.messageId + '> ' + \
               self.currentSegment.getDestination())
@@ -412,7 +431,8 @@ class NZBLeecher(NNTPClient, AntiIdleMixin):
         code = extractCode(err)
         if code is not None and code in ('423', '430'):
             # FIXME: show filename and segment number
-            Hellanzb.scroller.prefixScroll(self.currentSegment.showFilename + ' Article is missing!')
+            #Hellanzb.scroller.scrollHeader(self.currentSegment.showFilename + ' Article is missing!')
+            info(self.currentSegment.showFilename + ' Article is missing!')
         
         self.processBodyAndContinue('')
 
@@ -469,11 +489,12 @@ class NZBLeecher(NNTPClient, AntiIdleMixin):
         debug(str(self) + ' got HELP failed: ' + str(err))
 
     def lineLengthExceeded(self, line):
-        Hellanzb.scroller.prefixScroll('Error!!: LineReceiver.MAX_LENGTH exceeded. size: ' + str(len(line)))
+        #Hellanzb.scroller.scrollHeader('Error!!: LineReceiver.MAX_LENGTH exceeded. size: ' + str(len(line)))
+        error('Error!!: LineReceiver.MAX_LENGTH exceeded. size: ' + str(len(line)))
         debug('EXCEEDED line length, len: ' + str(len(line)) + ' line: ' + line)
 
     def updateByteCount(self, lineLen):
-        self.factory.totalReadBytes += lineLen
+        Hellanzb.totalReadBytes += lineLen
         self.factory.sessionReadBytes += lineLen
         if self.currentSegment != None:
             self.currentSegment.nzbFile.totalReadBytes += lineLen
@@ -553,6 +574,16 @@ class NZBLeecher(NNTPClient, AntiIdleMixin):
                 if data:
                     return self.rawDataReceived(data)
 
+    def prettySize(self, bytes):
+        bytes = float(bytes)
+        
+        if bytes < 1024:
+                return '<1KB'
+        elif bytes < (1024 * 1024):
+                return '%dKB' % (bytes / 1024)
+        else:
+                return '%.1fMB' % (bytes / 1024.0 / 1024.0)
+
     def __str__(self):
         """ Return the name of this NZBLeecher instance """
         return self.__class__.__name__ + '[' + str(self.id) + ']'
@@ -607,17 +638,19 @@ class NZBLeecherStatLog:
         self.delay = 3
         self.wait = 0
 
-        self.connectionPrefix = ACODE.F_DBLUE + '[' + ACODE.RESET + '%s' + ACODE.F_DBLUE + ']' + ACODE.RESET
+        self.connectionPrefix = ACODE.F_DBLUE + '[' + ACODE.RESET + '%s' + \
+                                ACODE.F_DBLUE + ']' + ACODE.RESET
 
-        self.prefixScrolls = []
+        self.scrollHeaders = []
 
         self.started = False
         self.killedHistory = False
 
-    def prefixScroll(self, message):
+    def scrollHeader(self, message):
+        # Even if passed multiple lines, ensure all lines are max 80 chars
         fields = message.split('\n')
         for field in fields:
-            self.prefixScrolls.append(truncate(field, length = 80))
+            self.scrollHeaders.append(truncate(field, length = 80))
         self.updateLog(True)
 
     def killHistory(self):
@@ -630,6 +663,16 @@ class NZBLeecherStatLog:
             scroll(msg)
             self.killedHistory = True
             self.started = False
+
+    # FIXME: use this if it's quick enough
+    def logCompare(self, x, y):
+        xCmp = yCmp = None
+        for segment, comp in { x: xCmp, y: yCmp }.iteritems():
+            if segment.nzbFile.filename == None:
+                comp = 'Z'*10 + segment.nzbFile.showFilename
+            else:
+                comp = segment.nzbFile.showFilename
+        return cmp(xCmp, yCmp)
         
     def updateLog(self, logNow = False):
         """ Log ticker """
@@ -653,13 +696,13 @@ class NZBLeecherStatLog:
             logNow = True
 
         # Log information we want to prefix the scroll (so it stays on the screen)
-        if len(self.prefixScrolls) > 0:
-            prefixScroll = ''
-            for message in self.prefixScrolls:
+        if len(self.scrollHeaders) > 0:
+            scrollHeader = ''
+            for message in self.scrollHeaders:
                 message = NEWLINE_RE.sub(ACODE.KILL_LINE + '\n', message)
-                prefixScroll += message + ACODE.KILL_LINE + '\n'
+                scrollHeader += message + ACODE.KILL_LINE + '\n'
                 
-            self.currentLog += prefixScroll
+            self.currentLog += scrollHeader
 
         # HACKY:
         # sort by filename, then we'll hide KB/s/percentage for subsequent segments with
@@ -670,7 +713,8 @@ class NZBLeecherStatLog:
         # HACKY: when new files trickle in, and 'hellanzb-tmp' comes first in the sort
         # order and there are non 'hellanzb-tmp' file names, reverse the sort
         # order. (looks prettier)
-        if sortedSegments[0].nzbFile.showFilename.find('hellanzb-tmp') == 0 and \
+        if len(sortedSegments) and \
+               sortedSegments[0].nzbFile.showFilename.find('hellanzb-tmp') == 0 and \
                sortedSegments[-1].nzbFile.showFilename.find('hellanzb-tmp') == -1:
             sortedSegments.reverse()
             
@@ -725,7 +769,7 @@ class NZBLeecherStatLog:
 
         if logNow or self.currentLog != currentLog:
             scroll(self.currentLog)
-            self.prefixScrolls = []
+            self.scrollHeaders = []
 
 """
 /*

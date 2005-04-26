@@ -10,6 +10,7 @@ import Hellanzb, os, re, PostProcessor
 from shutil import move
 from twisted.internet import reactor
 from Hellanzb.Log import *
+from Hellanzb.Logging import prettyException
 from Hellanzb.Util import *
 
 __id__ = '$Id$'
@@ -97,9 +98,17 @@ def scanQueueDir():
     # Parse the NZB file into the Queue. Unless the NZB file is deemed already
     # fully processed at the end of parseNZB, tell the factory to start
     # downloading it
-    if not Hellanzb.queue.parseNZB(nzbfile):
-        for nsf in Hellanzb.nsfs:
-            nsf.fetchNextNZBSegment()
+    try:
+        if not Hellanzb.queue.parseNZB(nzbfile):
+            for nsf in Hellanzb.nsfs:
+                nsf.fetchNextNZBSegment()
+    except FatalError, fe:
+        scrollEnd()
+        error('Problem while parsing the NZB', fe)
+        growlNotify('Error', 'hellanzb', 'Problem while parsing the NZB' + prettyException(fe), True)
+        error('Moving bad NZB out of queue into dir: ' + Hellanzb.TEMP_DIR)
+        move(nzbfile, Hellanzb.TEMP_DIR + os.sep)
+        reactor.callLater(5, scanQueueDir)
 
 def handleNZBDone(nzbfilename):
     """ Hand-off from the downloader -- make a dir for the NZB with it's contents, then post

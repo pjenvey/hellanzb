@@ -9,7 +9,7 @@ import Hellanzb, os, re, time
 from sets import Set
 from threading import Lock, RLock
 from twisted.internet import reactor
-from xml.sax import make_parser
+from xml.sax import make_parser, SAXParseException
 from xml.sax.handler import ContentHandler, feature_external_ges, feature_namespaces
 from Hellanzb.Log import *
 from Hellanzb.NZBLeecher.ArticleDecoder import assembleNZBFile, parseArticleData, setRealFileName, tryFinishNZB
@@ -391,8 +391,11 @@ class NZBQueue(PriorityQueue):
         parser.setContentHandler(dh)
 
         # Parse the input
-        parser.parse(fileName)
-
+        try:
+            parser.parse(fileName)
+        except SAXParseException, saxpe:
+            raise FatalError('Unable to parse Invalid NZB file: ' + os.path.basename(fileName))
+        
         completeArchive = False
 
         s = time.time()

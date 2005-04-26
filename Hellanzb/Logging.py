@@ -141,6 +141,22 @@ def stdinEchoOn():
         except:
             pass
 
+def prettyException(exception):
+    """ return a pretty rendition of the specified exception, or if no valid exception an
+    empty string """
+    message = ''
+    if exception != None:
+        if isinstance(exception, Exception):
+            message += ': ' + getLocalClassName(exception.__class__) + ': ' + str(exception)
+            
+            if not isinstance(exception, FatalError):
+                # Unknown/unexpected exception -- also show the stack trace
+                stackTrace = StringIO()
+                print_exc(file=stackTrace)
+                stackTrace = stackTrace.getvalue()
+                message += '\n' + stackTrace
+    return message
+
 def initLogging():
     """ Setup logging """
     logging.addLevelName(ScrollableHandler.SCROLL, 'SCROLL')

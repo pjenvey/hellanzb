@@ -14,7 +14,7 @@ Log - The basic log API functions, only -- to discourage polluting namespaces, e
 import Hellanzb, time
 from threading import Lock
 from traceback import print_exc
-from Hellanzb.Logging import stdinEchoOff, stdinEchoOn, ScrollableHandler
+from Hellanzb.Logging import prettyException, stdinEchoOff, stdinEchoOn, ScrollableHandler
 from Hellanzb.Growl import *
 from Hellanzb.Util import getLocalClassName, FatalError
 from StringIO import StringIO
@@ -27,19 +27,7 @@ def warn(message):
 
 def error(message, exception = None):
     """ Log a message at the error level. Optionally log exception information """
-    message = message
-    
-    if exception != None:
-        if isinstance(exception, Exception):
-            message += ': ' + getLocalClassName(exception.__class__) + ': ' + str(exception)
-            
-            if not isinstance(exception, FatalError):
-                # Unknown/unexpected exception -- also show the stack trace
-                stackTrace = StringIO()
-                print_exc(file=stackTrace)
-                stackTrace = stackTrace.getvalue()
-                message += '\n' + stackTrace
-        
+    message += prettyException(exception)
     Hellanzb.logger.error(message + '\n')
 
 def info(message, appendLF = True):
@@ -60,7 +48,7 @@ def scroll(message):
 def logShutdown(message):
     Hellanzb.logger.log(ScrollableHandler.SHUTDOWN, message)
 
-def growlNotify(type, title, description, sticky):
+def growlNotify(type, title, description, sticky = False):
     """ send a message to the growl daemon via an xmlrpc proxy """
     # NOTE: growl doesn't tie in with logging yet because all it's sublevels/args makes it
     # not play well with the rest of the logging.py

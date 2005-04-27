@@ -32,7 +32,7 @@ def decode(segment):
     except Exception, e:
         touch(segment.getDestination())
         error(segment.nzbFile.showFilename + ' segment: ' + str(segment.number) + \
-              ' a problem occurred during decoding: ' + str(e))
+              ' a problem occurred during decoding', e)
 
     # FIXME: maybe call everything below this postProcess. have postProcess called when --
     # during the queue instantiation?

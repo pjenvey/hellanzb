@@ -1,3 +1,4 @@
+# -*- coding: iso-8859-1 -*-
 """
 
 Log - The basic log API functions, only -- to discourage polluting namespaces, e.g.:
@@ -69,6 +70,12 @@ def growlNotify(type, title, description, sticky = False):
     p.addNotification("Error", enabled=True)
     p.addNotification("Queue", enabled=True)
     s.sendto(p.payload(), addr)
+
+    # Unicode the message, so the python Growl lib can succesfully UTF-8 it. It can fail
+    # to UTF-8 the description if it contains unusual characters. we also have to force
+    # latin-1, otherwise converting to unicode can fail too
+    # (e.g. 'Secrets_of_SÃÂ£o_Paulo_(Full_DVD5_2003)')
+    description = unicode(description, 'latin-1')
     
     p = GrowlNotificationPacket(application="hellanzb",
                                 notification=type, title=title,

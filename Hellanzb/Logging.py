@@ -147,7 +147,7 @@ def prettyException(exception):
     message = ''
     if exception != None:
         if isinstance(exception, Exception):
-            message += ': ' + getLocalClassName(exception.__class__) + ': ' + str(exception)
+            message += getLocalClassName(exception.__class__) + ': ' + str(exception)
             
             if not isinstance(exception, FatalError):
                 # Unknown/unexpected exception -- also show the stack trace

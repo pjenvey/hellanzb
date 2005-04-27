@@ -27,7 +27,9 @@ def warn(message):
 
 def error(message, exception = None):
     """ Log a message at the error level. Optionally log exception information """
-    message += prettyException(exception)
+    prettyEx = prettyException(exception)
+    if prettyEx != '':
+        message += ': ' + prettyEx
     Hellanzb.logger.error(message + '\n')
 
 def info(message, appendLF = True):

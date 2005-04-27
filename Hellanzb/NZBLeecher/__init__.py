@@ -20,7 +20,7 @@ from twisted.python import log
 from Hellanzb.Core import shutdown
 from Hellanzb.Log import *
 from Hellanzb.Logging import LogOutputStream
-from Hellanzb.Util import rtruncate, truncate
+from Hellanzb.Util import rtruncate, truncateToMultiLine
 from Hellanzb.NZBLeecher.ArticleDecoder import decode
 from Hellanzb.NZBLeecher.NZBModel import NZBQueue
 from Queue import Empty
@@ -648,9 +648,9 @@ class NZBLeecherStatLog:
 
     def scrollHeader(self, message):
         # Even if passed multiple lines, ensure all lines are max 80 chars
-        fields = message.split('\n')
-        for field in fields:
-            self.scrollHeaders.append(truncate(field, length = 80))
+        lines = message.split('\n')
+        for line in lines:
+            self.scrollHeaders.append(truncateToMultiLine(line, length = 80))
         self.updateLog(True)
 
     def killHistory(self):

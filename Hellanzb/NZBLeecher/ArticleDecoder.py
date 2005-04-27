@@ -287,8 +287,7 @@ def UUDecode(dataList):
                 data = binascii.a2b_uu(line[:nbytes])
                 buffer.append(data)
             except binascii.Error, msg:
-                error('\nUUDecode failed, line: ' + repr(line))
-                debug('\nUUDecode failed, line: ' + repr(line))
+                error('UUDecode failed, line: ' + repr(line))
                 raise
 
     return buffer

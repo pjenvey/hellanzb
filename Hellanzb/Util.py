@@ -406,17 +406,21 @@ def rtruncate(*args, **kwargs):
     return truncate(reverse = True, *args, **kwargs)
 
 def truncateToMultiLine(line, length = 60, prefix = '', indentPrefix = None):
-    """ Parse a message into multiple lines of the specified length """
-    multiLine = ''
-    numLines = ((len(line) - 1) / 60) + 1
+    """ Parse a one line message into multiple lines of the specified length """
+    multiLine = StringIO()
+    numLines = ((len(line) - 1) / length) + 1
     offset = 0
     for i in range(numLines):
         if indentPrefix != None and i > 0:
-            multiLine += indentPrefix + line[offset:length * (i + 1)] + '\n'
+            multiLine.write(indentPrefix + line[offset:length * (i + 1)])
         else:
-            multiLine += prefix + line[offset:length * (i + 1)] + '\n'
+            multiLine.write(prefix + line[offset:length * (i + 1)])
+            
+        if i + 1 < numLines:
+            multiLine.write('\n')
+            
         offset += length
-    return multiLine
+    return multiLine.getvalue()
 
 def getStack():
     """ Return the current execution stack as a string """

@@ -176,11 +176,13 @@ def init(options = {}):
         findAndLoadConfig(options.configFile)
     else:
         findAndLoadConfig()
-        
-    if hasattr(options, 'logFile'):
-        Hellanzb.Logging.initLogFile(options.logFile)
-    else:
-        Hellanzb.Logging.initLogFile()
+
+    for attr in ('logFile', 'debugLogFile'):
+        # this is really: logFile = None
+        setattr(sys.modules[__name__], attr, None)
+        if hasattr(options, attr):
+            setattr(sys.modules[__name__], attr, getattr(options, attr))
+    Hellanzb.Logging.initLogFile(logFile = logFile, debugLogFile = debugLogFile)
 
 def shutdown():
     """ turn the knob that tells all parts of the program we're shutting down """
@@ -199,16 +201,30 @@ def shutdownNow(returnCode = 0):
 
     sys.exit(returnCode)
 
+USAGE = """
+hellanzb version %s
+
+   nzb (usenet) file retriever and post processer
+   http://www.hellanzb.com
+
+usage: %s [options]
+""".lstrip()
 def parseArgs():
     """ Parse the command line args """
-    parser = optparse.OptionParser(version = Hellanzb.version)
+    # prevent optparse from totally munging usage
+    formatter = optparse.IndentedHelpFormatter()
+    formatter.format_usage = lambda usage: usage
+
+    usage = USAGE % (str(Hellanzb.version), '%prog')
+    
+    parser = optparse.OptionParser(formatter = formatter, usage = usage, version = Hellanzb.version)
     parser.add_option('-c', '--config', type='string', dest='configFile',
                       help='specify the configuration file')
     parser.add_option('-l', '--log-file', type='string', dest='logFile',
-                      help='specify the log file (overwrites the config file setting)')
-    # FIXME: TODO
-    #parser.add_option('-d', '--debug-file', type='string', dest='debugFile',
-    #                  help='specify the debug log file (overwrites the DEUBG_MODE config file setting)')
+                      help='specify the log file (overwrites the Hellanzb.LOG_FILE config file setting)')
+    parser.add_option('-d', '--debug-file', type='string', dest='debugLogFile',
+                      help='specify the debug log file (turns on debugging output/overwrites the ' + \
+                      'Hellanzb.DEBUG_MODE config file setting)')
     parser.add_option('-p', '--post-process-dir', type='string', dest='postProcessDir',
                       help='don\'t run the daemon: post-process the specified nzb archive dir and exit')
     parser.add_option('-P', '--rar-password', type='string', dest='rarPassword',

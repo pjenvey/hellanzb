@@ -189,7 +189,7 @@ def initLogging():
     # Whether or not scroll mode is on
     ScrollableHandler.scrollFlag = False
 
-def initLogFile(logFile = None):
+def initLogFile(logFile = None, debugLogFile = None):
     """ Initialize the log file. This has to be done after the config is loaded """
     maxBytes = backupCount = 0
     if hasattr(Hellanzb, 'LOG_FILE_MAX_BYTES'):
@@ -207,6 +207,8 @@ def initLogFile(logFile = None):
     # FIXME: should check if Hellanzb.LOG_FILE is set first
     if logFile != None:
         Hellanzb.LOG_FILE = os.path.abspath(logFile)
+    if debugLogFile != None:
+        Hellanzb.DEBUG_MODE = os.path.abspath(debugLogFile)
         
     fileHdlr = RotatingFileHandlerNoLF(Hellanzb.LOG_FILE, maxBytes = maxBytes, backupCount = backupCount)
     fileHdlr.setFormatter(logging.Formatter('%(asctime)s %(levelname)s %(message)s'))

@@ -117,6 +117,193 @@ class LogOutputStream:
     def truncate(self, size=None): raise NotImplementedError()
     def writelines(self, list): raise NotImplementedError()
 
+class ASCIICodes:
+    def __init__(self):
+        # f/b_ = fore/background
+        # d/l/b  = dark/light/bright
+        self.map = {
+            'ESCAPE': '\033',
+            'RESET': '0',
+            'KILL_LINE': 'K',
+            
+            'F_DRED': '31',
+            'F_LRED': '31;1',
+            'F_DGREEN': '32',
+            'F_LGREEN': '32;1',
+            'F_BROWN': '33',
+            'F_YELLOW': '33;1',
+            'F_DBLUE': '34',
+            'F_LBLUE': '34;1',
+            'F_DMAGENTA': '35',
+            'F_LMAGENTA': '35;1',
+            'F_DCYAN': '36',
+            'F_LCYAN': '36;1',
+            'F_WHITE': '37',
+            'F_BWHITE': '37;1',
+            }
+        
+    def __getattr__(self, name):
+        val = self.map[name]
+        if name != 'ESCAPE':
+            val = self.map['ESCAPE'] + '[' + val
+            if name != 'KILL_LINE':
+                val += 'm'
+        return val
+
+NEWLINE_RE = re.compile('\n')
+class NZBLeecherTicker:
+    """ A basic logger for NZBLeecher. It's uh, not what I really want. I'd rather put more
+    time into writing a curses interface. Code submissions greatly appreciated. -pjenvey
+    """
+    def __init__(self):
+        self.size = 0
+        self.segments = []
+        self.currentLog = None
+
+        self.maxCount = 0 # FIXME: var name
+
+        # Only bother doing the whole UI update after running updateStats this many times
+        self.delay = 3
+        self.wait = 0
+
+        ACODE = Hellanzb.ACODE
+        self.connectionPrefix = ACODE.F_DBLUE + '[' + ACODE.RESET + '%s' + \
+                                ACODE.F_DBLUE + ']' + ACODE.RESET
+
+        self.scrollHeaders = []
+
+        self.started = False
+        self.killedHistory = False
+
+        from Hellanzb.Log import scroll
+        self.logger = scroll
+
+    def scrollHeader(self, message):
+        # Even if passed multiple lines, ensure all lines are max 80 chars
+        lines = message.split('\n')
+        for line in lines:
+            self.scrollHeaders.append(truncateToMultiLine(line, length = 80))
+        self.updateLog(True)
+
+    def killHistory(self):
+        """ clear scroll off the screen """
+        if not self.killedHistory and self.started:
+            msg = '\r\033[' + str(self.maxCount + 1) + 'A'
+            for i in range(self.maxCount + 1):
+                msg += '\n\r' + Hellanzb.ACODE.KILL_LINE
+            msg += '\r\033[' + str(self.maxCount + 1) + 'A'
+            self.logger(msg)
+            self.killedHistory = True
+            self.started = False
+
+    # FIXME: use this if it's quick enough
+    def logCompare(self, x, y):
+        xCmp = yCmp = None
+        for segment, comp in { x: xCmp, y: yCmp }.iteritems():
+            if segment.nzbFile.filename == None:
+                comp = 'Z'*10 + segment.nzbFile.showFilename
+            else:
+                comp = segment.nzbFile.showFilename
+        return cmp(xCmp, yCmp)
+        
+    def updateLog(self, logNow = False):
+        """ Log ticker """
+        # Delay the actual log work -- so we don't over-log (too much CPU work in the
+        # async loop)
+        if not logNow:
+            self.wait += 1
+            if self.wait < self.delay:
+                return
+            else:
+                self.wait = 0
+
+        ACODE = Hellanzb.ACODE
+        currentLog = self.currentLog
+        if self.currentLog != None:
+            # Kill previous lines,
+            self.currentLog = '\r\033[' + str(self.maxCount) + 'A'
+        else:
+            # unless we have just began logging. and in that case, explicitly log the
+            # first message
+            self.currentLog = ''
+            logNow = True
+
+        # Log information we want to prefix the scroll (so it stays on the screen)
+        if len(self.scrollHeaders) > 0:
+            scrollHeader = ''
+            for message in self.scrollHeaders:
+                message = NEWLINE_RE.sub(ACODE.KILL_LINE + '\n', message)
+                scrollHeader += message + ACODE.KILL_LINE + '\n'
+                
+            self.currentLog += scrollHeader
+
+        # HACKY:
+        # sort by filename, then we'll hide KB/s/percentage for subsequent segments with
+        # the same nzbFile as the previous segment
+        sortedSegments = self.segments[:]
+        sortedSegments.sort(lambda x, y : cmp(x.nzbFile.showFilename, y.nzbFile.showFilename))
+        
+        # HACKY: when new files trickle in, and 'hellanzb-tmp' comes first in the sort
+        # order and there are non 'hellanzb-tmp' file names, reverse the sort
+        # order. (looks prettier)
+        if len(sortedSegments) and \
+               sortedSegments[0].nzbFile.showFilename.find('hellanzb-tmp') == 0 and \
+               sortedSegments[-1].nzbFile.showFilename.find('hellanzb-tmp') == -1:
+            sortedSegments.reverse()
+            
+        lastSegment = None
+        i = 0
+        for segment in sortedSegments:
+            i += 1
+            if self.maxCount > 9:
+                prettyId = str(i).zfill(2)
+            else:
+                prettyId = str(i)
+            
+            # Determine when we've just found the real file name, then use that as the
+            # show name
+            if segment.nzbFile.showFilenameIsTemp == True and segment.nzbFile.filename != None:
+                segment.nzbFile.showFilename = segment.nzbFile.filename
+                segment.nzbFile.showFilenameIsTemp = False
+                
+            if lastSegment != None and lastSegment.nzbFile == segment.nzbFile:
+                line = self.connectionPrefix + ' %s' + ACODE.KILL_LINE
+                # 57 line width -- approximately 80 - 5 (prefix) - 18 (max suffix)
+                self.currentLog += line % (prettyId,
+                                           rtruncate(segment.nzbFile.showFilename, length = 57))
+            else:
+                line = self.connectionPrefix + ' %s - ' + ACODE.F_DGREEN + '%2d%%' + ACODE.RESET + \
+                       ACODE.F_DBLUE + ' @ ' + ACODE.RESET + ACODE.F_DRED + '%.1fKB/s' + ACODE.KILL_LINE
+                self.currentLog += line % (prettyId,
+                                           rtruncate(segment.nzbFile.showFilename, length = 57),
+                                           segment.nzbFile.downloadPercentage, segment.nzbFile.speed)
+                
+            self.currentLog += '\n\r'
+
+            lastSegment = segment
+                
+        for fill in range(i + 1, self.maxCount + 1):
+            if self.maxCount > 9:
+                prettyId = str(fill).zfill(2)
+            else:
+                prettyId = str(fill)
+            self.currentLog += (self.connectionPrefix + ACODE.KILL_LINE) % (prettyId)
+            self.currentLog += '\n\r'
+
+        # FIXME: FIXME HA-HA-HACK FIXME
+        totalSpeed = 0
+        for nsf in Hellanzb.nsfs:
+            totalSpeed += nsf.sessionSpeed
+
+        line = self.connectionPrefix + ACODE.F_DRED + ' %.1fKB/s' + ACODE.RESET + \
+               ', ' + ACODE.F_DGREEN + '%d MB' + ACODE.RESET + ' queued ' + ACODE.KILL_LINE
+        self.currentLog += line % ('Total', totalSpeed,
+                                   Hellanzb.queue.totalQueuedBytes / 1024 / 1024)
+
+        if logNow or self.currentLog != currentLog:
+            self.logger(self.currentLog)
+            self.scrollHeaders = []
+
 def stdinEchoOff():
     # Stolen from python's getpass
     try:
@@ -179,15 +366,17 @@ def initLogging():
     outHdlr = ScrollableHandler(sys.stdout)
     #outHdlr.setLevel(ScrollableHandler.SCROLL)
     outHdlr.addFilter(OutFilter())
+    Hellanzb.logger.addHandler(outHdlr)
 
     errHdlr = ScrollableHandler(sys.stderr)
     errHdlr.setLevel(logging.ERROR)
-    
-    Hellanzb.logger.addHandler(outHdlr)
     Hellanzb.logger.addHandler(errHdlr)
 
     # Whether or not scroll mode is on
     ScrollableHandler.scrollFlag = False
+
+    # map of ascii colors. for the kids
+    Hellanzb.ACODE = ASCIICodes()
 
 def initLogFile(logFile = None, debugLogFile = None):
     """ Initialize the log file. This has to be done after the config is loaded """
@@ -222,7 +411,9 @@ def initLogFile(logFile = None, debugLogFile = None):
                 if record.levelno > logging.DEBUG:
                     return False
                 return True
-        debugFileHdlr = RotatingFileHandlerNoLF(Hellanzb.DEBUG_MODE, maxBytes = maxBytes, backupCount = backupCount)
+            
+        debugFileHdlr = RotatingFileHandlerNoLF(Hellanzb.DEBUG_MODE, maxBytes = maxBytes,
+                                                backupCount = backupCount)
         debugFileHdlr.setFormatter(logging.Formatter('%(asctime)s %(levelname)s %(message)s'))
         debugFileHdlr.setLevel(logging.DEBUG)
         debugFileHdlr.addFilter(DebugFileFilter())

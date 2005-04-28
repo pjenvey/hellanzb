@@ -13,7 +13,7 @@ Hellanzb.LOG_FILE = '/var/tmp/hellanzb.log'
 defineServer(id = 'changeme',
              hosts = ['news.changeme.com:119', 'morenews.changeme.com:119'],
              username = 'changeme',
-             password = 'fuckbush',
+             password = 'hella',
              connections = 4,
              bindTo = '',
              antiIdle = 7 * 60) # 7 minutes
@@ -24,12 +24,16 @@ Hellanzb.PREFIX_DIR = '/ext2/'
 
 # Where to put queued up .nzb files
 Hellanzb.QUEUE_DIR = Hellanzb.PREFIX_DIR + 'nzb/daemon.queue/'
+
 # Where the fully processed archives go
 Hellanzb.DEST_DIR = Hellanzb.PREFIX_DIR + 'usenet/'
+
 # The .nzb we're currently downloading is stored here
 Hellanzb.CURRENT_DIR = Hellanzb.PREFIX_DIR + 'nzb/daemon.current/'
+
 # The archive currently being downloaded is stored here
 Hellanzb.WORKING_DIR = Hellanzb.PREFIX_DIR + 'nzb/daemon.working/'
+
 # Temp storage
 Hellanzb.TEMP_DIR = Hellanzb.PREFIX_DIR + 'nzb/daemon.temp/'
 
@@ -45,19 +49,19 @@ Hellanzb.PROCESSED_SUBDIR = 'processed'
 #
 # <FILE> will be replaced with the name of music file
 # optional <DESTFILE> is <FILE> with the specified extension
-#nnn
+#
 # None means these files don't need to be decompressed
-defineMusicType('ape', 'mac <FILE> <DESTFILE> -d', 'wav')
-defineMusicType('flac', 'flac -d <FILE>', 'wav')
-defineMusicType('shn', 'shorten -x < <FILE> > <DESTFILE>', 'wav')
 defineMusicType('wav', None, None)
 defineMusicType('mp3', None, None)
+#defineMusicType('ape', 'mac <FILE> <DESTFILE> -d', 'wav')
+#defineMusicType('flac', 'flac -d <FILE>', 'wav')
+#defineMusicType('shn', 'shorten -x < <FILE> > <DESTFILE>', 'wav')
 
 # max files we should decompress at the same time
 Hellanzb.MAX_DECOMPRESSION_THREADS = 2
 
 
-# Enable grow notifications for 31337 Mac OS X people
+# Enable Mac OS X Growl notifications
 Hellanzb.GROWL_NOTIFY = False
 
 # The growl notification server, in the format 'hostname'
@@ -66,9 +70,11 @@ Hellanzb.GROWL_SERVER = 'IP'
 # The growl password
 Hellanzb.GROWL_PASSWORD = 'password'
 
+
 # If any of the following file types are missing from the archive and cannot be repaired,
 # continue processing because they're unimportant
 Hellanzb.NOT_REQUIRED_FILE_TYPES = [ 'm3u', 'nfo', 'sfv', 'log', 'nzb' ]
+
 
 # Automatically rollover the log files when they reach LOG_FILE_MAX_BYTES size
 Hellanzb.LOG_FILE_MAX_BYTES = 0
@@ -78,4 +84,3 @@ Hellanzb.LOG_FILE_BACKUP_COUNT = 0
 
 # Uncomment this line to log DEBUG messages to the specified file
 #Hellanzb.DEBUG_MODE = '/var/tmp/hellanzb-debug.log'
-

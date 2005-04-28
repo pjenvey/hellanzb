@@ -27,16 +27,15 @@ simply run (as root):
 
 CONFIGURING
 --------------------------------------------------
-o Copy the <prefix>/etc/hellanzb.conf.sample file to hellanzb.conf in the
-  same directory
-  (This is done for you by the ports)
+o Copy <prefix>/etc/hellanzb.conf.sample to hellanzb.conf in the same
+  directory (This is automatically done for you by the ports)
 
   The prefix is typically:
     /usr/local (FreeBSD) or
     /opt/local (Darwin)
     or the hellanzb directory if ran locally within it
     
-o Open the config file and edit the directories (PREFIX, DEST_DIR, etc) to
+o Open hellanzb.conf and edit the directories (PREFIX, DEST_DIR, etc) to
   your liking. The important directories are the QUEUE directory (where
   you'll put nzb files to add to the queue) and the DEST dir (where the
   finished files are placed)
@@ -49,9 +48,14 @@ o Edit the defineMusicType lines to match the music decompressors
 o [Optional] Edit the growler configuration to enable Mac OS X Growl
   notifications.
 
-o Run hellanzb.py. Copy files to the QUEUE directory, watch hellanzb (or go do
-  something else) download and process your nzb archives, leaving the finished
-  files in the DEST dir.
+USING
+--------------------------------------------------
+Run hellanzb.py
+
+Copy files to the QUEUE directory
+
+Watch hellanzb (or go do something else) download and process your nzb
+archives, leaving the finished files in the DEST dir
 
 MISCELLANEOUS
 --------------------------------------------------
@@ -62,3 +66,4 @@ o Make sure your terminal is at least 80 columns wide otherwise you'll see
 hellanzb -
 http://www.hellanzb.com/
 KnowledgeTap Development Group
+

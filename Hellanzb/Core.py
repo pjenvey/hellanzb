@@ -148,28 +148,33 @@ def init(options = {}):
     # Whether or not the app is in the process of shutting down
     Hellanzb.shutdown = False
 
-    # we can compare the current thread's ident to our MAIN_THREAD's to determine whether
-    # or not we may need to route things through twisted's callFromThread
-    Hellanzb.MAIN_THREAD_IDENT = thread.get_ident()
-
     # Get logging going ASAP
     initLogging()
 
-    # FIXME: ?
+    # CTRL-C shutdown return code
     Hellanzb.SHUTDOWN_CODE = 20
 
-    Hellanzb.stopSignalCount = 0
-    
+    # defineServer's from the config file
     Hellanzb.SERVERS = {}
+
+    # we can compare the current thread's ident to our MAIN_THREAD's to determine whether
+    # or not we may need to route things through twisted's callFromThread
+    Hellanzb.MAIN_THREAD_IDENT = thread.get_ident()
 
     # Troll threads
     Hellanzb.postProcessors = []
     Hellanzb.postProcessorLock = Lock()
 
+    # How many times CTRL-C has been pressed
+    Hellanzb.stopSignalCount = 0
+    # When the first CTRL-C was pressed
+    Hellanzb.firstSignal = None
+
     assertHasARar()
     assertIsExe('file')
 
-    # One and only signal handler
+    # One and only signal handler -- just used for the -p option. Twisted will replace
+    # this with it's own when initialized
     signal.signal(signal.SIGINT, signalHandler)
 
     if hasattr(options, 'configFile'):

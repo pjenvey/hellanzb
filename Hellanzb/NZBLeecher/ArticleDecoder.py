@@ -10,18 +10,13 @@ from twisted.internet import reactor
 from zlib import crc32
 from Hellanzb.Daemon import handleNZBDone
 from Hellanzb.Log import *
-from Hellanzb.Util import touch
+from Hellanzb.Logging import prettyException
+from Hellanzb.Util import checkShutdown, touch
 
 __id__ = '$Id$'
 
 # Decode types enum
 UNKNOWN, YENCODE, UUENCODE = range(3)
-
-# FIXME: FatalErrors shouldn't really be thrown. They should print the problem and
-# continue on. These FatalErrors could make the segment it died on lack a file on the
-# filesystem -- this is bad. hellanzb won't assemble the final File unless all the
-# segments are on the filesystem. The decode() function could catch them and act
-# appropriately
 
 def decode(segment):
     """ Decode the NZBSegment's articleData to it's destination. Toggle the NZBSegment
@@ -29,16 +24,18 @@ def decode(segment):
     decoded segment filenames exist """
     try:
         decodeArticleData(segment)
+    except SystemExit, se:
+        # checkShutdown() throws this, let the thread die
+        return
     except Exception, e:
         touch(segment.getDestination())
         error(segment.nzbFile.showFilename + ' segment: ' + str(segment.number) + \
               ' a problem occurred during decoding', e)
 
-    # FIXME: maybe call everything below this postProcess. have postProcess called when --
-    # during the queue instantiation?
+    debug('Decoded segment: ' + segment.getDestination())
+    
     if segment.nzbFile.isAllSegmentsDecoded():
         assembleNZBFile(segment.nzbFile)
-    debug('Decoded segment: ' + segment.getDestination())
 
 def stripArticleData(articleData):
     """ Rip off leading/trailing whitespace from the articleData list """
@@ -72,7 +69,6 @@ def parseArticleData(segment, justExtractFilename = False):
     index = -1
     for line in segment.articleData:
         index += 1
-        #info('index: ' + str(index) + ' line: ' + line)
 
         if withinData:
             # un-double-dot any lines :\
@@ -94,7 +90,7 @@ def parseArticleData(segment, justExtractFilename = False):
             encodingType = YENCODE
 
         elif line.startswith('=ypart'):
-            # FIXME: does ybegin always ensure a ypart on the next line?
+            # ybegin doesn't ensure a ypart on the next line
             withinData = True
             
         elif line.startswith('=yend'):
@@ -202,7 +198,7 @@ def decodeSegmentToFile(segment, encodingType = YENCODE):
             error('\n* Decode failed in file: %s (part number: %d) error: %s' % \
                   (segment.getDestination(), segment.number, msg))
             debug('\n* Decode failed in file: %s (part number: %d) error: %s' % \
-                  (segment.getDestination(), segment.number, msg))
+                  (segment.getDestination(), segment.number, prettyException(msg)))
 
         out = open(segment.getDestination(), 'wb')
         for line in decodedLines:
@@ -214,12 +210,13 @@ def decodeSegmentToFile(segment, encodingType = YENCODE):
 
     else:
         debug('FIXME: Did not YY/UDecode!!')
-        #raise FatalError('doh!')
+        #raise FatalError('(Panic) Did not YY/UDecode!!')
 
 # From effbot.org/zone/yenc-decoder.htm -- does not suffer from yDecodeOLD's bug -pjenvey
 yenc42 = string.join(map(lambda x: chr((x-42) & 255), range(256)), '')
 yenc64 = string.join(map(lambda x: chr((x-64) & 255), range(256)), '')
 def yDecode(dataList):
+    """ yDecode the specified list of data, returning results as a list """
     buffer = []
     index = -1
     for line in dataList:
@@ -245,20 +242,21 @@ def yDecode(dataList):
                                  
 YSPLIT_RE = re.compile(r'(\S+)=')
 def ySplit(line):
-        'Split a =y* line into key/value pairs'
-        fields = {}
-        
-        parts = YSPLIT_RE.split(line)[1:]
-        if len(parts) % 2:
-                return fields
-        
-        for i in range(0, len(parts), 2):
-                key, value = parts[i], parts[i+1]
-                fields[key] = value.strip()
-        
-        return fields
+    """ Split a =y* line into key/value pairs """
+    fields = {}
+    
+    parts = YSPLIT_RE.split(line)[1:]
+    if len(parts) % 2:
+            return fields
+    
+    for i in range(0, len(parts), 2):
+            key, value = parts[i], parts[i+1]
+            fields[key] = value.strip()
+    
+    return fields
 
 def UUDecode(dataList):
+    """ UUDecode the specified list of data, returning results as a list """
     buffer = []
 
     index = -1
@@ -298,19 +296,34 @@ def assembleNZBFile(nzbFile):
     
     # FIXME: don't overwrite existing files???
     file = open(nzbFile.getDestination(), 'wb')
-    for nzbSegment in nzbFile.nzbSegments:
+    segmentFiles = []
+    try:
+        for nzbSegment in nzbFile.nzbSegments:
+            segmentFiles.append(nzbSegment.getDestination())
+    
+            decodedSegmentFile = open(nzbSegment.getDestination(), 'rb')
+            for line in decodedSegmentFile.readlines():
+                if line == '':
+                    break
+    
+                file.write(line)
+            decodedSegmentFile.close()
 
-        decodedSegmentFile = open(nzbSegment.getDestination(), 'rb')
-        for line in decodedSegmentFile.readlines():
-            if line == '':
-                break
-
-            file.write(line)
-        decodedSegmentFile.close()
-        
-        os.remove(nzbSegment.getDestination())
+            # Avoid delaying CTRL-C
+            checkShutdown()
+            
+    except SystemExit, se:
+        # We were interrupted. Instead of waiting to finish, just delete the file and
+        # we'll try assembling it again later
+        file.close()
+        os.remove(nzbFile.getDestination())
+        raise
 
     file.close()
+    # Finally, delete all the segment files when finished
+    for segmentFile in segmentFiles:
+        os.remove(segmentFile)
+        
     Hellanzb.queue.fileDone(nzbFile)
     
     debug('Assembled file: ' + nzbFile.getDestination() + ' from segment files: ' + \
@@ -326,8 +339,7 @@ def tryFinishNZB(nzb):
     start = time.time()
     done = True
 
-    # Only loop through the nzb nzbFile's that lie in the Queue (and belong to the
-    # specified NZB)
+    # Simply check if there are any more nzbFiles in the queue that belong to this nzb
     Hellanzb.queue.nzbFilesLock.acquire()
     queueFilesCopy = Hellanzb.queue.nzbFiles.copy()
     Hellanzb.queue.nzbFilesLock.release()
@@ -336,14 +348,18 @@ def tryFinishNZB(nzb):
         if nzbFile not in nzb.nzbFileElements:
             continue
         
-        if nzbFile.needsDownload():
-            debug('NOT DONE, file: ' + nzbFile.getDestination())
-            done = False
-            break
+        debug('NOT DONE, file: ' + nzbFile.getDestination())
+        done = False
+        break
 
     if done:
         debug('tryFinishNZB: finished donwloading NZB: ' + nzb.archiveName)
-        reactor.callFromThread(handleNZBDone, nzb.nzbFileName)
+        
+        # nudge GC?
+        nzbFileName = nzb.nzbFileName
+        del nzb
+        
+        reactor.callFromThread(handleNZBDone, nzbFileName)
         
     finish = time.time() - start
     debug('tryFinishNZB (' + str(done) + ') took: ' + str(finish) + ' seconds')

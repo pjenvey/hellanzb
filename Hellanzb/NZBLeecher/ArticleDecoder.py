@@ -302,7 +302,7 @@ def assembleNZBFile(nzbFile):
             segmentFiles.append(nzbSegment.getDestination())
     
             decodedSegmentFile = open(nzbSegment.getDestination(), 'rb')
-            for line in decodedSegmentFile.readlines():
+            for line in decodedSegmentFile:
                 if line == '':
                     break
     

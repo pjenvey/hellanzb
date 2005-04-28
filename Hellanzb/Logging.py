@@ -109,12 +109,12 @@ class LogOutputStream:
     def close(self): raise NotImplementedError()
     def isatty(self): raise NotImplementedError()
     def next(self): raise NotImplementedError()
-    def read(self, n=-1): raise NotImplementedError()
-    def readline(self, length=None): raise NotImplementedError()
-    def readlines(self, sizehint=0): raise NotImplementedError()
-    def seek(self, pos, mode=0): raise NotImplementedError()
+    def read(self, n = -1): raise NotImplementedError()
+    def readline(self, length = None): raise NotImplementedError()
+    def readlines(self, sizehint = 0): raise NotImplementedError()
+    def seek(self, pos, mode = 0): raise NotImplementedError()
     def tell(self): raise NotImplementedError()
-    def truncate(self, size=None): raise NotImplementedError()
+    def truncate(self, size = None): raise NotImplementedError()
     def writelines(self, list): raise NotImplementedError()
 
 class ASCIICodes:
@@ -123,6 +123,7 @@ class ASCIICodes:
         # d/l/b  = dark/light/bright
         self.map = {
             'ESCAPE': '\033',
+            
             'RESET': '0',
             'KILL_LINE': 'K',
             

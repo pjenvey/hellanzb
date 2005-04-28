@@ -24,6 +24,7 @@ def ensureDaemonDirs():
                 try:
                     os.makedirs(dirName)
                 except OSError, ose:
+                    # FIXME: this isn't caught -- it's not a clean way to exit the program
                     raise FatalError('Unable to create directory for option: Hellanzb.' + \
                                      arg + ' dirName: ' + dirName + ' error: ' + str(ose))
 def initDaemon():
@@ -134,7 +135,7 @@ def handleNZBDone(nzbfilename):
         renamedDir = newdir + '_hellanzb_renamed'
         i = 0
         while os.path.exists(renamedDir + str(i)):
-            i = i + 1
+            i += 1
         move(newdir, renamedDir + str(i))
         
     move(Hellanzb.WORKING_DIR,newdir)

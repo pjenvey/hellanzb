@@ -52,7 +52,7 @@ USING
 --------------------------------------------------
 Run hellanzb.py
 
-Copy files to the QUEUE directory
+Move .nzb files into the QUEUE directory
 
 Watch hellanzb (or go do something else) download and process your nzb
 archives, leaving the finished files in the DEST dir
@@ -60,8 +60,16 @@ archives, leaving the finished files in the DEST dir
 MISCELLANEOUS
 --------------------------------------------------
 
-o Make sure your terminal is at least 80 columns wide otherwise you'll see
+o Make sure your terminal is at least 80 columns wide otherwise you may see
   download status lines scroll off the screen
+
+o You can make hellanzb simply post process a downloaded archive and exit:
+
+  "hellanzb.py -p ArchiveDirectoryName"
+
+  In the case the archive contains password protected rars:
+
+  "hellanzb.py -p ArchiveDirectoryName -P rarPassword"
 
 hellanzb -
 http://www.hellanzb.com/

@@ -151,11 +151,16 @@ def setRealFileName(segment, filename):
             tempFileNames[nzbSegment.getTempFileName()] = os.path.basename(nzbSegment.getDestination())
 
         from Hellanzb import WORKING_DIR
+        DEBUG_LIST = []
         for file in os.listdir(WORKING_DIR):
             if file in tempFileNames:
+                DEBUG_LIST.append(file)
                 newDest = tempFileNames.get(file)
                 shutil.move(WORKING_DIR + os.sep + file,
                             WORKING_DIR + os.sep + newDest)
+
+        debug('setRealFileName TEMPFILENAME: ' + segment.nzbFile.tempFilename + ' to FILENAME: ' + \
+              filename + ' FILES: ' + str(DEBUG_LIST))
 
         segment.nzbFile.tempFileNameLock.release()
     else:

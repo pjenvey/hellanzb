@@ -5,10 +5,11 @@ Core - All of our main()ish functions. Initialization/shutdown/etc
 (c) Copyright 2005 Philip Jenvey, Ben Bangert
 [See end of file]
 """
-# Install our custom twisted reactor immediately
+# FIXME: this buffer size change probably has no effect
 import twisted.internet.abstract
 twisted.internet.abstract.FileDescriptor.bufferSize = 4096
 
+# Install our custom twisted reactor immediately
 from Hellanzb.HellaReactor import HellaReactor
 HellaReactor.install()
 

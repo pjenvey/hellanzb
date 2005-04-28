@@ -49,6 +49,7 @@ def scroll(message):
     Hellanzb.logger.log(ScrollableHandler.SCROLL, message)
 
 def logShutdown(message):
+    """ log messages ocurring just before shutdown, handled specially """
     Hellanzb.logger.log(ScrollableHandler.SHUTDOWN, message)
 
 def growlNotify(type, title, description, sticky = False):

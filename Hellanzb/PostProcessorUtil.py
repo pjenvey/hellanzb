@@ -330,7 +330,8 @@ def unrar(fileName, rarPassword = None, pathToExtract = None):
         # known passwords for this loop are all known passwords minus those in that file
         growlNotify('Archive Error', 'hellanzb Archive requires password:', archiveName(dirName),
                     True)
-        raise FatalError('Cannot continue, this archive requires a RAR password. Run ' + sys.argv[0] + ' with the -P option to specify a password')
+        raise FatalError('Cannot continue, this archive requires a RAR password. Run ' + sys.argv[0] + \
+                         ' with the -P option to specify a password')
         
     if isPassworded:
         cmd = Hellanzb.UNRAR_CMD + ' x -y -p' + rarPassword + ' "' + fileName + '" "' + \

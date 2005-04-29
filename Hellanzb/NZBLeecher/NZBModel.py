@@ -103,10 +103,11 @@ def segmentsNeedDownload(segmentList):
     # number in a map. Loop through the specified segmentList, doing a subject.find for
     # each segment filename with a matching segment number
 
-    segmentsByNumber = {}
-    needsDownloading = []
-    needsDownloadingFiles = Set()
-    onDisk = []
+    onDiskSegmentsByNumber = {}
+    
+    needDlFiles = Set() # for speed while iterating
+    needDlSegments = []
+    onDiskFiles = []
 
     # Cache all WORKING_DIR segment filenames in a map of lists
     for file in os.listdir(Hellanzb.WORKING_DIR):
@@ -114,11 +115,11 @@ def segmentsNeedDownload(segmentList):
         if ext != None and segmentEndRe.match(ext):
             segmentNumber = int(ext[-4:])
             
-            if segmentsByNumber.has_key(segmentNumber):
-                segmentFileNames = segmentsByNumber[segmentNumber]
+            if onDiskSegmentsByNumber.has_key(segmentNumber):
+                segmentFileNames = onDiskSegmentsByNumber[segmentNumber]
             else:
                 segmentFileNames = []
-                segmentsByNumber[segmentNumber] = segmentFileNames
+                onDiskSegmentsByNumber[segmentNumber] = segmentFileNames
 
             # cut off .segmentXXXX
             fileNoExt = file[:-12]
@@ -127,13 +128,13 @@ def segmentsNeedDownload(segmentList):
     # Determine if each segment needs to be downloaded
     for segment in segmentList:
 
-        if not segmentsByNumber.has_key(segment.number):
+        if not onDiskSegmentsByNumber.has_key(segment.number):
             # No matching segment numbers, obviously needs to be downloaded
-            needsDownloading.append(segment)
-            needsDownloadingFiles.add(segment.nzbFile)
+            needDlSegments.append(segment)
+            needDlFiles.add(segment.nzbFile)
             continue
 
-        segmentFileNames = segmentsByNumber[segment.number]
+        segmentFileNames = onDiskSegmentsByNumber[segment.number]
         
         foundFileName = None
         for segmentFileName in segmentFileNames:
@@ -143,8 +144,8 @@ def segmentsNeedDownload(segmentList):
                 break
 
         if not foundFileName:
-            needsDownloading.append(segment)
-            needsDownloadingFiles.add(segment.nzbFile)
+            needDlSegments.append(segment)
+            needDlFiles.add(segment.nzbFile)
         else:
             # FIXME: when we start checking for tempfilename we have to check here as well
             # before setReal
@@ -156,12 +157,12 @@ def segmentsNeedDownload(segmentList):
                 # we've figured out the real filename (hopefully!)
                 setRealFileName(segment, foundFileName)
                 
-            onDisk.append(segment)
+            onDiskFiles.append(segment)
         #else:
         #    debug('SKIPPING SEGMENT: ' + segment.getTempFileName() + ' subject: ' + \
         #          segment.nzbFile.subject)
 
-    return needsDownloading, onDisk, needsDownloadingFiles
+    return needDlFiles, needDlSegments, onDiskFiles
 
 class NZB:
     """ Representation of an nzb file -- the root <nzb> tag """
@@ -401,9 +402,9 @@ class NZBQueue(PriorityQueue):
         
         # Create the handler
         nzb = NZB(fileName)
-        interimQueue = []
-        interimQueueNzbFiles = Set()
-        dh = NZBParser(interimQueue, interimQueueNzbFiles, nzb)
+        needWorkFiles = []
+        needWorkSegments = []
+        dh = NZBParser(nzb, needWorkFiles, needWorkSegments)
         
         # Tell the parser to use it
         parser.setContentHandler(dh)
@@ -414,49 +415,52 @@ class NZBQueue(PriorityQueue):
         except SAXParseException, saxpe:
             raise FatalError('Unable to parse Invalid NZB file: ' + os.path.basename(fileName))
         
-        completeArchive = False
-        debug('interimQueue: ' + str(len(interimQueue)) + ' has: ' + str(interimQueue))
-        debug('interimQueueNzbFiles: ' + str(len(interimQueueNzbFiles)) + ' has: ' + str(interimQueueNzbFiles))
+        debug('needWorkFiles: ' + str(len(needWorkFiles)) + ' has: ' + str(needWorkFiles))
+        debug('needWorkSegments: ' + str(len(needWorkSegments)) + ' has: ' + str(needWorkSegments))
 
         s = time.time()
         # The parser will add all the segments of all the NZBFiles that have not already
         # been downloaded. After the parsing, we'll check if each of those segments have
         # already been downloaded. it's faster to check all segments at one time
-        needsDownloading, onDisk, needsDownloadingFiles = segmentsNeedDownload(interimQueue)
+        needDlFiles, needDlSegments, onDiskFiles  = segmentsNeedDownload(needWorkSegments)
         e = time.time() - s
         debug('segmentsNeedDownload TOOK: ' + str(e))
-        debug('needsDownloading: ' + str(len(needsDownloading)) + ' has: ' + str(needsDownloading))
-        debug('onDisk: ' + str(len(onDisk)) + ' has: ' + str(onDisk))
-        debug('needsDownloadingFiles: ' + str(len(needsDownloadingFiles)) + ' has: ' +  str(needsDownloadingFiles))
+        debug('needDlFiles: ' + str(len(needDlFiles)) + ' has: ' +  str(needDlFiles))
+        debug('needDlSegments: ' + str(len(needDlSegments)) + ' has: ' + str(needDlSegments))
+        debug('onDiskFiles: ' + str(len(onDiskFiles)) + ' has: ' + str(onDiskFiles))
 
-        # The interimQueue will tell us what nzbFiles are missing from the
+        # The needWorkFiles will tell us what nzbFiles are missing from the
         # FS. segmentsNeedDownload will further tell us what files need to be
-        # downloaded. files missing from the FS (interimQueue) but not needing to be
-        # downloaded (in needsDownloadingFiles) simply need to be assembled
-        for nzbFile in interimQueueNzbFiles:
-            if nzbFile not in needsDownloadingFiles:
+        # downloaded. files missing from the FS (needWorkFiles) but not needing to be
+        # downloaded (in needDlFiles) simply need to be assembled
+        for nzbFile in needWorkFiles:
+            if nzbFile not in needDlFiles:
                 # Don't automatically 'finish' the NZB, we'll take care of that in this
                 # function if necessary
                 debug('assembling: ' + str(nzbFile.subject))
                 assembleNZBFile(nzbFile, autoFinish = False)
 
-        if not len(needsDownloading):
+        if not len(needDlSegments):
             # FIXME: this block of code is the end of tryFinishNZB. there should be a
             # separate function
-            # nudge GC?
+            # nudge GC
             nzbFileName = nzb.nzbFileName
+            for nzbFile in nzb.nzbFileElements:
+                del nzbFile.nzbSegments
+                del nzbFile.nzb
+            del nzb.nzbFileElements
             del nzb
             reactor.callLater(0, handleNZBDone, nzbFileName)
             # True == the archive is complete
             return True
 
-        for nzbSegment in needsDownloading:
+        for nzbSegment in needDlSegments:
             debug('putting: ' + str(nzbSegment.priority) + ' segment subject: ' + nzbSegment.nzbFile.subject + \
                   ' number: ' + str(nzbSegment.number) + ' temp: ' + nzbSegment.getTempFileName())
             self.put((nzbSegment.priority, nzbSegment))
 
         # Tally what was skipped for correct percentages in the UI
-        for nzbSegment in onDisk:
+        for nzbSegment in onDiskFiles:
             nzbSegment.nzbFile.totalSkippedBytes += nzbSegment.bytes
         
         self.calculateTotalQueuedBytes()
@@ -467,13 +471,14 @@ class NZBQueue(PriorityQueue):
 class NZBParser(ContentHandler):
     """ Parse an NZB 1.0 file into an NZBQueue
     http://www.newzbin.com/DTD/nzb/nzb-1.0.dtd """
-    def __init__(self, queue, queueNzbFiles, nzb):
-        # downloading queue to add NZB segments to
-        self.queue = queue
-        self.queueNzbFiles = queueNzbFiles
-
+    def __init__(self, nzb, needWorkFiles, needWorkSegments):
         # nzb file to parse
         self.nzb = nzb
+
+        # to be populated with the files that either need to be downloaded or simply
+        # assembled, and their segments
+        self.needWorkFiles = needWorkFiles
+        self.needWorkSegments = needWorkSegments
 
         # parsing variables
         self.file = None
@@ -515,7 +520,7 @@ class NZBParser(ContentHandler):
     def endElement(self, name):
         if name == 'file':
             if self.fileNeedsDownload:
-                self.queueNzbFiles.add(self.file)
+                self.needWorkFiles.append(self.file)
             
             self.file = None
             self.fileNeedsDownload = None
@@ -540,7 +545,7 @@ class NZBParser(ContentHandler):
                 # heapqs aren't ordered. NZB_CONTENT_P must now be large enough so that it
                 # won't ever clash with EXTRA_PAR2_P + i
                 nzbs.priority = NZBQueue.NZB_CONTENT_P + self.segmentCount
-                self.queue.append(nzbs)
+                self.needWorkSegments.append(nzbs)
 
             self.chars = None
             self.number = None

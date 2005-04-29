@@ -361,8 +361,12 @@ def tryFinishNZB(nzb):
     if done:
         debug('tryFinishNZB: finished downloading NZB: ' + nzb.archiveName)
         
-        # nudge GC?
+        # nudge GC
         nzbFileName = nzb.nzbFileName
+        for nzbFile in nzb.nzbFileElements:
+            del nzbFile.nzbSegments
+            del nzbFile.nzb
+        del nzb.nzbFileElements
         del nzb
         
         reactor.callFromThread(handleNZBDone, nzbFileName)

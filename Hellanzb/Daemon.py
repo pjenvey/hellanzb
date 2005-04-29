@@ -6,7 +6,7 @@ the twisted reactor loop, except for initialization functions
 (c) Copyright 2005 Ben Bangert, Philip Jenvey
 [See end of file]
 """
-import Hellanzb, gc, os, re, PostProcessor
+import Hellanzb, os, re, PostProcessor
 from shutil import move
 from twisted.internet import reactor
 from Hellanzb.Log import *
@@ -155,7 +155,6 @@ def handleNZBDone(nzbfilename):
         troll = PostProcessor.PostProcessor(newdir)
         troll.start()
 
-    debug('UNREACHABLE: ' + str(gc.collect()))
     reactor.callLater(0, scanQueueDir)
 
 """

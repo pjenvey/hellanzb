@@ -272,6 +272,14 @@ class NZBFile:
         #debug('isAllSegmentsDecoded (False) took: ' + str(finish) + ' ' + self.getDestination())
         return False
 
+    def __repr__(self):
+        msg = 'nzbFile: ' + os.path.basename(self.getDestination())
+        if self.filename != None:
+            msg += ' tempFileName: ' + self.getTempFileName()
+        msg += ' number: ' + str(self.number) + ' subject: ' + \
+               self.subject
+        return msg
+
 class NZBSegment:
     """ <file><segment/></file> """
     needsDownload = needsDownload
@@ -323,6 +331,10 @@ class NZBSegment:
         if self.nzbFile.filename == None and self.nzbFile.tempFilename == None:
             raise FatalError('Could not getFilenameFromArticleData, file:' + str(self.nzbFile) +
                              ' segment: ' + str(self))
+
+    def __repr__(self):
+        return 'segment: ' + os.path.basename(self.getDestination()) + ' number: ' + \
+               str(self.number) + ' subject: ' + self.nzbFile.subject
 
 class NZBQueue(PriorityQueue):
     """ priority fifo queue of segments to download. lower numbered segments are downloaded
@@ -403,6 +415,8 @@ class NZBQueue(PriorityQueue):
             raise FatalError('Unable to parse Invalid NZB file: ' + os.path.basename(fileName))
         
         completeArchive = False
+        debug('interimQueue: ' + str(len(interimQueue)) + ' has: ' + str(interimQueue))
+        debug('interimQueueNzbFiles: ' + str(len(interimQueueNzbFiles)) + ' has: ' + str(interimQueueNzbFiles))
 
         s = time.time()
         # The parser will add all the segments of all the NZBFiles that have not already
@@ -411,6 +425,9 @@ class NZBQueue(PriorityQueue):
         needsDownloading, onDisk, needsDownloadingFiles = segmentsNeedDownload(interimQueue)
         e = time.time() - s
         debug('segmentsNeedDownload TOOK: ' + str(e))
+        debug('needsDownloading: ' + str(len(needsDownloading)) + ' has: ' + str(needsDownloading))
+        debug('onDisk: ' + str(len(onDisk)) + ' has: ' + str(onDisk))
+        debug('needsDownloadingFiles: ' + str(len(needsDownloadingFiles)) + ' has: ' +  str(needsDownloadingFiles))
 
         # The interimQueue will tell us what nzbFiles are missing from the
         # FS. segmentsNeedDownload will further tell us what files need to be
@@ -420,6 +437,7 @@ class NZBQueue(PriorityQueue):
             if nzbFile not in needsDownloadingFiles:
                 # Don't automatically 'finish' the NZB, we'll take care of that in this
                 # function if necessary
+                debug('assembling: ' + str(nzbFile.subject))
                 assembleNZBFile(nzbFile, autoFinish = False)
 
         if not len(needsDownloading):
@@ -433,6 +451,8 @@ class NZBQueue(PriorityQueue):
             return True
 
         for nzbSegment in needsDownloading:
+            debug('putting: ' + str(nzbSegment.priority) + ' segment subject: ' + nzbSegment.nzbFile.subject + \
+                  ' number: ' + str(nzbSegment.number) + ' temp: ' + nzbSegment.getTempFileName())
             self.put((nzbSegment.priority, nzbSegment))
 
         # Tally what was skipped for correct percentages in the UI

@@ -399,12 +399,14 @@ def initLogFile(logFile = None, debugLogFile = None):
         Hellanzb.LOG_FILE = os.path.abspath(logFile)
     if debugLogFile != None:
         Hellanzb.DEBUG_MODE = os.path.abspath(debugLogFile)
-        
-    fileHdlr = RotatingFileHandlerNoLF(Hellanzb.LOG_FILE, maxBytes = maxBytes, backupCount = backupCount)
-    fileHdlr.setFormatter(logging.Formatter('%(asctime)s %(levelname)s %(message)s'))
-    fileHdlr.addFilter(LogFileFilter())
+
+    if Hellanzb.LOG_FILE:
+        fileHdlr = RotatingFileHandlerNoLF(Hellanzb.LOG_FILE, maxBytes = maxBytes,
+                                           backupCount = backupCount)
+        fileHdlr.setFormatter(logging.Formatter('%(asctime)s %(levelname)s %(message)s'))
+        fileHdlr.addFilter(LogFileFilter())
     
-    Hellanzb.logger.addHandler(fileHdlr)
+        Hellanzb.logger.addHandler(fileHdlr)
 
     if Hellanzb.DEBUG_MODE_ENABLED:
         class DebugFileFilter(logging.Filter):

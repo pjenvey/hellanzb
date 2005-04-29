@@ -91,16 +91,16 @@ def scanQueueDir():
     # Change the cwd for Newsleecher, and download the files
     os.chdir(Hellanzb.WORKING_DIR)
 
-    # The scroll level will flood the console with constantly updating statistics
-    # -- the logging system can interrupt this scroll temporarily (after
-    # scrollBegin)
-    scrollBegin()
-
     # Parse the NZB file into the Queue. Unless the NZB file is deemed already
     # fully processed at the end of parseNZB, tell the factory to start
     # downloading it
     try:
         if not Hellanzb.queue.parseNZB(nzbfile):
+            # The scroll level will flood the console with constantly updating statistics
+            # -- the logging system can interrupt this scroll temporarily (after
+            # scrollBegin)
+            scrollBegin()
+            
             for nsf in Hellanzb.nsfs:
                 nsf.fetchNextNZBSegment()
     except FatalError, fe:

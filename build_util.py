@@ -13,7 +13,9 @@ from Hellanzb.Util import Ptyopen2
 __id__ = '$Id$'
 
 VERSION_FILENAME = './Hellanzb/__init__.py'
-BDIST_RPM_REQUIRES = 'python >= 2.3 python-twisted pararchive rar flac shorten'
+# rpm builds aren't very portable when built from FreeBSD machines.
+# srpms are useless
+#BDIST_RPM_REQUIRES = 'python >= 2.3 python-twisted pararchive rar flac shorten'
 
 def assertUpToDate(workingCopyDir = None):
     """ Ensure the working copy is up to date with the repository """
@@ -56,8 +58,8 @@ def buildDist():
     sys.argv = [ 'setup.py', 'bdist' ]
     setup.runSetup()
 
-    sys.argv = [ 'setup.py', 'bdist_rpm', '--requires', BDIST_RPM_REQUIRES ]
-    setup.runSetup()
+    #sys.argv = [ 'setup.py', 'bdist_rpm', '--requires', BDIST_RPM_REQUIRES ]
+    #setup.runSetup()
     
     sys.argv = oldArg
 

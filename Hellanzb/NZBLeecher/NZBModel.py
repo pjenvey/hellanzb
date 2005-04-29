@@ -11,6 +11,7 @@ from threading import Lock, RLock
 from twisted.internet import reactor
 from xml.sax import make_parser, SAXParseException
 from xml.sax.handler import ContentHandler, feature_external_ges, feature_namespaces
+from Hellanzb.Daemon import handleNZBDone
 from Hellanzb.Log import *
 from Hellanzb.NZBLeecher.ArticleDecoder import assembleNZBFile, parseArticleData, setRealFileName, tryFinishNZB
 from Hellanzb.Util import archiveName, getFileExtension, PriorityQueue
@@ -104,6 +105,7 @@ def segmentsNeedDownload(segmentList):
 
     segmentsByNumber = {}
     needsDownloading = []
+    needsDownloadingFiles = Set()
     onDisk = []
 
     # Cache all WORKING_DIR segment filenames in a map of lists
@@ -128,6 +130,7 @@ def segmentsNeedDownload(segmentList):
         if not segmentsByNumber.has_key(segment.number):
             # No matching segment numbers, obviously needs to be downloaded
             needsDownloading.append(segment)
+            needsDownloadingFiles.add(segment.nzbFile)
             continue
 
         segmentFileNames = segmentsByNumber[segment.number]
@@ -141,7 +144,10 @@ def segmentsNeedDownload(segmentList):
 
         if not foundFileName:
             needsDownloading.append(segment)
+            needsDownloadingFiles.add(segment.nzbFile)
         else:
+            # FIXME: when we start checking for tempfilename we have to check here as well
+            # before setReal
             if segment.number == 1:
                 # HACK: filename is None. so we only have the temporary name in
                 # memory. since we didnt see the temporary name on the filesystem, but
@@ -154,8 +160,8 @@ def segmentsNeedDownload(segmentList):
         #else:
         #    debug('SKIPPING SEGMENT: ' + segment.getTempFileName() + ' subject: ' + \
         #          segment.nzbFile.subject)
-    
-    return needsDownloading, onDisk
+
+    return needsDownloading, onDisk, needsDownloadingFiles
 
 class NZB:
     """ Representation of an nzb file -- the root <nzb> tag """
@@ -402,15 +408,31 @@ class NZBQueue(PriorityQueue):
         # The parser will add all the segments of all the NZBFiles that have not already
         # been downloaded. After the parsing, we'll check if each of those segments have
         # already been downloaded. it's faster to check all segments at one time
-        needDownloading, onDisk = segmentsNeedDownload(interimQueue)
+        needsDownloading, onDisk, needsDownloadingFiles = segmentsNeedDownload(interimQueue)
         e = time.time() - s
         debug('segmentsNeedDownload TOOK: ' + str(e))
 
-        if len(needDownloading) == 0 and not completeArchive:
-            for nzbFile in interimQueueNzbFiles:
-                completeArchive = assembleNZBFile(nzbFile)
+        # The interimQueue will tell us what nzbFiles are missing from the
+        # FS. segmentsNeedDownload will further tell us what files need to be
+        # downloaded. files missing from the FS (interimQueue) but not needing to be
+        # downloaded (in needsDownloadingFiles) simply need to be assembled
+        for nzbFile in interimQueueNzbFiles:
+            if nzbFile not in needsDownloadingFiles:
+                # Don't automatically 'finish' the NZB, we'll take care of that in this
+                # function if necessary
+                assembleNZBFile(nzbFile, autoFinish = False)
 
-        for nzbSegment in needDownloading:
+        if not len(needsDownloading):
+            # FIXME: this block of code is the end of tryFinishNZB. there should be a
+            # separate function
+            # nudge GC?
+            nzbFileName = nzb.nzbFileName
+            del nzb
+            reactor.callLater(0, handleNZBDone, nzbFileName)
+            # True == the archive is complete
+            return True
+
+        for nzbSegment in needsDownloading:
             self.put((nzbSegment.priority, nzbSegment))
 
         # Tally what was skipped for correct percentages in the UI
@@ -419,10 +441,8 @@ class NZBQueue(PriorityQueue):
         
         self.calculateTotalQueuedBytes()
 
-        # In the case the NZBParser determined the entire archive's contents are already
-        # on the filesystem, try to finish up (and move onto post processing)
-        if hasattr(Hellanzb, 'queue') and not completeArchive:
-            return tryFinishNZB(nzb)
+        # Archive not complete
+        return False
         
 class NZBParser(ContentHandler):
     """ Parse an NZB 1.0 file into an NZBQueue

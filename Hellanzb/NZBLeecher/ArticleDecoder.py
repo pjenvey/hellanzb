@@ -295,7 +295,7 @@ def UUDecode(dataList):
 
     return buffer
 
-def assembleNZBFile(nzbFile):
+def assembleNZBFile(nzbFile, autoFinish = True):
     """ Assemble the final file from all the NZBFile's decoded segments """
     # FIXME: does someone has to pad the file if we have broken pieces?
     
@@ -334,8 +334,9 @@ def assembleNZBFile(nzbFile):
     debug('Assembled file: ' + nzbFile.getDestination() + ' from segment files: ' + \
           str([ nzbSegment.getDestination() for nzbSegment in nzbFile.nzbSegments ]))
 
-    # After assembling a file, check the contents of the filesystem to determine if we're done 
-    tryFinishNZB(nzbFile.nzb)
+    if autoFinish:
+        # After assembling a file, check the contents of the filesystem to determine if we're done 
+        tryFinishNZB(nzbFile.nzb)
 
 def tryFinishNZB(nzb):
     """ Determine if the NZB download/decode process is done for the specified NZB -- if it's
@@ -358,7 +359,7 @@ def tryFinishNZB(nzb):
         break
 
     if done:
-        debug('tryFinishNZB: finished donwloading NZB: ' + nzb.archiveName)
+        debug('tryFinishNZB: finished downloading NZB: ' + nzb.archiveName)
         
         # nudge GC?
         nzbFileName = nzb.nzbFileName

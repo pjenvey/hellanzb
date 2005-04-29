@@ -3,7 +3,7 @@
 # 
 # $Id$
 
-# Log output to this file
+# Log output to this file, set to None (no single quotes) for no logging
 Hellanzb.LOG_FILE = '/var/tmp/hellanzb.log'
 
 

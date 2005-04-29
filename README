@@ -5,12 +5,12 @@ hellanzb -                                                                README
 INSTALLING:
 --------------------------------------------------
 It is recommended that you install hellanzb via one of the packaging systems
-(FreeBSD ports, Mac OS X darwinports, Linux RPM). The latest port files are
-available from:
+(FreeBSD ports, Mac OS X darwinports). The latest port files and the python
+source tarball are available from:
 
 http://www.hellanzb.com/distfiles
 
-Otherwise, to install hellanzb manually:
+To alternatively install hellanzb manually (from the source tarball):
 
 Prerequisites:
 
@@ -21,7 +21,7 @@ par2cmdline =~ 0.4      http://parchive.sourceforge.net
 rar or unrar =~ 3.41    http://www.rarlab.com
 
 hellanzb can either be ran from it's own directory, or to install it system wide,
-simply run (as root):
+simply run (as root) in the hellanzb directory:
 
     "python setup.py install"
 
@@ -46,7 +46,7 @@ o Edit the defineMusicType lines to match the music decompressors
   installed on your system
 
 o [Optional] Edit the growler configuration to enable Mac OS X Growl
-  notifications.
+  notifications
 
 USING
 --------------------------------------------------
@@ -70,6 +70,15 @@ o You can make hellanzb simply post process a downloaded archive and exit:
   In the case the archive contains password protected rars:
 
   "hellanzb.py -p ArchiveDirectoryName -P rarPassword"
+
+o hellanzb logs it's output to /var/tmp/hellanzb.log by default (this can be
+  turned off in the configuration file -- we encourage it's use in the rare
+  case of something unexpected happening)
+
+o In the rare case that something unexpected happens, try reproducing it with
+  Hellanzb.DEBUG_MODE (or hellanzb.py -d) enabled. This will produce a
+  highly verbose DEBUG file that will contain any unexpected errors that were
+  not picked up by the normal log file
 
 hellanzb -
 http://www.hellanzb.com/

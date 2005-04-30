@@ -213,6 +213,9 @@ def decodeSegmentToFile(segment, encodingType = YENCODE):
         # Get rid of all this data now that we're done with it
         debug('UUDecoded articleData to file: ' + segment.getDestination())
 
+    elif segment.articleData == '':
+        debug('NO articleData, touching file')
+        touch(segment.getDestination())
     else:
         debug('FIXME: Did not YY/UDecode!!')
         #raise FatalError('(Panic) Did not YY/UDecode!!')

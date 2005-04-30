@@ -344,8 +344,6 @@ class NZBLeecher(NNTPClient, AntiIdleMixin):
                 dur = time.time() - Hellanzb.totalStartTime
                 speed = Hellanzb.totalReadBytes / 1024.0 / dur
                 leeched = self.prettySize(Hellanzb.totalReadBytes)
-                #Hellanzb.scroller.scrollHeader('Transferred %s in %.1fs at %.1fKB/s' % \
-                #                               (leeched, dur, speed))
                 info('Transferred %s in %.1fs at %.1fKB/s' % (leeched, dur, speed))
                 
                 Hellanzb.totalReadBytes = 0
@@ -394,7 +392,7 @@ class NZBLeecher(NNTPClient, AntiIdleMixin):
 
         #if not gotActiveGroup:
             # FIXME: prefix with segment name
-        #    Hellanzb.scroller.scrollHeader('No valid group found!')
+        #    info('No valid group found!')
             
         debug(str(self) + ' getting BODY: <' + self.currentSegment.messageId + '> ' + \
               self.currentSegment.getDestination())
@@ -421,7 +419,7 @@ class NZBLeecher(NNTPClient, AntiIdleMixin):
 
         self.processBodyAndContinue(body)
         
-    def gotBodyFailed(self, err):
+    def getBodyFailed(self, err):
         """ Handle a failure of the BODY command. Ensure the failed segment gets a 0 byte file
         written to the filesystem when this occurs """
         debug(str(self) + ' got BODY FAILED, error: ' + str(err) + ' for messageId: <' + \
@@ -429,10 +427,9 @@ class NZBLeecher(NNTPClient, AntiIdleMixin):
               ' expected size: ' + str(self.currentSegment.bytes))
         
         code = extractCode(err)
-        if code is not None and code in ('423', '430'):
-            # FIXME: show filename and segment number
-            #Hellanzb.scroller.scrollHeader(self.currentSegment.showFilename + ' Article is missing!')
-            info(self.currentSegment.showFilename + ' Article is missing!')
+        if code is not None and code[0] in (423, 430):
+            info(self.currentSegment.nzbFile.showFilename + ' segment: ' + \
+                 str(self.currentSegment.number) + ' Article is missing!')
         
         self.processBodyAndContinue('')
 
@@ -489,7 +486,6 @@ class NZBLeecher(NNTPClient, AntiIdleMixin):
         debug(str(self) + ' got HELP failed: ' + str(err))
 
     def lineLengthExceeded(self, line):
-        #Hellanzb.scroller.scrollHeader('Error!!: LineReceiver.MAX_LENGTH exceeded. size: ' + str(len(line)))
         error('Error!!: LineReceiver.MAX_LENGTH exceeded. size: ' + str(len(line)))
         debug('EXCEEDED line length, len: ' + str(len(line)) + ' line: ' + line)
 

@@ -9,7 +9,7 @@ Freddie (freddie@madcowdisease.org) utilizing the twisted framework
 (c) Copyright 2005 Philip Jenvey, Ben Bangert
 [See end of file]
 """
-import os, re, time
+import os, re, time, Hellanzb
 from sets import Set
 from twisted.internet import reactor
 from twisted.internet.protocol import ReconnectingClientFactory
@@ -17,7 +17,6 @@ from twisted.protocols.basic import LineReceiver
 from twisted.protocols.nntp import NNTPClient, extractCode
 from twisted.protocols.policies import TimeoutMixin
 from twisted.python import log
-from Hellanzb.Core import shutdown
 from Hellanzb.Log import *
 from Hellanzb.Logging import LogOutputStream, NZBLeecherTicker
 from Hellanzb.Util import rtruncate, truncateToMultiLine
@@ -487,7 +486,7 @@ class NZBLeecher(NNTPClient, AntiIdleMixin):
 
     def lineLengthExceeded(self, line):
         error('Error!!: LineReceiver.MAX_LENGTH exceeded. size: ' + str(len(line)))
-        debug('EXCEEDED line length, len: ' + str(len(line)) + ' line: ' + line)
+        debug(str(self) + ' EXCEEDED line length, len: ' + str(len(line)) + ' line: ' + line)
 
     def updateByteCount(self, lineLen):
         Hellanzb.totalReadBytes += lineLen

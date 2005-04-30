@@ -132,10 +132,10 @@ class TopenTwisted(protocol.ProcessProtocol):
 # and you get the right WCOREDUMP *status*
 class Ptyopen(popen2.Popen3):
     def __init__(self, cmd, capturestderr = False, bufsize = -1):
-        """ Popen3 class (isn't this actually Popen4, capturestderr = False?) that uses ptys
-instead of pipes, to allow inline reading (instead of potential i/o buffering) of output
-from the child process. It also stores the cmd it's running (as a string) and the thread
-that created the object, for later use """
+        """ Popen3 class (isn't this actually Popen4, capturestderr = False?) that uses
+        ptys instead of pipes, to allow inline reading (instead of potential i/o
+        buffering) of output from the child process. It also stores the cmd it's running
+        (as a string) and the thread that created the object, for later use """
         # NOTE: most of this is cutnpaste from Popen3 minus the openpty calls
         #popen2._cleanup()
         self.prettyCmd = cmd
@@ -205,9 +205,9 @@ that created the object, for later use """
         return self.sts
 
     def readlinesAndWait(self):
-        """ Read lines and wait for the process to finish. Don't read the lines too quickly,
-otherwise we could cause a deadlock with the scroller. Slow down the reading by pausing
-shortly after every read """
+        """ Read lines and wait for the process to finish. Don't read the lines too
+        quickly, otherwise we could cause a deadlock with the scroller. Slow down the
+        reading by pausing shortly after every read """
         output = []
         while True:
             line = self.fromchild.readline()
@@ -230,10 +230,10 @@ class Ptyopen2(Ptyopen):
         Python was lame for naming it that way and I am just as lame
         for following suit """
     def __init__(self, cmd, bufsize = -1):
-        """ Popen3 class (isn't this actually Popen4, capturestderr = False?) that uses ptys
-instead of pipes, to allow inline reading (instead of potential i/o buffering) of output
-from the child process. It also stores the cmd it's running (as a string) and the thread
-that created the object, for later use """
+        """ Popen3 class (isn't this actually Popen4, capturestderr = False?) that uses
+        ptys instead of pipes, to allow inline reading (instead of potential i/o
+        buffering) of output from the child process. It also stores the cmd it's running
+        (as a string) and the thread that created the object, for later use """
         #popen2._cleanup()
         cmd = self.parseCmdToList(cmd)
         self.cmd = cmd
@@ -267,15 +267,17 @@ def Topen(cmd):
 # list backing the queue in one operation (instead of putting 20k times)
 # can heapq.heapify(list) help?
 class PriorityQueue(Queue):
-    """ Thread safe priority queue. This is the easiest way to do it (Queue.Queue providing the thread safety
-    and heapq providing priority). We may be able to get better performance by using something other than
-    heapq, but hellanzb use of pqueues is limited -- so performance is not so important. Notes on performance:
+    """ Thread safe priority queue. This is the easiest way to do it (Queue.Queue
+    providing the thread safety and heapq providing priority). We may be able to get
+    better performance by using something other than heapq, but hellanzb use of pqueues is
+    limited -- so performance is not so important. Notes on performance:
     
-    o An O(1) priority queue is always preferable, but I'm not sure that's even feasible w/ this collection 
-      type and/or python.
-    o From various google'd python hacker benchmarks it looks like python lists backed pqueues & bisect give
-      you pretty good performance, and you probably won't benefit from heap based pqueues unless you're
-      dealing with > 10k items. And dicts don't actually seem to help
+    o An O(1) priority queue is always preferable, but I'm not sure that's even feasible
+      w/ this collection type and/or python.
+    o From various google'd python hacker benchmarks it looks like python lists backed
+      pqueues & bisect give you pretty good performance, and you probably won't benefit
+      from heap based pqueues unless you're dealing with > 10k items. And dicts don't
+      actually seem to help
     """
     def __init__(self):
         """ Python 2.4 replaces the list backed queue with a collections.deque, so we'll just

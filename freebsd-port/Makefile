@@ -59,11 +59,11 @@ PLIST_FILES=	bin/hellanzb.py \
 PLIST_DIRS=	share/doc/hellanzb \
 		%%PYTHON_SITELIBDIR%%/Hellanzb
 
-RUN_DEPENDS=	par2:${POSTDIR}/archivers/par2cmdline \
-		rar:${POSTDIR}/archivers/rar \
-		flac:${POSTDIR}/audio/flac \
-		mac:${POSTDIR}/audio/mac \
-		shorten:${POSTDIR}/audio/shorten \
+RUN_DEPENDS=	par2:${PORTSDIR}/archivers/par2cmdline \
+		rar:${PORTSDIR}/archivers/rar \
+		flac:${PORTSDIR}/audio/flac \
+		mac:${PORTSDIR}/audio/mac \
+		shorten:${PORTSDIR}/audio/shorten \
 		${PYTHON_SITELIBDIR}/twisted/__init__.py:${PORTSDIR}/devel/py-twisted
 
 MAINTAINER=	pjenvey@groovie.org

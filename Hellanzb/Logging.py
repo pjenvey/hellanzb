@@ -196,6 +196,8 @@ class NZBLeecherTicker:
             self.logger(msg)
             self.killedHistory = True
             self.started = False
+        # segments should be empty at this point anyway
+        self.segments = []
 
     # FIXME: use this if it's quick enough
     def logCompare(self, x, y):
@@ -243,6 +245,8 @@ class NZBLeecherTicker:
         # the same nzbFile as the previous segment
         sortedSegments = self.segments[:]
         sortedSegments.sort(lambda x, y : cmp(x.nzbFile.showFilename, y.nzbFile.showFilename))
+
+        # NOTE: should sort by segment.priority
         
         # HACKY: when new files trickle in, and 'hellanzb-tmp' comes first in the sort
         # order and there are non 'hellanzb-tmp' file names, reverse the sort

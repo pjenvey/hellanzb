@@ -16,7 +16,9 @@ defineServer(id = 'changeme',
              password = 'hella',
              connections = 4,
              bindTo = '',
-             antiIdle = 7 * 60) # 7 minutes
+             antiIdle = 7 * 60, # 7 minutes
+             maxSpeed = None)
+             #maxSpeed = 150 * 1024) # limit to 150kB/s
 
 
 # Important locations

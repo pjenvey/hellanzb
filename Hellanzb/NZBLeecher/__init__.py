@@ -15,7 +15,7 @@ from twisted.internet import reactor
 from twisted.internet.protocol import ReconnectingClientFactory
 from twisted.protocols.basic import LineReceiver
 from twisted.protocols.nntp import NNTPClient, extractCode
-from twisted.protocols.policies import TimeoutMixin
+from twisted.protocols.policies import TimeoutMixin, ThrottlingFactory
 from twisted.python import log
 from Hellanzb.Log import *
 from Hellanzb.Logging import LogOutputStream, NZBLeecherTicker
@@ -60,14 +60,23 @@ def startNZBLeecher():
 
         for host in hosts:
             if serverInfo.has_key('antiIdle') and serverInfo['antiIdle'] != None and \
-                    serverInfo['antiIdle'] != '':
+                   serverInfo['antiIdle'] != '':
                 antiIdle = serverInfo['antiIdle']
             else:
                 antiIdle = defaultAntiIdle
 
+            defaultReadLimit = None
+            if serverInfo.has_key('maxSpeed') and serverInfo['maxSpeed'] != None and \
+                   serverInfo['maxSpeed'] != '':
+                readLimit = serverInfo['maxSpeed']
+            else:
+                readLimit = defaultReadLimit
+
             nsf = NZBLeecherFactory(serverInfo['username'], serverInfo['password'],
-                                    antiIdle)
+                                                      antiIdle)
             Hellanzb.nsfs.append(nsf)
+            if readLimit != None:
+                nsf = ThrottlingFactory(nsf, readLimit = readLimit)
 
             host, port = host.split(':')
             for connection in range(connections):
@@ -421,7 +430,7 @@ class NZBLeecher(NNTPClient, AntiIdleMixin):
     def getBodyFailed(self, err):
         """ Handle a failure of the BODY command. Ensure the failed segment gets a 0 byte file
         written to the filesystem when this occurs """
-        debug(str(self) + ' got BODY FAILED, error: ' + str(err) + ' for messageId: <' + \
+        debug(str(self) + ' get BODY FAILED, error: ' + str(err) + ' for messageId: <' + \
               self.currentSegment.messageId + '> ' + self.currentSegment.getDestination() + \
               ' expected size: ' + str(self.currentSegment.bytes))
         

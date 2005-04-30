@@ -360,7 +360,7 @@ class NZBLeecher(NNTPClient, AntiIdleMixin):
         if self.currentSegment is None:
 
             try:
-                self.currentSegment = Hellanzb.queue.get_nowait()
+                priority, self.currentSegment = Hellanzb.queue.get_nowait()
 
                 # got a segment - set ourselves as active unless we're already set as so
                 self.isActive(True)

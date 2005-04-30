@@ -362,14 +362,15 @@ class NZBQueue(PriorityQueue):
 
         # Support adding NZBFiles to the queue. Just adds all the NZBFile's NZBSegments
         if isinstance(item, NZBFile):
+            offset = 0
             for nzbSegment in item.nzbSegments:
-                PriorityQueue._put(self, nzbSegment)
-
+                PriorityQueue._put(self, (priority + offset, nzbSegment))
+                offset += 1
         else:
             # Assume segment, add to list
             if item.nzbFile not in self.nzbFiles:
                 self.nzbFiles.add(item.nzbFile)
-            PriorityQueue._put(self, item)
+            PriorityQueue._put(self, (priority, item))
 
     def calculateTotalQueuedBytes(self):
         """ Calculate how many bytes are queued to be downloaded in this queue """
@@ -449,6 +450,7 @@ class NZBQueue(PriorityQueue):
                 del nzbFile.nzbSegments
                 del nzbFile.nzb
             del nzb.nzbFileElements
+            # FIXME: put the above dels in NZB.__del__ (that's where collect can go if needed too)
             del nzb
             reactor.callLater(0, handleNZBDone, nzbFileName)
             # True == the archive is complete

@@ -320,8 +320,8 @@ def dirHasFileType(dirName, fileExtension):
     return dirHasFileTypes(dirName, [ fileExtension ])
 
 def dirHasFileTypes(dirName, fileExtensionList):
-    """ Determine if the specified directory contains any files of the specified type -- that
-type being defined by it's filename extension. the match is case insensitive """
+    """ Determine if the specified directory contains any files of the specified type --
+    that type being defined by it's filename extension. the match is case insensitive """
     for file in os.listdir(dirName):
         ext = getFileExtension(file)
         if ext:
@@ -342,15 +342,15 @@ def stringEndsWith(string, match):
     return False
 
 def touch(fileName):
-    """ Set the access/modified times of this file to the current time. Create the file if it
-does not exist. """
+    """ Set the access/modified times of this file to the current time. Create the file if
+    it does not exist """
     fd = os.open(fileName, os.O_WRONLY | os.O_CREAT, 0666)
     os.close(fd)
     os.utime(fileName, None)
 
 def archiveName(dirName):
-    """ Extract the name of the archive from the archive's absolute path, or it's .nzb file
-name """
+    """ Extract the name of the archive from the archive's absolute path, or it's .nzb
+    file name """
     # pop off separator and basename
     while dirName[len(dirName) - 1] == os.sep:
         dirName = dirName[0:len(dirName) - 1]
@@ -391,8 +391,8 @@ def defineServer(**args):
         exec 'Hellanzb.SERVERS[id][\'' + var + '\'] = args[\'' + var + '\']'
 
 def truncate(str, length = 60, reverse = False):
-    """ Truncate a string to certain length. Appends '...' to the string if truncated -- and
-those three periods are included in the specified length"""
+    """ Truncate a string to certain length. Appends '...' to the string if truncated --
+    and those three periods are included in the specified length """
     if str == None:
         return str
     
@@ -432,6 +432,7 @@ def getStack():
     return s
 
 def inMainThread():
+    """ whether or not the current thread is the main thread """
     if Hellanzb.MAIN_THREAD_IDENT == thread.get_ident():
         return True
     return False

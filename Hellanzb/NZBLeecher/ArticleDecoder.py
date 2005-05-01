@@ -32,8 +32,9 @@ def decode(segment):
         error(segment.nzbFile.showFilename + ' segment: ' + str(segment.number) + \
               ' a problem occurred during decoding', e)
 
+    segment.nzbFile.todoNzbSegments.remove(segment)
     debug('Decoded segment: ' + segment.getDestination())
-    
+
     if segment.nzbFile.isAllSegmentsDecoded():
         assembleNZBFile(segment.nzbFile)
 
@@ -219,7 +220,7 @@ def decodeSegmentToFile(segment, encodingType = YENCODE):
     else:
         debug('FIXME: Did not YY/UDecode!!')
         #raise FatalError('(Panic) Did not YY/UDecode!!')
-
+        
 # From effbot.org/zone/yenc-decoder.htm -- does not suffer from yDecodeOLD's bug -pjenvey
 yenc42 = string.join(map(lambda x: chr((x-42) & 255), range(256)), '')
 yenc64 = string.join(map(lambda x: chr((x-64) & 255), range(256)), '')
@@ -323,6 +324,7 @@ def assembleNZBFile(nzbFile, autoFinish = True):
     except SystemExit, se:
         # We were interrupted. Instead of waiting to finish, just delete the file and
         # we'll try assembling it again later
+        debug('(CTRL-C) Removing unfinished file: ' + nzbFile.getDestination())
         file.close()
         os.remove(nzbFile.getDestination())
         raise
@@ -333,6 +335,10 @@ def assembleNZBFile(nzbFile, autoFinish = True):
         os.remove(segmentFile)
         
     Hellanzb.queue.fileDone(nzbFile)
+    # FIXME: nudge gc
+    ##for nzbSegment in nzbFile.nzbSegments:
+    ##    del nzbSegment
+    #del nzbFile.nzbSegments
     
     debug('Assembled file: ' + nzbFile.getDestination() + ' from segment files: ' + \
           str([ nzbSegment.getDestination() for nzbSegment in nzbFile.nzbSegments ]))
@@ -371,6 +377,8 @@ def tryFinishNZB(nzb):
             del nzbFile.nzb
         del nzb.nzbFileElements
         del nzb
+        import gc
+        gc.collect()
         
         reactor.callFromThread(handleNZBDone, nzbFileName)
         

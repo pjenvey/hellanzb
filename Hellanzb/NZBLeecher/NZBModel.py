@@ -141,6 +141,8 @@ def segmentsNeedDownload(segmentList):
             # FIXME: should prbobably check if they match the tempfilename as well
             if segment.nzbFile.subject.find(segmentFileName) > -1:
                 foundFileName = segmentFileName
+                # make note that this segment doesn't have to be downloaded                
+                segment.nzbFile.todoNzbSegments.remove(segment)
                 break
 
         if not foundFileName:
@@ -189,6 +191,10 @@ class NZBFile:
         self.groups = []
         self.nzbSegments = []
 
+        # remove from this set everytime a segment is found as done on the FS, or later
+        # written to the FS
+        self.todoNzbSegments = Set()
+        
         self.number = len(self.nzb.nzbFileElements)
         self.totalBytes = 0
         self.totalSkippedBytes = 0
@@ -251,27 +257,7 @@ class NZBFile:
 
     def isAllSegmentsDecoded(self):
         """ Determine whether all these file's segments have been decoded """
-        start = time.time()
-
-        decodedSegmentFiles = []
-        for nzbSegment in self.nzbSegments:
-            decodedSegmentFiles.append(os.path.basename(nzbSegment.getDestination()))
-
-        dirName = os.path.dirname(self.getDestination())
-        for file in os.listdir(dirName):
-            if file in decodedSegmentFiles:
-                decodedSegmentFiles.remove(file)
-
-        # Just be stupid -- we're only finished until we've found all the known files
-        # (segments)
-        if len(decodedSegmentFiles) == 0:
-            finish = time.time() - start
-            #debug('isAllSegmentsDecoded (True) took: ' + str(finish) + ' ' + self.getDestination())
-            return True
-
-        finish = time.time() - start
-        #debug('isAllSegmentsDecoded (False) took: ' + str(finish) + ' ' + self.getDestination())
-        return False
+        return not len(self.todoNzbSegments)
 
     #def __repr__(self):
     #    msg = 'nzbFile: ' + os.path.basename(self.getDestination())
@@ -296,6 +282,7 @@ class NZBSegment:
 
         # This segment belongs to the parent nzbFile
         self.nzbFile.nzbSegments.append(self)
+        self.nzbFile.todoNzbSegments.add(self)
         self.nzbFile.totalBytes += self.bytes
 
         # The downloaded article data
@@ -444,6 +431,8 @@ class NZBQueue(PriorityQueue):
             del nzb.nzbFileElements
             # FIXME: put the above dels in NZB.__del__ (that's where collect can go if needed too)
             del nzb
+            import gc
+            gc.collect()
             reactor.callLater(0, handleNZBDone, nzbFileName)
             # True == the archive is complete
             return True
@@ -513,6 +502,10 @@ class NZBParser(ContentHandler):
         if name == 'file':
             if self.fileNeedsDownload:
                 self.needWorkFiles.append(self.file)
+            else:
+                # done adding all child segments to this NZBFile. make note that none of
+                # them need to be downloaded
+                self.file.todoNzbSegments.clear()
             
             self.file = None
             self.fileNeedsDownload = None

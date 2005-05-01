@@ -231,6 +231,8 @@ class NZBLeecherTicker:
             self.currentLog = ''
             logNow = True
 
+        # FIXME: instead of manually sorting, maintain a heapq sorted by segment.priority
+
         # Log information we want to prefix the scroll (so it stays on the screen)
         if len(self.scrollHeaders) > 0:
             scrollHeader = ''

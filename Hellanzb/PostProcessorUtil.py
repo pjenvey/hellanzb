@@ -258,7 +258,7 @@ def processRars(dirName, rarPassword):
         
         # Sometimes nzbget leaves .1 files lying around. I'm not sure why, or if it will
         # leave more than just the .1
-        if isRar(absPath) and \
+        if not os.path.isdir(absPath) and isRar(absPath) and \
                 not isDuplicate(absPath) and not stringEndsWith(absPath, '.1') and \
                 not stringEndsWith(absPath, '_broken') and not isAlbumCoverArchive(absPath) and \
                 absPath not in processedRars:

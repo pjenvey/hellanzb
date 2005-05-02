@@ -548,7 +548,7 @@ class NZBLeecher(NNTPClient, AntiIdleMixin):
         # Below on from Twisted 2.0
         self.__buffer = self.__buffer+data
         lastoffset=0
-        while self.line_mode and not self.paused:
+        while not self.paused:
             offset=self.__buffer.find(self.delimiter, lastoffset)
             if offset == -1:
                 self.__buffer=self.__buffer[lastoffset:]
@@ -570,13 +570,7 @@ class NZBLeecher(NNTPClient, AntiIdleMixin):
                 self.__buffer = self.__buffer[lastoffset:]
                 return why
         else:
-            if self.paused:
-                self.__buffer=self.__buffer[lastoffset:]
-            else:
-                data=self.__buffer[lastoffset:]
-                self.__buffer=''
-                if data:
-                    return self.rawDataReceived(data)
+            self.__buffer=self.__buffer[lastoffset:]
 
     def prettySize(self, bytes):
         bytes = float(bytes)

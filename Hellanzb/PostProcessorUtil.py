@@ -483,8 +483,8 @@ def processComplete(dirName, processStateName, moveFileFilterFunction):
 
 def getRarPassword(msgId):
     """ Get the specific rar password set for the specified msgId """
-    if os.path.isdir(Hellanzb.PASSWORDS_DIR):
-                     
+    # FIXME: get rid of this older, lamer way of getting passwords
+    if hasattr(Hellanzb, 'PASSWORDS_DIR') and os.path.isdir(Hellanzb.PASSWORDS_DIR):
         for file in os.listdir(Hellanzb.PASSWORDS_DIR):
             if file == msgId:
 

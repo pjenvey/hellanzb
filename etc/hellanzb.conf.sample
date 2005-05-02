@@ -11,7 +11,8 @@ Hellanzb.LOG_FILE = '/var/tmp/hellanzb.log'
 # persist the number of connections to each specified server. There may be
 # mulitple defineServer lines
 defineServer(id = 'changeme',
-             hosts = ['news.changeme.com:119', 'morenews.changeme.com:119'],
+             hosts = [ 'news.changeme.com:119' ],
+             #hosts = [ 'news.changeme.com:119', 'morenews.changeme.com:119' ],
              username = 'changeme',
              password = 'hella',
              connections = 4,
@@ -39,10 +40,8 @@ Hellanzb.WORKING_DIR = Hellanzb.PREFIX_DIR + 'nzb/daemon.working/'
 # Temp storage
 Hellanzb.TEMP_DIR = Hellanzb.PREFIX_DIR + 'nzb/daemon.temp/'
 
-# FIXME: Where to store the passwords for rar archives
-Hellanzb.PASSWORDS_DIR = Hellanzb.PREFIX_DIR + 'nzb/daemon.passwords/'
 
-# Sub directory within the nzb archive dir to move proccessed files to
+# _Sub directory within the nzb archive dir_ to move proccessed files to
 Hellanzb.PROCESSED_SUBDIR = 'processed'
 
 

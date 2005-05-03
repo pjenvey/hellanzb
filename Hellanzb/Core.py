@@ -210,7 +210,7 @@ def shutdownNow(returnCode = 0):
 USAGE = """
 hellanzb version %s
 
-   nzb (usenet) file retriever and post processer
+   nzb (usenet) file retriever and post processor
    http://www.hellanzb.com
 
 usage: %s [options]

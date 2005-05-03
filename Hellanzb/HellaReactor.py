@@ -7,7 +7,13 @@ reactor system so it can catch signals, and shutdown hellanzb cleanly
 [See end of file]
 """
 import Hellanzb, sys, time
-from twisted.internet.default import SelectReactor
+
+import twisted.copyright
+if twisted.copyright.version >= '2.0.0':
+    from twisted.internet.selectreactor import SelectReactor
+else:
+    from twisted.internet.default import SelectReactor
+
 from twisted.internet.main import installReactor
 from twisted.python import log, failure
 from Hellanzb.Log import *
@@ -49,7 +55,7 @@ class HellaReactor(SelectReactor):
         error.ConnectionLost: failure.Failure(error.ConnectionLost())
         }):
         """ set the preReadTime value before running doRead (socket.recv). To emulate
-        pyNewsleecher's timing/statistics"""
+        pyNewsleecher's timing/statistics """
         try:
             Hellanzb.preReadTime = time.time()
             why = getattr(selectable, method)()

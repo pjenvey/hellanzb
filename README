@@ -1,5 +1,5 @@
 hellanzb -                                                                README
-           hands free usenet file retrieval and post processing
+           hands free usenet file retriever and post processor
 --------------------------------------------------------------------------------
 
 INSTALLING:
@@ -25,6 +25,7 @@ simply run (as root) in the hellanzb directory:
 
     "python setup.py install"
 
+
 CONFIGURING
 --------------------------------------------------
 o Copy <prefix>/etc/hellanzb.conf.sample to hellanzb.conf in the same
@@ -48,6 +49,7 @@ o Edit the defineMusicType lines to match the music decompressors
 o [Optional] Edit the growler configuration to enable Mac OS X Growl
   notifications
 
+
 USING
 --------------------------------------------------
 Run hellanzb.py
@@ -57,13 +59,15 @@ Move .nzb files into the QUEUE directory
 Watch hellanzb (or go do something else) download and process your nzb
 archives, leaving the finished files in the DEST dir
 
+
 MISCELLANEOUS
 --------------------------------------------------
 
 o Make sure your terminal is at least 80 columns wide otherwise you may see
   download status lines scroll off the screen
 
-o You can make hellanzb simply post process a downloaded archive and exit:
+o You can make hellanzb simply post process an already downloaded archive and
+  exit:
 
   "hellanzb.py -p ArchiveDirectoryName"
 
@@ -83,4 +87,3 @@ o In the rare case that something unexpected happens, try reproducing it with
 hellanzb -
 http://www.hellanzb.com/
 KnowledgeTap Development Group
-

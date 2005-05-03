@@ -69,7 +69,7 @@ def scanQueueDir():
         if not Hellanzb.queued_nzbs:
             reactor.callLater(5, scanQueueDir)
             return
-        
+
         nzbfilename = Hellanzb.queued_nzbs[0]
         del Hellanzb.queued_nzbs[0]
         
@@ -107,7 +107,7 @@ def scanQueueDir():
         scrollEnd()
         error('Problem while parsing the NZB', fe)
         growlNotify('Error', 'hellanzb', 'Problem while parsing the NZB' + prettyException(fe), True)
-        error('Moving bad NZB out of queue into dir: ' + Hellanzb.TEMP_DIR)
+        error('Moving bad NZB out of queue into TEMP_DIR: ' + Hellanzb.TEMP_DIR)
         move(nzbfile, Hellanzb.TEMP_DIR + os.sep)
         reactor.callLater(5, scanQueueDir)
 

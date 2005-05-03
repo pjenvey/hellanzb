@@ -14,7 +14,13 @@ from sets import Set
 from twisted.internet import reactor
 from twisted.internet.protocol import ReconnectingClientFactory
 from twisted.protocols.basic import LineReceiver
-from twisted.protocols.nntp import NNTPClient, extractCode
+
+import twisted.copyright
+if twisted.copyright.version >= '2.0.0':
+    from twisted.news.nntp import NNTPClient, extractCode
+else:
+    from twisted.protocols.nntp import NNTPClient, extractCode
+    
 from twisted.protocols.policies import TimeoutMixin, ThrottlingFactory
 from twisted.python import log
 from Hellanzb.Log import *
@@ -270,7 +276,7 @@ class NZBLeecher(NNTPClient, AntiIdleMixin):
 
         if self.currentSegment != None:
             if self.currentSegment in Hellanzb.scroller.segments:
-                Hellanzb.scroller.segments.remove(self.currentSegment)
+                Hellanzb.scroller.removeClient(self.currentSegment)
             # twisted doesn't reconnect our same client connections, we have to pitch
             # stuff back into the queue that hasn't finished before the connectionLost
             # occurred
@@ -411,7 +417,7 @@ class NZBLeecher(NNTPClient, AntiIdleMixin):
         if self.currentSegment.nzbFile.downloadStartTime == None:
             self.currentSegment.nzbFile.downloadStartTime = start
         
-        Hellanzb.scroller.segments.append(self.currentSegment)
+        Hellanzb.scroller.addClient(self.currentSegment)
 
         NNTPClient.fetchBody(self, '<' + index + '>')
 
@@ -444,7 +450,7 @@ class NZBLeecher(NNTPClient, AntiIdleMixin):
     def processBodyAndContinue(self, articleData):
         """ Defer decoding of the specified articleData of the currentSegment, reset our state and
         continue fetching the next queued segment """
-        Hellanzb.scroller.segments.remove(self.currentSegment)
+        Hellanzb.scroller.removeClient(self.currentSegment)
 
         self.currentSegment.articleData = articleData
         self.deferSegmentDecode(self.currentSegment)

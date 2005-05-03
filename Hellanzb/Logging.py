@@ -8,7 +8,7 @@ looking into python's logging system. Hoho.
 (c) Copyright 2005 Philip Jenvey
 [See end of file]
 """
-import logging, os, sys, termios, thread, types
+import heapq, logging, os, sys, termios, thread, types
 from logging import StreamHandler
 from logging.handlers import RotatingFileHandler
 from threading import Condition, Lock, Thread
@@ -179,6 +179,14 @@ class NZBLeecherTicker:
         from Hellanzb.Log import scroll
         self.logger = scroll
 
+    def addClient(self, segment):
+        """ Add a client (it's segment) to the ticker """
+        heapq.heappush(self.segments, (segment.priority, segment))
+        
+    def removeClient(self, segment):
+        """ Remove a client (it's segment) from the ticker """
+        self.segments.remove((segment.priority, segment))
+
     def scrollHeader(self, message):
         # Even if passed multiple lines, ensure all lines are max 80 chars
         lines = message.split('\n')
@@ -231,8 +239,6 @@ class NZBLeecherTicker:
             self.currentLog = ''
             logNow = True
 
-        # FIXME: instead of manually sorting, maintain a heapq sorted by segment.priority
-
         # Log information we want to prefix the scroll (so it stays on the screen)
         if len(self.scrollHeaders) > 0:
             scrollHeader = ''
@@ -242,22 +248,16 @@ class NZBLeecherTicker:
                 
             self.currentLog += scrollHeader
 
-        # HACKY:
-        # sort by filename, then we'll hide KB/s/percentage for subsequent segments with
-        # the same nzbFile as the previous segment
-        sortedSegments = self.segments[:]
-        sortedSegments.sort(lambda x, y : cmp(x.nzbFile.showFilename, y.nzbFile.showFilename))
+        # listing sorted via heapq
+        heap = self.segments[:]
+        sortedSegments = []
+        try:
+            while True:
+                p, segment = heapq.heappop(heap)
+                sortedSegments.append(segment)
+        except IndexError:
+            pass
 
-        # NOTE: should sort by segment.priority
-        
-        # HACKY: when new files trickle in, and 'hellanzb-tmp' comes first in the sort
-        # order and there are non 'hellanzb-tmp' file names, reverse the sort
-        # order. (looks prettier)
-        if len(sortedSegments) and \
-               sortedSegments[0].nzbFile.showFilename.find('hellanzb-tmp') == 0 and \
-               sortedSegments[-1].nzbFile.showFilename.find('hellanzb-tmp') == -1:
-            sortedSegments.reverse()
-            
         lastSegment = None
         i = 0
         for segment in sortedSegments:

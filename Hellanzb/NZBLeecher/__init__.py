@@ -74,7 +74,7 @@ def startNZBLeecher():
             defaultReadLimit = None
             if serverInfo.has_key('maxSpeed') and serverInfo['maxSpeed'] != None and \
                    serverInfo['maxSpeed'] != '':
-                readLimit = serverInfo['maxSpeed']
+                readLimit = int(serverInfo['maxSpeed']) * 1024
             else:
                 readLimit = defaultReadLimit
 
@@ -98,13 +98,18 @@ def startNZBLeecher():
         info('Opening ' + str(connectionCount) + ' connection...')
     else:
         info('Opening ' + str(connectionCount) + ' connections...')
-        
+
+    # How large the scroll ticker should be
     Hellanzb.scroller.maxCount = connectionCount
 
     # Allocate only one thread, just for decoding
     reactor.suggestThreadPoolSize(1)
 
+    # Well, there's egg and bacon; egg sausage and bacon; egg and spam; egg bacon and
+    # spam; egg bacon sausage and spam; spam bacon sausage and spam; spam egg spam spam
+    # bacon and spam; spam sausage spam spam bacon spam tomato and spam;
     reactor.run()
+    # Spam! Spam! Spam! Spam! Lovely spam! Spam! Spam!
 
 class NZBLeecherFactory(ReconnectingClientFactory):
 
@@ -275,12 +280,12 @@ class NZBLeecher(NNTPClient, AntiIdleMixin):
         NNTPClient.connectionLost(self) # calls self.factory.clientConnectionLost(self, reason)
 
         if self.currentSegment != None:
-            if self.currentSegment in Hellanzb.scroller.segments:
+            if (self.currentSegment.priority, self.currentSegment) in Hellanzb.scroller.segments:
                 Hellanzb.scroller.removeClient(self.currentSegment)
             # twisted doesn't reconnect our same client connections, we have to pitch
             # stuff back into the queue that hasn't finished before the connectionLost
             # occurred
-            Hellanzb.queue.put((Hellanzb.queue.NZB_CONTENT_P, self.currentSegment))
+            Hellanzb.queue.put((self.currentSegment.priority, self.currentSegment))
         
         # Continue being quiet about things if we're shutting down
         if not Hellanzb.shutdown:
@@ -321,7 +326,8 @@ class NZBLeecher(NNTPClient, AntiIdleMixin):
         else:
             debug(str(self) + 'MODE READER failed, err: ' + str(err))
 
-    # change this to inFetchLoop(). move factory stuff into factory clientInFetchLoop
+    # change this to inFetchLoop(). move factory stuff into factory
+    # clientInFetchLoop. activeFetchLoop/inActiveFetchLoop?
     def isActive(self, isActiveBool):
         """ Activate/Deactivate this client -- notify the factory, etc"""
         if isActiveBool and not self.activated:
@@ -436,14 +442,28 @@ class NZBLeecher(NNTPClient, AntiIdleMixin):
     def getBodyFailed(self, err):
         """ Handle a failure of the BODY command. Ensure the failed segment gets a 0 byte file
         written to the filesystem when this occurs """
+        # FIXME: appears that this can fail for other reasons. we need to catch:
+        # newshosting return this to us
+        # 2005-05-05 14:41:18,232 DEBUG NZBLeecher[7] get BODY FAILED, error: 400
+        # fe01-unl.iad01.newshosting.com: Idle timeout. for messageId:
+        # <part59of201.2T6kmGJqWQXOuewjuk&I@powerpost2000AA.local>
+        # /beans/incoming/nzb/daemon.working//Kornkingz'Orus
+        # Post#23.part091.rar.segment0059 expected size: 258789
+        # and reque the NZB instead of processAndContinue. Do we need to catch other
+        # cases?
         debug(str(self) + ' get BODY FAILED, error: ' + str(err) + ' for messageId: <' + \
               self.currentSegment.messageId + '> ' + self.currentSegment.getDestination() + \
               ' expected size: ' + str(self.currentSegment.bytes))
         
         code = extractCode(err)
-        if code is not None and code[0] in (423, 430):
-            info(self.currentSegment.nzbFile.showFilename + ' segment: ' + \
-                 str(self.currentSegment.number) + ' Article is missing!')
+        if code is not None:
+            if code[0] in (423, 430):
+                info(self.currentSegment.nzbFile.showFilename + ' segment: ' + \
+                     str(self.currentSegment.number) + ' Article is missing!')
+            #elif code[0] == 400:
+            #    # if idle timeout, requeue?
+            #    self.processBodyAndContinue(articleData = None) # ?
+            #    Hellanzb.queue.put((self.currentSegment.priority, self.currentSegment))
         
         self.processBodyAndContinue('')
 

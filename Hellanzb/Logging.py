@@ -1,9 +1,13 @@
 """
 
-Logging - hellanzb's logging facility. Ties in with python's logging system, with a bunch
-of added locks to support interrupting nzbget scroll with other log messages. This is
-pretty elaborate for a basic app like hellanzb, but I felt like playing with threads and
-looking into python's logging system. Hoho.
+Logging - hellanzb's logging facility. Ties in with python's logging system, with an added
+SCROLL log level.
+
+The NZBLeecherTicker object will constantly print new and kill it's old lines of text on
+the screen via the scroll() level. This busys the screen, but the SCROLL level hooks allow
+normal logging of non-SCROLL log messages by passing those non-SCROLL messages to
+NZBLeecherTicker to be handled specially (printed above the scrolling text). This special
+handling is only enabled when SCROLL has been turned on (via scrollBegin())
 
 (c) Copyright 2005 Philip Jenvey
 [See end of file]
@@ -207,16 +211,8 @@ class NZBLeecherTicker:
         # segments should be empty at this point anyway
         self.segments = []
 
-    # FIXME: use this if it's quick enough
-    def logCompare(self, x, y):
-        xCmp = yCmp = None
-        for segment, comp in { x: xCmp, y: yCmp }.iteritems():
-            if segment.nzbFile.filename == None:
-                comp = 'Z'*10 + segment.nzbFile.showFilename
-            else:
-                comp = segment.nzbFile.showFilename
-        return cmp(xCmp, yCmp)
-        
+    # FIXME: probably doesn't matter much, but should be using StringIO for concatenation
+    # here, anyway
     def updateLog(self, logNow = False):
         """ Log ticker """
         # Delay the actual log work -- so we don't over-log (too much CPU work in the
@@ -318,7 +314,7 @@ def stdinEchoOff():
     except:
         pass
 
-    Hellanzb.oldStdin = termios.tcgetattr(fd)     # a copy to save
+    Hellanzb.oldStdin = termios.tcgetattr(fd) # a copy to save
     new = Hellanzb.oldStdin[:]
 
     new[3] = new[3] & ~termios.ECHO # 3 == 'lflags'
@@ -332,6 +328,7 @@ def stdinEchoOn():
         try:
             fd = sys.stdin.fileno()
             termios.tcsetattr(fd, termios.TCSADRAIN, Hellanzb.oldStdin)
+            del Hellanzb.oldStdin
         except:
             pass
 

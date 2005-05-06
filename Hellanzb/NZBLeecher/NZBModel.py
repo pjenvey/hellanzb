@@ -5,7 +5,7 @@ NZBModel - Representations of the NZB file format in memory
 (c) Copyright 2005 Philip Jenvey
 [See end of file]
 """
-import Hellanzb, os, re, time
+import gc, os, re, time, Hellanzb
 from sets import Set
 from threading import Lock, RLock
 from twisted.internet import reactor
@@ -427,11 +427,11 @@ class NZBQueue(PriorityQueue):
             nzbFileName = nzb.nzbFileName
             for nzbFile in nzb.nzbFileElements:
                 del nzbFile.nzbSegments
+                del nzbFile.todoNzbSegments
                 del nzbFile.nzb
             del nzb.nzbFileElements
             # FIXME: put the above dels in NZB.__del__ (that's where collect can go if needed too)
             del nzb
-            import gc
             gc.collect()
             reactor.callLater(0, handleNZBDone, nzbFileName)
             # True == the archive is complete

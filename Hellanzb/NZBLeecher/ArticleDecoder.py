@@ -5,7 +5,8 @@ ArticleDecoder - Decode and assemble files from usenet articles (nzbSegments)
 (c) Copyright 2005 Philip Jenvey
 [See end of file]
 """
-import binascii, os, re, shutil, string
+import binascii, gc, os, re, shutil, string, time
+from threading import Lock
 from twisted.internet import reactor
 from zlib import crc32
 from Hellanzb.Daemon import handleNZBDone
@@ -17,6 +18,26 @@ __id__ = '$Id$'
 
 # Decode types enum
 UNKNOWN, YENCODE, UUENCODE = range(3)
+
+class ArticleAssemblyGCDelay:
+    """ Run gc after every 5 files have been downloaded (shouldGC calls) """
+    decodeGCDelay = 5
+    decodeGCWait = 0
+    decodeGCWaitLock = Lock()
+    
+    def shouldGC():
+        should = False
+        ArticleAssemblyGCDelay.decodeGCWaitLock.acquire()
+
+        ArticleAssemblyGCDelay.decodeGCWait += 1
+        if ArticleAssemblyGCDelay.decodeGCWait >= ArticleAssemblyGCDelay.decodeGCDelay:
+            should = True
+            ArticleAssemblyGCDelay.decodeGCWait = 0
+
+        ArticleAssemblyGCDelay.decodeGCWaitLock.release()
+        return should
+    shouldGC = staticmethod(shouldGC)
+GCDelay = ArticleAssemblyGCDelay
 
 def decode(segment):
     """ Decode the NZBSegment's articleData to it's destination. Toggle the NZBSegment
@@ -152,16 +173,11 @@ def setRealFileName(segment, filename):
             tempFileNames[nzbSegment.getTempFileName()] = os.path.basename(nzbSegment.getDestination())
 
         from Hellanzb import WORKING_DIR
-        DEBUG_LIST = []
         for file in os.listdir(WORKING_DIR):
             if file in tempFileNames:
-                DEBUG_LIST.append(file)
                 newDest = tempFileNames.get(file)
                 shutil.move(WORKING_DIR + os.sep + file,
                             WORKING_DIR + os.sep + newDest)
-
-        debug('setRealFileName TEMPFILENAME: ' + segment.nzbFile.tempFilename + ' to FILENAME: ' + \
-              filename + ' FILES: ' + str(DEBUG_LIST))
 
         segment.nzbFile.tempFileNameLock.release()
     else:
@@ -282,7 +298,8 @@ def UUDecode(dataList):
         elif line[-1:] in '\r\n':
             line = line[:-1]
 
-        # NOTE: workaround imported from Newsleecher.HeadHoncho, is this necessary?
+        # From pyNewsleecher. Which ripped it from python's uu module (with maybe extra
+        # overhead stripped out)
         try:
             data = binascii.a2b_uu(line)
             buffer.append(data)
@@ -335,13 +352,17 @@ def assembleNZBFile(nzbFile, autoFinish = True):
         os.remove(segmentFile)
         
     Hellanzb.queue.fileDone(nzbFile)
-    # FIXME: nudge gc
-    ##for nzbSegment in nzbFile.nzbSegments:
-    ##    del nzbSegment
-    #del nzbFile.nzbSegments
     
     debug('Assembled file: ' + nzbFile.getDestination() + ' from segment files: ' + \
           str([ nzbSegment.getDestination() for nzbSegment in nzbFile.nzbSegments ]))
+
+    # nudge gc
+    for nzbSegment in nzbFile.nzbSegments:
+        del nzbSegment.nzbFile
+        del nzbSegment
+    del nzbFile.nzbSegments
+    if GCDelay.shouldGC():
+        gc.collect()
 
     if autoFinish:
         # After assembling a file, check the contents of the filesystem to determine if we're done 
@@ -373,11 +394,10 @@ def tryFinishNZB(nzb):
         # nudge GC
         nzbFileName = nzb.nzbFileName
         for nzbFile in nzb.nzbFileElements:
-            del nzbFile.nzbSegments
+            del nzbFile.todoNzbSegments
             del nzbFile.nzb
         del nzb.nzbFileElements
         del nzb
-        import gc
         gc.collect()
         
         reactor.callFromThread(handleNZBDone, nzbFileName)

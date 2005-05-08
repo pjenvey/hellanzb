@@ -157,9 +157,9 @@ def isRequiredFile(fileName):
     are considered important (such as .RARs, .WAVs, etc). If any required files are
     missing or broken, PAR2 files will be required to repair """
     isRequired = True
-    for ext in Hellanzb.NOT_REQUIRED_FILE_TYPES:
-        if getFileExtension(fileName) == ext:
-            isRequired = False
+    ext = getFileExtension(fileName)
+    if ext != None and ext.lower() in Hellanzb.NOT_REQUIRED_FILE_TYPES:
+        isRequired = False
 
     return isRequired
 

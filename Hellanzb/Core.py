@@ -71,6 +71,14 @@ def loadConfig(fileName):
         if hasattr(Hellanzb, 'DEBUG_MODE') and Hellanzb.DEBUG_MODE != None and \
                 Hellanzb.DEBUG_MODE != False:
             Hellanzb.DEBUG_MODE_ENABLED = True
+
+        # ensure the types are lower case
+        for varName in ('NOT_REQUIRED_FILE_TYPES', 'KEEP_FILE_TYPES'):
+            types = getattr(Hellanzb, varName)
+            lowerTypes = []
+            for ext in types:
+                lowerTypes.append(ext.lower())
+            setattr(Hellanzb, varName, lowerTypes)
             
         debug('Found config file in directory: ' + os.path.dirname(fileName))
         return True

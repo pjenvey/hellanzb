@@ -182,8 +182,8 @@ class PostProcessor(Thread):
 
         for file in os.listdir(self.dirName):
             ext = getFileExtension(file)
-            if ext != None and len(ext) > 0 and ext not in Hellanzb.KEEP_FILE_TYPES and \
-                   ext in Hellanzb.NOT_REQUIRED_FILE_TYPES:
+            if ext != None and len(ext) > 0 and ext.lower() not in Hellanzb.KEEP_FILE_TYPES and \
+                   ext.lower() in Hellanzb.NOT_REQUIRED_FILE_TYPES:
                 os.rename(self.dirName + os.sep + file,
                           self.dirName + os.sep + Hellanzb.PROCESSED_SUBDIR + os.sep + file)
                 

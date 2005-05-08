@@ -25,13 +25,13 @@ defineServer(id = 'changeme',
 # Important locations
 Hellanzb.PREFIX_DIR = '/ext2/'
 
-# Where to put queued up .nzb files
+# Where to put queued .nzb files
 Hellanzb.QUEUE_DIR = Hellanzb.PREFIX_DIR + 'nzb/daemon.queue/'
 
 # Where the fully processed archives go
 Hellanzb.DEST_DIR = Hellanzb.PREFIX_DIR + 'usenet/'
 
-# The .nzb we're currently downloading is stored here
+# The .nzb currently being downloaded is stored here
 Hellanzb.CURRENT_DIR = Hellanzb.PREFIX_DIR + 'nzb/daemon.current/'
 
 # The archive currently being downloaded is stored here

@@ -195,6 +195,9 @@ class PostProcessor(Thread):
         info(archiveName(self.dirName) + ': Finished processing')
         growlNotify('Archive Success', 'hellanzb Done Processing:', archiveName(self.dirName),
                     True)
+                    #self.background)
+        # FIXME: could unsticky the message if we're running hellanzb.py -p
+        # and preferably if the post processing took say over 30 seconds
 
     def postProcess(self):
         """ process the specified directory """

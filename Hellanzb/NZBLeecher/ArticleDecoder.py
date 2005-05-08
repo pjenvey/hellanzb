@@ -53,7 +53,7 @@ def decode(segment):
         error(segment.nzbFile.showFilename + ' segment: ' + str(segment.number) + \
               ' a problem occurred during decoding', e)
 
-    segment.nzbFile.todoNzbSegments.remove(segment)
+    segment.nzbFile.todoNzbSegments.remove(segment) # FIXME: lock????
     debug('Decoded segment: ' + segment.getDestination())
 
     if segment.nzbFile.isAllSegmentsDecoded():

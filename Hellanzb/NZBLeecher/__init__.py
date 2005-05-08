@@ -117,6 +117,7 @@ class NZBLeecherFactory(ReconnectingClientFactory):
         self.username = username
         self.password = password
         self.antiIdleTimeout = antiIdleTimeout
+        self.activeTimeout = 30
 
         # statistics for the current session (sessions end when downloading stops on all
         # clients). used for the more accurate total speeds shown in the UI
@@ -142,7 +143,8 @@ class NZBLeecherFactory(ReconnectingClientFactory):
         p.factory = self
         
         # All clients inherit the factory's anti idle timeout setting
-        p.timeOut = self.antiIdleTimeout
+        p.activeTimeout = self.activeTimeout
+        p.antiIdleTimeout = self.antiIdleTimeout
         
         self.clients.append(p)
 
@@ -156,25 +158,7 @@ class NZBLeecherFactory(ReconnectingClientFactory):
         Hellanzb.scroller.started = True
         Hellanzb.scroller.killedHistory = False
 
-class AntiIdleMixin(TimeoutMixin):
-    """ policies.TimeoutMixin calls self.timeoutConnection after the connection has been idle
-    too long. Anti-idling the connection involves the same operation -- extend
-    TimeoutMixin to anti-idle instead, and reset the timeout after anti-idling (to repeat
-    the process -- unlike TimeoutMixin) """
-    def antiIdleConnection(self):
-        """ """
-        raise NotImplementedError()
-
-    def timeoutConnection(self):
-        """ Called when the connection times out -- i.e. when we've been idle longer than the
-        self.timeOut value """
-        self.antiIdleConnection()
-
-        # TimeoutMixin assumes we're done (timed out) after timeoutConnection. Since we're
-        # still connected, manually reset the timeout
-        self.setTimeout(self.timeOut)
-
-class NZBLeecher(NNTPClient, AntiIdleMixin):
+class NZBLeecher(NNTPClient, TimeoutMixin):
     """ Extends twisted NNTPClient to download NZB segments from the queue, until the queue
     contents are exhausted """
 
@@ -196,8 +180,9 @@ class NZBLeecher(NNTPClient, AntiIdleMixin):
         self.isLoggedIn = False
         self.setReaderAfterLogin = False
             
+        self.activeTimeout = None
         # Idle time -- after being idle this long send anti idle requests
-        self.timeOut = 7 * 60
+        self.antiIdleTimeout = None
 
         self.activated = False
 
@@ -256,7 +241,7 @@ class NZBLeecher(NNTPClient, AntiIdleMixin):
 
     def connectionMade(self):
         NNTPClient.connectionMade(self)
-        self.setTimeout(self.timeOut)
+        self.setTimeout(self.activeTimeout)
 
         # 'mode reader' is sometimes necessary to enable 'reader' mode.
         # However, the order in which 'mode reader' and 'authinfo' need to
@@ -332,6 +317,10 @@ class NZBLeecher(NNTPClient, AntiIdleMixin):
         """ Activate/Deactivate this client -- notify the factory, etc"""
         if isActiveBool and not self.activated:
             self.activated = True
+
+            # we're now timing out the connection, set the appropriate timeout
+            self.setTimeout(self.activeTimeout)
+            
             if self not in self.factory.activeClients:
                 if len(self.factory.activeClients) == 0:
                     now = time.time()
@@ -348,6 +337,10 @@ class NZBLeecher(NNTPClient, AntiIdleMixin):
                 
         elif not isActiveBool and self.activated:
             self.activated = False
+
+            # we're now anti idling the connection, set the appropriate timeout
+            self.setTimeout(self.antiIdleTimeout)
+
             self.factory.activeClients.remove(self)
 
             # Reset stats if necessary
@@ -484,7 +477,6 @@ class NZBLeecher(NNTPClient, AntiIdleMixin):
         reactor.callInThread(decode, segment)
 
     def gotGroup(self, group):
-        """ """
         group = group[len(group) - 1]
         self.activeGroups.append(group)
         debug(str(self) + ' got GROUP: ' + group)
@@ -554,7 +546,24 @@ class NZBLeecher(NNTPClient, AntiIdleMixin):
             Hellanzb.scroller.updateLog()
 
     def antiIdleConnection(self):
+        """ anti idle the connection """
         self.fetchHelp()
+
+    def lineReceived(self, line):
+        """ cut & paste from NNTPClient -- also allows 100 codes for HELP responses """
+        if not len(self._state):
+            self._statePassive(line)
+        elif self._getResponseCode() is None:
+            code = extractCode(line)
+            if code is None or (not (200 <= code[0] < 400) and code[0] != 100):    # An error!
+                self._error[0](line)
+                self._endState()
+            else:
+                self._setResponseCode(code)
+                if self._responseHandlers[0]:
+                    self._responseHandlers[0](code)
+        else:
+            self._state[0](line)
 
     def dataReceived(self, data):
         """ *From Twisted-2.0*
@@ -598,7 +607,23 @@ class NZBLeecher(NNTPClient, AntiIdleMixin):
         else:
             self.__buffer=self.__buffer[lastoffset:]
 
+    def timeoutConnection(self):
+        """ Called when the connection times out -- i.e. when we've been idle longer than the
+        self.timeOut value. will time out (disconnect) the connection if actively
+        downloading, otherwise the timeOut value acts as a the anti idle time out """
+        if self.activated:
+            debug(str(self) + ' TIMING OUT connection')
+            self.transport.loseConnection()
+        else:
+            debug(str(self) + ' ANTI IDLING connection')
+            self.antiIdleConnection()
+            
+            # TimeoutMixin assumes we're done (timed out) after timeoutConnection. Since we're
+            # still connected, manually reset the timeout
+            self.setTimeout(self.antiIdleTimeout)
+
     def prettySize(self, bytes):
+        """ format the byte count for display """
         bytes = float(bytes)
         
         if bytes < 1024:

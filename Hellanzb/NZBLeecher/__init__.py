@@ -14,18 +14,12 @@ from sets import Set
 from twisted.internet import reactor
 from twisted.internet.protocol import ReconnectingClientFactory
 from twisted.protocols.basic import LineReceiver
-
-import twisted.copyright
-if twisted.copyright.version >= '2.0.0':
-    from twisted.news.nntp import NNTPClient, extractCode
-else:
-    from twisted.protocols.nntp import NNTPClient, extractCode
-    
 from twisted.protocols.policies import TimeoutMixin, ThrottlingFactory
 from twisted.python import log
 from Hellanzb.Log import *
 from Hellanzb.Logging import LogOutputStream, NZBLeecherTicker
 from Hellanzb.Util import rtruncate, truncateToMultiLine
+from Hellanzb.NZBLeecher.nntp import NNTPClient, extractCode
 from Hellanzb.NZBLeecher.ArticleDecoder import decode
 from Hellanzb.NZBLeecher.NZBModel import NZBQueue
 from Queue import Empty

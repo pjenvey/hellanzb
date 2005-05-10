@@ -15,7 +15,9 @@ DISTNAME=	${PORTNAME}-${PORTVERSION}
 
 PLIST_FILES=	bin/hellanzb.py \
 		etc/hellanzb.conf.sample \
+		share/doc/hellanzb/CREDITS \
 		share/doc/hellanzb/README \
+		share/doc/hellanzb/LICENSE \
 		%%PYTHON_SITELIBDIR%%/Hellanzb/Core.py \
 		%%PYTHON_SITELIBDIR%%/Hellanzb/Core.pyc \
 		%%PYTHON_SITELIBDIR%%/Hellanzb/Core.pyo \
@@ -54,7 +56,11 @@ PLIST_FILES=	bin/hellanzb.py \
 		%%PYTHON_SITELIBDIR%%/Hellanzb/NZBLeecher/NZBModel.pyo \
 		%%PYTHON_SITELIBDIR%%/Hellanzb/NZBLeecher/__init__.py \
 		%%PYTHON_SITELIBDIR%%/Hellanzb/NZBLeecher/__init__.pyc \
-		%%PYTHON_SITELIBDIR%%/Hellanzb/NZBLeecher/__init__.pyo
+		%%PYTHON_SITELIBDIR%%/Hellanzb/NZBLeecher/__init__.pyo \
+		%%PYTHON_SITELIBDIR%%/Hellanzb/NZBLeecher/nntp.py \
+		%%PYTHON_SITELIBDIR%%/Hellanzb/NZBLeecher/nntp.pyc \
+		%%PYTHON_SITELIBDIR%%/Hellanzb/NZBLeecher/nntp.pyo
+
 
 PLIST_DIRS=	share/doc/hellanzb \
 		%%PYTHON_SITELIBDIR%%/Hellanzb

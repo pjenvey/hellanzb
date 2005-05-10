@@ -213,9 +213,19 @@ def shutdownNow(returnCode = 0):
 
     sys.exit(returnCode)
 
+# NOTE: if you're cut & pasting -- the ascii is escaped (\") in one spot
 USAGE = """
 hellanzb version %s
-
+           ;;;;            .  .
+      ... :liil ...........:..:      ,._    ,._      ...................
+      :   l$$$:  _.,._       _..,,._ "$$$b. "$$$b.   `_..,,._        :::
+      :   $$$$.d$$$$$$L   .d$$$$$$$$L $$$$:  $$$$: .d$$$$$$$$$;      :::
+      :  :$$$$P`  T$$$$: :$$$$`  7$$F:$$$$  :$$$$ :$$$$: `$$$$ __  _  |_
+      :  l$$$F   :$$$$$  8$$$l""\"""` l$$$l  l$$$l l$$$l   $$$L | ) /_ |_)
+      :  $$$$:   l$$$$$L `4$$$bcmang;ACID$::$$$88:`4$$$bmm$$$$;.     ...
+      :    ```      ```""              ```    ```    .    ```.     ..:::..
+      :..............................................:              `:::`
+                                                                      `
    nzb (usenet) file retriever and post processor
    http://www.hellanzb.com
 

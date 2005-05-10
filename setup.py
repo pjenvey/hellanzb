@@ -28,7 +28,7 @@ def runSetup():
         packages = [ 'Hellanzb', 'Hellanzb.NZBLeecher' ],
         scripts = [ 'hellanzb.py', 'hellagrowler.py' ],
         data_files = [ ( 'etc', [ 'etc/hellanzb.conf.sample' ] ),
-                       ( 'share/doc/hellanzb', [ 'README', 'LICENSE' ] ) ],
+                       ( 'share/doc/hellanzb', [ 'CREDITS', 'README', 'LICENSE' ] ) ],
         )
 
 if __name__ == '__main__':

@@ -1,0 +1,40 @@
+hellanzb                                                                 CREDITS
+
+
+           ;;;;            .  .
+      ... :liil ...........:..:      ,._    ,._      ...................
+      :   l$$$:  _.,._       _..,,._ "$$$b. "$$$b.   `_..,,._        :::
+      :   $$$$.d$$$$$$L   .d$$$$$$$$L $$$$:  $$$$: .d$$$$$$$$$;      :::
+      :  :$$$$P`  T$$$$: :$$$$`  7$$F:$$$$  :$$$$ :$$$$: `$$$$ __  _  |_
+      :  l$$$F   :$$$$$  8$$$l"""""` l$$$l  l$$$l l$$$l   $$$L | ) /_ |_)
+      :  $$$$:   l$$$$$L `4$$$bcmang;ACID$::$$$88:`4$$$bmm$$$$;.     ...
+      :    ```      ```""              ```    ```    .    ```.     ..:::..
+      :..............................................:     V 0 . 5  `:::`
+                                                                      `
+
+--------------------------------------------------------------------------------
+
+o Philip Jenvey - Lead Developer
+
+o Ben Bangert - Developer
+
+o Kraig Amador - Tester
+
+o Dan Klay - Tester
+
+o cmang - ASCII
+
+o Hellanzb.NZBLeecher uses code from pyNewsleecher by:
+  - Freddie (freddie@madcowdisease.org)
+
+o hellanzb uses Growl Network Protocol Client for Python by:
+  - Rui Carmo (http://the.taoofmac.com)
+
+o Hellanzb.NZBLeecher.nntp is twisted's news module (TwistedNews-0.1.0) --
+  included so there is no TwistedNews dependency with Twisted-2.0
+  
+      ________________________
+o     \   |    /  ___/_   _  /
+      |   _   /  \_   /   _  \
+      |___|   \___|   \___    \
+          |____\  |____\  |___/

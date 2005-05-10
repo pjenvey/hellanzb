@@ -3,7 +3,7 @@
 
 hellanzb - hella nzb
 
-Command line interface into Hellanzb library. 
+Command line interface to the Hellanzb library.
 
 @see Hellanzb.Core.main()
 @see Hellanzb.Core.parseArgs()

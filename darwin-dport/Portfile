@@ -27,7 +27,7 @@ depends_run  bin:par2:par2 \
              lib:XXX:py-twisted \
 
 post-activate {
-        # copy over the sample conf file if neccessary
+        # copy over the sample conf file if necessary
         if { ![file exists ${prefix}/etc/${name}.conf] } {
              file copy ${prefix}/etc/${name}.conf.sample \
              ${prefix}/etc/${name}.conf

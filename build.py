@@ -61,6 +61,8 @@ try:
 
         # Build
         print 'Building version: ' + version
+        if os.path.isfile('MANIFEST'):
+            os.remove('MANIFEST')
 
         # overwrite setup's version to the new, and build the distributions
         setup.version = version

@@ -96,10 +96,6 @@ def scanQueueDir():
     # downloading it
     try:
         if not Hellanzb.queue.parseNZB(nzbfile):
-            # The scroll level will flood the console with constantly updating statistics
-            # -- the logging system can interrupt this scroll temporarily (after
-            # scrollBegin)
-            scrollBegin()
             
             for nsf in Hellanzb.nsfs:
                 nsf.fetchNextNZBSegment()
@@ -114,12 +110,6 @@ def scanQueueDir():
 def handleNZBDone(nzbfilename):
     """ Hand-off from the downloader -- make a dir for the NZB with it's contents, then post
     process it in a separate thread"""
-    # Back to normal logging behavior
-    scrollEnd()
-
-    # Append \n
-    info('')
-
     checkShutdown()
     
     # Make our new directory, minus the .nzb
@@ -153,7 +143,9 @@ def handleNZBDone(nzbfilename):
     # nzbing
     if not checkShutdown():
         troll = PostProcessor.PostProcessor(newdir)
-        troll.start()
+        # Give NZBLeecher some time (another reactor loop) to killHistory() & scrollEnd()
+        # without any logging interference from PostProcessor
+        reactor.callLater(0, troll.start)
 
     reactor.callLater(0, scanQueueDir)
 

@@ -234,6 +234,7 @@ class NZBLeecher(NNTPClient, TimeoutMixin):
         debug(str(self) + ' AUTHINFO failed: ' + str(err))
 
     def connectionMade(self):
+        debug(str(self) + ' CONNECTION MADE')
         NNTPClient.connectionMade(self)
         self.setTimeout(self.activeTimeout)
 
@@ -245,6 +246,7 @@ class NZBLeecher(NNTPClient, TimeoutMixin):
         self.setReader()
 
     def connectionLost(self, reason):
+        debug(str(self) + ' CONNECTION LOST')
         self.setTimeout(None)
         # FIXME: could put failed segments into a failed queue. connections that are
         # flaged as being fill servers would try to attempt to d/l the failed files. you
@@ -325,8 +327,13 @@ class NZBLeecher(NNTPClient, TimeoutMixin):
                     for nsf in Hellanzb.nsfs:
                         totalActiveClients += len(nsf.activeClients)
                     if not totalActiveClients:
+                        # BEGIN
                         Hellanzb.totalReadBytes = 0
                         Hellanzb.totalStartTime = now
+                        # The scroll level will flood the console with constantly updating
+                        # statistics -- the logging system can interrupt this scroll
+                        # temporarily (after scrollBegin)
+                        scrollBegin()
                 self.factory.activeClients.add(self)
                 
         elif not isActiveBool and self.activated:
@@ -348,6 +355,7 @@ class NZBLeecher(NNTPClient, TimeoutMixin):
             for nsf in Hellanzb.nsfs:
                 totalActiveClients += len(nsf.activeClients)
             if totalActiveClients == 0:
+                # END
                 dur = time.time() - Hellanzb.totalStartTime
                 speed = Hellanzb.totalReadBytes / 1024.0 / dur
                 leeched = self.prettySize(Hellanzb.totalReadBytes)
@@ -358,6 +366,9 @@ class NZBLeecher(NNTPClient, TimeoutMixin):
                 Hellanzb.totalSpeed = 0
                 Hellanzb.scroller.currentLog = None
                 Hellanzb.scroller.killHistory()
+                scrollEnd()
+                # Append \n
+                info('')
         
     def fetchNextNZBSegment(self):
         """ Pop nzb article from the queue, and attempt to retrieve it if it hasn't already been

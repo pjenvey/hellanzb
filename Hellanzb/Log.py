@@ -13,6 +13,7 @@ Log - The basic log API functions, only -- to discourage polluting namespaces, e
 [See end of file]
 """
 import Hellanzb, time
+from socket import AF_INET, SOCK_DGRAM, socket, error as socket_error
 from threading import Lock
 from traceback import print_exc
 from Hellanzb.Logging import prettyException, stdinEchoOff, stdinEchoOn, ScrollableHandler
@@ -70,7 +71,12 @@ def growlNotify(type, title, description, sticky = False):
     p.addNotification("Archive Success", enabled=True)
     p.addNotification("Error", enabled=True)
     p.addNotification("Queue", enabled=True)
-    s.sendto(p.payload(), addr)
+    try:
+        s.sendto(p.payload(), addr)
+    except socket_error, msg:
+        s.close()
+        debug('Unable to connect to Growl: ' + str(msg))
+        return
 
     # Unicode the message, so the python Growl lib can succesfully UTF-8 it. It can fail
     # to UTF-8 the description if it contains unusual characters. we also have to force
@@ -82,10 +88,12 @@ def growlNotify(type, title, description, sticky = False):
                                 notification=type, title=title,
                                 description=description, priority=1,
                                 sticky=sticky, password=Hellanzb.GROWL_PASSWORD)
-    s.sendto(p.payload(),addr)
-    s.close()
+    try:
+        s.sendto(p.payload(),addr)
+    except socket_error, msg:
+        debug('Unable to connect to Growl: ' + str(msg))
 
-    return
+    s.close()
     
 def scrollBegin():
     """ Let the logger know we're beginning to scroll """

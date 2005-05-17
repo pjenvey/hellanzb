@@ -262,6 +262,10 @@ def processRars(dirName, rarPassword):
                 not isDuplicate(absPath) and not stringEndsWith(absPath, '.1') and \
                 not stringEndsWith(absPath, '_broken') and not isAlbumCoverArchive(absPath) and \
                 absPath not in processedRars:
+            # Found the first rar. this is always the first rar to start extracting with,
+            # unless there is a .rar file. However, rar seems to be smart enough to look
+            # for a .rar file if we specify this incorrect first file anyway
+            
             processedRars.extend(unrar(absPath, rarPassword))
             # FIXME: move rars into processed immediately
             # justProcessedRars = unrar(absPath, rarPassword)

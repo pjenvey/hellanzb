@@ -426,7 +426,6 @@ class NZBQueue(PriorityQueue):
             # nudge GC
             nzbFileName = nzb.nzbFileName
             for nzbFile in nzb.nzbFileElements:
-                del nzbFile.nzbSegments
                 del nzbFile.todoNzbSegments
                 del nzbFile.nzb
             del nzb.nzbFileElements

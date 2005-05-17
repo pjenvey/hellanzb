@@ -98,11 +98,11 @@ class TopenTwisted(protocol.ProcessProtocol):
 
     def readlinesAndWait(self):
         from twisted.internet import reactor
-        reactor.spawnProcess(self, self.args[0], args = self.args, env = os.environ)
         self.isRunning = True
         TopenTwisted.activePool.append(self)
-        
+
         self.finished.acquire()
+        reactor.spawnProcess(self, self.args[0], args = self.args, env = os.environ)
         self.finished.wait()
         self.finished.release()
 
@@ -364,9 +364,9 @@ def archiveName(dirName):
     return name
 
 def checkShutdown(message = 'Shutting down..'):
-    """ Shutdown is a special exception """
+    """ Raise a SystemExit exception if the SHUTDOWN flag has been set """
     try:
-        if Hellanzb.shutdown:
+        if Hellanzb.SHUTDOWN:
             debug(message)
             raise SystemExit(Hellanzb.SHUTDOWN_CODE)
         return False
@@ -391,7 +391,7 @@ def defineServer(**args):
         exec 'Hellanzb.SERVERS[id][\'' + var + '\'] = args[\'' + var + '\']'
 
 def truncate(str, length = 60, reverse = False):
-    """ Truncate a string to certain length. Appends '...' to the string if truncated --
+    """ Truncate a string to the specified length. Appends '...' to the string if truncated --
     and those three periods are included in the specified length """
     if str == None:
         return str

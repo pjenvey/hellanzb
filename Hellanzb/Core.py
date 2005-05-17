@@ -89,18 +89,18 @@ def loadConfig(fileName):
         error(msg, e)
         raise
 
+# FIXME I think due to the recent change that shutdown()s, then logs -- logShutdown can be
+# replaced with normal logging calls
 def signalHandler(signum, frame):
     """ The main and only signal handler. Handle cleanup/managing child processes before
     exiting """
     # CTRL-C
     if signum == signal.SIGINT:
-        # lazily notify everyone they should stop immediately
-        Hellanzb.shutdown = True
-
         # If there aren't any proceses to wait for exit immediately
         if len(TopenTwisted.activePool) == 0:
+            shutdown()
             logShutdown('Caught interrupt, exiting..')
-            shutdownNow(Hellanzb.SHUTDOWN_CODE)
+            sys.exit(Hellanzb.SHUTDOWN_CODE)
 
         # The idea here is to 'cheat' again to exit the program ASAP if all the processes
         # are associated with the main thread (the processes would have already gotten the
@@ -111,8 +111,9 @@ def signalHandler(signum, frame):
                 threadsOutsideMain = True
 
         if not threadsOutsideMain:
+            shutdown()
             logShutdown('Caught interrupt, exiting..')
-            shutdownNow(Hellanzb.SHUTDOWN_CODE)
+            sys.exit(Hellanzb.SHUTDOWN_CODE)
 
         # We couldn't cheat our way out of the program, tell the user the processes
         # (threads) we're waiting on, and wait for another signal
@@ -137,8 +138,9 @@ def signalHandler(signum, frame):
             # allowing the process to exit/still reading from it)
             warn('Killing child processes..')
             TopenTwisted.killAll()
+            shutdown()
             logShutdown('Killed all child processes, exiting..')
-            shutdownNow(Hellanzb.SHUTDOWN_CODE)
+            sys.exit(Hellanzb.SHUTDOWN_CODE)
             
 def assertHasARar():
     """ assertIsExe rar or it's doppelganger """
@@ -153,7 +155,7 @@ def assertHasARar():
 def init(options = {}):
     """ initialize the app """
     # Whether or not the app is in the process of shutting down
-    Hellanzb.shutdown = False
+    Hellanzb.SHUTDOWN = False
 
     # Get logging going ASAP
     initLogging()
@@ -199,7 +201,7 @@ def init(options = {}):
 def shutdown():
     """ turn the knob that tells all parts of the program we're shutting down """
     # that knob, that threads will constantly check
-    Hellanzb.shutdown = True
+    Hellanzb.SHUTDOWN = True
 
     # stop the twisted reactor
     reactor.callLater(0, reactor.stop)
@@ -226,7 +228,7 @@ hellanzb version %s
       :    ```      ```""              ```    ```    .    ```.     ..:::..
       :..............................................:              `:::`
                                                                       `
-   nzb (usenet) file retriever and post processor
+   nzb downloader and post processor
    http://www.hellanzb.com
 
 usage: %s [options]

@@ -107,7 +107,7 @@ class NNTPClient(basic.LineReceiver):
 
 
     def connectionMade(self):
-        self.ip = self.transport.getPeer()[1:]
+        self.ip = self.transport.getPeer().host
 
     def gotAllGroups(self, groups):
         "Override for notification when fetchGroups() action is completed"
@@ -538,7 +538,7 @@ class NNTPServer(basic.LineReceiver):
 
 
     def connectionMade(self):
-        self.ip = self.transport.getPeer()[1:]
+        self.ip = self.transport.getPeer().host
         self.inputHandler = None
         self.currentGroup = None
         self.currentIndex = None

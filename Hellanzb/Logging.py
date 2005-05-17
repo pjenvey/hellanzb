@@ -185,10 +185,17 @@ class NZBLeecherTicker:
 
     def addClient(self, segment):
         """ Add a client (it's segment) to the ticker """
+        from Hellanzb.Log import debug
+        debug('ADD CLIENT: ' + str(segment.priority) + ' segment: ' + str(segment.getDestination()))
         heapq.heappush(self.segments, (segment.priority, segment))
         
     def removeClient(self, segment):
         """ Remove a client (it's segment) from the ticker """
+        from Hellanzb.Log import debug
+        if (segment.priority, segment) in self.segments:
+            debug('REMOVE CLIENT: ' + str(segment.priority) + ' segment: ' + str(segment.getDestination()))
+        else:
+            debug('BAD REMOVE CLIENT: ' + str(segment.priority) + ' segment: ' + str(segment.getDestination()))
         self.segments.remove((segment.priority, segment))
 
     def scrollHeader(self, message):
@@ -265,20 +272,27 @@ class NZBLeecherTicker:
             
             # Determine when we've just found the real file name, then use that as the
             # show name
-            if segment.nzbFile.showFilenameIsTemp == True and segment.nzbFile.filename != None:
-                segment.nzbFile.showFilename = segment.nzbFile.filename
-                segment.nzbFile.showFilenameIsTemp = False
+            try:
+                if segment.nzbFile.showFilenameIsTemp == True and segment.nzbFile.filename != None:
+                    segment.nzbFile.showFilename = segment.nzbFile.filename
+                    segment.nzbFile.showFilenameIsTemp = False
+            except AttributeError, ae:
+                debug('ATTRIBUTE ERROR: ' + str(ae) + ' num: ' + str(segment.number) + \
+                      'duh: ' + str(segment.articleData))
+                pass
                 
             if lastSegment != None and lastSegment.nzbFile == segment.nzbFile:
-                line = self.connectionPrefix + ' %s' + ACODE.KILL_LINE
+                line = self.connectionPrefix + ' %s (%s)' + ACODE.KILL_LINE
                 # 57 line width -- approximately 80 - 5 (prefix) - 18 (max suffix)
                 self.currentLog += line % (prettyId,
-                                           rtruncate(segment.nzbFile.showFilename, length = 57))
+                                           rtruncate(segment.nzbFile.showFilename, length = 50),
+                                           str(segment.number))
             else:
-                line = self.connectionPrefix + ' %s - ' + ACODE.F_DGREEN + '%2d%%' + ACODE.RESET + \
+                line = self.connectionPrefix + ' %s (%s) - ' + ACODE.F_DGREEN + '%2d%%' + ACODE.RESET + \
                        ACODE.F_DBLUE + ' @ ' + ACODE.RESET + ACODE.F_DRED + '%.1fKB/s' + ACODE.KILL_LINE
                 self.currentLog += line % (prettyId,
-                                           rtruncate(segment.nzbFile.showFilename, length = 57),
+                                           rtruncate(segment.nzbFile.showFilename, length = 49),
+                                           str(segment.number),
                                            segment.nzbFile.downloadPercentage, segment.nzbFile.speed)
                 
             self.currentLog += '\n\r'

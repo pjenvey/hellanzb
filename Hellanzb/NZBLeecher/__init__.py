@@ -9,7 +9,7 @@ Freddie (freddie@madcowdisease.org) utilizing the twisted framework
 (c) Copyright 2005 Philip Jenvey, Ben Bangert
 [See end of file]
 """
-import os, re, time, Hellanzb
+import math, os, re, time, Hellanzb
 from sets import Set
 from twisted.internet import reactor
 from twisted.internet.protocol import ReconnectingClientFactory
@@ -105,6 +105,7 @@ def startNZBLeecher():
     reactor.run()
     # Spam! Spam! Spam! Spam! Lovely spam! Spam! Spam!
 
+PHI = (1 + math.sqrt(5)) / 2
 class NZBLeecherFactory(ReconnectingClientFactory):
 
     def __init__(self, username, password, antiIdleTimeout):
@@ -131,6 +132,14 @@ class NZBLeecherFactory(ReconnectingClientFactory):
         #self.maxDelay = 5
         # turning this off for now -- but it might be useful for when usenet servers start
         # shitting themselves
+
+        # FIXME: after too many disconnections and or no established
+        # connections, info('Unable to connect!: + str(error)')
+
+        # server reconnecting drop off factor, by default e. PHI (golden ratio) is a lower
+        # factor than e
+        self.factor = PHI # (Phi is acceptable for use as a factor if e is too large for
+                          # your application.)
 
     def buildProtocol(self, addr):
         p = NZBLeecher(self.username, self.password)
@@ -255,7 +264,7 @@ class NZBLeecher(NNTPClient, TimeoutMixin):
         
         # ReconnectingClientFactory will pretend it wants to reconnect after we CTRL-C --
         # we'll quiet it by canceling it
-        if Hellanzb.shutdown:
+        if Hellanzb.SHUTDOWN:
             self.factory.stopTrying()
 
         NNTPClient.connectionLost(self) # calls self.factory.clientConnectionLost(self, reason)
@@ -267,9 +276,10 @@ class NZBLeecher(NNTPClient, TimeoutMixin):
             # stuff back into the queue that hasn't finished before the connectionLost
             # occurred
             Hellanzb.queue.put((self.currentSegment.priority, self.currentSegment))
+            self.currentSegment = None
         
         # Continue being quiet about things if we're shutting down
-        if not Hellanzb.shutdown:
+        if not Hellanzb.SHUTDOWN:
             debug(str(self) + ' lost connection: ' + str(reason))
 
         self.activeGroups = []
@@ -390,6 +400,7 @@ class NZBLeecher(NNTPClient, TimeoutMixin):
                                                              os.path.basename(self.currentSegment.nzbFile.getDestination())
                     
             except Empty:
+                debug(str(self) + ' EMPTY QUEUE')
                 # all done
                 self.isActive(False)
                 return
@@ -449,6 +460,11 @@ class NZBLeecher(NNTPClient, TimeoutMixin):
         # Post#23.part091.rar.segment0059 expected size: 258789
         # and reque the NZB instead of processAndContinue. Do we need to catch other
         # cases?
+        # 2005-05-13 08:25:23,260 DEBUG NZBLeecher[24] get BODY FAILED, error: 400
+        # fe02-unl.iad01.newshosting.com: Session timeout. for messageId:
+        # <part19of201.Rp0zp0zFz7LkFy2sk2cN@powerpost2000AA.local>
+        # /beans/incoming/nzb/daemon.working//ZER WYD 06.part020.rar.segment0019 expected
+        # size: 259058
         debug(str(self) + ' get BODY FAILED, error: ' + str(err) + ' for messageId: <' + \
               self.currentSegment.messageId + '> ' + self.currentSegment.getDestination() + \
               ' expected size: ' + str(self.currentSegment.bytes))

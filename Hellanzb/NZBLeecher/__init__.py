@@ -284,6 +284,8 @@ class NZBLeecher(NNTPClient, TimeoutMixin):
 
         self.activeGroups = []
         self.factory.clients.remove(self)
+        if self in self.factory.activeClients:
+            self.factory.activeClients.remove(self)
         Hellanzb.scroller.size -= 1
         self.isLoggedIn = False
         self.setReaderAfterLogin = False

@@ -427,7 +427,11 @@ class NZBLeecher(NNTPClient, TimeoutMixin):
             
         debug(str(self) + ' getting BODY: <' + self.currentSegment.messageId + '> ' + \
               self.currentSegment.getDestination())
-        reactor.callLater(0, self.fetchBody, str(self.currentSegment.messageId))
+        
+        # Don't call later here -- we could be disconnected and lose our currentSegment
+        # before it even happens!
+        #reactor.callLater(0, self.fetchBody, str(self.currentSegment.messageId))
+        self.fetchBody(str(self.currentSegment.messageId))
         
     def fetchBody(self, index):
         start = time.time()
@@ -530,9 +534,9 @@ class NZBLeecher(NNTPClient, TimeoutMixin):
     def gotHelp(self, idle):
         debug(str(self) + ' got HELP')
 
-    def getHelpFailed(self, err):
+    def getHelpFailed(self, (code, message)):
         "Override for getHelpFailed"
-        debug(str(self) + ' got HELP failed: ' + str(err))
+        debug(str(self) + ' got HELP failed: ' + str(message))
 
     def lineLengthExceeded(self, line):
         error('Error!!: LineReceiver.MAX_LENGTH exceeded. size: ' + str(len(line)))
@@ -579,7 +583,10 @@ class NZBLeecher(NNTPClient, TimeoutMixin):
         elif self._getResponseCode() is None:
             code = extractCode(line)
             if code is None or (not (200 <= code[0] < 400) and code[0] != 100):    # An error!
-                self._error[0](line)
+                try:
+                    self._error[0](line)
+                except TypeError, te:
+                    debug('lineReceived GOT TYPE ERROR!: ' + str(te) + ' state name: ' + self._state.__name__)
                 self._endState()
             else:
                 self._setResponseCode(code)

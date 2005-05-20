@@ -57,7 +57,6 @@ def scanQueueDir():
     checkShutdown()
     
     # See if we're resuming a nzb fetch
-    resuming = False
     if not current_nzbs:
         # Refresh our queue and append the new nzb's, 
         new_nzbs = [x for x in os.listdir(Hellanzb.QUEUE_DIR) \
@@ -82,16 +81,17 @@ def scanQueueDir():
         # nzbfile will always be a absolute filename 
         nzbfile = Hellanzb.QUEUE_DIR + nzbfilename
         move(nzbfile, Hellanzb.CURRENT_DIR)
+
+        if not (len(new_nzbs) == 1 and len(Hellanzb.queued_nzbs) == 0):
+            # Show what's going to be downloaded next, unless the queue was empty, and we
+            # only found one nzb (The 'Found new nzb' message is enough in that case)
+            info('Downloading: ' + archiveName(nzbfilename))
     else:
-        resuming = True
         nzbfilename = current_nzbs[0]
         info('Resuming: ' + archiveName(nzbfilename))
         growlNotify('Queue', 'hellanzb Resuming:', archiveName(nzbfilename), False)
         del current_nzbs[0]
-        
-    if not resuming and len(Hellanzb.queued_nzbs):
-        info('Downloading: ' + archiveName(nzbfilename))
-        
+
     nzbfile = Hellanzb.CURRENT_DIR + nzbfilename
 
     # Change the cwd for Newsleecher, and download the files
@@ -106,7 +106,6 @@ def scanQueueDir():
             for nsf in Hellanzb.nsfs:
                 nsf.fetchNextNZBSegment()
     except FatalError, fe:
-        scrollEnd()
         error('Problem while parsing the NZB', fe)
         growlNotify('Error', 'hellanzb', 'Problem while parsing the NZB' + prettyException(fe), True)
         error('Moving bad NZB out of queue into TEMP_DIR: ' + Hellanzb.TEMP_DIR)

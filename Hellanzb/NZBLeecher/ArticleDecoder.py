@@ -5,7 +5,7 @@ ArticleDecoder - Decode and assemble files from usenet articles (nzbSegments)
 (c) Copyright 2005 Philip Jenvey
 [See end of file]
 """
-import binascii, gc, os, re, shutil, string, time
+import binascii, gc, os, re, shutil, string, time, Hellanzb
 from threading import Lock
 from twisted.internet import reactor
 from zlib import crc32
@@ -54,6 +54,7 @@ def decode(segment):
               ' a problem occurred during decoding', e)
 
     segment.nzbFile.todoNzbSegments.remove(segment) # FIXME: lock????
+    Hellanzb.queue.segmentDone(segment)
     debug('Decoded segment: ' + segment.getDestination())
 
     if segment.nzbFile.isAllSegmentsDecoded():
@@ -160,8 +161,7 @@ def setRealFileName(segment, filename):
     """ Set the actual filename of the segment's parent nzbFile. If the filename wasn't
     already previously set, set the actual filename atomically and also atomically rename
     known temporary files belonging to that nzbFile to use the new real filename """
-    noFileName = segment.nzbFile.filename == None
-    if noFileName and segment.number == 1:
+    if segment.nzbFile.filename == None:
         # We might have been using a tempFileName previously, and just succesfully found
         # the real filename in the articleData. Immediately rename any files that were
         # using the temp name
@@ -180,8 +180,10 @@ def setRealFileName(segment, filename):
                             WORKING_DIR + os.sep + newDest)
 
         segment.nzbFile.tempFileNameLock.release()
-    else:
-        segment.nzbFile.filename = filename
+    elif segment.nzbFile.filename != filename:
+        error(segment.nzbFile.showFilename + ' segment: ' + str(segment.number) + \
+              ' has incorrect filename header!: ' + filename + ' should be: ' + \
+              segment.nzbFile.showFilename)
 
 def decodeSegmentToFile(segment, encodingType = YENCODE):
     """ Decode the clean data (clean as in it's headers (mime and yenc/uudecode) have been
@@ -231,7 +233,7 @@ def decodeSegmentToFile(segment, encodingType = YENCODE):
         debug('UUDecoded articleData to file: ' + segment.getDestination())
 
     elif segment.articleData == '':
-        debug('NO articleData, touching file')
+        debug('NO articleData, touching file: ' + segment.getDestination())
         touch(segment.getDestination())
     else:
         debug('FIXME: Did not YY/UDecode!!')
@@ -362,6 +364,7 @@ def assembleNZBFile(nzbFile, autoFinish = True):
         del nzbSegment
     del nzbFile.nzbSegments
     if GCDelay.shouldGC():
+        debug('(GCDELAYED) GCING')
         gc.collect()
 
     if autoFinish:

@@ -235,6 +235,7 @@ class Ptyopen2(Ptyopen):
         buffering) of output from the child process. It also stores the cmd it's running
         (as a string) and the thread that created the object, for later use """
         #popen2._cleanup()
+        self.prettyCmd = cmd
         cmd = self.parseCmdToList(cmd)
         self.cmd = cmd
         self.threadIdent = thread.get_ident()

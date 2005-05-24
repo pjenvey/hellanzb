@@ -40,9 +40,12 @@ def info(message, appendLF = True):
         message += '\n'
     Hellanzb.logger.info(message)
 
-def debug(message):
+def debug(message, exception = None):
     """ Log a message at the debug level """
     if Hellanzb.DEBUG_MODE_ENABLED:
+        prettyEx = prettyException(exception)
+        if prettyEx != '':
+            message += ': ' + prettyEx
         Hellanzb.logger.debug(message + '\n')
 
 def scroll(message):

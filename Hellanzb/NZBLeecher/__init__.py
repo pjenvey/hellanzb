@@ -220,12 +220,12 @@ class NZBLeecher(NNTPClient, TimeoutMixin):
     def _authInfoPassResponse(self, (code, message)):
         """ """
         if code == 281:
-            self.gotauthInfoOk('%d %s' % (code, message))
+            self.gotAuthInfoOk('%d %s' % (code, message))
         else:
             self.authInfoFailed('%d %s' % (code, message))
         self._endState()
 
-    def gotauthInfoOk(self, message):
+    def gotAuthInfoOk(self, message):
         """ Override for notification when authInfo() action is successful """
         debug(str(self) + ' AUTHINFO succeeded: ' + message)
         self.isLoggedIn = True
@@ -453,7 +453,7 @@ class NZBLeecher(NNTPClient, TimeoutMixin):
               self.currentSegment.getDestination())
 
         self.processBodyAndContinue(body)
-        
+
     def getBodyFailed(self, err):
         """ Handle a failure of the BODY command. Ensure the failed segment gets a 0 byte file
         written to the filesystem when this occurs """
@@ -477,14 +477,18 @@ class NZBLeecher(NNTPClient, TimeoutMixin):
         
         code = extractCode(err)
         if code is not None:
-            if code[0] in (423, 430):
+            code, msg = code
+            if code in (423, 430):
                 info(self.currentSegment.nzbFile.showFilename + ' segment: ' + \
                      str(self.currentSegment.number) + ' Article is missing!')
-            #elif code[0] == 400:
-            #    # if idle timeout, requeue?
-            #    self.processBodyAndContinue(articleData = None) # ?
-            #    Hellanzb.queue.put((self.currentSegment.priority, self.currentSegment))
-        
+            elif code == 400 and \
+                    (msg.lower().find('idle timeout') > -1 or \
+                     msg.lower().find('session timeout') > -1):
+                # fine, be that way
+                debug(str(self) + ' received Session/Idle TIMEOUT from server, disconnecting')
+                self.transport.loseConnection()
+                return
+                
         self.processBodyAndContinue('')
 
     def processBodyAndContinue(self, articleData):

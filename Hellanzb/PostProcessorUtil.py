@@ -365,6 +365,39 @@ def unrar(fileName, rarPassword = None, pathToExtract = None):
 
     return processedRars
 
+"""
+## From par2cmdline-0.4
+
+// Return type of par2cmdline
+typedef enum Result
+{
+  eSuccess                     = 0,
+
+  eRepairPossible              = 1,  // Data files are damaged and there is
+                                     // enough recovery data available to
+                                     // repair them.
+
+  eRepairNotPossible           = 2,  // Data files are damaged and there is
+                                     // insufficient recovery data available
+                                     // to be able to repair them.
+
+  eInvalidCommandLineArguments = 3,  // There was something wrong with the
+                                     // command line arguments
+
+  eInsufficientCriticalData    = 4,  // The PAR2 files did not contain sufficient
+                                     // information about the data files to be able
+                                     // to verify them.
+
+  eRepairFailed                = 5,  // Repair completed but the data files
+                                     // still appear to be damaged.
+
+
+  eFileIOError                 = 6,  // An error occured when accessing files
+  eLogicError                  = 7,  // In internal error occurred
+  eMemoryError                 = 8,  // Out of memory
+
+} Result;
+"""
 def processPars(dirName):
     """ Verify the integrity of the files in the specified directory via par2. If files
     need repair and there are enough recovery blocks, repair the files. If files need
@@ -382,7 +415,7 @@ def processPars(dirName):
 
     t = Topen(repairCmd)
     output, returnCode = t.readlinesAndWait()
-        
+
     if returnCode == 0:
         # FIXME: checkout for 'repaired blah' messages.
         # for line in output:
@@ -396,18 +429,8 @@ def processPars(dirName):
         # Verified
         info(archiveName(dirName) + ': Par verification passed')
 
-    elif returnCode == 1:
-        # this should never happen
-        raise FatalError('par repair unexpectedly returned returned: 1')
-            
-    elif returnCode > 1:
+    elif returnCode == 2:
         # Repair required and impossible
-
-        # FIXME: catch return code 4:
-        # The PAR2 files did not contain sufficient
-        # information about the data files to be able
-        # to verify them.
-        # don't bother checking the output in that case, just fail
 
         # First, if the repair is not possible, double check the output for what files are
         # missing or damaged (a missing file is considered as damaged in this case). they
@@ -422,6 +445,11 @@ def processPars(dirName):
             raise FatalError('Unable to par repair: archive requires ' + neededBlocks + \
                              ' more recovery blocks for repair')
             # otherwise processComplete here (failed)
+
+    else:
+        # Abnormal behavior -- let the user deal with it
+        raise FatalError('par2 repair failed: unexpectedly returned returnCode: ' + str(returnCode) + \
+                         '. Please run par2 manually for more information')
 
     processComplete(dirName, 'par', isPar)
 

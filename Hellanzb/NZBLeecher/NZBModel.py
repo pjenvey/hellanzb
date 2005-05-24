@@ -377,7 +377,10 @@ class NZBQueue(PriorityQueue):
         if nzbFile in self.nzbFiles:
             self.nzbFiles.remove(nzbFile)
         self.nzbFilesLock.release()
-        self.totalQueuedBytes -= nzbFile.totalBytes
+
+    def segmentDone(self, nzbSegment):
+        """ simply decrement the queued byte count """
+        self.totalQueuedBytes -= nzbSegment.bytes
 
     def parseNZB(self, fileName):
         """ Initialize the queue from the specified nzb file """
@@ -439,11 +442,20 @@ class NZBQueue(PriorityQueue):
         for nzbSegment in needDlSegments:
             self.put((nzbSegment.priority, nzbSegment))
 
+        self.calculateTotalQueuedBytes()
+
         # Tally what was skipped for correct percentages in the UI
         for nzbSegment in onDiskFiles:
             nzbSegment.nzbFile.totalSkippedBytes += nzbSegment.bytes
-        
-        self.calculateTotalQueuedBytes()
+
+        # Finally, figure out what on disk segments are part of partially downloaded
+        # files. adjust the queued byte count to not include these aleady downloaded
+        # segments. phew
+        for nzbFile in needDlFiles:
+            if len(nzbFile.todoNzbSegments) != len(nzbFile.nzbSegments):
+                for segment in nzbFile.nzbSegments:
+                    if segment not in nzbFile.todoNzbSegments:
+                        self.segmentDone(segment)
 
         # Archive not complete
         return False

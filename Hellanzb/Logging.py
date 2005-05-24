@@ -218,6 +218,13 @@ class NZBLeecherTicker:
         # segments should be empty at this point anyway
         self.segments = []
 
+    def prettyEta(self, etaSeconds):
+        """ return a cute eta string from seconds """
+        hours = int(etaSeconds / (60 * 60))
+        minutes = int((etaSeconds - (hours * 60 * 60)) / 60)
+        seconds = etaSeconds - (hours * 60 * 60) - (minutes * 60)
+        return '%.2d:%.2d:%.2d' % (hours, minutes, seconds)
+
     # FIXME: probably doesn't matter much, but should be using StringIO for concatenation
     # here, anyway
     def updateLog(self, logNow = False):
@@ -313,9 +320,17 @@ class NZBLeecherTicker:
             totalSpeed += nsf.sessionSpeed
 
         line = self.connectionPrefix + ACODE.F_DRED + ' %.1fKB/s' + ACODE.RESET + \
-               ', ' + ACODE.F_DGREEN + '%d MB' + ACODE.RESET + ' queued ' + ACODE.KILL_LINE
+               ', ' + ACODE.F_DGREEN + '%d MB' + ACODE.RESET + ' queued, ETA: ' + \
+               ACODE.F_YELLOW + '%s' + ACODE.RESET + ACODE.KILL_LINE
+        
+        if totalSpeed == 0:
+            eta = '00:00:00'
+        else:
+            eta = self.prettyEta((Hellanzb.queue.totalQueuedBytes / 1024) / totalSpeed)
+            
         self.currentLog += line % ('Total', totalSpeed,
-                                   Hellanzb.queue.totalQueuedBytes / 1024 / 1024)
+                                   Hellanzb.queue.totalQueuedBytes / 1024 / 1024,
+                                   eta)
 
         if logNow or self.currentLog != currentLog:
             self.logger(self.currentLog)
@@ -323,6 +338,7 @@ class NZBLeecherTicker:
 
 def stdinEchoOff():
     # Stolen from python's getpass
+    from Hellanzb.Log import debug
     try:
         fd = sys.stdin.fileno()
     except:
@@ -334,17 +350,24 @@ def stdinEchoOff():
     new[3] = new[3] & ~termios.ECHO # 3 == 'lflags'
     try:
         termios.tcsetattr(fd, termios.TCSADRAIN, new)
-    except:
+        debug('stdinEchoOff - OFF')
+    except Exception, e:
+        debug('stdinEchoOff error', e)
         pass
     
 def stdinEchoOn():
+    from Hellanzb.Log import debug
     if hasattr(Hellanzb, 'oldStdin'):
         try:
             fd = sys.stdin.fileno()
             termios.tcsetattr(fd, termios.TCSADRAIN, Hellanzb.oldStdin)
             del Hellanzb.oldStdin
-        except:
+            debug('stdinEchoOn - ON')
+        except Exception, e:
+            debug('stdinEchoOn error', e)
             pass
+    else:
+        debug('stdinEchoOn skipped (no Hellanzb.oldStdin)')
 
 def prettyException(exception):
     """ return a pretty rendition of the specified exception, or if no valid exception an

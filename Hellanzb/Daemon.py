@@ -35,12 +35,6 @@ def initDaemon():
     reactor.callLater(0, growlNotify, 'Queue', 'hellanzb', 'Now monitoring queue..', False)
     reactor.callLater(0, scanQueueDir)
 
-    #if hasattr(Hellanzb, 'BACKDOOR') and Hellanzb.BACKDOOR == True:
-    if True:
-        from backdoor import serve
-        from thread import start_new_thread
-        reactor.callLater(0, start_new_thread, serve, ())
-
     Hellanzb.queued_nzbs = []
 
     from Hellanzb.NZBLeecher import initNZBLeecher

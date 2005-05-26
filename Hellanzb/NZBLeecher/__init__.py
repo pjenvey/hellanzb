@@ -587,7 +587,8 @@ class NZBLeecher(NNTPClient, TimeoutMixin):
                 try:
                     self._error[0](line)
                 except TypeError, te:
-                    debug('lineReceived GOT TYPE ERROR!: ' + str(te) + ' state name: ' + self._state.__name__)
+                    debug('lineReceived GOT TYPE ERROR!: ' + str(te) + ' state name: ' + \
+                          self._state[0].__name__)
                 self._endState()
             else:
                 self._setResponseCode(code)

@@ -8,12 +8,25 @@
 
 PORTNAME=	hellanzb
 PORTVERSION=	____VERSION____
-#PORTEPOCH=	1
-CATEGORIES?=	net
+CATEGORIES=	news
 MASTER_SITES=	http://www.hellanzb.com/distfiles/
 DISTNAME=	${PORTNAME}-${PORTVERSION}
 
+MAINTAINER=	pjenvey@groovie.org
+COMMENT?=	nzb downloader and post processor
+
+USE_PYTHON=	yes
+USE_PYDISTUTILS=yes
+
+RUN_DEPENDS=	par2:${PORTSDIR}/archivers/par2cmdline \
+		rar:${PORTSDIR}/archivers/rar \
+		flac:${PORTSDIR}/audio/flac \
+		mac:${PORTSDIR}/audio/mac \
+		shorten:${PORTSDIR}/audio/shorten \
+		${PYTHON_SITELIBDIR}/twisted/__init__.py:${PORTSDIR}/devel/py-twisted
+
 PLIST_FILES=	bin/hellanzb.py \
+		bin/hellagrowler.py \
 		etc/hellanzb.conf.sample \
 		share/doc/hellanzb/CREDITS \
 		share/doc/hellanzb/README \
@@ -63,20 +76,8 @@ PLIST_FILES=	bin/hellanzb.py \
 
 
 PLIST_DIRS=	share/doc/hellanzb \
+		%%PYTHON_SITELIBDIR%%/Hellanzb/NZBLeecher \
 		%%PYTHON_SITELIBDIR%%/Hellanzb
-
-RUN_DEPENDS=	par2:${PORTSDIR}/archivers/par2cmdline \
-		rar:${PORTSDIR}/archivers/rar \
-		flac:${PORTSDIR}/audio/flac \
-		mac:${PORTSDIR}/audio/mac \
-		shorten:${PORTSDIR}/audio/shorten \
-		${PYTHON_SITELIBDIR}/twisted/__init__.py:${PORTSDIR}/devel/py-twisted
-
-MAINTAINER=	pjenvey@groovie.org
-COMMENT?=	Hands free usenet file retrieval via nzb files
-
-USE_PYTHON=	yes
-USE_PYDISTUTILS=	yes
 
 post-install:
 

@@ -535,9 +535,9 @@ class NZBLeecher(NNTPClient, TimeoutMixin):
     def gotHelp(self, idle):
         debug(str(self) + ' got HELP')
 
-    def getHelpFailed(self, (code, message)):
+    def getHelpFailed(self, err):
         "Override for getHelpFailed"
-        debug(str(self) + ' got HELP failed: ' + str(message))
+        debug(str(self) + ' got HELP failed: ' + str(err))
 
     def lineLengthExceeded(self, line):
         error('Error!!: LineReceiver.MAX_LENGTH exceeded. size: ' + str(len(line)))

@@ -377,10 +377,7 @@ class NZBLeecher(NNTPClient, TimeoutMixin):
                 Hellanzb.totalStartTime = None
                 Hellanzb.totalSpeed = 0
                 Hellanzb.scroller.currentLog = None
-                Hellanzb.scroller.killHistory()
                 scrollEnd()
-                # Append \n
-                info('')
         
     def fetchNextNZBSegment(self):
         """ Pop nzb article from the queue, and attempt to retrieve it if it hasn't already been

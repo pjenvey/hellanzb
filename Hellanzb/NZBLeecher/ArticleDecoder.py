@@ -45,9 +45,6 @@ def decode(segment):
     decoded segment filenames exist """
     try:
         decodeArticleData(segment)
-    except SystemExit, se:
-        # checkShutdown() throws this, let the thread die
-        return
     except Exception, e:
         touch(segment.getDestination())
         error(segment.nzbFile.showFilename + ' segment: ' + str(segment.number) + \
@@ -58,7 +55,11 @@ def decode(segment):
     debug('Decoded segment: ' + segment.getDestination())
 
     if segment.nzbFile.isAllSegmentsDecoded():
-        assembleNZBFile(segment.nzbFile)
+        try:
+            assembleNZBFile(segment.nzbFile)
+        except SystemExit, se:
+            # checkShutdown() throws this, let the thread die
+            pass
 
 def stripArticleData(articleData):
     """ Rip off leading/trailing whitespace from the articleData list """
@@ -219,9 +220,9 @@ def decodeSegmentToFile(segment, encodingType = YENCODE):
         try:
             decodedLines = UUDecode(segment.articleData)
         except binascii.Error, msg:
-            error('\n* Decode failed in file: %s (part number: %d) error: %s' % \
+            error('Decode failed in file: %s (part number: %d) error: %s' % \
                   (segment.getDestination(), segment.number, msg))
-            debug('\n* Decode failed in file: %s (part number: %d) error: %s' % \
+            debug('Decode failed in file: %s (part number: %d) error: %s' % \
                   (segment.getDestination(), segment.number, prettyException(msg)))
 
         out = open(segment.getDestination(), 'wb')
@@ -313,7 +314,7 @@ def UUDecode(dataList):
                 data = binascii.a2b_uu(line[:nbytes])
                 buffer.append(data)
             except binascii.Error, msg:
-                error('UUDecode failed, line: ' + repr(line))
+                debug('UUDecode failed, line: ' + repr(line))
                 raise
 
     return buffer

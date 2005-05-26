@@ -15,7 +15,7 @@ handling is only enabled when SCROLL has been turned on (via scrollBegin())
 import heapq, logging, os, sys, termios, thread, types
 from logging import StreamHandler
 from logging.handlers import RotatingFileHandler
-from threading import Condition, Lock, Thread
+from threading import Condition, Lock, RLock, Thread
 from twisted.internet import reactor
 from Hellanzb.Util import *
 
@@ -61,6 +61,10 @@ class ScrollableHandler(StreamHandlerNoLF):
     SCROLL = 11
     SHUTDOWN = 12
 
+    def __init__(self, *args, **kwargs):
+        self.scrollLock = RLock()
+        StreamHandlerNoLF.__init__(self, *args, **kwargs)
+
     def handle(self, record):
         """ The 'scroll' level is a constant scroll that can be interrupted. This interruption is
         done via prepending text to the scroll area """
@@ -73,12 +77,14 @@ class ScrollableHandler(StreamHandlerNoLF):
                 record.msg = '\n\n\n' + record.msg + '\n'
                 self.emitSynchronized(record)
             else:
+                self.scrollLock.acquire()
                 # If scroll is on, interrupt scroll
                 if ScrollableHandler.scrollFlag:
                     self.scrollHeader(record)
                 else:
                     # otherwise if scroll isn't on, just log the message normally
                     self.emitSynchronized(record)
+                self.scrollLock.release()
                             
         return rv
 
@@ -193,9 +199,11 @@ class NZBLeecherTicker:
         """ Remove a client (it's segment) from the ticker """
         from Hellanzb.Log import debug
         if (segment.priority, segment) in self.segments:
-            debug('REMOVE CLIENT: ' + str(segment.priority) + ' segment: ' + str(segment.getDestination()))
+            debug('REMOVE CLIENT: ' + str(segment.priority) + ' segment: ' + \
+                  str(segment.getDestination()))
         else:
-            debug('BAD REMOVE CLIENT: ' + str(segment.priority) + ' segment: ' + str(segment.getDestination()))
+            debug('BAD REMOVE CLIENT: ' + str(segment.priority) + ' segment: ' + \
+                  str(segment.getDestination()))
         self.segments.remove((segment.priority, segment))
 
     def scrollHeader(self, message):
@@ -384,6 +392,18 @@ def prettyException(exception):
                 stackTrace = stackTrace.getvalue()
                 message += '\n' + stackTrace
     return message
+
+def lockScrollableHandlers(func, *args, **kwargs):
+    """ call the function with all ScrollableHandlers locked """
+    lockedLoggers = []
+    for logger in Hellanzb.logger.handlers:
+        if isinstance(logger, ScrollableHandler):
+            logger.scrollLock.acquire()
+            lockedLoggers.append(logger)
+
+    func(*args, **kwargs)
+
+    [logger.scrollLock.release() for logger in lockedLoggers]
 
 def initLogging():
     """ Setup logging """

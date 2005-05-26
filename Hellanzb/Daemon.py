@@ -107,7 +107,8 @@ def scanQueueDir():
                 nsf.fetchNextNZBSegment()
     except FatalError, fe:
         error('Problem while parsing the NZB', fe)
-        growlNotify('Error', 'hellanzb', 'Problem while parsing the NZB' + prettyException(fe), True)
+        growlNotify('Error', 'hellanzb', 'Problem while parsing the NZB' + prettyException(fe),
+                    True)
         error('Moving bad NZB out of queue into TEMP_DIR: ' + Hellanzb.TEMP_DIR)
         move(nzbfile, Hellanzb.TEMP_DIR + os.sep)
         reactor.callLater(5, scanQueueDir)

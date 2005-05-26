@@ -411,7 +411,11 @@ def processPars(dirName):
     info(archiveName(dirName) + ': Verifying via pars..')
 
     dirName += os.sep
-    repairCmd = 'par2 r "' + dirName + '*.PAR2" "' + dirName + '*.par2" "' + dirName + '*_broken"'
+    repairCmd = 'par2 r "' + dirName + '*.PAR2" "' + dirName + '*.par2" "'
+    if '.par2' in os.listdir(dirName):
+        # a filename of '.par2' will not be wildcard glob'd by '*.par2'. WHY?????
+        repairCmd += dirName + '.par2" "'
+    repairCmd += dirName + '*_broken"'
 
     t = Topen(repairCmd)
     output, returnCode = t.readlinesAndWait()
@@ -446,9 +450,12 @@ def processPars(dirName):
                              ' more recovery blocks for repair')
             # otherwise processComplete here (failed)
 
+    elif returnCode == 3:
+        raise FatalError('par2 repair failed: returned code: ' + str(returnCode) + \
+                         '. Please run par2 manually for more information: ' + repairCmd)
     else:
         # Abnormal behavior -- let the user deal with it
-        raise FatalError('par2 repair failed: unexpectedly returned returnCode: ' + str(returnCode) + \
+        raise FatalError('par2 repair failed: returned code: ' + str(returnCode) + \
                          '. Please run par2 manually for more information')
 
     processComplete(dirName, 'par', isPar)

@@ -120,9 +120,20 @@ class PostProcessor(Thread):
     
         if len(self.musicFiles) == 0:
             return
-                
+
+        self.musicFiles.sort()
+
+        threadCount = min(len(self.musicFiles), int(Hellanzb.MAX_DECOMPRESSION_THREADS))
+        
+        filesTxt = 'file'
+        threadsTxt = 'thread'
+        if len(self.musicFiles) != 1:
+            filesTxt += 's'
+        if threadCount != 1:
+            threadsTxt += 's'
+            
         info(archiveName(self.dirName) + ': Decompressing ' + str(len(self.musicFiles)) + \
-             ' files via ' + str(int(Hellanzb.MAX_DECOMPRESSION_THREADS)) + ' threads..')
+             ' ' + filesTxt + ' via ' + str(threadCount) + ' ' + threadsTxt + '..')
 
         # Failed decompress threads put their file names in this list
         self.failedToProcesses = []

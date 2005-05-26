@@ -46,7 +46,8 @@ class TopenTwisted(protocol.ProcessProtocol):
         self.threadIdent = thread.get_ident()
 
         # ProcessProtocol has no instructor (when I wrote this). just incase
-        if hasattr(protocol.ProcessProtocol, '__init__') and callable(protocol.ProcessProtocol.__init__):
+        if hasattr(protocol.ProcessProtocol, '__init__') and \
+                callable(protocol.ProcessProtocol.__init__):
             protocol.ProcessProtocol.__init__(self)
 
     def received(self, data):

@@ -149,7 +149,8 @@ def assertHasARar():
         if spawn.find_executable(exe):
             Hellanzb.UNRAR_CMD = exe
     if not Hellanzb.UNRAR_CMD:
-        raise FatalError('Cannot continue program, required executable \'rar\' or \'unrar\' not in path')
+        err = 'Cannot continue program, required executable \'rar\' or \'unrar\' not in path'
+        raise FatalError(err)
     assertIsExe(Hellanzb.UNRAR_CMD)
 
 def init(options = {}):

@@ -16,7 +16,8 @@ import Hellanzb, time
 from socket import AF_INET, SOCK_DGRAM, socket, error as socket_error
 from threading import Lock
 from traceback import print_exc
-from Hellanzb.Logging import prettyException, stdinEchoOff, stdinEchoOn, ScrollableHandler
+from Hellanzb.Logging import lockScrollableHandlers, prettyException, stdinEchoOff, stdinEchoOn, \
+    ScrollableHandler
 from Hellanzb.Growl import *
 from Hellanzb.Util import getLocalClassName, FatalError
 from StringIO import StringIO
@@ -42,10 +43,11 @@ def info(message, appendLF = True):
 
 def debug(message, exception = None):
     """ Log a message at the debug level """
-    if Hellanzb.DEBUG_MODE_ENABLED:
-        prettyEx = prettyException(exception)
-        if prettyEx != '':
-            message += ': ' + prettyEx
+    if hasattr(Hellanzb, 'DEBUG_MODE_ENABLED') and Hellanzb.DEBUG_MODE_ENABLED:
+        if exception != None:
+            prettyEx = prettyException(exception)
+            if prettyEx != '':
+                message += ': ' + prettyEx
         Hellanzb.logger.debug(message + '\n')
 
 def scroll(message):
@@ -98,15 +100,28 @@ def growlNotify(type, title, description, sticky = False):
 
     s.close()
     
-def scrollBegin():
+def _scrollBegin():
     """ Let the logger know we're beginning to scroll """
     ScrollableHandler.scrollFlag = True
     stdinEchoOff()
 
-def scrollEnd():
+def scrollBegin():
+    """ Let the logger know we're beginning to scroll """
+    lockScrollableHandlers(_scrollBegin)
+
+def _scrollEnd():
     """ Let the logger know we're done scrolling """
+    # FIXME: what happens if we are CTRL-Ced in the middle of this?
+    Hellanzb.scroller.killHistory()
+    
     stdinEchoOn()
     ScrollableHandler.scrollFlag = False
+
+    info('')
+    
+def scrollEnd():
+    """ Let the logger know we're done scrolling """
+    lockScrollableHandlers(_scrollEnd)
 
 """
 /*

@@ -6,8 +6,8 @@ build a distribution, and finally check in the version number bump change.
 
 Can do local builds with -lt
 
-@author pjenvey
-
+(c) Copyright 2005 Philip Jenvey
+[See end of file]
 """
 import optparse, os, re, setup, sys
 from build_util import *
@@ -30,8 +30,7 @@ try:
 
     # If not local, make sure the working copy is up to date with the repository!
     if not options.local:
-        # FIXME
-        #assertUpToDate()
+        assertUpToDate()
         pass
         
     versionFile = open(VERSION_FILENAME)
@@ -53,22 +52,17 @@ try:
             writeVersion(newVersion)
             version = newVersion
 
-            # if not local, branch here.
-            if not options.local:
-                # branch the codebase, and make our working copy that branch
-                origRepository = getRepository()
-                branchRelease(version)
-                #origDir = os.getcwd()
-                #os.chdir('build/hellanzb-' + version)
-                #print 'Switching to new branch: ' + version
-            #os.system('svn switch "New build, version: ' + version + '" ' + VERSION_FILENAME)
+        # branch if doing a release
+        if not options.trunk and not options.local:
+            # branch the codebase, and make our working copy that branch
+            origRepository = getRepository()
+            # NOTE: This will switch our working directory to the new branch
+            branchRelease(version)
 
         # Build
         print 'Building version: ' + version
-
-        #if not options.local or not options.trunk:
-        #    # branch the codebase, and make our working copy that branch
-        #    branchRelease(version)
+        if os.path.isfile('MANIFEST'):
+            os.remove('MANIFEST')
 
         # overwrite setup's version to the new, and build the distributions
         setup.version = version
@@ -77,22 +71,21 @@ try:
         buildDPort(version)
 
         if not options.trunk and not options.local:
-            #os.chdir(origDir)
             print 'Switching back to trunk'
             os.system('svn switch ' + origRepository)
 
         if not options.trunk:
-            # Append -trunk back to the number and check in bump
+            # Append -trunk back to the number
             newVersion = version + '-trunk'
             writeVersion(newVersion)
-                
-        if not options.local:
+
+        # Check in changes to trunk
+        if not options.local and not options.trunk:
             print 'Checking in new version number: ' + newVersion
-            print "WOOP!"
-            #os.system('svn ci -m "New build, version: ' + version + '" ' + VERSION_FILENAME)
+            os.system('svn ci -m "New build, version: ' + version + '" ' + VERSION_FILENAME)
             
             print 'Deploying new build to host: ' + UPLOAD_HOST
-            #uploadToHost(version, UPLOAD_HOST)
+            uploadToHost(version, UPLOAD_HOST)
 
     else:
         print 'Error: Version number: ' + version + ' is not the trunk!'
@@ -100,3 +93,36 @@ try:
     
 except IndexError:
     sys.exit(1)
+
+"""
+/*
+ * Copyright (c) 2005 Philip Jenvey <pjenvey@groovie.org>
+ * All rights reserved.
+ *
+ * Redistribution and use in source and binary forms, with or without
+ * modification, are permitted provided that the following conditions
+ * are met:
+ * 1. Redistributions of source code must retain the above copyright
+ *    notice, this list of conditions and the following disclaimer.
+ * 2. Redistributions in binary form must reproduce the above copyright
+ *    notice, this list of conditions and the following disclaimer in the
+ *    documentation and/or other materials provided with the distribution.
+ * 3. The name of the author or contributors may not be used to endorse or
+ *    promote products derived from this software without specific prior
+ *    written permission.
+ *
+ * THIS SOFTWARE IS PROVIDED BY THE AUTHOR AND CONTRIBUTORS ``AS IS'' AND
+ * ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE
+ * IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE
+ * ARE DISCLAIMED.  IN NO EVENT SHALL THE AUTHOR OR CONTRIBUTORS BE LIABLE
+ * FOR ANY DIRECT, INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY, OR CONSEQUENTIAL
+ * DAMAGES (INCLUDING, BUT NOT LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS
+ * OR SERVICES; LOSS OF USE, DATA, OR PROFITS; OR BUSINESS INTERRUPTION)
+ * HOWEVER CAUSED AND ON ANY THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT
+ * LIABILITY, OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY
+ * OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF
+ * SUCH DAMAGE.
+ *
+ * $Id$
+ */
+"""

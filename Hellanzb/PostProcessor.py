@@ -1,14 +1,16 @@
 """
+
 PostProcessor (aka troll) - verify/repair/unarchive/decompress files downloaded with
 nzbget
 
-@author pjenvey
+(c) Copyright 2005 Philip Jenvey, Ben Bangert
+[See end of file]
 """
-import Hellanzb, os, re, time
+import Hellanzb, os, re, sys, time
 from threading import Thread, Condition, Lock
-from Logging import *
-from PostProcessorUtil import *
-from Util import *
+from Hellanzb.Log import *
+from Hellanzb.PostProcessorUtil import *
+from Hellanzb.Util import *
 
 __id__ = '$Id$'
 
@@ -36,22 +38,20 @@ class PostProcessor(Thread):
         
         Thread.start(self)
 
-    def __init__(self, dirName, background = True):
+    def __init__(self, dirName, background = True, rarPassword = None):
         """ Ensure sanity of this instance before starting """
         # abort if we lack required binaries
         assertIsExe('par2')
         
-        self.dirName = dirName
+        self.dirName = os.path.realpath(dirName)
         
         # Whether or not this thread is the only thing happening in the app (-p mode)
         self.background = background
         
         self.decompressionThreadPool = []
-
-        # NOTE/FIXME: was considering a Lock instead of RLock here. but even though the
-        # function calls are in this object, they're being called by the decompressor
-        # threads, so RLock is fine
         self.decompressorCondition = Condition()
+
+        self.rarPassword = rarPassword
 
         Thread.__init__(self)
 
@@ -105,8 +105,8 @@ class PostProcessor(Thread):
     
     def processMusic(self):
         """ Assume the integrity of the files in the specified directory have been
-    verified. Iterate through the music files, and decompres them when appropriate in multiple
-    threads """
+        verified. Iterate through the music files, and decompres them when appropriate in
+        multiple threads """
         if not isFreshState(self.dirName, 'music'):
             info(archiveName(self.dirName) + ': Skipping music file decompression')
             return
@@ -120,9 +120,20 @@ class PostProcessor(Thread):
     
         if len(self.musicFiles) == 0:
             return
-                
+
+        self.musicFiles.sort()
+
+        threadCount = min(len(self.musicFiles), int(Hellanzb.MAX_DECOMPRESSION_THREADS))
+        
+        filesTxt = 'file'
+        threadsTxt = 'thread'
+        if len(self.musicFiles) != 1:
+            filesTxt += 's'
+        if threadCount != 1:
+            threadsTxt += 's'
+            
         info(archiveName(self.dirName) + ': Decompressing ' + str(len(self.musicFiles)) + \
-             ' files via ' + str(int(Hellanzb.MAX_DECOMPRESSION_THREADS)) + ' threads..')
+             ' ' + filesTxt + ' via ' + str(threadCount) + ' ' + threadsTxt + '..')
 
         # Failed decompress threads put their file names in this list
         self.failedToProcesses = []
@@ -155,6 +166,7 @@ class PostProcessor(Thread):
         if len(self.failedToProcesses) > 0:
             # Let the threads finish their logging (ScrollInterrupter can
             # lag)
+            # FIXME: is this still necessary?
             time.sleep(.1)
             raise FatalError('Failed to complete music decompression')
 
@@ -181,7 +193,8 @@ class PostProcessor(Thread):
 
         for file in os.listdir(self.dirName):
             ext = getFileExtension(file)
-            if ext != None and len(ext) > 0 and ext in Hellanzb.NOT_REQUIRED_FILE_TYPES:
+            if ext != None and len(ext) > 0 and ext.lower() not in Hellanzb.KEEP_FILE_TYPES and \
+                   ext.lower() in Hellanzb.NOT_REQUIRED_FILE_TYPES:
                 os.rename(self.dirName + os.sep + file,
                           self.dirName + os.sep + Hellanzb.PROCESSED_SUBDIR + os.sep + file)
                 
@@ -193,6 +206,9 @@ class PostProcessor(Thread):
         info(archiveName(self.dirName) + ': Finished processing')
         growlNotify('Archive Success', 'hellanzb Done Processing:', archiveName(self.dirName),
                     True)
+                    #self.background)
+        # FIXME: could unsticky the message if we're running hellanzb.py -p
+        # and preferably if the post processing took say over 30 seconds
 
     def postProcess(self):
         """ process the specified directory """
@@ -229,11 +245,11 @@ class PostProcessor(Thread):
     
         # If there are required broken files and we lack pars, punt
         if len(self.brokenFiles) > 0 and containsRequiredFiles(self.brokenFiles) and not dirHasPars(self.dirName):
-            errorMessage = 'Unable to process directory: ' + self.dirName + '\n' + ' '*4 + \
+            errorMessage = 'Unable to process directory: ' + self.dirName + '\n' + \
                 'This directory has the following broken files: '
             for brokenFile in self.brokenFiles:
-                errorMessage += '\n' + ' '*8 + brokenFile
-                errorMessage += '\n    and contains no par2 files for repair'
+                errorMessage += '\n' + ' '*4 + brokenFile
+            errorMessage += '\nand contains no par2 files for repair'
             raise FatalError(errorMessage)
 
         if dirHasPars(self.dirName):
@@ -242,13 +258,48 @@ class PostProcessor(Thread):
         
         if dirHasRars(self.dirName):
             # grab the rar password if one exists
-            rarPassword = getRarPassword(self.msgId)
+            if self.rarPassword == None:
+                self.rarPassword = getRarPassword(self.msgId)
             
             checkShutdown()
-            processRars(self.dirName, rarPassword)
+            processRars(self.dirName, self.rarPassword)
         
         if dirHasMusic(self.dirName):
             checkShutdown()
             self.processMusic()
 
         self.finishedPostProcess()
+
+"""
+/*
+ * Copyright (c) 2005 Philip Jenvey <pjenvey@groovie.org>
+ *                    Ben Bangert <bbangert@groovie.org>
+ * All rights reserved.
+ *
+ * Redistribution and use in source and binary forms, with or without
+ * modification, are permitted provided that the following conditions
+ * are met:
+ * 1. Redistributions of source code must retain the above copyright
+ *    notice, this list of conditions and the following disclaimer.
+ * 2. Redistributions in binary form must reproduce the above copyright
+ *    notice, this list of conditions and the following disclaimer in the
+ *    documentation and/or other materials provided with the distribution.
+ * 3. The name of the author or contributors may not be used to endorse or
+ *    promote products derived from this software without specific prior
+ *    written permission.
+ *
+ * THIS SOFTWARE IS PROVIDED BY THE AUTHOR AND CONTRIBUTORS ``AS IS'' AND
+ * ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE
+ * IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE
+ * ARE DISCLAIMED.  IN NO EVENT SHALL THE AUTHOR OR CONTRIBUTORS BE LIABLE
+ * FOR ANY DIRECT, INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY, OR CONSEQUENTIAL
+ * DAMAGES (INCLUDING, BUT NOT LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS
+ * OR SERVICES; LOSS OF USE, DATA, OR PROFITS; OR BUSINESS INTERRUPTION)
+ * HOWEVER CAUSED AND ON ANY THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT
+ * LIABILITY, OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY
+ * OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF
+ * SUCH DAMAGE.
+ *
+ * $Id$
+ */
+"""

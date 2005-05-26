@@ -3,22 +3,26 @@
 
 build_util.py - Build related functions 
 
-@author pjenvey
-
+(c) Copyright 2005 Philip Jenvey
+[See end of file]
 """
 import distutils.util, md5, os, setup, shutil, sys, tarfile
-from Hellanzb.Util import Ptyopen
+from Hellanzb.Log import *
+from Hellanzb.Util import Ptyopen2
 
 __id__ = '$Id$'
 
 VERSION_FILENAME = './Hellanzb/__init__.py'
+# rpm builds aren't very portable when built from FreeBSD machines.
+# srpms are useless
+#BDIST_RPM_REQUIRES = 'python >= 2.3 python-twisted pararchive rar flac shorten'
 
 def assertUpToDate(workingCopyDir = None):
     """ Ensure the working copy is up to date with the repository """
     if workingCopyDir == None:
-        p = Ptyopen('svn diff')
+        p = Ptyopen2('svn diff')
     else:
-        p = Ptyopen('svn diff ' + workingCopyDir)
+        p = Ptyopen2('svn diff ' + workingCopyDir)
         
     output, status = p.readlinesAndWait()
     
@@ -27,52 +31,24 @@ def assertUpToDate(workingCopyDir = None):
         print '       Run: svn diff'
         sys.exit(1)
 
-def bumpVersion(oldVersion):
-    """ Bump the ver number. Is dumb and expects 0.0. Will bump by .1 """
-    dot = oldVersion.rfind('.')
-    prefix = oldVersion[0:dot + 1]
-    decimal = int(oldVersion[dot + 1:])
-    decimal = decimal + 1
-
-    return prefix + str(decimal)
-
-def writeVersion(newVersion, destDir = None):
-    """ Write out a new version number """
-    if destDir:
-        versionFile = open(destDir + os.sep + VERSION_FILENAME, 'w')
-    else:
-        versionFile = open(VERSION_FILENAME, 'w')
-    versionFile.write('version = \'' + newVersion + '\'\n')
-    versionFile.close()
-
-def md5File(fileName):
-    """ Return the md5 checksum of the specified file """
-    m = md5.new()
-    file = open(fileName)
-    for line in file.readlines():
-        m.update(line)
-    return m.hexdigest()
-
-def uploadToHost(version, host):
-    """ Upload the new build of version to the UPLOAD_HOST """
-    files = []
-    for file in os.listdir('dist'):
-        # Upload only files for the specified version that aren't platform specific
-        if file.find('-' + version + '.') > -1 and file.find(distutils.util.get_platform()) == -1:
-            files.append(file)
-
-    if len(files) == 0:
-        print 'Error, could not find files to upload'
-
-    cmd = 'scp '
-    for file in files:
-            cmd = cmd + 'dist/' + file + ' '
-    cmd = cmd + host
-
-    os.system(cmd)
+def branchRelease(version):
+    """ branch the code base """
+    fromRepository = getRepository()
+    
+    repository = fromRepository
+    if repository[len(repository) - 1:] == '/':
+        repository = repository[:len(repository) - 1]
+        
+    # Branch
+    branchURL = repository.replace('trunk', 'branches') + '/' + version
+    print 'Branching from: ' + fromRepository + ' to: ' + branchURL
+    os.system('svn copy -m "Branching new release, version: ' + version + '" . ' + branchURL)
+    
+    print 'Switching working copy to the new branch'
+    os.system('svn switch ' + branchURL)
 
 def buildDist():
-    """ build a binary distribution """
+    """ build the source and binary distributions """
     oldArg = sys.argv
 
     # Build source and binary distributions
@@ -81,6 +57,10 @@ def buildDist():
     
     sys.argv = [ 'setup.py', 'bdist' ]
     setup.runSetup()
+
+    #sys.argv = [ 'setup.py', 'bdist_rpm', '--requires', BDIST_RPM_REQUIRES ]
+    #setup.runSetup()
+    
     sys.argv = oldArg
 
 def buildPort(version):
@@ -134,6 +114,15 @@ def buildDPort(version):
     dir = portDestDir[len('dist/'):]
     createTarBall('dist', dir, dir + '.tar.gz')
 
+def bumpVersion(oldVersion):
+    """ Bump the ver number. Is dumb and expects 0.0. Will bump by .1 """
+    dot = oldVersion.rfind('.')
+    prefix = oldVersion[0:dot + 1]
+    decimal = int(oldVersion[dot + 1:])
+    decimal += 1
+
+    return prefix + str(decimal)
+
 def createTarBall(workingDir, dirName, fileName):
     """ tar -cxvf """
     cwd = os.getcwd()
@@ -148,7 +137,7 @@ def createTarBall(workingDir, dirName, fileName):
 
 def getRepository():
     """ Determine the SVN repostiory for the cwd """
-    p = Ptyopen('svn info')
+    p = Ptyopen2('svn info')
     output, status = p.readlinesAndWait()
     
     for line in output:
@@ -157,33 +146,70 @@ def getRepository():
         
     raise FatalError('Could not determine SVN repository')
 
-def branchRelease(version):
-    """ branch the code base """
-    fromRepository = getRepository()
-    
-    repository = fromRepository
-    if repository[len(repository) - 1:] == '/':
-        repository = repository[:len(repository) - 1]
-        
-    # Branch
-    branchURL = repository.replace('trunk', 'branches') + '/' + version
-    print 'Branching from: ' + fromRepository + ' to: ' + branchURL
-    os.system('svn copy -m "TEST -- Branching new release, version: ' + version + '" . ' + branchURL)
+def md5File(fileName):
+    """ Return the md5 checksum of the specified file """
+    m = md5.new()
+    file = open(fileName)
+    for line in file.readlines():
+        m.update(line)
+    return m.hexdigest()
 
-    # copy should copy our working copy to the branch, which should include the version
-    # number bump
+def uploadToHost(version, host):
+    """ Upload the new build of version to the UPLOAD_HOST """
+    files = []
+    for file in os.listdir('dist'):
+        # Upload only files for the specified version that aren't platform specific
+        if file.find('-' + version + '.') > -1 and file.find(distutils.util.get_platform()) == -1:
+            files.append(file)
 
-    #os.rm
-    ##os.system('svn co ' + branchURL + ' build/hellanzb-' + version)
-    ##nwriteVersion(version, 'build/hellanzb-' + version)
-    ##os.system('svn commit ' + 'build/hellanzb-' + version)
-    
-    print 'Switching working copy to the new branch'
-    os.system('svn switch ' + branchURL)
-    
-    #print 'Setting version number on the new branch'
-    #writeVersion(version)
-    #os.system('svn ci -m "Setting branch version to release: ' + version + '" .')
-    
-    #print 'Restoring working copy'
-    #os.system('svn switch ' + fromRepository)
+    if len(files) == 0:
+        print 'Error, could not find files to upload'
+
+    cmd = 'scp '
+    for file in files:
+            cmd += 'dist/' + file + ' '
+    cmd += host
+
+    os.system(cmd)
+
+def writeVersion(newVersion, destDir = None):
+    """ Write out a new version number """
+    if destDir:
+        versionFile = open(destDir + os.sep + VERSION_FILENAME, 'w')
+    else:
+        versionFile = open(VERSION_FILENAME, 'w')
+    versionFile.write('version = \'' + newVersion + '\'\n')
+    versionFile.close()
+
+"""
+/*
+ * Copyright (c) 2005 Philip Jenvey <pjenvey@groovie.org>
+ * All rights reserved.
+ *
+ * Redistribution and use in source and binary forms, with or without
+ * modification, are permitted provided that the following conditions
+ * are met:
+ * 1. Redistributions of source code must retain the above copyright
+ *    notice, this list of conditions and the following disclaimer.
+ * 2. Redistributions in binary form must reproduce the above copyright
+ *    notice, this list of conditions and the following disclaimer in the
+ *    documentation and/or other materials provided with the distribution.
+ * 3. The name of the author or contributors may not be used to endorse or
+ *    promote products derived from this software without specific prior
+ *    written permission.
+ *
+ * THIS SOFTWARE IS PROVIDED BY THE AUTHOR AND CONTRIBUTORS ``AS IS'' AND
+ * ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE
+ * IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE
+ * ARE DISCLAIMED.  IN NO EVENT SHALL THE AUTHOR OR CONTRIBUTORS BE LIABLE
+ * FOR ANY DIRECT, INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY, OR CONSEQUENTIAL
+ * DAMAGES (INCLUDING, BUT NOT LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS
+ * OR SERVICES; LOSS OF USE, DATA, OR PROFITS; OR BUSINESS INTERRUPTION)
+ * HOWEVER CAUSED AND ON ANY THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT
+ * LIABILITY, OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY
+ * OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF
+ * SUCH DAMAGE.
+ *
+ * $Id$
+ */
+"""

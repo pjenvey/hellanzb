@@ -1,29 +1,27 @@
-#!/usr/bin/env python
 """
 
-hellanzb - hella nzb
+HellanzbTestCase - All hellanzb tests should derive from this class
 
-Command line interface to the Hellanzb library.
-
-@see Hellanzb.Core.main()
-@see Hellanzb.Core.parseArgs()
-
-(c) Copyright 2005 Philip Jenvey, Ben Bangert
+(c) Copyright 2005 Philip Jenvey
 [See end of file]
 """
-
-from Hellanzb.Core import main
+import unittest
+import Hellanzb.Core
 
 __id__ = '$Id$'
 
-if __name__ == '__main__':
-    
-    main()
+class HellanzbTestCase(unittest.TestCase):
+    def setUp(self):
+        """ Initialize hellanzb core """
+        #Hellanzb.Core.init()
+
+    def tearDown(self):
+        """ Take it down """
+        #Hellanzb.Core.shutdown()
 
 """
 /*
  * Copyright (c) 2005 Philip Jenvey <pjenvey@groovie.org>
- *                    Ben Bangert <bbangert@groovie.org>
  * All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without

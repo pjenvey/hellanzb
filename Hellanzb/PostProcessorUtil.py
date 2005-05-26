@@ -1,12 +1,14 @@
 """
+
 PostProcessorUtil - support functions for the PostProcessor
 
-@author pjenvey
+(c) Copyright 2005 Philip Jenvey, Ben Bangert
+[See end of file]
 """
-import Hellanzb, os, re
+import Hellanzb, os, re, sys
 from threading import Thread
-from Logging import *
-from Util import *
+from Hellanzb.Log import *
+from Hellanzb.Util import *
 
 __id__ = '$Id$'
 
@@ -14,7 +16,7 @@ __id__ = '$Id$'
 # music might want to be decompressed
 class MusicType:
     """ Defines a music file type, and whether or not this program should attempt to
-decompress the music (to wav, generally) if it comes across this type of file """
+    decompress the music (to wav, generally) if it comes across this type of file """
     extension = None
     decompressor = None
     decompressToType = None
@@ -23,7 +25,7 @@ decompress the music (to wav, generally) if it comes across this type of file ""
     def __init__(self, extension, decompressor, decompressToType):
         self.extension = extension
 
-        if decompressor != None and decompressor != "":
+        if decompressor != None and decompressor != '':
             # exit if we lack the required decompressor
             assertIsExe(decompressor)
             self.decompressor = decompressor
@@ -104,9 +106,8 @@ def isRar(fileName):
         return True
 
     # If it doesn't end in rar, use unix file(1) 
-    p = Ptyopen('file -b "' + absPath + '"')
-    output, status = p.readlinesAndWait()
-    returnCode = os.WEXITSTATUS(status)
+    t = Topen('file -b "' + absPath + '"')
+    output, returnCode = t.readlinesAndWait()
 
     if len(output) > 0:
         line = output[0]
@@ -127,9 +128,15 @@ def isPar(fileName):
         return True
     return False
 
+def isDuplicate(fileName):
+    """ Determine if the specified file is a duplicate """
+    if stringEndsWith(fileName, '_duplicate') or re.match(r'.*_duplicate\d{0,4}', fileName):
+        return True
+    return False
+
 def isAlbumCoverArchive(fileName):
     """ determine if the archive (zip or rar) file likely contains album cover art, which
-requires special handling """
+    requires special handling """
     # FIXME: check for images jpg/gif/tiff, and or look for key words like 'cover',
     # 'front' 'back' in the file name, AND within the archive
 
@@ -145,23 +152,23 @@ requires special handling """
 
 def isRequiredFile(fileName):
     """ Given the specified of file name, determine if the file is required for the full
-completition of the unarchiving process (ie, the completition of this
-program). Non-Required files are those such as .NFOs, .SFVs, etc. Other types of files are
-considered important (such as .RARs, .WAVs, etc). If any required files are missing or
-broken, PAR2 files will be required to repair """
+    completition of the unarchiving process (ie, the completition of this
+    program). Non-Required files are those such as .NFOs, .SFVs, etc. Other types of files
+    are considered important (such as .RARs, .WAVs, etc). If any required files are
+    missing or broken, PAR2 files will be required to repair """
     isRequired = True
-    for ext in Hellanzb.NOT_REQUIRED_FILE_TYPES:
-        if getFileExtension(fileName) == ext:
-            isRequired = False
+    ext = getFileExtension(fileName)
+    if ext != None and ext.lower() in Hellanzb.NOT_REQUIRED_FILE_TYPES:
+        isRequired = False
 
     return isRequired
 
 def containsRequiredFiles(fileList):
-    """ Given the list of file names, determine if any of the files are required for the full
-completition of the unarchiving process (ie, the completition of this
-program). Non-Required files are those such as .NFOs, .SFVs, etc. Other types of files are
-considered important (such as .RARs, .WAVs, etc). If any required files are missing or
-broken, PAR2 files will be required to repair """
+    """ Given the list of file names, determine if any of the files are required for the
+    full completition of the unarchiving process (ie, the completition of this
+    program). Non-Required files are those such as .NFOs, .SFVs, etc. Other types of files
+    are considered important (such as .RARs, .WAVs, etc). If any required files are
+    missing or broken, PAR2 files will be required to repair """
     for file in fileList:
         if isRequiredFile(file):
             return True
@@ -169,11 +176,16 @@ broken, PAR2 files will be required to repair """
 
 def defineMusicType(extension, decompressor, decompressToType):
     """ Create a new instance of a MusicType and add it to the list of known music types """
-    MusicType.musicTypes.append(MusicType(extension, decompressor, decompressToType))
+    try:
+        MusicType.musicTypes.append(MusicType(extension, decompressor, decompressToType))
+    except FatalError:
+        error('Problem in config file with defineMusicType() for extension: ' + str(extension))
+        raise
 
 def deleteDuplicates(dirName):
+    """ Delete _duplicate files """
     for file in os.listdir(dirName):
-        if stringEndsWith(file, '_duplicate') and os.access(file, os.W_OK):
+        if isDuplicate(file) and os.access(file, os.W_OK):
             os.remove(file)
 
 def cleanUp(dirName):
@@ -215,9 +227,8 @@ def decompressMusicFile(fileName, musicType):
          os.path.basename(fileName))
     cmd = cmd.replace('<DESTFILE>', '"' + destFileName + '"')
 
-    p = Ptyopen2(cmd)
-    output, status = p.readlinesAndWait()
-    returnCode = os.WEXITSTATUS(status)
+    t = Topen(cmd)
+    output, returnCode = t.readlinesAndWait()
 
     if returnCode == 0:
         # Successful, move the old file away
@@ -245,8 +256,22 @@ def processRars(dirName, rarPassword):
     for file in files:
         absPath = os.path.normpath(dirName + os.sep + file)
         
-        if isRar(absPath) and not isAlbumCoverArchive(absPath) and absPath not in processedRars:
+        # Sometimes nzbget leaves .1 files lying around. I'm not sure why, or if it will
+        # leave more than just the .1
+        if not os.path.isdir(absPath) and isRar(absPath) and \
+                not isDuplicate(absPath) and not stringEndsWith(absPath, '.1') and \
+                not stringEndsWith(absPath, '_broken') and not isAlbumCoverArchive(absPath) and \
+                absPath not in processedRars:
+            # Found the first rar. this is always the first rar to start extracting with,
+            # unless there is a .rar file. However, rar seems to be smart enough to look
+            # for a .rar file if we specify this incorrect first file anyway
+            
             processedRars.extend(unrar(absPath, rarPassword))
+            # FIXME: move rars into processed immediately
+            # justProcessedRars = unrar(absPath, rarPassword)
+            # processedRars.extend(justProcessedRars) # is this still necessary?
+            # for rar in justProcessedRars:
+            #     moveToProcessed(rar)
     
     processComplete(dirName, 'rar',
                     lambda file : os.path.isfile(file) and isRar(file) and not isAlbumCoverArchive(file))
@@ -254,6 +279,8 @@ def processRars(dirName, rarPassword):
 
 def unrar(fileName, rarPassword = None, pathToExtract = None):
     """ Unrar the specified file. Returns all the rar files we extracted from """
+    # FIXME: since we unrar multiple files, this function's FatalErrors shouldn't destroy
+    # the chain of unraring (it currently does)
     if fileName == None:
         # FIXME: this last part is dumb, when isAlbumCoverArchive works, this FetalError
         # could mean the only rars we found are were album covers
@@ -268,9 +295,8 @@ def unrar(fileName, rarPassword = None, pathToExtract = None):
     # First, list the contents of the rar, if any filenames are preceeded with *, the rar
     # is passworded
     listCmd = Hellanzb.UNRAR_CMD + ' l -y ' + ' "' + fileName + '"'
-    p = Ptyopen2(listCmd)
-    output, listStatus = p.readlinesAndWait()
-    listReturnCode = os.WEXITSTATUS(listStatus)
+    t = Topen(listCmd)
+    output, listReturnCode = t.readlinesAndWait()
 
     if listReturnCode > 0:
         errMsg = 'There was a problem during the rar listing, output:\n\n'
@@ -308,7 +334,8 @@ def unrar(fileName, rarPassword = None, pathToExtract = None):
         # known passwords for this loop are all known passwords minus those in that file
         growlNotify('Archive Error', 'hellanzb Archive requires password:', archiveName(dirName),
                     True)
-        raise FatalError('Cannot continue, this archive requires a RAR password and there is none set')
+        raise FatalError('Cannot continue, this archive requires a RAR password. Run ' + sys.argv[0] + \
+                         ' -p on the archive directory with the -P option to specify a password')
         
     if isPassworded:
         cmd = Hellanzb.UNRAR_CMD + ' x -y -p' + rarPassword + ' "' + fileName + '" "' + \
@@ -316,10 +343,9 @@ def unrar(fileName, rarPassword = None, pathToExtract = None):
     else:
         cmd = Hellanzb.UNRAR_CMD + ' x -y' + ' "' + fileName + '" "' + pathToExtract + '"'
     
-    info(archiveName(dirName) + ': Unraring ' + os.path.basename(fileName))
-    p = Ptyopen2(cmd)
-    output, status = p.readlinesAndWait()
-    unrarReturnCode = os.WEXITSTATUS(status)
+    info(archiveName(dirName) + ': Unraring ' + os.path.basename(fileName) + '..')
+    t = Topen(cmd)
+    output, unrarReturnCode = t.readlinesAndWait()
 
     if unrarReturnCode > 0:
         errMsg = 'There was a problem during unrar, output:\n\n'
@@ -332,17 +358,50 @@ def unrar(fileName, rarPassword = None, pathToExtract = None):
     prefix = 'Extracting from '
     for line in output:
         if len(line) > len(prefix) + 1 and line.find(prefix) == 0:
-           rarFile = line[len(prefix):].rstrip()
-           # Distrust the dirname rar returns (just incase)
-           rarFile = os.path.normpath(os.path.dirname(fileName) + os.sep + os.path.basename(rarFile))
-           processedRars.append(rarFile)
+            rarFile = line[len(prefix):].rstrip()
+            # Distrust the dirname rar returns (just incase)
+            rarFile = os.path.normpath(os.path.dirname(fileName) + os.sep + os.path.basename(rarFile))
+            processedRars.append(rarFile)
 
     return processedRars
 
+"""
+## From par2cmdline-0.4
+
+// Return type of par2cmdline
+typedef enum Result
+{
+  eSuccess                     = 0,
+
+  eRepairPossible              = 1,  // Data files are damaged and there is
+                                     // enough recovery data available to
+                                     // repair them.
+
+  eRepairNotPossible           = 2,  // Data files are damaged and there is
+                                     // insufficient recovery data available
+                                     // to be able to repair them.
+
+  eInvalidCommandLineArguments = 3,  // There was something wrong with the
+                                     // command line arguments
+
+  eInsufficientCriticalData    = 4,  // The PAR2 files did not contain sufficient
+                                     // information about the data files to be able
+                                     // to verify them.
+
+  eRepairFailed                = 5,  // Repair completed but the data files
+                                     // still appear to be damaged.
+
+
+  eFileIOError                 = 6,  // An error occured when accessing files
+  eLogicError                  = 7,  // In internal error occurred
+  eMemoryError                 = 8,  // Out of memory
+
+} Result;
+"""
 def processPars(dirName):
-    """ Verify the integrity of the files in the specified directory via par2. If files need
-repair and there are enough recovery blocks, repair the files. If files need repair and
-there are not enough recovery blocks, raise a fatal exception """
+    """ Verify the integrity of the files in the specified directory via par2. If files
+    need repair and there are enough recovery blocks, repair the files. If files need
+    repair and there are not enough recovery blocks, raise a fatal exception """
     # Just incase we're running the program again, and we already successfully processed
     # the pars, don't bother doing it again
     if not isFreshState(dirName, 'par'):
@@ -352,12 +411,15 @@ there are not enough recovery blocks, raise a fatal exception """
     info(archiveName(dirName) + ': Verifying via pars..')
 
     dirName += os.sep
-    repairCmd = 'par2 r "' + dirName + '*.PAR2" "' + dirName + '*.par2" "' + dirName + '*_broken"'
+    repairCmd = 'par2 r "' + dirName + '*.PAR2" "' + dirName + '*.par2" "'
+    if '.par2' in os.listdir(dirName):
+        # a filename of '.par2' will not be wildcard glob'd by '*.par2'. WHY?????
+        repairCmd += dirName + '.par2" "'
+    repairCmd += dirName + '*_broken"'
 
-    p = Ptyopen(repairCmd)
-    output, status = p.readlinesAndWait()
-    returnCode = os.WEXITSTATUS(status)
-        
+    t = Topen(repairCmd)
+    output, returnCode = t.readlinesAndWait()
+
     if returnCode == 0:
         # FIXME: checkout for 'repaired blah' messages.
         # for line in output:
@@ -371,11 +433,7 @@ there are not enough recovery blocks, raise a fatal exception """
         # Verified
         info(archiveName(dirName) + ': Par verification passed')
 
-    elif returnCode == 1:
-        # this should never happen
-        raise FatalError('par repair unexpectedly returned returned: 1')
-            
-    elif returnCode > 1:
+    elif returnCode == 2:
         # Repair required and impossible
 
         # First, if the repair is not possible, double check the output for what files are
@@ -392,12 +450,20 @@ there are not enough recovery blocks, raise a fatal exception """
                              ' more recovery blocks for repair')
             # otherwise processComplete here (failed)
 
+    elif returnCode == 3:
+        raise FatalError('par2 repair failed: returned code: ' + str(returnCode) + \
+                         '. Please run par2 manually for more information: ' + repairCmd)
+    else:
+        # Abnormal behavior -- let the user deal with it
+        raise FatalError('par2 repair failed: returned code: ' + str(returnCode) + \
+                         '. Please run par2 manually for more information')
+
     processComplete(dirName, 'par', isPar)
 
 def parseParNeedsBlocksOutput(archive, output):
-    """ Return a list of broken or damaged required files from par2 v output, and the required
-blocks needed. Will also log warn the user when it finds either of these kinds of files,
-or log error when they're required """
+    """ Return a list of broken or damaged required files from par2 v output, and the
+    required blocks needed. Will also log warn the user when it finds either of these
+    kinds of files, or log error when they're required """
     damagedAndRequired = []
     neededBlocks = None
     damagedRE = re.compile(r'"\ -\ damaged\.\ Found\ \d+\ of\ \d+\ data\ blocks\.')
@@ -436,24 +502,28 @@ or log error when they're required """
             neededBlocks = line[:-len(' more recovery blocks to be able to repair.')]
             
     return damagedAndRequired, neededBlocks
+
+def moveToProcessed(file):
+    """ Move files to the processed dir """
+    os.rename(file, os.path.dirname(file) + os.sep + Hellanzb.PROCESSED_SUBDIR + os.sep + \
+              os.path.basename(file))
         
 def processComplete(dirName, processStateName, moveFileFilterFunction):
     """ Once we've finished a particular processing state, this function will be called to
-move the files we processed out of the way, and touch a file on the filesystem indicating
-this state is done """
+    move the files we processed out of the way, and touch a file on the filesystem
+    indicating this state is done """
     # ensure we pass the absolute path to the filter function
     if moveFileFilterFunction != None:
         for file in filter(moveFileFilterFunction, [dirName + os.sep + file for file in os.listdir(dirName)]):
-            os.rename(file, os.path.dirname(file) + os.sep + Hellanzb.PROCESSED_SUBDIR + os.sep + \
-                      os.path.basename(file))
+            moveToProcessed(file)
 
     # And make a note of the completition
     touch(dirName + os.sep + Hellanzb.PROCESSED_SUBDIR + os.sep + '.' + processStateName + '_done')
 
 def getRarPassword(msgId):
     """ Get the specific rar password set for the specified msgId """
-    if os.path.isdir(Hellanzb.PASSWORDS_DIR):
-                     
+    # FIXME: get rid of this older, lamer way of getting passwords
+    if hasattr(Hellanzb, 'PASSWORDS_DIR') and os.path.isdir(Hellanzb.PASSWORDS_DIR):
         for file in os.listdir(Hellanzb.PASSWORDS_DIR):
             if file == msgId:
 
@@ -461,11 +531,45 @@ def getRarPassword(msgId):
                 if not os.access(absPath, os.R_OK):
                     raise FatalError('Refusing to continue: unable to read rar password (no read access)')
             
-            msgIdFile = open(absPath)
-            return msgIdFile.read().rstrip()
+                msgIdFile = open(absPath)
+                return msgIdFile.read().rstrip()
 
 def isFreshState(dirName, stateName):
     """ Determine if the specified state has already been completed """
     if os.path.isfile(dirName + os.sep + Hellanzb.PROCESSED_SUBDIR + os.sep + '.' + stateName + '_done'):
         return False
     return True
+
+"""
+/*
+ * Copyright (c) 2005 Philip Jenvey <pjenvey@groovie.org>
+ *                    Ben Bangert <bbangert@groovie.org>
+ * All rights reserved.
+ *
+ * Redistribution and use in source and binary forms, with or without
+ * modification, are permitted provided that the following conditions
+ * are met:
+ * 1. Redistributions of source code must retain the above copyright
+ *    notice, this list of conditions and the following disclaimer.
+ * 2. Redistributions in binary form must reproduce the above copyright
+ *    notice, this list of conditions and the following disclaimer in the
+ *    documentation and/or other materials provided with the distribution.
+ * 3. The name of the author or contributors may not be used to endorse or
+ *    promote products derived from this software without specific prior
+ *    written permission.
+ *
+ * THIS SOFTWARE IS PROVIDED BY THE AUTHOR AND CONTRIBUTORS ``AS IS'' AND
+ * ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE
+ * IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE
+ * ARE DISCLAIMED.  IN NO EVENT SHALL THE AUTHOR OR CONTRIBUTORS BE LIABLE
+ * FOR ANY DIRECT, INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY, OR CONSEQUENTIAL
+ * DAMAGES (INCLUDING, BUT NOT LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS
+ * OR SERVICES; LOSS OF USE, DATA, OR PROFITS; OR BUSINESS INTERRUPTION)
+ * HOWEVER CAUSED AND ON ANY THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT
+ * LIABILITY, OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY
+ * OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF
+ * SUCH DAMAGE.
+ *
+ * $Id$
+ */
+"""

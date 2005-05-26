@@ -1,3 +1,5 @@
+include CREDITS
+include LICENSE
 include hellanzb.py
 include hellagrowler.py
 include etc/hellanzb.conf.sample

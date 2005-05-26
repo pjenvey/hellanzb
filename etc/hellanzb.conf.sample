@@ -3,70 +3,91 @@
 # 
 # $Id$
 
-# Log output to this file
+# Log output to this file, set to None (no single quotes) for no logging
 Hellanzb.LOG_FILE = '/var/tmp/hellanzb.log'
 
 
-# Define server connections. Servers can have multiple hosts, Newsleecher will
+# Define server connections. Servers can have multiple hosts, hellanzb will
 # persist the number of connections to each specified server. There may be
 # mulitple defineServer lines
 defineServer(id = 'changeme',
-             hosts = ['news.changeme.com:119', 'morenews.changeme.com:119'],
+             hosts = [ 'news.changeme.com:119' ],
+             #hosts = [ 'news.changeme.com:119', 'morenews.changeme.com:119' ],
              username = 'changeme',
-             password = 'fuckbush',
+             password = 'hella',
              connections = 4,
-             priority = 1,
-             bindto = '')
+             antiIdle = 7 * 60,          # 7 minutes
+             #bindTo = '204.31.33.7',    # connect FROM this ip address
+             #maxSpeed = 150             # limit to 150kB/s
+             )
 
 
 # Important locations
 Hellanzb.PREFIX_DIR = '/ext2/'
 
-# Where to put queued up .nzb files
+# Where to put queued .nzb files
 Hellanzb.QUEUE_DIR = Hellanzb.PREFIX_DIR + 'nzb/daemon.queue/'
+
 # Where the fully processed archives go
 Hellanzb.DEST_DIR = Hellanzb.PREFIX_DIR + 'usenet/'
-# The .nzb we're currently downloading is stored here
+
+# The .nzb currently being downloaded is stored here
 Hellanzb.CURRENT_DIR = Hellanzb.PREFIX_DIR + 'nzb/daemon.current/'
+
 # The archive currently being downloaded is stored here
 Hellanzb.WORKING_DIR = Hellanzb.PREFIX_DIR + 'nzb/daemon.working/'
+
 # Temp storage
 Hellanzb.TEMP_DIR = Hellanzb.PREFIX_DIR + 'nzb/daemon.temp/'
 
-# FIXME: Where to store the passwords for rar archives
-Hellanzb.PASSWORDS_DIR = Hellanzb.PREFIX_DIR + 'nzb/daemon.passwords/'
 
-# Sub directory within the nzb archive dir to move proccessed files to
+# _Sub directory within the nzb archive dir_ to move proccessed files to
 Hellanzb.PROCESSED_SUBDIR = 'processed'
 
 
-# Supported music types and optionally their decompression executables and the file type
-# that executable will decompress to. The exes must be in the PATH.
+# Supported music types (case insensitive) and optionally their decompression executables
+# and the file type that executable will decompress to (case insensitive). The exes must
+# be in the PATH.
 #
 # <FILE> will be replaced with the name of music file
 # optional <DESTFILE> is <FILE> with the specified extension
-#nnn
+#
 # None means these files don't need to be decompressed
-defineMusicType('ape', 'mac <FILE> <DESTFILE> -d', 'wav')
-defineMusicType('flac', 'flac -d <FILE>', 'wav')
 defineMusicType('wav', None, None)
 defineMusicType('mp3', None, None)
+#defineMusicType('ape', 'mac <FILE> <DESTFILE> -d', 'wav')
+#defineMusicType('flac', 'flac -d <FILE>', 'wav')
+#defineMusicType('shn', 'shorten -x < <FILE> > <DESTFILE>', 'wav')
 
 # max files we should decompress at the same time
 Hellanzb.MAX_DECOMPRESSION_THREADS = 2
 
 
-# Enable grow notifications for 31337 Mac OS X people
-Hellanzb.ENABLE_GROWL_NOTIFY = True
+# Enable Mac OS X Growl notifications
+Hellanzb.GROWL_NOTIFY = False
 
-# The hellagrowler notification server, in the format 'hostname:port'
-Hellanzb.SERVER = 'IP:7300'
+# The growl notification server, in the format 'hostname'
+Hellanzb.GROWL_SERVER = 'IP'
+
+# The growl password
+Hellanzb.GROWL_PASSWORD = 'password'
 
 
 # If any of the following file types are missing from the archive and cannot be repaired,
-# continue processing because they're unimportant
-Hellanzb.NOT_REQUIRED_FILE_TYPES = [ 'm3u', 'nfo', 'sfv', 'log' ]
+# continue processing because they're unimportant (case insensitive)
+Hellanzb.NOT_REQUIRED_FILE_TYPES = [ 'log', 'm3u', 'nfo', 'nzb', 'sfv', 'txt' ]
+
+# Don't get rid of (move into the PROCESSED dir) the following file types when finished
+# post processing (case insensitive)
+#Hellanzb.KEEP_FILE_TYPES = [ 'log', 'm3u', 'nfo', 'nzb', 'sfv', 'txt' ]
+Hellanzb.KEEP_FILE_TYPES = [ 'nfo', 'txt' ]
 
 
-# For debugging
-Hellanzb.DEBUG_MODE = False
+# Automatically rollover the log files when they reach LOG_FILE_MAX_BYTES size
+Hellanzb.LOG_FILE_MAX_BYTES = 0
+
+# Save LOG_FILE_BACKUP_COUNT of those rolled over log files 
+Hellanzb.LOG_FILE_BACKUP_COUNT = 0
+
+# Uncomment this line to log DEBUG messages to the specified file
+#Hellanzb.DEBUG_MODE = '/var/tmp/hellanzb-debug.log'

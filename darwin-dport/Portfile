@@ -1,20 +1,18 @@
 # $Id$
 
 PortSystem 1.0
-# This python portgroup will require you to download the python dport =[
-#PortGroup python 1.0
+PortGroup python24 1.0
 
 name             hellanzb
 version          ____VERSION____
-categories       net python
+categories       news python
 maintainers      pjenvey@groovie.org
-description      Hands free usenet file retrieval via nzb files
+description      nzb downloader and post processor
 long_description \
-                 hellanzb is a Python script designed to be run under a *nix environment to retrieve nzb \
-                 files and fully process them. The goal being to make getting files from Usenet as \
-                 hands-free as possible. Once fully installed, all thats required is moving an nzb file to \
-                 the queue directory. The rest; fetching, par-checking, un-raring, etc. is taken care of by \
-                 hellanzb.
+                 hellanzb is an easy to use app designed to retrieve nzb files and fully process them. \
+                 The goal being to make getting files from Usenet as hands-free as possible. Once fully \
+                 installed, all thats required is moving an nzb file to the queue directory. The rest: \
+                 downloading, par-checking, un-raring, etc. is done automatically by hellanzb.
 homepage         http://www.hellanzb.com
 platforms        darwin
 
@@ -22,37 +20,16 @@ master_sites     http://www.hellanzb.com/distfiles/
 distname         hellanzb-${version}
 checksums        ____MD5_CHECKSUM____
 
-# Stripped from the python group
-set python.bin   python
-
-use_configure    no
-
-build.cmd        ${python.bin} setup.py
-build.target     build
-
-destroot.cmd     ${python.bin} setup.py
-destroot.destdir --prefix=${destroot}${prefix}
-
-set sys_python_prefix /System/Library/Frameworks/Python.framework/Versions/Current
-
-# End Stripped
-
-depends_run  bin:nzbget:nzbget \
-             bin:par2:par2 \
+depends_run  bin:par2:par2 \
              bin:rar:rar \
              bin:flac:flac \
+             bin:shorten:shorten \
+             lib:XXX:py-twisted \
 
 post-activate {
-        # copy over the sample conf file if neccessary
+        # copy over the sample conf file if necessary
         if { ![file exists ${prefix}/etc/${name}.conf] } {
              file copy ${prefix}/etc/${name}.conf.sample \
              ${prefix}/etc/${name}.conf
         }
-
-
-        # Make sure Hellanzb is symlinked to the sys_python_prefix
-        file delete -force ${sys_python_prefix}/lib/python2.3/site-packages/Hellanzb
-
-        file link ${sys_python_prefix}/lib/python2.3/site-packages/Hellanzb \
-             ${prefix}/lib/python2.3/site-packages/Hellanzb
 }

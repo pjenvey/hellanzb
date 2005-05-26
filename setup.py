@@ -20,15 +20,15 @@ def runSetup():
     setup(
         name = 'hellanzb',
         version = version,
-        author = '#kgb',
-        author_email = '<hellanzb@hellanzb.com>',
-        url = 'http://www.hellanzb.com/',
-        license = 'UNAUTHORIZED USE ENTITLES #kgb TO KILL YOU AND YOUR ENTIRE FAMILY',
+        author = 'Philip Jenvey',
+        author_email = '<pjenvey@groovie.org>',
+        url = 'http://www.hellanzb.com',
+        license = 'BSD',
 
-        packages = [ 'Hellanzb' ],
+        packages = [ 'Hellanzb', 'Hellanzb.NZBLeecher' ],
         scripts = [ 'hellanzb.py', 'hellagrowler.py' ],
         data_files = [ ( 'etc', [ 'etc/hellanzb.conf.sample' ] ),
-                       ( 'share/doc/hellanzb', [ 'README' ] ) ],
+                       ( 'share/doc/hellanzb', [ 'CREDITS', 'README', 'LICENSE' ] ) ],
         )
 
 if __name__ == '__main__':

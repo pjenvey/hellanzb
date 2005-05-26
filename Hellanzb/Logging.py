@@ -297,17 +297,15 @@ class NZBLeecherTicker:
                 pass
                 
             if lastSegment != None and lastSegment.nzbFile == segment.nzbFile:
-                line = self.connectionPrefix + ' %s (%s)' + ACODE.KILL_LINE
+                line = self.connectionPrefix + ' %s' + ACODE.KILL_LINE
                 # 57 line width -- approximately 80 - 5 (prefix) - 18 (max suffix)
                 self.currentLog += line % (prettyId,
-                                           rtruncate(segment.nzbFile.showFilename, length = 50),
-                                           str(segment.number))
+                                           rtruncate(segment.nzbFile.showFilename, length = 57))
             else:
-                line = self.connectionPrefix + ' %s (%s) - ' + ACODE.F_DGREEN + '%2d%%' + ACODE.RESET + \
+                line = self.connectionPrefix + ' %s - ' + ACODE.F_DGREEN + '%2d%%' + ACODE.RESET + \
                        ACODE.F_DBLUE + ' @ ' + ACODE.RESET + ACODE.F_DRED + '%.1fKB/s' + ACODE.KILL_LINE
                 self.currentLog += line % (prettyId,
-                                           rtruncate(segment.nzbFile.showFilename, length = 49),
-                                           str(segment.number),
+                                           rtruncate(segment.nzbFile.showFilename, length = 57),
                                            segment.nzbFile.downloadPercentage, segment.nzbFile.speed)
                 
             self.currentLog += '\n\r'

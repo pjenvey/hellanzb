@@ -132,8 +132,10 @@ def parseArticleData(segment, justExtractFilename = False):
             setRealFileName(segment, filename)
             encodingType = UUENCODE
             withinData = True
+
         elif line == '':
             continue
+
         elif not withinData and encodingType == YENCODE:
             # Found ybegin, but no ypart. withinData should have started on the previous
             # line -- so instead we have to process the current line
@@ -143,6 +145,7 @@ def parseArticleData(segment, justExtractFilename = False):
             if line[:2] == '..':
                 line = line[1:]
                 segment.articleData[index] = line
+
         elif not withinData:
             # Assume this is a subsequent uuencode segment
             withinData = True

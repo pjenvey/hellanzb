@@ -16,7 +16,8 @@ from Hellanzb.Util import *
 __id__ = '$Id$'
 
 def ensureDaemonDirs():
-    """ Ensure that all the required directories exist, otherwise attempt to create them """
+    """ Ensure that all the required directories exist and are writable, otherwise attempt to
+    create them """
     for arg in dir(Hellanzb):
         if stringEndsWith(arg, "_DIR") and arg == arg.upper():
             exec 'dirName = Hellanzb.' + arg
@@ -27,9 +28,17 @@ def ensureDaemonDirs():
                     # FIXME: this isn't caught -- it's not a clean way to exit the program
                     raise FatalError('Unable to create directory for option: Hellanzb.' + \
                                      arg + ' dirName: ' + dirName + ' error: ' + str(ose))
+            elif not os.access(dirName, os.W_OK):
+                raise FatalError('Cannot continue: need write access to directory: ' + dirName)
+            
 def initDaemon():
     """ Start the daemon """
-    ensureDaemonDirs()
+    try:
+        ensureDaemonDirs()
+    except FatalError, fe:
+        error('Exiting', fe)
+        from Hellanzb.Core import shutdownNow
+        shutdownNow(1)        
 
     reactor.callLater(0, info, 'hellanzb - Now monitoring queue...')
     reactor.callLater(0, growlNotify, 'Queue', 'hellanzb', 'Now monitoring queue..', False)

@@ -18,6 +18,7 @@ __id__ = '$Id$'
 def ensureDaemonDirs():
     """ Ensure that all the required directories exist and are writable, otherwise attempt to
     create them """
+    badPermDirs = []
     for arg in dir(Hellanzb):
         if stringEndsWith(arg, "_DIR") and arg == arg.upper():
             exec 'dirName = Hellanzb.' + arg
@@ -29,7 +30,18 @@ def ensureDaemonDirs():
                     raise FatalError('Unable to create directory for option: Hellanzb.' + \
                                      arg + ' dirName: ' + dirName + ' error: ' + str(ose))
             elif not os.access(dirName, os.W_OK):
-                raise FatalError('Cannot continue: need write access to directory: ' + dirName)
+                badPermDirs.append(dirName)
+                
+    if len(badPermDirs):
+        dirTxt = 'directory'
+        if len(badPermDirs) > 1:
+            dirTxt = 'directories'
+        err = 'Cannot continue: hellanzb needs write access to ' + dirTxt + ':'
+        
+        for dirName in badPermDirs:
+            err += '\n' + dirName
+            
+        raise FatalError(err)
             
 def initDaemon():
     """ Start the daemon """

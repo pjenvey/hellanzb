@@ -42,15 +42,12 @@ try:
 
     versionLine = re.sub(r'^.*\ \'', r'', versionLine)
     version = re.sub(r'\'', r'', versionLine)
-    newVersion = version
 
     if stringEndsWith(version, '-trunk'):
         if not options.trunk:
             # Bump the version to a stable number
             version = version[0:-len('-trunk'):]
-            newVersion = bumpVersion(version)
-            writeVersion(newVersion)
-            version = newVersion
+            writeVersion(version)
 
         # branch if doing a release
         if not options.trunk and not options.local:
@@ -76,13 +73,14 @@ try:
 
         if not options.trunk:
             # Append -trunk back to the number
-            newVersion = version + '-trunk'
+            newVersion = bumpVersion(version) + '-trunk'
             writeVersion(newVersion)
 
         # Check in changes to trunk
         if not options.local and not options.trunk:
             print 'Checking in new version number: ' + newVersion
-            os.system('svn ci -m "New build, version: ' + version + '" ' + VERSION_FILENAME)
+            os.system('svn ci -m "New build, version: ' + version + ' trunk now: ' + \
+                      newVersion + '" ' + VERSION_FILENAME)
             
             print 'Deploying new build to host: ' + UPLOAD_HOST
             uploadToHost(version, UPLOAD_HOST)

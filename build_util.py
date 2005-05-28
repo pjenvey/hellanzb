@@ -40,9 +40,9 @@ def branchRelease(version):
         repository = repository[:len(repository) - 1]
         
     # Branch
-    branchURL = repository.replace('trunk', 'branches') + '/' + version
+    branchURL = repository.replace('trunk', 'tags') + '/' + version
     print 'Branching from: ' + fromRepository + ' to: ' + branchURL
-    os.system('svn copy -m "Branching new release, version: ' + version + '" . ' + branchURL)
+    os.system('svn copy -m "Tagging new release, version: ' + version + '" . ' + branchURL)
     
     print 'Switching working copy to the new branch'
     os.system('svn switch ' + branchURL)

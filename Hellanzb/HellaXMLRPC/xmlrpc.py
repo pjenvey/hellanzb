@@ -1,8 +1,8 @@
+# -*- coding: iso-8859-1 -*-
 # -*- test-case-name: twisted.web.test.test_xmlrpc -*-
 #
 # Copyright (c) 2001-2004 Twisted Matrix Laboratories.
 # See LICENSE for details.
-from __future__ import nested_scopes
 
 
 """A generic resource for publishing objects via XML-RPC.
@@ -14,21 +14,27 @@ API Stability: semi-stable
 
 Maintainer: U{Itamar Shtull-Trauring<mailto:twisted@itamarst.org>}
 """
-"""
-(from TwistedWeb-0.5.0)
-"""
+from __future__ import nested_scopes
 
 __version__ = "$Revision: 1.32 $"[11:-2]
 
 # System Imports
+import base64
+import string
 import xmlrpclib
+import urllib
 import urlparse
 
 # Sibling Imports
 from twisted.web import resource, server
 from twisted.internet import defer, protocol, reactor
 from twisted.python import log, reflect
-from twisted.web import http
+
+import twisted.copyright
+if twisted.copyright.version >= '2.0.0':
+    from twisted.web import http
+else:
+    from twisted.protocols import http
 
 # These are deprecated, use the class level definitions
 NOT_FOUND = 8001
@@ -111,7 +117,11 @@ class XMLRPC(resource.Resource):
 
     def render(self, request):
         request.content.seek(0, 0)
-        args, functionPath = xmlrpclib.loads(request.content.read())
+        try:
+            args, functionPath = xmlrpclib.loads(request.content.read())
+        except:
+            # FIXME: this is what's returned to a normal GET
+            return ''
         try:
             function = self._getFunction(functionPath)
         except Fault, f:
@@ -247,6 +257,15 @@ class QueryProtocol(http.HTTPClient):
 
     def connectionMade(self):
         self.sendCommand('POST', self.factory.url)
+        if self.factory.user != None:
+            authString = self.factory.user + ':'
+            if self.factory.password != None:
+                authString += self.factory.password
+
+            auth = base64.encodestring(urllib.unquote(authString))
+            auth = string.join(string.split(auth), "") # get rid of whitespace
+            self.sendHeader('Authorization', 'Basic ' + auth)
+
         self.sendHeader('User-Agent', 'Twisted/XMLRPClib')
         self.sendHeader('Host', self.factory.host)
         self.sendHeader('Content-type', 'text/xml')
@@ -275,8 +294,8 @@ class QueryFactory(protocol.ClientFactory):
     deferred = None
     protocol = QueryProtocol
 
-    def __init__(self, url, host, method, *args):
-        self.url, self.host = url, host
+    def __init__(self, url, host, user, password, method, *args):
+        self.url, self.host, self.user, self.password = url, host, user, password
         self.payload = payloadTemplate % (method, xmlrpclib.dumps(args))
         self.deferred = defer.Deferred()
 
@@ -314,19 +333,28 @@ class Proxy:
     """
 
     def __init__(self, url):
-        parts = urlparse.urlparse(url)
-        self.url = urlparse.urlunparse(('', '')+parts[2:])
+        type, uri = urllib.splittype(url)
+        #if type not in ("http", "https"):
+        #    raise IOError, "unsupported XML-RPC protocol"
+        self.host, self.url = urllib.splithost(uri)
         if self.url == "":
             self.url = "/"
-        if ':' in parts[1]:
-            self.host, self.port = parts[1].split(':')
-            self.port = int(self.port)
-        else:
-            self.host, self.port = parts[1], None
-        self.secure = parts[0] == 'https'
+
+        self.user = self.password = None
+        self.user, self.host = urllib.splituser(self.host)
+        try:
+            self.user, self.password = urllib.splitpasswd(self.user)
+        except TypeError:
+            pass
+        
+        self.host, self.port = urllib.splitport(self.host)
+        self.port = int(self.port)
+        
+        self.secure = type == 'https'
 
     def callRemote(self, method, *args):
-        factory = QueryFactory(self.url, self.host, method, *args)
+        factory = QueryFactory(self.url, self.host, self.user, self.password,
+                               method, *args)
         if self.secure:
             from twisted.internet import ssl
             reactor.connectSSL(self.host, self.port or 443,

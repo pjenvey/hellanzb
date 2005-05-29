@@ -341,7 +341,7 @@ def unrar(fileName, rarPassword = None, pathToExtract = None):
         cmd = Hellanzb.UNRAR_CMD + ' x -y -p' + rarPassword + ' "' + fileName + '" "' + \
             pathToExtract + '"'
     else:
-        cmd = Hellanzb.UNRAR_CMD + ' x -y' + ' "' + fileName + '" "' + pathToExtract + '"'
+        cmd = Hellanzb.UNRAR_CMD + ' x -y -p-' + ' "' + fileName + '" "' + pathToExtract + '"'
     
     info(archiveName(dirName) + ': Unraring ' + os.path.basename(fileName) + '..')
     t = Topen(cmd)

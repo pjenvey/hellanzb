@@ -171,6 +171,7 @@ class NZB:
     def __init__(self, nzbFileName):
         self.nzbFileName = nzbFileName
         self.archiveName = archiveName(self.nzbFileName)
+        self.destDir = Hellanzb.WORKING_DIR
         self.nzbFileElements = []
         
 class NZBFile:
@@ -224,6 +225,9 @@ class NZBFile:
         self.speed = 0
 
     def getDestination(self):
+        return self.nzb.destDir + os.sep + self.getFilename()
+
+    def getFilename(self):
         """ Return the destination of where this file will lie on the filesystem. The filename
         information is grabbed from the first segment's articleData (uuencode's fault --
         yencode includes the filename in every segment's articleData). In the case where a
@@ -237,18 +241,18 @@ class NZBFile:
             # looked at the 2nd revised version of this and make sure it's still as functional as
             # the original
             if self.filename != None:
-                return Hellanzb.WORKING_DIR + os.sep + self.filename
+                return self.filename
             elif self.tempFilename != None and self.firstSegment.articleData == None:
-                return Hellanzb.WORKING_DIR + os.sep + self.tempFilename
+                return self.tempFilename
             else:
                 # FIXME: i should only have to call this once after i get article
                 # data. that is if it fails, it should set the real filename to the
                 # incorrect tempfilename
                 self.firstSegment.getFilenameFromArticleData()
-                return Hellanzb.WORKING_DIR + os.sep + self.tempFilename
+                return self.tempFilename
         except AttributeError:
             self.tempFilename = self.getTempFileName()
-            return Hellanzb.WORKING_DIR + os.sep + self.tempFilename
+            return self.tempFilename
 
     def getTempFileName(self):
         """ Generate a temporary filename for this file, for when we don't have it's actual file
@@ -337,6 +341,9 @@ class NZBQueue(PriorityQueue):
         # queue. Set is much faster for _put & __contains__
         self.nzbFiles = Set()
         self.nzbFilesLock = Lock()
+
+        self.nzbs = []
+        self.nzbsLock = Lock()
         
         self.totalQueuedBytes = 0
 
@@ -369,6 +376,25 @@ class NZBQueue(PriorityQueue):
         for nzbFile in files:
             self.totalQueuedBytes += nzbFile.totalBytes
 
+    def currentNZBs(self):
+        """ nzbs currently being downloaded """
+        self.nzbsLock.acquire()
+        nzbs = self.nzbs[:]
+        self.nzbsLock.release()
+        return nzbs
+
+    def nzbAdd(self, nzb):
+        """ this nzb is in the queue """
+        self.nzbsLock.acquire()
+        self.nzbs.append(nzb)
+        self.nzbsLock.release()
+        
+    def nzbDone(self, nzb):
+        """ nzb finished """
+        self.nzbsLock.acquire()
+        self.nzbs.remove(nzb)
+        self.nzbsLock.release()
+
     def fileDone(self, nzbFile):
         """ Notify the queue a file is done. This is called after assembling a file into it's
         final contents. Segments are really stored independantly of individual Files in
@@ -393,6 +419,7 @@ class NZBQueue(PriorityQueue):
         
         # Create the handler
         nzb = NZB(fileName)
+        self.nzbAdd(nzb)
         needWorkFiles = []
         needWorkSegments = []
         dh = NZBParser(nzb, needWorkFiles, needWorkSegments)
@@ -435,6 +462,8 @@ class NZBQueue(PriorityQueue):
             # FIXME: put the above dels in NZB.__del__ (that's where collect can go if needed too)
             del nzb
             gc.collect()
+
+            self.nzbDone(nzb)
             reactor.callLater(0, handleNZBDone, nzbFileName)
             # True == the archive is complete
             return True

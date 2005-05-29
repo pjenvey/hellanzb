@@ -193,7 +193,7 @@ class NZBLeecher(NNTPClient, TimeoutMixin):
         # when a line that long is exceeded). Knowing twisted that function is probably a
         # hook for defering processing when it might take too long with too much received
         # data. hellanzb can definitely receive much longer lines than LineReceiver's
-        # default value. i doubt higher limits degrade it's performance much
+        # default value. i doubt higher limits degrade its performance much
         self.MAX_LENGTH = 262144
 
         # From Twisted 2.0 LineReceiver, specifically for the imported Twisted 2.0
@@ -395,8 +395,7 @@ class NZBLeecher(NNTPClient, TimeoutMixin):
                     if self.currentSegment.nzbFile.filename == None:
                         self.currentSegment.nzbFile.showFilenameIsTemp = True
                         
-                    self.currentSegment.nzbFile.showFilename = \
-                                                             os.path.basename(self.currentSegment.nzbFile.getDestination())
+                    self.currentSegment.nzbFile.showFilename = self.currentSegment.nzbFile.getFilename()
                     
             except Empty:
                 debug(str(self) + ' EMPTY QUEUE')

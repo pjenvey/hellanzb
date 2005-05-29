@@ -396,6 +396,7 @@ def tryFinishNZB(nzb):
         break
 
     if done:
+        Hellanzb.queue.nzbDone(nzb)
         debug('tryFinishNZB: finished downloading NZB: ' + nzb.archiveName)
         
         # nudge GC
@@ -406,7 +407,7 @@ def tryFinishNZB(nzb):
         del nzb.nzbFileElements
         del nzb
         gc.collect()
-        
+
         reactor.callFromThread(handleNZBDone, nzbFileName)
         
     finish = time.time() - start

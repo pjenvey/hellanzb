@@ -37,12 +37,28 @@ Hellanzb.CURRENT_DIR = Hellanzb.PREFIX_DIR + 'nzb/daemon.current/'
 # The archive currently being downloaded is stored here
 Hellanzb.WORKING_DIR = Hellanzb.PREFIX_DIR + 'nzb/daemon.working/'
 
+# Archives interrupted in the middle of downloading are stored here temporarily (FIXME:
+# NOT IN USE)
+#Hellanzb.POSTPONED_DIR = Hellanzb.PREFIX_DIR + 'nzb/daemon.postponed/'
+
+# Archives currently being processed (FIXME: NOT IN USE)
+#Hellanzb.PROCESSING_DIR = Hellanzb.PREFIX_DIR + 'nzb/daemon.processing/'
+
 # Temp storage
 Hellanzb.TEMP_DIR = Hellanzb.PREFIX_DIR + 'nzb/daemon.temp/'
+
+# List storing the order of the queued .nzb files in the QUEUE_DIR. hellanzb will update
+# this file intermittently (FIXME: NOT IN USE)
+#Hellanzb.QUEUE_LIST = Hellanzb.PREFIX_DIR + 'nzb/QUEUE_LIST'
 
 
 # _Sub directory within the nzb archive dir_ to move proccessed files to
 Hellanzb.PROCESSED_SUBDIR = 'processed'
+
+# Remove the PROCESSED_SUBDIR if a file was successfully post processed. Warning: The
+# normal log should be enabled with this option -- so you have a record of what hellanzb
+# deletes (FIXME: NOT IN USE)
+Hellanzb.DELETE_PROCESSED = False
 
 
 # Supported music types (case insensitive) and optionally their decompression executables
@@ -81,6 +97,18 @@ Hellanzb.NOT_REQUIRED_FILE_TYPES = [ 'log', 'm3u', 'nfo', 'nzb', 'sfv', 'txt' ]
 # post processing (case insensitive)
 #Hellanzb.KEEP_FILE_TYPES = [ 'log', 'm3u', 'nfo', 'nzb', 'sfv', 'txt' ]
 Hellanzb.KEEP_FILE_TYPES = [ 'nfo', 'txt' ]
+
+
+# Hostname for the XMLRPC client to connect to. By default, localhost
+Hellanzb.XMLRPC_HOST = 'localhost'
+
+# Port number the XML RPC server will listen on, and the client will connect to. Set to
+# 'None' for no XML RPC server
+Hellanzb.XMLRPC_PORT = 8760
+
+# Password for the XML RPC server. You might probably never use this, but the command line
+# XML RPC calls do -- it should definitely be changed from its default value
+Hellanzb.XMLRPC_PASSWORD = 'changeme'
 
 
 # Automatically rollover the log files when they reach LOG_FILE_MAX_BYTES size

@@ -1,3 +1,4 @@
+# -*- coding: iso-8859-1 -*-
 # -*- test-case-name: twisted.news.test.test_nntp -*-
 # Copyright (c) 2001-2004 Twisted Matrix Laboratories.
 # See LICENSE for details.
@@ -1095,7 +1096,7 @@ Jason A. Mobarak
 Jonathan Lange
 Jonathan D. Simms
 Jp Calderone
-J<FC>rgen Hermann
+Jürgen Hermann
 Kevin Turner
 Mary Gardiner
 Matthew Lefkowitz

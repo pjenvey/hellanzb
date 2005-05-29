@@ -9,6 +9,7 @@ the twisted reactor loop, except for initialization functions
 import Hellanzb, os, re, PostProcessor
 from shutil import move
 from twisted.internet import reactor
+from Hellanzb.HellaXMLRPC import initXMLRPCServer, HellaXMLRPCServer
 from Hellanzb.Log import *
 from Hellanzb.Logging import prettyException
 from Hellanzb.Util import *
@@ -58,9 +59,11 @@ def initDaemon():
 
     Hellanzb.queued_nzbs = []
 
+    initXMLRPCServer()
+
     from Hellanzb.NZBLeecher import initNZBLeecher
     initNZBLeecher()
-    
+
 def scanQueueDir():
     """ Find new/resume old NZB download sessions """
     debug('Ziplick scanning queue dir..')
@@ -112,12 +115,14 @@ def scanQueueDir():
     # Change the cwd for Newsleecher, and download the files
     os.chdir(Hellanzb.WORKING_DIR)
 
-    # Parse the NZB file into the Queue. Unless the NZB file is deemed already
-    # fully processed at the end of parseNZB, tell the factory to start
-    # downloading it
+    parseNZB(nzbfile)
+
+def parseNZB(nzbfile):
+    """ Parse the NZB file into the Queue. Unless the NZB file is deemed already fully
+    processed at the end of parseNZB, tell the factory to start downloading it """
     try:
         if not Hellanzb.queue.parseNZB(nzbfile):
-            
+
             for nsf in Hellanzb.nsfs:
                 nsf.fetchNextNZBSegment()
     except FatalError, fe:
@@ -129,7 +134,7 @@ def scanQueueDir():
         reactor.callLater(5, scanQueueDir)
 
 def handleNZBDone(nzbfilename):
-    """ Hand-off from the downloader -- make a dir for the NZB with it's contents, then post
+    """ Hand-off from the downloader -- make a dir for the NZB with its contents, then post
     process it in a separate thread"""
     checkShutdown()
     
@@ -169,6 +174,42 @@ def handleNZBDone(nzbfilename):
         reactor.callLater(0, troll.start)
 
     reactor.callLater(0, scanQueueDir)
+
+def postProcess(options):
+    if not os.path.isdir(options.postProcessDir):
+        error('Unable to process, not a directory: ' + options.postProcessDir)
+        shutdownNow(1)
+
+    if not os.access(options.postProcessDir, os.R_OK):
+        error('Unable to process, no read access to directory: ' + options.postProcessDir)
+        shutdownNow(1)
+
+    rarPassword = None
+    if options.rarPassword:
+        rarPassword = options.rarPassword
+        
+    troll = Hellanzb.PostProcessor.PostProcessor(options.postProcessDir, background = False,
+                                                 rarPassword = rarPassword)
+    info('\nStarting post processor')
+    reactor.callInThread(troll.run)
+
+def stop():
+    """ stop the currently downloading nzb. move its downloaded files to the postponed
+    directory, and queue its nzb to be downloaded next """
+    # FIXME: should there only be ONE active nzb ? does hte safe changing the of nzb
+    # always take place in the reactor thread?
+    pass
+
+def forceNZB(nzbfilename):
+    """ interrupt the current download, if necessary, to start the specified nzb """
+    for nzb in Hellanzb.queue.nzbs:
+        try:
+            pass
+        # FIXME: except 
+        except NameError:
+            # GC beat us. that should mean there is either a free spot open, or the next
+            # nzb in the queue needs to be interrupted
+            pass
 
 """
 /*

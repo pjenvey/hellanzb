@@ -15,7 +15,7 @@ from Hellanzb.Util import *
 __id__ = '$Id$'
 
 class PostProcessor(Thread):
-    """ A post processor (formerly troll) instance runs in it's own thread """
+    """ A post processor (formerly troll) instance runs in its own thread """
     dirName = None
     decompressionThreadPool = None
     decompressorCondition = None
@@ -29,15 +29,6 @@ class PostProcessor(Thread):
     msgId = None
     nzbFile = None
     
-    def start(self):
-        """ Maintain a list of active PostProcessors """
-        Hellanzb.postProcessorLock.acquire()
-        # FIXME: could block if there are too many processors going
-        Hellanzb.postProcessors.append(self)
-        Hellanzb.postProcessorLock.release()
-        
-        Thread.start(self)
-
     def __init__(self, dirName, background = True, rarPassword = None):
         """ Ensure sanity of this instance before starting """
         # abort if we lack required binaries
@@ -76,9 +67,18 @@ class PostProcessor(Thread):
         Hellanzb.postProcessorLock.acquire()
         Hellanzb.postProcessors.remove(self)
         Hellanzb.postProcessorLock.release()
+
+        if not self.background:
+            from twisted.internet import reactor
+            reactor.callFromThread(reactor.stop)
     
     def run(self):
         """ do the work """
+        Hellanzb.postProcessorLock.acquire()
+        # FIXME: could block if there are too many processors going
+        Hellanzb.postProcessors.append(self)
+        Hellanzb.postProcessorLock.release()
+        
         try:
             self.postProcess()
             
@@ -95,6 +95,7 @@ class PostProcessor(Thread):
                 sys.exit(1)
                 #thread.interrupt_main()
                 #raise
+            return
         
         except Exception, e:
             self.stop()
@@ -102,6 +103,9 @@ class PostProcessor(Thread):
             if not self.background:
                 # not sure what happened, let's see the backtrace
                 raise
+            return
+            
+        self.stop()
     
     def processMusic(self):
         """ Assume the integrity of the files in the specified directory have been

@@ -292,6 +292,7 @@ class NZBLeecherTicker:
                     segment.nzbFile.showFilename = segment.nzbFile.filename
                     segment.nzbFile.showFilenameIsTemp = False
             except AttributeError, ae:
+                from Hellanzb.Log import debug
                 debug('ATTRIBUTE ERROR: ' + str(ae) + ' num: ' + str(segment.number) + \
                       'duh: ' + str(segment.articleData))
                 pass

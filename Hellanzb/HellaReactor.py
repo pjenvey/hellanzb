@@ -11,8 +11,12 @@ import Hellanzb, sys, time
 import twisted.copyright
 if twisted.copyright.version >= '2.0.0':
     from twisted.internet.selectreactor import SelectReactor
+    from twisted.internet.selectreactor import _NO_FILENO
+    from twisted.internet.selectreactor import _NO_FILEDESC
 else:
     from twisted.internet.default import SelectReactor
+    from twisted.internet.default import _NO_FILENO
+    from twisted.internet.default import _NO_FILEDESC
 
 from twisted.internet.main import installReactor
 from twisted.python import log, failure

@@ -14,7 +14,7 @@ from twisted.web import xmlrpc, server
 from twisted.web.server import Site
 from xmlrpclib import Fault
 from Hellanzb.HellaXMLRPC.xmlrpc import Proxy, XMLRPC # was twisted.web.xmlrpc
-from Hellanzb.HtPasswdAuth import HtPasswdWrapper
+from Hellanzb.HellaXMLRPC.HtPasswdAuth import HtPasswdWrapper
 from Hellanzb.Logging import LogOutputStream
 from Hellanzb.Log import *
 from Hellanzb.PostProcessor import PostProcessor
@@ -186,6 +186,11 @@ def errHandler(remoteCall, failure):
 class RemoteCall:
     """ XMLRPC client calls, and their callback info """
     callIndex = {}
+    # Calling getattr() on the HellaXMLRPCServer class throws a __provides__ error in
+    # python2.4 on OS X (the problem is with zope interface). We need to do this to gather
+    # our XMLRPC call doc Strings -- this instance has no use other than allowing us
+    # access to those doc strings
+    serverInstance = HellaXMLRPCServer()
     
     def __init__(self, funcName, callback, errback = errHandler):
         self.funcName = funcName
@@ -198,7 +203,8 @@ class RemoteCall:
         """ Return the usage string for this rpc call. This is stolen from the xmlrpc Server's
         function doc string """
         for attrName in dir(HellaXMLRPCServer):
-            attr = getattr(HellaXMLRPCServer, attrName)
+            #attr = getattr(HellaXMLRPCServer, attrName) # dies on python2.4 osx
+            attr = getattr(RemoteCall.serverInstance, attrName)
             if callable(attr) and attr.__name__ == 'xmlrpc_' + self.funcName:
                 return attr.__doc__
         return None

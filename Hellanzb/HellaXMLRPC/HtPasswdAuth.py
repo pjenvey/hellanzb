@@ -11,7 +11,13 @@ HTTP auth
 import md5
 from twisted.web import static
 from twisted.web.resource import Resource
-from twisted.protocols import http
+
+import twisted.copyright
+if twisted.copyright.version >= '2.0.0':
+    from twisted.web import http
+else:
+    from twisted.protocols import http
+
 from Hellanzb.Log import debug
 
 __id__ = '$Id$'

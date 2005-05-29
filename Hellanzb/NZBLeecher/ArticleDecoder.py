@@ -349,13 +349,25 @@ def assembleNZBFile(nzbFile, autoFinish = True):
         # we'll try assembling it again later
         debug('(CTRL-C) Removing unfinished file: ' + nzbFile.getDestination())
         file.close()
-        os.remove(nzbFile.getDestination())
+        try:
+            os.remove(nzbFile.getDestination())
+        except OSError, ose:
+            # postponement might have moved the file we just wrote to:
+            # exceptions.OSError: [Errno 2] No such file or directory: 
+            if ose.errno != 2:
+                debug('Unexpected ERROR while removing nzbFile: ' + nzbFile.getDestination())
         raise
 
     file.close()
     # Finally, delete all the segment files when finished
     for segmentFile in segmentFiles:
-        os.remove(segmentFile)
+        try:
+            os.remove(segmentFile)
+        except OSError, ose:
+            # postponement might have moved the file we just wrote to:
+            # exceptions.OSError: [Errno 2] No such file or directory: 
+            if ose.errno != 2:
+                debug('Unexpected ERROR while removing segmentFile: ' + segmentFile)
         
     Hellanzb.queue.fileDone(nzbFile)
     
@@ -383,8 +395,17 @@ def tryFinishNZB(nzb):
     done = True
 
     # Simply check if there are any more nzbFiles in the queue that belong to this nzb
+    Hellanzb.queue.nzbsLock.acquire()
+    postponed = False
+    if nzb not in Hellanzb.queue.nzbs:
+        postponed = True
+    Hellanzb.queue.nzbsLock.release()
+        
     Hellanzb.queue.nzbFilesLock.acquire()
-    queueFilesCopy = Hellanzb.queue.nzbFiles.copy()
+    if not postponed:
+        queueFilesCopy = Hellanzb.queue.nzbFiles.copy()
+    else:
+        queueFilesCopy = Hellanzb.queue.postponedNzbFiles.copy()
     Hellanzb.queue.nzbFilesLock.release()
 
     for nzbFile in queueFilesCopy:

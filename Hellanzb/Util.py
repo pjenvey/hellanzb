@@ -8,6 +8,7 @@ Util - hellanzb misc functions
 import os, popen2, pty, re, signal, string, thread, threading, time, Hellanzb
 from distutils import spawn
 from heapq import heappop, heappush
+from shutil import move
 from threading import Condition
 from traceback import print_stack
 from twisted.internet import protocol, utils
@@ -286,6 +287,16 @@ class PriorityQueue(Queue):
         emulate 2.3 behavior everywhere for now """
         Queue.__init__(self)
         self.queue = []
+
+    def clear(self):
+        """ empty the queue """
+        self.mutex.acquire()
+        del self.queue
+        self.queue = []
+        if not hasattr(self, 'not_empty'):
+            # python 2.3
+            self.esema.acquire()
+        self.mutex.release()
         
     def _put(self, item):
         """ Assume Queue is backed by a list. Add the new item to the list, taking into account
@@ -436,6 +447,22 @@ def flattenDoc(docString):
         clean += line.strip() + ' '
     return clean
 
+def hellaRename(filename):
+    """ rename a dupe file to filename _hellanzb_renamedX """
+    if os.path.exists(filename):
+        # Rename the dir if it exists already
+        renamedDir = filename + '_hellanzb_renamed'
+        i = 0
+        while os.path.exists(renamedDir + str(i)):
+            i += 1
+        move(filename, renamedDir + str(i))
+
+def getMsgId(archiveName):
+    """ grab the msgid from a 'msgid_31337_HellaBlah.nzb string """
+    msgId = re.sub(r'.*msgid_', r'', os.path.basename(archiveName))
+    msgId = re.sub(r'_.*', r'', msgId)
+    return msgId
+        
 def getStack():
     """ Return the current execution stack as a string """
     s = StringIO()

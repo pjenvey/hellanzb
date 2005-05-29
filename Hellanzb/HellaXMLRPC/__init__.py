@@ -5,7 +5,7 @@ HellaXMLRPC - The hellanzb XML RPC server and client
 (c) Copyright 2005 Philip Jenvey
 [See end of file]
 """
-import Hellanzb, textwrap, time
+import os, textwrap, time, Hellanzb
 from time import localtime, strftime
 from twisted.internet import reactor
 from twisted.internet.error import ConnectionRefusedError
@@ -43,6 +43,13 @@ class HellaXMLRPCServer(XMLRPC):
         msg += '%.2i:%.2i' % (hours, minutes)
         return msg
 
+    def xmlrpc_force(self, nzbFilename):
+        """ Force hellanzb to begin downloading the specified NZB file immediately -- interrupting
+        the current download, if necessary """
+        from Hellanzb.Daemon import forceNZB
+        reactor.callLater(0, forceNZB, nzbFilename)
+        return True
+    
     def xmlrpc_process(self, archiveDir, rarPassword = None):
         """ Post process the specified directory. The -p option is preferable -- it will do this
         for you, or use the current process if this xml rpc call fails """
@@ -51,7 +58,7 @@ class HellaXMLRPCServer(XMLRPC):
         return True
 
     def xmlrpc_shutdown(self):
-        """ shutdown hellanzb. will quietly kill any post processing threads that may exit """
+        """ shutdown hellanzb. will quietly kill any post processing threads that may exist """
         # First allow the processors to die/be killed
         Hellanzb.SHUTDOWN = True
         TopenTwisted.killAll()
@@ -263,12 +270,23 @@ def initXMLRPCServer():
 
 def initXMLRPCClient():
     """ initialize the xml rpc client """
+    RemoteCall('force', resultMadeItBoolAndExit)
     RemoteCall('process', resultMadeItBoolAndExit)
     RemoteCall('shutdown', resultMadeItBoolAndExit)
     RemoteCall('status', printResultAndExit)
 
 def hellaRemote(options, args):
     """ execute the remote RPC call with the specified cmd line args. args can be None """
+    if options.postProcessDir and options.rarPassword:
+        args = ['process', options.postProcessDir, options.rarPassword]
+    elif options.postProcessDir:
+        args = ['process', options.postProcessDir]
+    
+    if args[0] in ('force', 'process'):
+        if len(args) > 1:
+            # UNIX: os.path.realpath only available on UNIX
+            args[1] = os.path.realpath(args[1])
+
     if Hellanzb.XMLRPC_PORT == None:
         raise FatalError('Hellanzb.XMLRPC_PORT not defined, cannot make remote call')
 

@@ -39,7 +39,7 @@ Hellanzb.WORKING_DIR = Hellanzb.PREFIX_DIR + 'nzb/daemon.working/'
 
 # Archives interrupted in the middle of downloading are stored here temporarily (FIXME:
 # NOT IN USE)
-#Hellanzb.POSTPONED_DIR = Hellanzb.PREFIX_DIR + 'nzb/daemon.postponed/'
+Hellanzb.POSTPONED_DIR = Hellanzb.PREFIX_DIR + 'nzb/daemon.postponed/'
 
 # Archives currently being processed (FIXME: NOT IN USE)
 #Hellanzb.PROCESSING_DIR = Hellanzb.PREFIX_DIR + 'nzb/daemon.processing/'

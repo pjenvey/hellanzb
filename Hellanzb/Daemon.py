@@ -7,7 +7,7 @@ the twisted reactor loop, except for initialization functions
 [See end of file]
 """
 import Hellanzb, os, re, PostProcessor
-from shutil import move
+from shutil import copy, move
 from twisted.internet import reactor
 from Hellanzb.HellaXMLRPC import initXMLRPCServer, HellaXMLRPCServer
 from Hellanzb.Log import *
@@ -23,7 +23,9 @@ def ensureDaemonDirs():
     for arg in dir(Hellanzb):
         if stringEndsWith(arg, "_DIR") and arg == arg.upper():
             exec 'dirName = Hellanzb.' + arg
-            if not os.path.isdir(dirName):
+            if dirName == None:
+                raise FatalError('Required directory not defined in config file: Hellanzb.' + arg)
+            elif not os.path.isdir(dirName):
                 try:
                     os.makedirs(dirName)
                 except OSError, ose:
@@ -75,6 +77,8 @@ def scanQueueDir():
     checkShutdown()
     
     # See if we're resuming a nzb fetch
+    resuming = False
+    displayNotification = False
     if not current_nzbs:
         # Refresh our queue and append the new nzb's, 
         new_nzbs = [x for x in os.listdir(Hellanzb.QUEUE_DIR) \
@@ -103,28 +107,42 @@ def scanQueueDir():
         if not (len(new_nzbs) == 1 and len(Hellanzb.queued_nzbs) == 0):
             # Show what's going to be downloaded next, unless the queue was empty, and we
             # only found one nzb (The 'Found new nzb' message is enough in that case)
-            info('Downloading: ' + archiveName(nzbfilename))
+            displayNotification = True
     else:
         nzbfilename = current_nzbs[0]
-        info('Resuming: ' + archiveName(nzbfilename))
-        growlNotify('Queue', 'hellanzb Resuming:', archiveName(nzbfilename), False)
+        displayNotification = True
         del current_nzbs[0]
+        resuming = True
 
     nzbfile = Hellanzb.CURRENT_DIR + nzbfilename
 
     # Change the cwd for Newsleecher, and download the files
     os.chdir(Hellanzb.WORKING_DIR)
 
-    parseNZB(nzbfile)
+    if resuming:
+        parseNZB(nzbfile, 'Resuming')
+    elif displayNotification:
+        parseNZB(nzbfile)
+    else:
+        parseNZB(nzbfile, quiet = True)
 
-def parseNZB(nzbfile):
+def parseNZB(nzbfile, notification = 'Downloading', quiet = False):
     """ Parse the NZB file into the Queue. Unless the NZB file is deemed already fully
     processed at the end of parseNZB, tell the factory to start downloading it """
-    try:
-        if not Hellanzb.queue.parseNZB(nzbfile):
+    if not quiet:
+        info(notification + ': ' + archiveName(nzbfile))
+        growlNotify('Queue', 'hellanzb ' + notification + ':', archiveName(nzbfile),
+                    False)
 
+    info('Parsing ' + os.path.basename(nzbfile) + '...')
+    try:
+        findAndLoadPostponedDir(nzbfile)
+        
+        if not Hellanzb.queue.parseNZB(nzbfile):
             for nsf in Hellanzb.nsfs:
-                nsf.fetchNextNZBSegment()
+                if not len(nsf.activeClients):
+                    nsf.fetchNextNZBSegment()
+
     except FatalError, fe:
         error('Problem while parsing the NZB', fe)
         growlNotify('Error', 'hellanzb', 'Problem while parsing the NZB' + prettyException(fe),
@@ -132,6 +150,45 @@ def parseNZB(nzbfile):
         error('Moving bad NZB out of queue into TEMP_DIR: ' + Hellanzb.TEMP_DIR)
         move(nzbfile, Hellanzb.TEMP_DIR + os.sep)
         reactor.callLater(5, scanQueueDir)
+
+def findAndLoadPostponedDir(nzbfilename):
+    d = Hellanzb.POSTPONED_DIR + os.sep + archiveName(nzbfilename)
+    if os.path.isdir(d):
+        try:
+            os.rmdir(Hellanzb.WORKING_DIR)
+        except OSError:
+            files = os.listdir(Hellanzb.WORKING_DIR)[0]
+            if len(files):
+                name = files[0]
+                ext = getFileExtension(name)
+                if ext != None:
+                    name = name.replace(ext, '')
+                move(Hellanzb.WORKING_DIR, Hellanzb.TEMP_DIR + os.sep + name)
+
+            else:
+                debug('ERROR Stray WORKING_DIR!: ' + str(os.listdir(Hellanzb.WORKING_DIR)))
+                name = Hellanzb.TEMP_DIR + os.sep + 'stray_WORKING_DIR'
+                hellaRename(name)
+                move(Hellanzb.WORKING_DIR, name)
+
+        move(d, Hellanzb.WORKING_DIR)
+
+        # unpostpone from the queue
+        Hellanzb.queue.nzbFilesLock.acquire()
+        arName = archiveName(nzbfilename)
+        found = []
+        for nzbFile in Hellanzb.queue.postponedNzbFiles:
+            if nzbFile.nzb.archiveName == arName:
+                found.append(nzbFile)
+        for nzbFile in found:
+            Hellanzb.queue.postponedNzbFiles.remove(nzbFile)
+        Hellanzb.queue.nzbFilesLock.release()
+
+        info('Loaded postponed directory: ' + archiveName(nzbfilename))
+        
+        return True
+    else:
+        return False
 
 def handleNZBDone(nzbfilename):
     """ Hand-off from the downloader -- make a dir for the NZB with its contents, then post
@@ -142,17 +199,10 @@ def handleNZBDone(nzbfilename):
     newdir = Hellanzb.DEST_DIR + archiveName(nzbfilename)
     
     # Grab the message id, we'll store it in the newdir for later use
-    msgId = re.sub(r'.*msgid_', r'', os.path.basename(nzbfilename))
-    msgId = re.sub(r'_.*', r'', msgId)
+    msgId = getMsgId(nzbfilename)
 
     # Move our nzb contents to their new location, clear out the temp dir
-    if os.path.exists(newdir):
-        # Rename the dir if it exists already
-        renamedDir = newdir + '_hellanzb_renamed'
-        i = 0
-        while os.path.exists(renamedDir + str(i)):
-            i += 1
-        move(newdir, renamedDir + str(i))
+    hellaRename(newdir)
         
     move(Hellanzb.WORKING_DIR,newdir)
     touch(newdir + os.sep + '.msgid_' + msgId)
@@ -202,14 +252,52 @@ def stop():
 
 def forceNZB(nzbfilename):
     """ interrupt the current download, if necessary, to start the specified nzb """
-    for nzb in Hellanzb.queue.nzbs:
+    if nzbfilename == None or not os.path.isfile(nzbfilename):
+        error('Invalid NZB file: ' + str(nzbfilename))
+        return
+    elif not os.access(nzbfilename, os.R_OK):
+        error('Unable to read NZB file: ' + str(nzbfilename))
+        return
+
+    if not len(Hellanzb.queue.nzbs):
+        # No need to actually 'force'
+        return parseNZB(nzbfilename)
+
+    # postpone the current NZB download
+    for nzb in Hellanzb.queue.currentNZBs():
         try:
-            pass
-        # FIXME: except 
-        except NameError:
+            postponed = Hellanzb.POSTPONED_DIR + nzb.archiveName
+            hellaRename(postponed)
+            os.mkdir(postponed)
+            nzb.destDir = postponed
+            info('Interrupting: ' + nzb.archiveName + ' forcing: ' + archiveName(nzbfilename))
+            
+            move(nzb.nzbFileName, Hellanzb.QUEUE_DIR + os.sep + os.path.basename(nzb.nzbFileName))
+            Hellanzb.queued_nzbs.append(os.path.basename(nzb.nzbFileName))
+
+            # Move the postponed files to the new postponed dir
+            for file in os.listdir(Hellanzb.WORKING_DIR):
+                move(Hellanzb.WORKING_DIR + os.sep + file, postponed + os.sep + file)
+
+            # Copy the specified NZB, unless it's already in the queue dir (move it
+            # instead)
+            if os.path.dirname(nzbfilename) != Hellanzb.QUEUE_DIR:
+                copy(nzbfilename, Hellanzb.CURRENT_DIR + os.sep + os.path.basename(nzbfilename))
+            else:
+                move(nzbfilename, Hellanzb.CURRENT_DIR + os.sep + os.path.basename(nzbfilename))
+            nzbfilename = Hellanzb.CURRENT_DIR + os.sep + os.path.basename(nzbfilename)
+
+            # delete everything from the queue. priority will be reset
+            Hellanzb.queue.postpone()
+
+            # load the new file
+            reactor.callLater(0, parseNZB, nzbfilename)
+
+        except NameError, ne:
             # GC beat us. that should mean there is either a free spot open, or the next
-            # nzb in the queue needs to be interrupted
-            pass
+            # nzb in the queue needs to be interrupted????
+            debug('forceNZB: NAME ERROR', ne)
+            reactor.callLater(0, scanQueueDir)
 
 """
 /*

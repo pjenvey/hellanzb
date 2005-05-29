@@ -450,13 +450,11 @@ def processPars(dirName):
                              ' more recovery blocks for repair')
             # otherwise processComplete here (failed)
 
-    elif returnCode == 3:
-        raise FatalError('par2 repair failed: returned code: ' + str(returnCode) + \
-                         '. Please run par2 manually for more information: ' + repairCmd)
     else:
         # Abnormal behavior -- let the user deal with it
         raise FatalError('par2 repair failed: returned code: ' + str(returnCode) + \
-                         '. Please run par2 manually for more information')
+                         '. Please run par2 manually for more information, par2 cmd: ' + \
+                         repairCmd)
 
     processComplete(dirName, 'par', isPar)
 

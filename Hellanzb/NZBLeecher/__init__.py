@@ -275,7 +275,13 @@ class NZBLeecher(NNTPClient, TimeoutMixin):
             # twisted doesn't reconnect our same client connections, we have to pitch
             # stuff back into the queue that hasn't finished before the connectionLost
             # occurred
-            Hellanzb.queue.put((self.currentSegment.priority, self.currentSegment))
+                
+            Hellanzb.queue.nzbsLock.acquire()
+            # Only requeue the segment if its archive hasn't been previously postponed
+            if self.currentSegment.nzbFile.nzb in Hellanzb.queue.nzbs:
+                Hellanzb.queue.put((self.currentSegment.priority, self.currentSegment))
+            Hellanzb.queue.nzbsLock.release()
+            
             self.currentSegment = None
         
         # Continue being quiet about things if we're shutting down

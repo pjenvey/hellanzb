@@ -107,7 +107,7 @@ def segmentsNeedDownload(segmentList):
     
     needDlFiles = Set() # for speed while iterating
     needDlSegments = []
-    onDiskFiles = []
+    onDiskSegments = []
 
     # Cache all WORKING_DIR segment filenames in a map of lists
     for file in os.listdir(Hellanzb.WORKING_DIR):
@@ -159,12 +159,12 @@ def segmentsNeedDownload(segmentList):
                 # we've figured out the real filename (hopefully!)
                 setRealFileName(segment, foundFileName)
                 
-            onDiskFiles.append(segment)
+            onDiskSegments.append(segment)
         #else:
         #    debug('SKIPPING SEGMENT: ' + segment.getTempFileName() + ' subject: ' + \
         #          segment.nzbFile.subject)
 
-    return needDlFiles, needDlSegments, onDiskFiles
+    return needDlFiles, needDlSegments, onDiskSegments
 
 class NZB:
     """ Representation of an nzb file -- the root <nzb> tag """
@@ -340,6 +340,7 @@ class NZBQueue(PriorityQueue):
         # Maintain a collection of the known nzbFiles belonging to the segments in this
         # queue. Set is much faster for _put & __contains__
         self.nzbFiles = Set()
+        self.postponedNzbFiles = Set()
         self.nzbFilesLock = Lock()
 
         self.nzbs = []
@@ -349,6 +350,23 @@ class NZBQueue(PriorityQueue):
 
         if fileName is not None:
             self.parseNZB(fileName)
+
+    def postpone(self):
+        """ postpone the current download """
+        self.clear()
+
+        self.nzbsLock.acquire()
+        self.nzbFilesLock.acquire()
+
+        self.postponedNzbFiles.union_update(self.nzbFiles)
+        self.nzbFiles.clear()
+
+        self.nzbs = []
+        
+        self.nzbFilesLock.release()
+        self.nzbsLock.release()
+
+        self.totalQueuedBytes = 0
 
     def _put(self, item):
         """ """
@@ -377,14 +395,14 @@ class NZBQueue(PriorityQueue):
             self.totalQueuedBytes += nzbFile.totalBytes
 
     def currentNZBs(self):
-        """ nzbs currently being downloaded """
+        """ return a copy of the list of nzbs currently being downloaded """
         self.nzbsLock.acquire()
         nzbs = self.nzbs[:]
         self.nzbsLock.release()
         return nzbs
 
     def nzbAdd(self, nzb):
-        """ this nzb is in the queue """
+        """ denote this nzb as currently being downloaded """
         self.nzbsLock.acquire()
         self.nzbs.append(nzb)
         self.nzbsLock.release()
@@ -405,8 +423,12 @@ class NZBQueue(PriorityQueue):
         self.nzbFilesLock.release()
 
     def segmentDone(self, nzbSegment):
-        """ simply decrement the queued byte count """
-        self.totalQueuedBytes -= nzbSegment.bytes
+        """ simply decrement the queued byte count, unless the segment is part of a postponed
+        download """
+        self.nzbsLock.acquire()
+        if nzbSegment.nzbFile.nzb in self.nzbs:
+            self.totalQueuedBytes -= nzbSegment.bytes
+        self.nzbsLock.release()
 
     def parseNZB(self, fileName):
         """ Initialize the queue from the specified nzb file """
@@ -437,8 +459,15 @@ class NZBQueue(PriorityQueue):
         # The parser will add all the segments of all the NZBFiles that have not already
         # been downloaded. After the parsing, we'll check if each of those segments have
         # already been downloaded. it's faster to check all segments at one time
-        needDlFiles, needDlSegments, onDiskFiles  = segmentsNeedDownload(needWorkSegments)
+        needDlFiles, needDlSegments, onDiskSegments = segmentsNeedDownload(needWorkSegments)
         e = time.time() - s
+
+        onDiskCount = dh.fileCount - len(needWorkFiles)
+        if onDiskCount:
+            info('Found ' + str(dh.segmentCount) + ' posts (' + str(dh.fileCount) + ' files, skipping ' + \
+                 str(onDiskCount) + ' on disk files)')
+        else:
+            info('Found ' + str(dh.segmentCount) + ' posts (' + str(dh.fileCount) + ' files)')
 
         # The needWorkFiles will tell us what nzbFiles are missing from the
         # FS. segmentsNeedDownload will further tell us what files need to be
@@ -448,6 +477,7 @@ class NZBQueue(PriorityQueue):
             if nzbFile not in needDlFiles:
                 # Don't automatically 'finish' the NZB, we'll take care of that in this
                 # function if necessary
+                info(nzbFile.getFilename() + ': assembling -- all segments were on disk')
                 assembleNZBFile(nzbFile, autoFinish = False)
 
         if not len(needDlSegments):
@@ -455,6 +485,8 @@ class NZBQueue(PriorityQueue):
             # separate function
             # nudge GC
             nzbFileName = nzb.nzbFileName
+            self.nzbDone(nzb)
+            info(nzb.archiveName + ': assembled archive!')
             for nzbFile in nzb.nzbFileElements:
                 del nzbFile.todoNzbSegments
                 del nzbFile.nzb
@@ -463,7 +495,6 @@ class NZBQueue(PriorityQueue):
             del nzb
             gc.collect()
 
-            self.nzbDone(nzb)
             reactor.callLater(0, handleNZBDone, nzbFileName)
             # True == the archive is complete
             return True
@@ -474,7 +505,7 @@ class NZBQueue(PriorityQueue):
         self.calculateTotalQueuedBytes()
 
         # Tally what was skipped for correct percentages in the UI
-        for nzbSegment in onDiskFiles:
+        for nzbSegment in onDiskSegments:
             nzbSegment.nzbFile.totalSkippedBytes += nzbSegment.bytes
 
         # Finally, figure out what on disk segments are part of partially downloaded

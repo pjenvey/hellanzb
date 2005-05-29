@@ -101,7 +101,7 @@ def signalHandler(signum, frame):
         if len(TopenTwisted.activePool) == 0:
             shutdown()
             logShutdown('Caught interrupt, exiting..')
-            sys.exit(Hellanzb.SHUTDOWN_CODE)
+            return
 
         # The idea here is to 'cheat' again to exit the program ASAP if all the processes
         # are associated with the main thread (the processes would have already gotten the
@@ -114,7 +114,7 @@ def signalHandler(signum, frame):
         if not threadsOutsideMain:
             shutdown()
             logShutdown('Caught interrupt, exiting..')
-            sys.exit(Hellanzb.SHUTDOWN_CODE)
+            return
 
         # We couldn't cheat our way out of the program, tell the user the processes
         # (threads) we're waiting on, and wait for another signal
@@ -141,7 +141,7 @@ def signalHandler(signum, frame):
             TopenTwisted.killAll()
             shutdown()
             logShutdown('Killed all child processes, exiting..')
-            sys.exit(Hellanzb.SHUTDOWN_CODE)
+            return
             
 def assertHasARar():
     """ assertIsExe rar or its doppelganger """
@@ -190,6 +190,8 @@ def init(options = {}):
     # this with its own when initialized
     signal.signal(signal.SIGINT, signalHandler)
 
+    outlineRequiredDirs() # before the config file is loaded
+        
     if hasattr(options, 'configFile'):
         findAndLoadConfig(options.configFile)
     else:
@@ -201,6 +203,15 @@ def init(options = {}):
         if hasattr(options, attr):
             setattr(sys.modules[__name__], attr, getattr(options, attr))
     Hellanzb.Logging.initLogFile(logFile = logFile, debugLogFile = debugLogFile)
+
+def outlineRequiredDirs():
+    """ Set all required directory attrs to None. they will be checked later for this value to
+    ensure they have been set """
+    requiredDirs = [ 'PREFIX', 'QUEUE', 'DEST', 'CURRENT', 'WORKING',
+                     #'POSTPONED', 'PROCESSING', 'TEMP' ]
+                     'POSTPONED', 'TEMP' ]
+    for dir in requiredDirs:
+        setattr(Hellanzb, dir + '_DIR', None)
 
 def shutdown(logStdout = False):
     """ turn the knob that tells all parts of the program we're shutting down """
@@ -264,10 +275,6 @@ def processArgs(options, args):
         
     else:
         try:
-            if options.postProcessDir and options.rarPassword:
-                args = ['process', options.postProcessDir, options.rarPassword]
-            elif options.postProcessDir:
-                args = ['process', options.postProcessDir]
             hellaRemote(options, args)
         except SystemExit, se:
             # sys.exit throws this, let it go

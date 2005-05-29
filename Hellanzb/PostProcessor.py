@@ -222,8 +222,10 @@ class PostProcessor(Thread):
         # Put files we've processed and no longer need (like pars rars) in this dir
         processedDir = self.dirName + os.sep + Hellanzb.PROCESSED_SUBDIR
         
-        if not os.path.exists(self.dirName) or not os.path.isdir(self.dirName):
+        if not os.path.exists(self.dirName):
             raise FatalError('Directory does not exist: ' + self.dirName)
+        elif not os.path.isdir(self.dirName):
+            raise FatalError('Not a directory: ' + self.dirName)
                               
         if not os.path.exists(processedDir):
             os.mkdir(processedDir)

@@ -7,6 +7,7 @@ nzbget
 [See end of file]
 """
 import Hellanzb, os, re, sys, time
+from shutil import rmtree
 from threading import Thread, Condition, Lock
 from Hellanzb.Log import *
 from Hellanzb.PostProcessorUtil import *
@@ -205,7 +206,16 @@ class PostProcessor(Thread):
             elif re.match(r'.*_duplicate\d{0,4}', file):
                 os.rename(self.dirName + os.sep + file,
                           self.dirName + os.sep + Hellanzb.PROCESSED_SUBDIR + os.sep + file)
-    
+
+        # Finally, nuke the processed dir. Hopefully the PostProcessor did its job and
+        # there was absolutely no need for it, otherwise tough! (and disable the option
+        # and try again) =]
+        if hasattr(Hellanzb, 'DELETE_PROCESSED') and Hellanzb.DELETE_PROCESSED:
+            msg = 'Deleting processed dir, it contains: ' + str(walk(Hellanzb.PROCESSED_SUBDIR,
+                                                                     1, return_folders = 1))
+            logFile(msg)
+            rmtree(Hellanzb.PROCESSED_SUBDIR)
+                
         # We're done
         info(archiveName(self.dirName) + ': Finished processing')
         growlNotify('Archive Success', 'hellanzb Done Processing:', archiveName(self.dirName),

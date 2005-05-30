@@ -58,8 +58,9 @@ class ScrollableHandler(StreamHandlerNoLF):
     area) """
 
     # the SCROLL level (a class var)
-    SCROLL = 11
-    SHUTDOWN = 12
+    LOGFILE = 11
+    SCROLL = 12
+    SHUTDOWN = 13
 
     def __init__(self, *args, **kwargs):
         self.scrollLock = RLock()
@@ -321,15 +322,17 @@ class NZBLeecherTicker:
             self.currentLog += (self.connectionPrefix + ACODE.KILL_LINE) % (prettyId)
             self.currentLog += '\n\r'
 
-        # FIXME: FIXME HA-HA-HACK FIXME
+        line = self.connectionPrefix + ACODE.F_DRED + ' %.1fKB/s' + ACODE.RESET + \
+               ', ' + ACODE.F_DGREEN + '%d MB' + ACODE.RESET + ' queued, ETA: ' + \
+               ACODE.F_YELLOW + '%s' + ACODE.RESET
+        if Hellanzb.downloadPaused:
+            line+= ACODE.F_DCYAN + ' [Paused]' + ACODE.RESET
+        line += ACODE.KILL_LINE
+        
         totalSpeed = 0
         for nsf in Hellanzb.nsfs:
             totalSpeed += nsf.sessionSpeed
 
-        line = self.connectionPrefix + ACODE.F_DRED + ' %.1fKB/s' + ACODE.RESET + \
-               ', ' + ACODE.F_DGREEN + '%d MB' + ACODE.RESET + ' queued, ETA: ' + \
-               ACODE.F_YELLOW + '%s' + ACODE.RESET + ACODE.KILL_LINE
-        
         if totalSpeed == 0:
             eta = '00:00:00'
         else:
@@ -406,6 +409,7 @@ def lockScrollableHandlers(func, *args, **kwargs):
 
 def initLogging():
     """ Setup logging """
+    logging.addLevelName(ScrollableHandler.LOGFILE, 'LOGFILE')
     logging.addLevelName(ScrollableHandler.SCROLL, 'SCROLL')
     logging.addLevelName(ScrollableHandler.SHUTDOWN, 'SHUTDOWN')
 
@@ -424,7 +428,7 @@ def initLogging():
             return True
     
     outHdlr = ScrollableHandler(sys.stdout)
-    #outHdlr.setLevel(ScrollableHandler.SCROLL)
+    outHdlr.setLevel(ScrollableHandler.SCROLL)
     outHdlr.addFilter(OutFilter())
     Hellanzb.logger.addHandler(outHdlr)
 

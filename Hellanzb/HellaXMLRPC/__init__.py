@@ -13,6 +13,7 @@ from twisted.python import log
 from twisted.web import xmlrpc, server
 from twisted.web.server import Site
 from xmlrpclib import Fault
+from Hellanzb.Elite import C
 from Hellanzb.HellaXMLRPC.xmlrpc import Proxy, XMLRPC # was twisted.web.xmlrpc
 from Hellanzb.HellaXMLRPC.HtPasswdAuth import HtPasswdWrapper
 from Hellanzb.Logging import LogOutputStream
@@ -43,6 +44,11 @@ class HellaXMLRPCServer(XMLRPC):
         msg += '%.2i:%.2i' % (hours, minutes)
         return msg
 
+    def xmlrpc_aolsay(self):
+        """ Return a random aolsay (from Da5id's aolsay.scr) """
+        from Hellanzb.Elite import C
+        return C.aolSay()
+        
     def xmlrpc_cancel(self):
         """ Cancel the current download and move the current NZB to Hellanzb.TEMP_DIR """
         from Hellanzb.Daemon import cancelCurrent
@@ -59,10 +65,15 @@ class HellaXMLRPCServer(XMLRPC):
         from Hellanzb.Daemon import continueCurrent
         return continueCurrent()
 
-    def xmlrpc_down(self, nzbId):
+    def xmlrpc_asciiart(self):
+        """ Return a random ascii art """
+        from Hellanzb.Elite import C
+        return C.asciiArt()
+
+    def xmlrpc_down(self, nzbId, shift = 1):
         """ Move the NZB with the specified ID down in the queue """
         from Hellanzb.Daemon import moveDown
-        return moveDown(nzbId)
+        return moveDown(nzbId, shift)
 
     def xmlrpc_enqueue(self, nzbFilename):
         """ Add the specified nzb file to the end of the queue """
@@ -81,6 +92,17 @@ class HellaXMLRPCServer(XMLRPC):
         from Hellanzb.Daemon import forceNZB
         reactor.callLater(0, forceNZB, nzbFilename)
         return True
+
+    def xmlrpc_maxrate(self, rate = None):
+        """ Set the Hellanzb.MAX_RATE (maximum download rate) value. A value of zero denotes no
+        rate """
+        if rate == None:
+            if Hellanzb.ht.readLimit == None:
+                return str(None)
+            return str(Hellanzb.ht.readLimit / 1024)
+        
+        from Hellanzb.Daemon import maxRate
+        return maxRate(rate)
     
     def xmlrpc_next(self, nzbFilename):
         """ Add the specified nzb file to the beginning of the queue """
@@ -121,9 +143,14 @@ class HellaXMLRPCServer(XMLRPC):
         queued = 'Queued: '
 
         totalSpeed = 0
+        activeClients = 0
         for nsf in Hellanzb.nsfs:
             totalSpeed += nsf.sessionSpeed
-        totalSpeed = '%.1fKB/s' % (totalSpeed)
+            activeClients += len(nsf.activeClients)
+        if activeClients:
+            totalSpeed = '%.1fKB/s' % (totalSpeed)
+        else:
+            totalSpeed = 'Idle'
 
         downloading += self.statusFromList(Hellanzb.queue.currentNZBs(),
                                            lambda nzb : nzb.archiveName)
@@ -149,14 +176,14 @@ class HellaXMLRPCServer(XMLRPC):
 
         msg = """
 %s  up %s  %s
-""".lstrip() % (now, self.secondsToUptime(time.time() - Hellanzb.BEGIN_TIME), totalSpeed) + \
-            cmHella()
+""".lstrip() % (now, self.secondsToUptime(time.time() - Hellanzb.BEGIN_TIME), totalSpeed)
+        
+        msg += cmHella()
 
         if aolsay:
-            msg += """
-I GO TOO USERNETT AND BE COOL AND SHIT
+            msg += '\n' + textwrap.fill(C.aolSay(), 80, initial_indent = ' '*5,
+                                        subsequent_indent = ' '*5) + '\n\n'
 
-"""
         msg += \
 """
 %s
@@ -168,10 +195,10 @@ I GO TOO USERNETT AND BE COOL AND SHIT
                        
         return msg
 
-    def xmlrpc_up(self, nzbId):
+    def xmlrpc_up(self, nzbId, shift = 1):
         """ Move the NZB with the specified ID up in the queue """
         from Hellanzb.Daemon import moveUp
-        return moveUp(nzbId)
+        return moveUp(nzbId, shift)
     
     def statusFromList(self, alist, statusFunc):
         """ generate a status message from the list of objects, using the specified function for
@@ -202,11 +229,15 @@ def printListAndExit(remoteCall, result):
 
 def resultMadeItBoolAndExit(remoteCall, result):
     """ generic xml rpc call back for a boolean result """
-    if result:
-        info('Successfully made remote call to hellanzb queue daemon')
+    if type(result) == bool:
+        if result:
+            info('Successfully made remote call to hellanzb queue daemon')
+        else:
+            info('Remote call to hellanzb queue daemon returned False! (there was a problem, see logs for details)')
+        reactor.stop()
     else:
-        info('Remote call to hellanzb queue daemon returned False! (there was a problem, see logs for details)')
-    reactor.stop()
+        info(str(result))
+        reactor.stop()
 
 def errHandler(remoteCall, failure):
     """ generic xml rpc client err back -- handle errors, and possibly spawn a post processor
@@ -339,12 +370,15 @@ def initXMLRPCServer():
 
 def initXMLRPCClient():
     """ initialize the xml rpc client """
+    RemoteCall('asciiart', printResultAndExit)
+    RemoteCall('aolsay', printResultAndExit)
     RemoteCall('cancel', resultMadeItBoolAndExit)
     RemoteCall('clear', resultMadeItBoolAndExit)
     RemoteCall('continue', resultMadeItBoolAndExit)
     RemoteCall('down', resultMadeItBoolAndExit)
     RemoteCall('enqueue', resultMadeItBoolAndExit)
     RemoteCall('list', printListAndExit)
+    RemoteCall('maxrate', resultMadeItBoolAndExit)
     RemoteCall('next', resultMadeItBoolAndExit)
     RemoteCall('force', resultMadeItBoolAndExit)
     RemoteCall('pause', resultMadeItBoolAndExit)

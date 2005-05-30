@@ -22,6 +22,7 @@ from Hellanzb.Util import rtruncate, truncateToMultiLine
 from Hellanzb.NZBLeecher.nntp import NNTPClient, extractCode
 from Hellanzb.NZBLeecher.ArticleDecoder import decode
 from Hellanzb.NZBLeecher.NZBModel import NZBQueue
+from Hellanzb.NZBLeecher.NZBLeecherUtil import HellaThrottler, HellaThrottlingFactory
 from Queue import Empty
 
 __id__ = '$Id$'
@@ -46,6 +47,14 @@ def initNZBLeecher():
     # this class handles updating statistics via the SCROLL level (the UI)
     Hellanzb.scroller = NZBLeecherTicker()
 
+    if hasattr(Hellanzb, 'MAX_RATE'):
+        Hellanzb.ht = HellaThrottler(int(Hellanzb.MAX_RATE) * 1024)
+    else:
+        Hellanzb.ht = HellaThrottler()
+
+    # loop to scan the queue dir during download
+    Hellanzb.downloadScannerID = None
+    
     startNZBLeecher()
 
 def startNZBLeecher():
@@ -65,18 +74,10 @@ def startNZBLeecher():
             else:
                 antiIdle = defaultAntiIdle
 
-            defaultReadLimit = None
-            if serverInfo.has_key('maxSpeed') and serverInfo['maxSpeed'] != None and \
-                   serverInfo['maxSpeed'] != '':
-                readLimit = int(serverInfo['maxSpeed']) * 1024
-            else:
-                readLimit = defaultReadLimit
-
             nsf = NZBLeecherFactory(serverInfo['username'], serverInfo['password'],
                                                       antiIdle)
             Hellanzb.nsfs.append(nsf)
-            if readLimit != None:
-                nsf = ThrottlingFactory(nsf, readLimit = readLimit)
+            nsf = HellaThrottlingFactory(nsf)
 
             host, port = host.split(':')
             for connection in range(connections):

@@ -68,16 +68,17 @@ def initDaemon():
     from Hellanzb.NZBLeecher import initNZBLeecher
     initNZBLeecher()
 
-def scanQueueDir(firstRun = False):
+def scanQueueDir(firstRun = False, justScan = False):
     """ Find new/resume old NZB download sessions """
+    import time
+    t = time.time()
     debug('Ziplick scanning queue dir..')
 
     from Hellanzb.NZBLeecher.NZBModel import NZB
     current_nzbs = []
     for file in os.listdir(Hellanzb.CURRENT_DIR):
         if re.search(r'\.nzb$', file):
-            nzb = NZB(Hellanzb.CURRENT_DIR + os.sep + file)
-            current_nzbs.append(nzb)
+            current_nzbs.append(Hellanzb.CURRENT_DIR + os.sep + file)
 
     # See if we're resuming a nzb fetch
     resuming = False
@@ -96,7 +97,13 @@ def scanQueueDir(firstRun = False):
             
     if firstRun:
         sortQueueFromDisk()
-        
+
+    e = time.time() - t
+    if justScan:
+        debug('scanQueueDir (justScan = True) TOOK: ' + str(e))
+        Hellanzb.downloadScannerID = reactor.callLater(7, scanQueueDir, False, True)
+        return
+    
     # Nothing to do, lets wait 5 seconds and start over
     if not current_nzbs:
         if not Hellanzb.queued_nzbs:
@@ -116,7 +123,8 @@ def scanQueueDir(firstRun = False):
             # only found one nzb (The 'Found new nzb' message is enough in that case)
             displayNotification = True
     else:
-        nzb = current_nzbs[0]
+        nzbfilename = current_nzbs[0]
+        nzb = NZB(nzbfilename)
         nzbfilename = os.path.basename(nzb.nzbFileName)
         displayNotification = True
         del current_nzbs[0]
@@ -191,6 +199,7 @@ def parseNZB(nzb, notification = 'Downloading', quiet = False):
             for nsf in Hellanzb.nsfs:
                 if not len(nsf.activeClients):
                     nsf.fetchNextNZBSegment()
+        Hellanzb.downloadScannerID = reactor.callLater(5, scanQueueDir, False, True)
 
     except FatalError, fe:
         error('Problem while parsing the NZB', fe)
@@ -258,18 +267,15 @@ def handleNZBDone(nzbfilename):
     move(nzbfile, newdir)
     os.mkdir(Hellanzb.WORKING_DIR)
 
-    # FIXME: if this ctrl-c is caught we will never bother Trolling the newdir. If
-    # we were signaled after the last shutdown check, we would have wanted the
-    # previous code block to have completed. But we definitely don't want to
-    # proceed to processing
-    
     # Finally unarchive/process the directory in another thread, and continue
     # nzbing
     troll = PostProcessor.PostProcessor(newdir)
+
     # Give NZBLeecher some time (another reactor loop) to killHistory() & scrollEnd()
     # without any logging interference from PostProcessor
     reactor.callLater(0, troll.start)
 
+    Hellanzb.downloadScannerID.cancel()
     reactor.callLater(0, scanQueueDir)
 
 def postProcess(options):
@@ -385,16 +391,16 @@ def clearCurrent(andCancel):
 
     return True
 
-def moveUp(nzbId, moveDown = False):
+def moveUp(nzbId, shift = 1, moveDown = False):
     """ move the specified nzb up in the queue """
-    i = 0
-    foundNzb = None
     try:
         nzbId = int(nzbId)
     except:
         debug('Invalid ID: ' + nzbId)
         return False
             
+    i = 0
+    foundNzb = None
     for nzb in Hellanzb.queued_nzbs:
         if nzb.id == nzbId:
             foundNzb = nzb
@@ -404,24 +410,24 @@ def moveUp(nzbId, moveDown = False):
     if not foundNzb:
         return False
 
-    if i == 0 and not moveDown:
+    if i - shift <= -1 and not moveDown:
         # can't go any higher
-        return True
-    elif i == len(Hellanzb.queued_nzbs) - 1 and moveDown:
+        return False
+    elif i + shift >= len(Hellanzb.queued_nzbs) and moveDown:
         # can't go any lower
-        return True
+        return False
 
     Hellanzb.queued_nzbs.remove(foundNzb)
     if not moveDown:
-        Hellanzb.queued_nzbs.insert(i - 1, foundNzb)
+        Hellanzb.queued_nzbs.insert(i - shift, foundNzb)
     else:
-        Hellanzb.queued_nzbs.insert(i + 1, foundNzb)
+        Hellanzb.queued_nzbs.insert(i + shift, foundNzb)
     writeQueueToDisk(Hellanzb.queued_nzbs)
     return True
 
-def moveDown(nzbId):
+def moveDown(nzbId, shift = 1):
     """ move the specified nzb down in the queue """
-    return moveUp(nzbId, moveDown = True)
+    return moveUp(nzbId, shift, moveDown = True)
     
 def enqueueNZBs(nzbFileOrFiles, next = False, writeQueue = True):
     """ add one or a list of nzb files to the end of the queue """
@@ -440,6 +446,16 @@ def enqueueNZBs(nzbFileOrFiles, next = False, writeQueue = True):
 
                 from Hellanzb.NZBLeecher.NZBModel import NZB
                 nzb = NZB(nzbFile)
+                
+                found = False
+                for n in Hellanzb.queued_nzbs:
+                    if os.path.normpath(n.nzbFileName) == os.path.normpath(nzbFile):
+                        found = True
+                        error('Cannot add nzb file to queue: ' + os.path.basename(nzbFile) + \
+                              ' it already exists!')
+                if found:
+                    continue
+                        
                 if not next:
                     Hellanzb.queued_nzbs.append(nzb)
                 else:
@@ -454,6 +470,33 @@ def enqueueNZBs(nzbFileOrFiles, next = False, writeQueue = True):
 def enqueueNextNZBs(nzbFileOrFiles):
     """ enqueue one or more nzbs to the beginning of the queue """
     return enqueueNZBs(nzbFileOrFiles, next = True)
+
+def maxRate(rate):
+    if rate == 'None':
+        rate = 0
+    else:
+        try:
+            rate = int(rate)
+        except:
+            return False
+        
+    info('Resetting max download rate to: ' + str(rate))
+    if rate == 0:
+        rate = None
+    else:
+        rate = rate * 1024
+        
+    restartCheckRead = False
+    if rate == None:
+        Hellanzb.ht.unthrottleReadsID.cancel()
+        Hellanzb.ht.checkReadBandwidthID.cancel()
+        Hellanzb.ht.unthrottleReads()
+    elif Hellanzb.ht.readLimit == None and rate > None:
+        restartCheckRead = True
+    Hellanzb.ht.readLimit = rate
+    if restartCheckRead:
+        Hellanzb.ht.checkReadBandwidth()
+    return True
 
 def listQueue(includeIds = False):
     """ return a list of the queue """

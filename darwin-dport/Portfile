@@ -25,6 +25,7 @@ depends_run  bin:par2:par2 \
              bin:flac:flac \
              bin:shorten:shorten \
              lib:XXX:py-twisted \
+             lib:XXX:py-twistedweb
 
 post-activate {
         # copy over the sample conf file if necessary

@@ -18,9 +18,10 @@ defineServer(id = 'changeme',
              connections = 4,
              antiIdle = 7 * 60,          # 7 minutes
              #bindTo = '204.31.33.7',    # connect FROM this ip address
-             #maxSpeed = 150             # limit to 150kB/s
              )
 
+# Uncomment this line to limit all server connections to the specified KB/s bandwidth
+#Hellanzb.MAX_RATE = 150 # limit to 150kB/s
 
 # Important locations
 Hellanzb.PREFIX_DIR = '/ext2/'

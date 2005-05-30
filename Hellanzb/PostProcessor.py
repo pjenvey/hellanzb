@@ -207,10 +207,11 @@ class PostProcessor(Thread):
         # there was absolutely no need for it, otherwise tough! (and disable the option
         # and try again) =]
         if hasattr(Hellanzb, 'DELETE_PROCESSED') and Hellanzb.DELETE_PROCESSED:
-            msg = 'Deleting processed dir, it contains: ' + str(walk(Hellanzb.PROCESSED_SUBDIR,
+            msg = 'Deleting processed dir, it contains: ' + str(walk(self.dirName + os.sep + \
+                                                                     Hellanzb.PROCESSED_SUBDIR,
                                                                      1, return_folders = 1))
             logFile(msg)
-            rmtree(Hellanzb.PROCESSED_SUBDIR)
+            rmtree(self.dirName + os.sep + Hellanzb.PROCESSED_SUBDIR)
                 
         # We're done
         info(archiveName(self.dirName) + ': Finished processing')

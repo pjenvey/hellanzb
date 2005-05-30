@@ -49,15 +49,15 @@ Hellanzb.TEMP_DIR = Hellanzb.PREFIX_DIR + 'nzb/daemon.temp/'
 
 # List storing the order of the queued .nzb files in the QUEUE_DIR. hellanzb will update
 # this file intermittently (FIXME: NOT IN USE)
-#Hellanzb.QUEUE_LIST = Hellanzb.PREFIX_DIR + 'nzb/QUEUE_LIST'
+Hellanzb.QUEUE_LIST = Hellanzb.PREFIX_DIR + 'nzb/QUEUE_LIST'
 
 
 # _Sub directory within the nzb archive dir_ to move proccessed files to
 Hellanzb.PROCESSED_SUBDIR = 'processed'
 
-# Remove the PROCESSED_SUBDIR if a file was successfully post processed. Warning: The
-# normal log should be enabled with this option -- so you have a record of what hellanzb
-# deletes (FIXME: NOT IN USE)
+# Remove the PROCESSED_SUBDIR if the archive was successfully post processed. Warning: The
+# normal Hellanzb.LOG_FILE should be enabled with this option -- for a record of what
+# hellanzb deletes
 Hellanzb.DELETE_PROCESSED = False
 
 
@@ -100,7 +100,7 @@ Hellanzb.KEEP_FILE_TYPES = [ 'nfo', 'txt' ]
 
 
 # Hostname for the XMLRPC client to connect to. By default, localhost
-Hellanzb.XMLRPC_HOST = 'localhost'
+Hellanzb.XMLRPC_SERVER = 'localhost'
 
 # Port number the XML RPC server will listen on, and the client will connect to. Set to
 # 'None' for no XML RPC server

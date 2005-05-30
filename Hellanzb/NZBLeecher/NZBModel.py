@@ -13,7 +13,7 @@ from xml.sax import make_parser, SAXParseException
 from xml.sax.handler import ContentHandler, feature_external_ges, feature_namespaces
 from Hellanzb.Daemon import handleNZBDone
 from Hellanzb.Log import *
-from Hellanzb.NZBLeecher.ArticleDecoder import assembleNZBFile, getMsgId, parseArticleData, \
+from Hellanzb.NZBLeecher.ArticleDecoder import assembleNZBFile, parseArticleData, \
     setRealFileName, tryFinishNZB
 from Hellanzb.Util import archiveName, getFileExtension, PriorityQueue
 
@@ -180,7 +180,7 @@ class NZB:
         self.canceled = False
         self.canceledLock = Lock()
 
-        self.id = getNextId()
+        self.id = self.getNextId()
 
     def getNextId(self):
         id = NZB.nextId
@@ -462,7 +462,7 @@ class NZBQueue(PriorityQueue):
             self.totalQueuedBytes -= nzbSegment.bytes
         self.nzbsLock.release()
 
-    def parseNZB(self, fileName):
+    def parseNZB(self, nzb):
         """ Initialize the queue from the specified nzb file """
         # Create a parser
         parser = make_parser()
@@ -472,7 +472,7 @@ class NZBQueue(PriorityQueue):
         parser.setFeature(feature_external_ges, 0)
         
         # Create the handler
-        nzb = NZB(fileName)
+        fileName = nzb.nzbFileName
         self.nzbAdd(nzb)
         needWorkFiles = []
         needWorkSegments = []

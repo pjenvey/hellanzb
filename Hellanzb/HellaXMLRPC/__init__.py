@@ -59,16 +59,21 @@ class HellaXMLRPCServer(XMLRPC):
         from Hellanzb.Daemon import continueCurrent
         return continueCurrent()
 
+    def xmlrpc_down(self, nzbId):
+        """ Move the NZB with the specified ID down in the queue """
+        from Hellanzb.Daemon import moveDown
+        return moveDown(nzbId)
+
     def xmlrpc_enqueue(self, nzbFilename):
         """ Add the specified nzb file to the end of the queue """
         from Hellanzb.Daemon import enqueueNZBs
         reactor.callLater(0, enqueueNZBs, nzbFilename)
         return True
 
-    def xmlrpc_list(self):
-        """ List the current queue """
+    def xmlrpc_list(self, includeIds = False):
+        """ List the current queue. Specify True as the second argument to include the NZB ID """
         from Hellanzb.Daemon import listQueue
-        return listQueue()
+        return listQueue(includeIds)
 
     def xmlrpc_force(self, nzbFilename):
         """ Force hellanzb to begin downloading the specified NZB file immediately -- interrupting
@@ -115,8 +120,14 @@ class HellaXMLRPCServer(XMLRPC):
         failedProcessing = 'Failed Processing: '
         queued = 'Queued: '
 
+        totalSpeed = 0
+        for nsf in Hellanzb.nsfs:
+            totalSpeed += nsf.sessionSpeed
+        totalSpeed = '%.1fKB/s' % (totalSpeed)
+
         downloading += self.statusFromList(Hellanzb.queue.currentNZBs(),
                                            lambda nzb : nzb.archiveName)
+#                                           lambda nzb : nzb.archiveName + ' [' + totalSpeed + ']')
 
         Hellanzb.postProcessorLock.acquire()
         processing += self.statusFromList(Hellanzb.postProcessors,
@@ -137,8 +148,9 @@ class HellaXMLRPCServer(XMLRPC):
         # hellanzb version %s
 
         msg = """
-%s  up %s
-""".lstrip() % (now, self.secondsToUptime(time.time() - Hellanzb.BEGIN_TIME)) + cmHella()
+%s  up %s  %s
+""".lstrip() % (now, self.secondsToUptime(time.time() - Hellanzb.BEGIN_TIME), totalSpeed) + \
+            cmHella()
 
         if aolsay:
             msg += """
@@ -156,6 +168,11 @@ I GO TOO USERNETT AND BE COOL AND SHIT
                        
         return msg
 
+    def xmlrpc_up(self, nzbId):
+        """ Move the NZB with the specified ID up in the queue """
+        from Hellanzb.Daemon import moveUp
+        return moveUp(nzbId)
+    
     def statusFromList(self, alist, statusFunc):
         """ generate a status message from the list of objects, using the specified function for
         formatting """
@@ -210,10 +227,10 @@ def errHandler(remoteCall, failure):
              'the hellanzb queue daemon @ ' + Hellanzb.serverUrl + ' probably isn\'t running')
 
     elif isinstance(err, ValueError):
-        if len(err.args) == 2 and err.self.funcName == '401':
+        if len(err.args) == 2 and err.args[0] == '401':
             info('Incorrect Hellanzb.XMLRPC_PASSWORD: ' + err.args[1] + ' (XMLRPC server: ' + \
                  Hellanzb.serverUrl + ')')
-        elif len(err.args) == 2 and err.self.funcName == '405':
+        elif len(err.args) == 2 and err.args[0] == '405':
             info('XMLRPC server: ' + Hellanzb.serverUrl + ' did not understand command: ' + \
                  remoteCall.funcName + \
                  ' -- this server is probably not the hellanzb XML RPC server!')
@@ -325,6 +342,7 @@ def initXMLRPCClient():
     RemoteCall('cancel', resultMadeItBoolAndExit)
     RemoteCall('clear', resultMadeItBoolAndExit)
     RemoteCall('continue', resultMadeItBoolAndExit)
+    RemoteCall('down', resultMadeItBoolAndExit)
     RemoteCall('enqueue', resultMadeItBoolAndExit)
     RemoteCall('list', printListAndExit)
     RemoteCall('next', resultMadeItBoolAndExit)
@@ -333,6 +351,7 @@ def initXMLRPCClient():
     RemoteCall('process', resultMadeItBoolAndExit)
     RemoteCall('shutdown', resultMadeItBoolAndExit)
     RemoteCall('status', printResultAndExit)
+    RemoteCall('up', resultMadeItBoolAndExit)
 
 def hellaRemote(options, args):
     """ execute the remote RPC call with the specified cmd line args. args can be None """
@@ -349,11 +368,11 @@ def hellaRemote(options, args):
     if Hellanzb.XMLRPC_PORT == None:
         raise FatalError('Hellanzb.XMLRPC_PORT not defined, cannot make remote call')
 
-    if not hasattr(Hellanzb, 'XMLRPC_HOST') or Hellanzb.XMLRPC_HOST == None:
-        Hellanzb.XMLRPC_HOST = 'localhost'
+    if not hasattr(Hellanzb, 'XMLRPC_SERVER') or Hellanzb.XMLRPC_SERVER == None:
+        Hellanzb.XMLRPC_SERVER = 'localhost'
     if Hellanzb.XMLRPC_PASSWORD == None:
         Hellanzb.XMLRPC_PASSWORD == ''
-    Hellanzb.serverUrl = 'http://hellanzb:%s@%s:%i' % (Hellanzb.XMLRPC_PASSWORD, Hellanzb.XMLRPC_HOST,
+    Hellanzb.serverUrl = 'http://hellanzb:%s@%s:%i' % (Hellanzb.XMLRPC_PASSWORD, Hellanzb.XMLRPC_SERVER,
                                                        Hellanzb.XMLRPC_PORT)
 
     fileStream = LogOutputStream(debug)

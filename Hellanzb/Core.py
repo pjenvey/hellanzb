@@ -206,6 +206,13 @@ def init(options = {}):
             setattr(sys.modules[__name__], attr, getattr(options, attr))
     Hellanzb.Logging.initLogFile(logFile = logFile, debugLogFile = debugLogFile)
 
+    # overwrite xml rpc vars from the command line options if they were set
+    for option, attr in { 'rpcServer': 'XMLRPC_SERVER',
+                          'rpcPassword': 'XMLRPC_PASSWORD',
+                          'rpcPort': 'XMLRPC_PORT' }.iteritems():
+        if getattr(options, option):
+            setattr(Hellanzb, attr, getattr(options, option))
+
 def outlineRequiredDirs():
     """ Set all required directory attrs to None. they will be checked later for this value to
     ensure they have been set """
@@ -271,6 +278,12 @@ def parseArgs():
                       help='post-process the specified nzb archive dir either in an already running hellanzb (via xmlrpc) if one is available, otherwise in the current process. then exit')
     parser.add_option('-P', '--rar-password', type='string', dest='rarPassword',
                       help='when used with the -p option, specifies the nzb archive\'s rar password')
+    parser.add_option('-r', '--rpc-server', type='string', dest='rpcServer',
+                      help='specify the rpc server (overwrites Hellanzb.XMLRPC_SERVER config file setting)')
+    parser.add_option('-s', '--rpc-password', type='string', dest='rpcPassword',
+                      help='specify the rpc server password (overwrites Hellanzb.XMLRPC_PASSWORD config file setting)')
+    parser.add_option('-t', '--rpc-port', type='string', dest='rpcPort',
+                      help='specify the rpc server port (overwrites Hellanzb.XMLRPC_PORT config file setting)')
     return parser.parse_args()
 
 def processArgs(options, args):

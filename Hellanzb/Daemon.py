@@ -29,12 +29,11 @@ def ensureDaemonDirs():
                 try:
                     os.makedirs(dirName)
                 except OSError, ose:
-                    # FIXME: this isn't caught -- it's not a clean way to exit the program
                     raise FatalError('Unable to create directory for option: Hellanzb.' + \
                                      arg + ' dirName: ' + dirName + ' error: ' + str(ose))
             elif not os.access(dirName, os.W_OK):
                 badPermDirs.append(dirName)
-                
+
     if len(badPermDirs):
         dirTxt = 'directory'
         if len(badPermDirs) > 1:
@@ -45,6 +44,11 @@ def ensureDaemonDirs():
             err += '\n' + dirName
             
         raise FatalError(err)
+
+    if not hasattr(Hellanzb, 'QUEUE_LIST') or Hellanzb.QUEUE_LIST == None:
+        raise FatalError('Hellanzb.QUEUE_LIST not defined in config file')
+    elif os.path.isfile(Hellanzb.QUEUE_LIST) and not os.access(Hellanzb.QUEUE_LIST, os.W_OK):
+        raise FatalError('hellanzb does not have write access to the Hellanzb.QUEUE_LIST file')
             
 def initDaemon():
     """ Start the daemon """
@@ -59,39 +63,50 @@ def initDaemon():
 
     reactor.callLater(0, info, 'hellanzb - Now monitoring queue...')
     reactor.callLater(0, growlNotify, 'Queue', 'hellanzb', 'Now monitoring queue..', False)
-    reactor.callLater(0, scanQueueDir)
+    reactor.callLater(0, scanQueueDir, True)
 
     from Hellanzb.NZBLeecher import initNZBLeecher
     initNZBLeecher()
 
-def scanQueueDir():
+def scanQueueDir(firstRun = False):
     """ Find new/resume old NZB download sessions """
     debug('Ziplick scanning queue dir..')
 
-    current_nzbs = [x for x in os.listdir(Hellanzb.CURRENT_DIR) if re.search(r'\.nzb$',x)]
+    from Hellanzb.NZBLeecher.NZBModel import NZB
+    current_nzbs = []
+    for file in os.listdir(Hellanzb.CURRENT_DIR):
+        if re.search(r'\.nzb$', file):
+            nzb = NZB(Hellanzb.CURRENT_DIR + os.sep + file)
+            current_nzbs.append(nzb)
 
-    # Intermittently check if the app is in the process of shutting down when it's
-    # safe (in between long processes)
-    checkShutdown()
-    
     # See if we're resuming a nzb fetch
     resuming = False
     displayNotification = False
-    if not current_nzbs:
-        # Refresh our queue and append the new nzb's, 
-        new_nzbs = [x for x in os.listdir(Hellanzb.QUEUE_DIR) \
-                    if x not in Hellanzb.queued_nzbs and re.search(r'\.nzb$',x)]
+    new_nzbs = []
+    queuedMap = {}
+    for nzb in Hellanzb.queued_nzbs:
+        queuedMap[os.path.normpath(nzb.nzbFileName)] = nzb
+        
+    for file in os.listdir(Hellanzb.QUEUE_DIR):
+        if re.search(r'\.nzb$', file) and \
+            os.path.normpath(Hellanzb.QUEUE_DIR + os.sep + file) not in queuedMap:
+            new_nzbs.append(Hellanzb.QUEUE_DIR + os.sep + file)
 
-        enqueueNZBs(new_nzbs)
-                
-        # Nothing to do, lets wait 5 seconds and start over
+    enqueueNZBs(new_nzbs, writeQueue = not firstRun)
+            
+    if firstRun:
+        sortQueueFromDisk()
+        
+    # Nothing to do, lets wait 5 seconds and start over
+    if not current_nzbs:
         if not Hellanzb.queued_nzbs:
             reactor.callLater(5, scanQueueDir)
             return
 
-        nzbfilename = Hellanzb.queued_nzbs[0]
+        nzb = Hellanzb.queued_nzbs[0]
+        nzbfilename = os.path.basename(nzb.nzbFileName)
         del Hellanzb.queued_nzbs[0]
-        
+    
         # nzbfile will always be a absolute filename 
         nzbfile = Hellanzb.QUEUE_DIR + nzbfilename
         move(nzbfile, Hellanzb.CURRENT_DIR)
@@ -101,36 +116,78 @@ def scanQueueDir():
             # only found one nzb (The 'Found new nzb' message is enough in that case)
             displayNotification = True
     else:
-        nzbfilename = current_nzbs[0]
+        nzb = current_nzbs[0]
+        nzbfilename = os.path.basename(nzb.nzbFileName)
         displayNotification = True
         del current_nzbs[0]
         resuming = True
 
     nzbfile = Hellanzb.CURRENT_DIR + nzbfilename
+    nzb.nzbFileName = nzbfile
 
     # Change the cwd for Newsleecher, and download the files
     os.chdir(Hellanzb.WORKING_DIR)
 
     if resuming:
-        parseNZB(nzbfile, 'Resuming')
+        parseNZB(nzb, 'Resuming')
     elif displayNotification:
-        parseNZB(nzbfile)
+        parseNZB(nzb)
     else:
-        parseNZB(nzbfile, quiet = True)
+        parseNZB(nzb, quiet = True)
 
-def parseNZB(nzbfile, notification = 'Downloading', quiet = False):
+def sortQueueFromDisk():
+    """ sort the queue from what's on disk """
+    onDiskQueue = loadQueueFromDisk()
+    unsorted = Hellanzb.queued_nzbs[:]
+    Hellanzb.queued_nzbs = []
+    arranged = []
+    for line in onDiskQueue:
+        for nzb in unsorted:
+            if os.path.basename(nzb.nzbFileName) == line:
+                Hellanzb.queued_nzbs.append(nzb)
+                arranged.append(nzb)
+                break
+    for nzb in arranged:
+        unsorted.remove(nzb)
+    for nzb in unsorted:
+        Hellanzb.queued_nzbs.append(nzb)
+            
+def loadQueueFromDisk():
+    """ load the queue from disk """
+    queue = []
+    if os.path.isfile(Hellanzb.QUEUE_LIST):
+        try:
+            f = open(Hellanzb.QUEUE_LIST)
+        except:
+            f.close()
+            return queue
+        for line in f:
+            queue.append(line.strip('\n'))
+        f.close()
+    return queue
+
+def writeQueueToDisk(queue):
+    """ write the queue to disk """
+    f = open(Hellanzb.QUEUE_LIST, 'w')
+    for nzb in queue:
+        f.write(os.path.basename(nzb.nzbFileName) + '\n')
+    f.close()
+    
+def parseNZB(nzb, notification = 'Downloading', quiet = False):
     """ Parse the NZB file into the Queue. Unless the NZB file is deemed already fully
     processed at the end of parseNZB, tell the factory to start downloading it """
+    writeQueueToDisk(Hellanzb.queued_nzbs)
+
     if not quiet:
-        info(notification + ': ' + archiveName(nzbfile))
-        growlNotify('Queue', 'hellanzb ' + notification + ':', archiveName(nzbfile),
+        info(notification + ': ' + nzb.archiveName)
+        growlNotify('Queue', 'hellanzb ' + notification + ':', nzb.archiveName,
                     False)
 
-    info('Parsing: ' + os.path.basename(nzbfile) + '...')
+    info('Parsing: ' + os.path.basename(nzb.nzbFileName) + '...')
     try:
-        findAndLoadPostponedDir(nzbfile)
+        findAndLoadPostponedDir(nzb)
         
-        if not Hellanzb.queue.parseNZB(nzbfile):
+        if not Hellanzb.queue.parseNZB(nzb):
             for nsf in Hellanzb.nsfs:
                 if not len(nsf.activeClients):
                     nsf.fetchNextNZBSegment()
@@ -143,7 +200,8 @@ def parseNZB(nzbfile, notification = 'Downloading', quiet = False):
         move(nzbfile, Hellanzb.TEMP_DIR + os.sep)
         reactor.callLater(5, scanQueueDir)
 
-def findAndLoadPostponedDir(nzbfilename):
+def findAndLoadPostponedDir(nzb):
+    nzbfilename = nzb.nzbFileName
     d = Hellanzb.POSTPONED_DIR + os.sep + archiveName(nzbfilename)
     if os.path.isdir(d):
         try:
@@ -185,8 +243,6 @@ def findAndLoadPostponedDir(nzbfilename):
 def handleNZBDone(nzbfilename):
     """ Hand-off from the downloader -- make a dir for the NZB with its contents, then post
     process it in a separate thread"""
-    checkShutdown()
-    
     # Make our new directory, minus the .nzb
     newdir = Hellanzb.DEST_DIR + archiveName(nzbfilename)
     
@@ -209,11 +265,10 @@ def handleNZBDone(nzbfilename):
     
     # Finally unarchive/process the directory in another thread, and continue
     # nzbing
-    if not checkShutdown():
-        troll = PostProcessor.PostProcessor(newdir)
-        # Give NZBLeecher some time (another reactor loop) to killHistory() & scrollEnd()
-        # without any logging interference from PostProcessor
-        reactor.callLater(0, troll.start)
+    troll = PostProcessor.PostProcessor(newdir)
+    # Give NZBLeecher some time (another reactor loop) to killHistory() & scrollEnd()
+    # without any logging interference from PostProcessor
+    reactor.callLater(0, troll.start)
 
     reactor.callLater(0, scanQueueDir)
 
@@ -234,13 +289,6 @@ def postProcess(options):
                                                  rarPassword = rarPassword)
     info('\nStarting post processor')
     reactor.callInThread(troll.run)
-
-def stop():
-    """ stop the currently downloading nzb. move its downloaded files to the postponed
-    directory, and queue its nzb to be downloaded next """
-    # FIXME: should there only be ONE active nzb ? does hte safe changing the of nzb
-    # always take place in the reactor thread?
-    pass
 
 def validNZB(nzbfilename):
     if nzbfilename == None or not os.path.isfile(nzbfilename):
@@ -324,6 +372,7 @@ def clearCurrent(andCancel):
     """ clear the queue -- optionally clear what's currently being downloaded (cancel it) """
     info('Clearing queue')
     Hellanzb.queued_nzbs = []
+    writeQueueToDisk(Hellanzb.queued_nzbs)
     for file in os.listdir(Hellanzb.QUEUE_DIR):
         file = Hellanzb.QUEUE_DIR + os.sep + file
         if os.path.isfile(file):
@@ -335,8 +384,46 @@ def clearCurrent(andCancel):
         cancelCurrent()
 
     return True
+
+def moveUp(nzbId, moveDown = False):
+    """ move the specified nzb up in the queue """
+    i = 0
+    foundNzb = None
+    try:
+        nzbId = int(nzbId)
+    except:
+        debug('Invalid ID: ' + nzbId)
+        return False
+            
+    for nzb in Hellanzb.queued_nzbs:
+        if nzb.id == nzbId:
+            foundNzb = nzb
+            break
+        i += 1
+        
+    if not foundNzb:
+        return False
+
+    if i == 0 and not moveDown:
+        # can't go any higher
+        return True
+    elif i == len(Hellanzb.queued_nzbs) - 1 and moveDown:
+        # can't go any lower
+        return True
+
+    Hellanzb.queued_nzbs.remove(foundNzb)
+    if not moveDown:
+        Hellanzb.queued_nzbs.insert(i - 1, foundNzb)
+    else:
+        Hellanzb.queued_nzbs.insert(i + 1, foundNzb)
+    writeQueueToDisk(Hellanzb.queued_nzbs)
+    return True
+
+def moveDown(nzbId):
+    """ move the specified nzb down in the queue """
+    return moveUp(nzbId, moveDown = True)
     
-def enqueueNZBs(nzbFileOrFiles, next = False):
+def enqueueNZBs(nzbFileOrFiles, next = False, writeQueue = True):
     """ add one or a list of nzb files to the end of the queue """
     if type(nzbFileOrFiles) != list:
         newNzbFiles = [ nzbFileOrFiles ]
@@ -345,32 +432,40 @@ def enqueueNZBs(nzbFileOrFiles, next = False):
         
     if len(newNzbFiles) > 0:
         for nzbFile in newNzbFiles:
-            if nzbFile == os.path.basename(nzbFile):
-                nzbFile = Hellanzb.QUEUE_DIR + os.sep + nzbFile
             
             if validNZB(nzbFile):
                 if os.path.dirname(nzbFile) != Hellanzb.QUEUE_DIR:
                     copy(nzbFile, Hellanzb.QUEUE_DIR + os.sep + os.path.basename(nzbFile))
-                nzbFile = os.path.basename(nzbFile)
+                nzbFile = Hellanzb.QUEUE_DIR + os.sep + os.path.basename(nzbFile)
 
+                from Hellanzb.NZBLeecher.NZBModel import NZB
+                nzb = NZB(nzbFile)
                 if not next:
-                    Hellanzb.queued_nzbs.append(nzbFile)
+                    Hellanzb.queued_nzbs.append(nzb)
                 else:
-                    Hellanzb.queued_nzbs.insert(0, nzbFile)
+                    Hellanzb.queued_nzbs.insert(0, nzb)
                 
                 msg = 'Found new nzb: '
                 info(msg + archiveName(nzbFile))
                 growlNotify('Queue', 'hellanzb ' + msg, archiveName(nzbFile), False)
+    if writeQueue:
+        writeQueueToDisk(Hellanzb.queued_nzbs)
             
-        Hellanzb.queued_nzbs.sort()
-
 def enqueueNextNZBs(nzbFileOrFiles):
     """ enqueue one or more nzbs to the beginning of the queue """
     return enqueueNZBs(nzbFileOrFiles, next = True)
 
-def listQueue():
+def listQueue(includeIds = False):
     """ return a list of the queue """
-    return Hellanzb.queued_nzbs
+    members = []
+    for nzb in Hellanzb.queued_nzbs:
+        member = os.path.basename(nzb.nzbFileName)
+        if includeIds:
+            length = 6
+            id = str(nzb.id)
+            member = id + ' '*(length - len(id)) + member
+        members.append(member)
+    return members
 
 def forceNZB(nzbfilename):
     """ interrupt the current download, if necessary, to start the specified nzb """
@@ -391,8 +486,9 @@ def forceNZB(nzbfilename):
             info('Interrupting: ' + nzb.archiveName + ' forcing: ' + archiveName(nzbfilename))
             
             move(nzb.nzbFileName, Hellanzb.QUEUE_DIR + os.sep + os.path.basename(nzb.nzbFileName))
-            Hellanzb.queued_nzbs.append(os.path.basename(nzb.nzbFileName))
-
+            Hellanzb.queued_nzbs.append(nzb) # FIXME: use enqueue here?
+            writeQueueToDisk(Hellanzb.queued_nzbs)
+    
             # Move the postponed files to the new postponed dir
             for file in os.listdir(Hellanzb.WORKING_DIR):
                 move(Hellanzb.WORKING_DIR + os.sep + file, postponed + os.sep + file)

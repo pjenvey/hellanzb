@@ -54,13 +54,35 @@ def decode(segment):
     Hellanzb.queue.segmentDone(segment)
     debug('Decoded segment: ' + segment.getDestination())
 
+    if handleCanceled(segment):
+        return
+
     if segment.nzbFile.isAllSegmentsDecoded():
         try:
             assembleNZBFile(segment.nzbFile)
         except SystemExit, se:
             # checkShutdown() throws this, let the thread die
             pass
+        
+def nuke(f):
+    try:
+        os.remove(f)
+    except Exception, e:
+        pass
+    
+def handleCanceled(segmentOrFile):
+    """ if a file has been canceled, delete it """
+    from Hellanzb.NZBLeecher.NZBModel import NZBSegment
+    if (isinstance(segmentOrFile, NZBSegment) and \
+        segmentOrFile.nzbFile.nzb.isCanceled()) or \
+        (not isinstance(segmentOrFile, NZBSegment) and \
+         segmentOrFile.nzb.isCanceled()):
 
+        nuke(segmentOrFile.getDestination())
+        return True
+    
+    return False
+        
 def stripArticleData(articleData):
     """ Rip off leading/trailing whitespace from the articleData list """
     try:
@@ -373,6 +395,8 @@ def assembleNZBFile(nzbFile, autoFinish = True):
     
     debug('Assembled file: ' + nzbFile.getDestination() + ' from segment files: ' + \
           str([ nzbSegment.getDestination() for nzbSegment in nzbFile.nzbSegments ]))
+    
+    canceled = handleCanceled(nzbFile)
 
     # nudge gc
     for nzbSegment in nzbFile.nzbSegments:
@@ -383,7 +407,7 @@ def assembleNZBFile(nzbFile, autoFinish = True):
         debug('(GCDELAYED) GCING')
         gc.collect()
 
-    if autoFinish:
+    if autoFinish and not canceled:
         # After assembling a file, check the contents of the filesystem to determine if we're done 
         tryFinishNZB(nzbFile.nzb)
 

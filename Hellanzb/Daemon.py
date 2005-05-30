@@ -7,7 +7,7 @@ the twisted reactor loop, except for initialization functions
 [See end of file]
 """
 import Hellanzb, os, re, PostProcessor
-from shutil import copy, move
+from shutil import copy, move, rmtree
 from twisted.internet import reactor
 from Hellanzb.HellaXMLRPC import initXMLRPCServer, HellaXMLRPCServer
 from Hellanzb.Log import *
@@ -48,8 +48,10 @@ def ensureDaemonDirs():
             
 def initDaemon():
     """ Start the daemon """
+    Hellanzb.queued_nzbs = []
     try:
         ensureDaemonDirs()
+        initXMLRPCServer()
     except FatalError, fe:
         error('Exiting', fe)
         from Hellanzb.Core import shutdownNow
@@ -58,10 +60,6 @@ def initDaemon():
     reactor.callLater(0, info, 'hellanzb - Now monitoring queue...')
     reactor.callLater(0, growlNotify, 'Queue', 'hellanzb', 'Now monitoring queue..', False)
     reactor.callLater(0, scanQueueDir)
-
-    Hellanzb.queued_nzbs = []
-
-    initXMLRPCServer()
 
     from Hellanzb.NZBLeecher import initNZBLeecher
     initNZBLeecher()
@@ -84,13 +82,7 @@ def scanQueueDir():
         new_nzbs = [x for x in os.listdir(Hellanzb.QUEUE_DIR) \
                     if x not in Hellanzb.queued_nzbs and re.search(r'\.nzb$',x)]
 
-        if len(new_nzbs) > 0:
-            Hellanzb.queued_nzbs.extend(new_nzbs)
-            Hellanzb.queued_nzbs.sort()
-            for nzb in new_nzbs:
-                msg = 'Found new nzb: '
-                info(msg + archiveName(nzb))
-                growlNotify('Queue', 'hellanzb ' + msg,archiveName(nzb), False)
+        enqueueNZBs(new_nzbs)
                 
         # Nothing to do, lets wait 5 seconds and start over
         if not Hellanzb.queued_nzbs:
@@ -134,7 +126,7 @@ def parseNZB(nzbfile, notification = 'Downloading', quiet = False):
         growlNotify('Queue', 'hellanzb ' + notification + ':', archiveName(nzbfile),
                     False)
 
-    info('Parsing ' + os.path.basename(nzbfile) + '...')
+    info('Parsing: ' + os.path.basename(nzbfile) + '...')
     try:
         findAndLoadPostponedDir(nzbfile)
         
@@ -250,13 +242,139 @@ def stop():
     # always take place in the reactor thread?
     pass
 
-def forceNZB(nzbfilename):
-    """ interrupt the current download, if necessary, to start the specified nzb """
+def validNZB(nzbfilename):
     if nzbfilename == None or not os.path.isfile(nzbfilename):
         error('Invalid NZB file: ' + str(nzbfilename))
-        return
+        return False
     elif not os.access(nzbfilename, os.R_OK):
         error('Unable to read NZB file: ' + str(nzbfilename))
+        return False
+    return True
+
+def isActive():
+    """ whether or not we're actively downloading """
+    activeCount = 0
+    for nsf in Hellanzb.nsfs:
+        activeCount += len(nsf.activeClients)
+    return activeCount > 0
+
+def cancelCurrent():
+    """ cancel the current d/l, remove the nzb. return False if there was nothing to cancel
+    """
+    if not isActive():
+        return False
+    
+    canceled = False
+    for nzb in Hellanzb.queue.currentNZBs():
+        canceled = True
+        nzb.cancel()
+        move(nzb.nzbFileName, Hellanzb.TEMP_DIR + os.sep + os.path.basename(nzb.nzbFileName))
+        info('Canceling download: ' + nzb.archiveName)
+    Hellanzb.queue.cancel()
+    try:
+        hellaRename(Hellanzb.TEMP_DIR + os.sep + 'canceled_WORKING_DIR')
+        move(Hellanzb.WORKING_DIR, Hellanzb.TEMP_DIR + os.sep + 'canceled_WORKING_DIR')
+        os.mkdir(Hellanzb.WORKING_DIR)
+        rmtree(Hellanzb.TEMP_DIR + os.sep + 'canceled_WORKING_DIR')
+    except Exception, e:
+        error('Problem while canceling WORKING_DIR', e)
+
+    if not canceled:
+        debug('ERROR: isActive was True but canceled nothing (no active nzbs!??)')
+
+    for nsf in Hellanzb.nsfs:
+        clients = nsf.activeClients.copy()
+        for client in clients:
+            client.transport.loseConnection()
+            client.isActive(False)
+            
+    reactor.callLater(0, scanQueueDir)
+        
+    return canceled
+
+def pauseCurrent():
+    """ pause the current download """
+    if not isActive():
+        return False
+
+    Hellanzb.downloadPaused = True
+    for nsf in Hellanzb.nsfs:
+        clients = nsf.activeClients.copy()
+        for client in clients:
+            client.transport.stopReading()
+
+    info('Pausing download')
+    return True
+
+def continueCurrent():
+    """ continue an already paused download """
+    if not isActive() or not Hellanzb.downloadPaused:
+        return False
+    
+    for nsf in Hellanzb.nsfs:
+        clients = nsf.activeClients.copy()
+        for client in clients:
+            client.transport.startReading()
+
+    Hellanzb.downloadPaused = False
+    info('Continuing download')
+    return True
+
+def clearCurrent(andCancel):
+    """ clear the queue -- optionally clear what's currently being downloaded (cancel it) """
+    info('Clearing queue')
+    Hellanzb.queued_nzbs = []
+    for file in os.listdir(Hellanzb.QUEUE_DIR):
+        file = Hellanzb.QUEUE_DIR + os.sep + file
+        if os.path.isfile(file):
+            os.remove(file)
+        elif os.path.isdir(file):
+            rmtree(file)
+
+    if andCancel:
+        cancelCurrent()
+
+    return True
+    
+def enqueueNZBs(nzbFileOrFiles, next = False):
+    """ add one or a list of nzb files to the end of the queue """
+    if type(nzbFileOrFiles) != list:
+        newNzbFiles = [ nzbFileOrFiles ]
+    else:
+        newNzbFiles = nzbFileOrFiles
+        
+    if len(newNzbFiles) > 0:
+        for nzbFile in newNzbFiles:
+            if nzbFile == os.path.basename(nzbFile):
+                nzbFile = Hellanzb.QUEUE_DIR + os.sep + nzbFile
+            
+            if validNZB(nzbFile):
+                if os.path.dirname(nzbFile) != Hellanzb.QUEUE_DIR:
+                    copy(nzbFile, Hellanzb.QUEUE_DIR + os.sep + os.path.basename(nzbFile))
+                nzbFile = os.path.basename(nzbFile)
+
+                if not next:
+                    Hellanzb.queued_nzbs.append(nzbFile)
+                else:
+                    Hellanzb.queued_nzbs.insert(0, nzbFile)
+                
+                msg = 'Found new nzb: '
+                info(msg + archiveName(nzbFile))
+                growlNotify('Queue', 'hellanzb ' + msg, archiveName(nzbFile), False)
+            
+        Hellanzb.queued_nzbs.sort()
+
+def enqueueNextNZBs(nzbFileOrFiles):
+    """ enqueue one or more nzbs to the beginning of the queue """
+    return enqueueNZBs(nzbFileOrFiles, next = True)
+
+def listQueue():
+    """ return a list of the queue """
+    return Hellanzb.queued_nzbs
+
+def forceNZB(nzbfilename):
+    """ interrupt the current download, if necessary, to start the specified nzb """
+    if not validNZB(nzbfilename):
         return
 
     if not len(Hellanzb.queue.nzbs):

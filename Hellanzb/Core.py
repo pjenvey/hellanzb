@@ -174,6 +174,8 @@ def init(options = {}):
 
     Hellanzb.BEGIN_TIME = time.time()
 
+    Hellanzb.downloadPaused = False
+
     # Troll threads
     Hellanzb.postProcessors = []
     Hellanzb.postProcessorLock = Lock()
@@ -237,9 +239,13 @@ hellanzb version %s
    nzb downloader and post processor
    http://www.hellanzb.com
 
-usage: %s [options] [call]
+usage: %s [options] [remote-call] [remote-call-options]
 
-calls (via xml-rpc):
+hellanzb will by default (no remote-call specified) start its one and only
+queue daemon. Specifying a remote call will attempt to talk to that already
+running queue daemon via XML-RPC.
+
+remote-calls (via XML-RPC):
 %s
 """.rstrip()
 def parseArgs():

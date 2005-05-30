@@ -13,7 +13,8 @@ from xml.sax import make_parser, SAXParseException
 from xml.sax.handler import ContentHandler, feature_external_ges, feature_namespaces
 from Hellanzb.Daemon import handleNZBDone
 from Hellanzb.Log import *
-from Hellanzb.NZBLeecher.ArticleDecoder import assembleNZBFile, parseArticleData, setRealFileName, tryFinishNZB
+from Hellanzb.NZBLeecher.ArticleDecoder import assembleNZBFile, getMsgId, parseArticleData, \
+    setRealFileName, tryFinishNZB
 from Hellanzb.Util import archiveName, getFileExtension, PriorityQueue
 
 __id__ = '$Id$'
@@ -168,11 +169,34 @@ def segmentsNeedDownload(segmentList):
 
 class NZB:
     """ Representation of an nzb file -- the root <nzb> tag """
+    nextId = 0
+    
     def __init__(self, nzbFileName):
         self.nzbFileName = nzbFileName
         self.archiveName = archiveName(self.nzbFileName)
         self.destDir = Hellanzb.WORKING_DIR
         self.nzbFileElements = []
+
+        self.canceled = False
+        self.canceledLock = Lock()
+
+        self.id = getNextId()
+
+    def getNextId(self):
+        id = NZB.nextId
+        NZB.nextId += 1
+        return id
+
+    def isCanceled(self):
+        self.canceledLock.acquire()
+        c = self.canceled
+        self.canceledLock.release()
+        return c
+
+    def cancel(self):
+        self.canceledLock.acquire()
+        self.canceled = True
+        self.canceledLock.release()
         
 class NZBFile:
     """ <nzb><file/><nzb> """
@@ -351,14 +375,18 @@ class NZBQueue(PriorityQueue):
         if fileName is not None:
             self.parseNZB(fileName)
 
-    def postpone(self):
+    def cancel(self):
+        self.postpone(cancel = True)
+
+    def postpone(self, cancel = False):
         """ postpone the current download """
         self.clear()
 
         self.nzbsLock.acquire()
         self.nzbFilesLock.acquire()
 
-        self.postponedNzbFiles.union_update(self.nzbFiles)
+        if not cancel:
+            self.postponedNzbFiles.union_update(self.nzbFiles)
         self.nzbFiles.clear()
 
         self.nzbs = []
@@ -410,7 +438,11 @@ class NZBQueue(PriorityQueue):
     def nzbDone(self, nzb):
         """ nzb finished """
         self.nzbsLock.acquire()
-        self.nzbs.remove(nzb)
+        try:
+            self.nzbs.remove(nzb)
+        except ValueError:
+            # NZB might have been canceled
+            pass
         self.nzbsLock.release()
 
     def fileDone(self, nzbFile):
@@ -464,10 +496,10 @@ class NZBQueue(PriorityQueue):
 
         onDiskCount = dh.fileCount - len(needWorkFiles)
         if onDiskCount:
-            info('Found ' + str(dh.segmentCount) + ' posts (' + str(dh.fileCount) + ' files, skipping ' + \
+            info('Parsed: ' + str(dh.segmentCount) + ' posts (' + str(dh.fileCount) + ' files, skipping ' + \
                  str(onDiskCount) + ' on disk files)')
         else:
-            info('Found ' + str(dh.segmentCount) + ' posts (' + str(dh.fileCount) + ' files)')
+            info('Parsed: ' + str(dh.segmentCount) + ' posts (' + str(dh.fileCount) + ' files)')
 
         # The needWorkFiles will tell us what nzbFiles are missing from the
         # FS. segmentsNeedDownload will further tell us what files need to be

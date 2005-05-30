@@ -8,7 +8,7 @@ HellaXMLRPC - The hellanzb XML RPC server and client
 import os, textwrap, time, Hellanzb
 from time import localtime, strftime
 from twisted.internet import reactor
-from twisted.internet.error import ConnectionRefusedError
+from twisted.internet.error import CannotListenError, ConnectionRefusedError
 from twisted.python import log
 from twisted.web import xmlrpc, server
 from twisted.web.server import Site
@@ -43,6 +43,33 @@ class HellaXMLRPCServer(XMLRPC):
         msg += '%.2i:%.2i' % (hours, minutes)
         return msg
 
+    def xmlrpc_cancel(self):
+        """ Cancel the current download and move the current NZB to Hellanzb.TEMP_DIR """
+        from Hellanzb.Daemon import cancelCurrent
+        return cancelCurrent()
+
+    def xmlrpc_clear(self, andCancel = False):
+        """ Clear the current nzb queue. Specify True as the second argument to clear anything
+        currently downloading (cancel) """
+        from Hellanzb.Daemon import clearCurrent
+        return clearCurrent(andCancel)
+
+    def xmlrpc_continue(self):
+        """ Continue the paused download """
+        from Hellanzb.Daemon import continueCurrent
+        return continueCurrent()
+
+    def xmlrpc_enqueue(self, nzbFilename):
+        """ Add the specified nzb file to the end of the queue """
+        from Hellanzb.Daemon import enqueueNZBs
+        reactor.callLater(0, enqueueNZBs, nzbFilename)
+        return True
+
+    def xmlrpc_list(self):
+        """ List the current queue """
+        from Hellanzb.Daemon import listQueue
+        return listQueue()
+
     def xmlrpc_force(self, nzbFilename):
         """ Force hellanzb to begin downloading the specified NZB file immediately -- interrupting
         the current download, if necessary """
@@ -50,6 +77,17 @@ class HellaXMLRPCServer(XMLRPC):
         reactor.callLater(0, forceNZB, nzbFilename)
         return True
     
+    def xmlrpc_next(self, nzbFilename):
+        """ Add the specified nzb file to the beginning of the queue """
+        from Hellanzb.Daemon import enqueueNZBs
+        reactor.callLater(0, enqueueNextNZBs, nzbFilename)
+        return True
+
+    def xmlrpc_pause(self):
+        """ Pause the current download """
+        from Hellanzb.Daemon import pauseCurrent
+        return pauseCurrent()
+
     def xmlrpc_process(self, archiveDir, rarPassword = None):
         """ Post process the specified directory. The -p option is preferable -- it will do this
         for you, or use the current process if this xml rpc call fails """
@@ -139,6 +177,10 @@ I GO TOO USERNETT AND BE COOL AND SHIT
 def printResultAndExit(remoteCall, result):
     """ generic xml rpc client call back -- simply print the result as a string and exit """
     info(str(result))
+    reactor.stop()
+
+def printListAndExit(remoteCall, result):
+    [info(line) for line in result]
     reactor.stop()
 
 def resultMadeItBoolAndExit(remoteCall, result):
@@ -234,11 +276,17 @@ class RemoteCall:
 
     def call(serverUrl, funcName, args):
         """ lookup the specified function in our pool of known commands, and call it """
-        rc = RemoteCall.callIndex[funcName]
+
+    def callLater(serverUrl, funcName, args):
+        try:
+            rc = RemoteCall.callIndex[funcName]
+        except KeyError:
+            raise FatalError('Invalid remote call: ' + funcName)
         if rc == None:
             raise FatalError('Invalid remote call: ' + funcName)
-        rc.callRemote(serverUrl, *args)
-    call = staticmethod(call)
+
+        reactor.callLater(0, rc.callRemote, serverUrl, *args)
+    callLater = staticmethod(callLater)
 
     def allUsage(indent = '  '):
         """ generate a usage output for all known xml rpc commands """
@@ -262,15 +310,26 @@ def initXMLRPCServer():
     hxmlrpcs = HellaXMLRPCServer()
     
     SECURE = True
-    if SECURE:
-        secure = HtPasswdWrapper(hxmlrpcs, 'hellanzb', Hellanzb.XMLRPC_PASSWORD, 'hellanzb XML RPC')
-        reactor.listenTCP(int(Hellanzb.XMLRPC_PORT), Site(secure))
-    else:
-        reactor.listenTCP(int(Hellanzb.XMLRPC_PORT), Site(hxmlrpcs))
+    try:
+        if SECURE:
+            secure = HtPasswdWrapper(hxmlrpcs, 'hellanzb', Hellanzb.XMLRPC_PASSWORD, 'hellanzb XML RPC')
+            reactor.listenTCP(int(Hellanzb.XMLRPC_PORT), Site(secure))
+        else:
+            reactor.listenTCP(int(Hellanzb.XMLRPC_PORT), Site(hxmlrpcs))
+    except CannotListenError, cle:
+        error(str(cle))
+        raise FatalError('Cannot bind to XML RPC port, is another hellanzb queue daemon already running?')
 
 def initXMLRPCClient():
     """ initialize the xml rpc client """
+    RemoteCall('cancel', resultMadeItBoolAndExit)
+    RemoteCall('clear', resultMadeItBoolAndExit)
+    RemoteCall('continue', resultMadeItBoolAndExit)
+    RemoteCall('enqueue', resultMadeItBoolAndExit)
+    RemoteCall('list', printListAndExit)
+    RemoteCall('next', resultMadeItBoolAndExit)
     RemoteCall('force', resultMadeItBoolAndExit)
+    RemoteCall('pause', resultMadeItBoolAndExit)
     RemoteCall('process', resultMadeItBoolAndExit)
     RemoteCall('shutdown', resultMadeItBoolAndExit)
     RemoteCall('status', printResultAndExit)
@@ -282,7 +341,7 @@ def hellaRemote(options, args):
     elif options.postProcessDir:
         args = ['process', options.postProcessDir]
     
-    if args[0] in ('force', 'process'):
+    if args[0] in ('force', 'process', 'enqueue', 'next'):
         if len(args) > 1:
             # UNIX: os.path.realpath only available on UNIX
             args[1] = os.path.realpath(args[1])
@@ -303,7 +362,7 @@ def hellaRemote(options, args):
     funcName = args[0]
     args.remove(funcName)
     RemoteCall.options = options
-    reactor.callLater(0, RemoteCall.call, Hellanzb.serverUrl, funcName, args)
+    RemoteCall.callLater(Hellanzb.serverUrl, funcName, args)
     reactor.run()
     
 """

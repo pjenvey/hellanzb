@@ -58,8 +58,9 @@ class ScrollableHandler(StreamHandlerNoLF):
     area) """
 
     # the SCROLL level (a class var)
-    SCROLL = 11
-    SHUTDOWN = 12
+    LOGFILE = 11
+    SCROLL = 12
+    SHUTDOWN = 13
 
     def __init__(self, *args, **kwargs):
         self.scrollLock = RLock()
@@ -406,6 +407,7 @@ def lockScrollableHandlers(func, *args, **kwargs):
 
 def initLogging():
     """ Setup logging """
+    logging.addLevelName(ScrollableHandler.LOGFILE, 'LOGFILE')
     logging.addLevelName(ScrollableHandler.SCROLL, 'SCROLL')
     logging.addLevelName(ScrollableHandler.SHUTDOWN, 'SHUTDOWN')
 
@@ -424,7 +426,7 @@ def initLogging():
             return True
     
     outHdlr = ScrollableHandler(sys.stdout)
-    #outHdlr.setLevel(ScrollableHandler.SCROLL)
+    outHdlr.setLevel(ScrollableHandler.SCROLL)
     outHdlr.addFilter(OutFilter())
     Hellanzb.logger.addHandler(outHdlr)
 

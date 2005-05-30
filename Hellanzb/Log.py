@@ -58,6 +58,10 @@ def logShutdown(message):
     """ log messages ocurring just before shutdown, handled specially """
     Hellanzb.logger.log(ScrollableHandler.SHUTDOWN, message)
 
+def logFile(message):
+    """ Log a message to only the log file (and not the console) """
+    Hellanzb.logger.log(ScrollableHandler.LOGFILE, message)
+
 def growlNotify(type, title, description, sticky = False):
     """ send a message to the growl daemon via an xmlrpc proxy """
     # NOTE: growl doesn't tie in with logging yet because all it's sublevels/args makes it

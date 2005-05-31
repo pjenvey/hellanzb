@@ -7,6 +7,7 @@ the twisted reactor loop, except for initialization functions
 [See end of file]
 """
 import Hellanzb, os, re, PostProcessor
+from sets import Set
 from shutil import copy, move, rmtree
 from twisted.internet import reactor
 from Hellanzb.HellaXMLRPC import initXMLRPCServer, HellaXMLRPCServer
@@ -146,7 +147,7 @@ def scanQueueDir(firstRun = False, justScan = False):
 
 def sortQueueFromDisk():
     """ sort the queue from what's on disk """
-    onDiskQueue = loadQueueFromDisk()
+    onDiskQueue = Set(loadQueueFromDisk())
     unsorted = Hellanzb.queued_nzbs[:]
     Hellanzb.queued_nzbs = []
     arranged = []
@@ -177,6 +178,7 @@ def loadQueueFromDisk():
 
 def writeQueueToDisk(queue):
     """ write the queue to disk """
+    queue = Set(queue)
     f = open(Hellanzb.QUEUE_LIST, 'w')
     for nzb in queue:
         f.write(os.path.basename(nzb.nzbFileName) + '\n')
@@ -192,10 +194,10 @@ def parseNZB(nzb, notification = 'Downloading', quiet = False):
         growlNotify('Queue', 'hellanzb ' + notification + ':', nzb.archiveName,
                     False)
 
-    info('Parsing: ' + os.path.basename(nzb.nzbFileName) + '...')
     try:
         findAndLoadPostponedDir(nzb)
         
+        info('Parsing: ' + os.path.basename(nzb.nzbFileName) + '...')
         if not Hellanzb.queue.parseNZB(nzb):
             for nsf in Hellanzb.nsfs:
                 if not len(nsf.activeClients):
@@ -567,7 +569,7 @@ def forceNZB(nzbfilename):
             nzb = None
             for n in Hellanzb.queued_nzbs:
                 if os.path.normpath(n.nzbFileName) == os.path.normpath(nzbfilename):
-                    n = nzb
+                    nzb = n
                     
             if nzb == None:
                 from Hellanzb.NZBLeecher.NZBModel import NZB

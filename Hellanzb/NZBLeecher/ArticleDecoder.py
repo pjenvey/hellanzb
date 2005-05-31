@@ -87,8 +87,7 @@ def stripArticleData(articleData):
     """ Rip off leading/trailing whitespace from the articleData list """
     try:
         # Only rip off the first leading whitespace
-        #while articleData[0] == '':
-        if articleData[0] == '':
+        while articleData[0] == '':
             articleData.pop(0)
 
         # Trailing

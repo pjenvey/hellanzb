@@ -469,7 +469,7 @@ def enqueueNZBs(nzbFileOrFiles, next = False, writeQueue = True):
     
     for nzbFile in newNzbFiles:
         if validNZB(nzbFile):
-            if os.path.dirname(os.path.normpath(nzbFile)) != os.path.normpath(Hellanzb.QUEUE_DIR):
+            if os.path.normpath(os.path.dirname(nzbFile)) != os.path.normpath(Hellanzb.QUEUE_DIR):
                 copy(nzbFile, Hellanzb.QUEUE_DIR + os.sep + os.path.basename(nzbFile))
             nzbFile = Hellanzb.QUEUE_DIR + os.sep + os.path.basename(nzbFile)
 
@@ -568,7 +568,7 @@ def forceNZB(nzbfilename):
 
             # Copy the specified NZB, unless it's already in the queue dir (move it
             # instead)
-            if os.path.dirname(nzbfilename) != Hellanzb.QUEUE_DIR:
+            if os.path.normpath(os.path.dirname(nzbfilename)) != os.path.normpath(Hellanzb.QUEUE_DIR):
                 copy(nzbfilename, Hellanzb.CURRENT_DIR + os.sep + os.path.basename(nzbfilename))
             else:
                 move(nzbfilename, Hellanzb.CURRENT_DIR + os.sep + os.path.basename(nzbfilename))

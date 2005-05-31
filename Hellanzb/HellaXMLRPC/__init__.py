@@ -44,6 +44,11 @@ class HellaXMLRPCServer(XMLRPC):
         msg += '%.2i:%.2i' % (hours, minutes)
         return msg
 
+    def xmlrpc_asciiart(self):
+        """ Return a random ascii art """
+        from Hellanzb.Elite import C
+        return C.asciiArt()
+
     def xmlrpc_aolsay(self):
         """ Return a random aolsay (from Da5id's aolsay.scr) """
         from Hellanzb.Elite import C
@@ -65,11 +70,11 @@ class HellaXMLRPCServer(XMLRPC):
         from Hellanzb.Daemon import continueCurrent
         return continueCurrent()
 
-    def xmlrpc_asciiart(self):
-        """ Return a random ascii art """
-        from Hellanzb.Elite import C
-        return C.asciiArt()
-
+    def xmlrpc_dequeue(self, nzbId):
+        """ Remove the NZB with specified ID from the queue """
+        from Hellanzb.Daemon import dequeueNZBs
+        return dequeueNZBs(nzbId)
+    
     def xmlrpc_down(self, nzbId, shift = 1):
         """ Move the NZB with the specified ID down in the queue """
         from Hellanzb.Daemon import moveDown
@@ -370,17 +375,19 @@ def initXMLRPCServer():
 
 def initXMLRPCClient():
     """ initialize the xml rpc client """
-    RemoteCall('asciiart', printResultAndExit)
+    # Aliases to these calls would be nice
     RemoteCall('aolsay', printResultAndExit)
+    RemoteCall('asciiart', printResultAndExit)
     RemoteCall('cancel', resultMadeItBoolAndExit)
     RemoteCall('clear', resultMadeItBoolAndExit)
     RemoteCall('continue', resultMadeItBoolAndExit)
+    RemoteCall('dequeue', resultMadeItBoolAndExit)
     RemoteCall('down', resultMadeItBoolAndExit)
     RemoteCall('enqueue', resultMadeItBoolAndExit)
+    RemoteCall('force', resultMadeItBoolAndExit)
     RemoteCall('list', printListAndExit)
     RemoteCall('maxrate', resultMadeItBoolAndExit)
     RemoteCall('next', resultMadeItBoolAndExit)
-    RemoteCall('force', resultMadeItBoolAndExit)
     RemoteCall('pause', resultMadeItBoolAndExit)
     RemoteCall('process', resultMadeItBoolAndExit)
     RemoteCall('shutdown', resultMadeItBoolAndExit)

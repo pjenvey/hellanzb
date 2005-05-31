@@ -427,6 +427,35 @@ def moveUp(nzbId, shift = 1, moveDown = False):
 def moveDown(nzbId, shift = 1):
     """ move the specified nzb down in the queue """
     return moveUp(nzbId, shift, moveDown = True)
+
+def dequeueNZBs(nzbIdOrIds):
+    """ remove nzbs from the queue """
+    if type(nzbIdOrIds) != list:
+        newNzbIds = [ nzbIdOrIds ]
+    else:
+        newNzbIds = nzbIdOrIds
+
+    if len(newNzbIds) == 0:
+        return False
+
+    error = False
+    found = []
+    for nzbId in newNzbIds:
+        try:
+            nzbId = int(nzbId)
+        except Exception:
+            error = True
+            continue
+        
+        for nzb in Hellanzb.queued_nzbs:
+            if nzb.id == nzbId:
+                found.append(nzb)
+    for nzb in found:
+        info('Dequeueing: ' + nzb.archiveName)
+        move(nzb.nzbFileName, Hellanzb.TEMP_DIR + os.sep + os.path.basename(nzb.nzbFileName))
+        Hellanzb.queued_nzbs.remove(nzb)
+        
+    return not error
     
 def enqueueNZBs(nzbFileOrFiles, next = False, writeQueue = True):
     """ add one or a list of nzb files to the end of the queue """
@@ -435,34 +464,35 @@ def enqueueNZBs(nzbFileOrFiles, next = False, writeQueue = True):
     else:
         newNzbFiles = nzbFileOrFiles
 
-    if len(newNzbFiles) > 0:
-        for nzbFile in newNzbFiles:
+    if len(newNzbFiles) == 0:
+        return False
+    
+    for nzbFile in newNzbFiles:
+        if validNZB(nzbFile):
+            if os.path.dirname(nzbFile) != Hellanzb.QUEUE_DIR:
+                copy(nzbFile, Hellanzb.QUEUE_DIR + os.sep + os.path.basename(nzbFile))
+            nzbFile = Hellanzb.QUEUE_DIR + os.sep + os.path.basename(nzbFile)
+
+            from Hellanzb.NZBLeecher.NZBModel import NZB
+            nzb = NZB(nzbFile)
             
-            if validNZB(nzbFile):
-                if os.path.dirname(nzbFile) != Hellanzb.QUEUE_DIR:
-                    copy(nzbFile, Hellanzb.QUEUE_DIR + os.sep + os.path.basename(nzbFile))
-                nzbFile = Hellanzb.QUEUE_DIR + os.sep + os.path.basename(nzbFile)
+            found = False
+            for n in Hellanzb.queued_nzbs:
+                if os.path.normpath(n.nzbFileName) == os.path.normpath(nzbFile):
+                    found = True
+                    error('Cannot add nzb file to queue: ' + os.path.basename(nzbFile) + \
+                          ' it already exists!')
+            if found:
+                continue
+                    
+            if not next:
+                Hellanzb.queued_nzbs.append(nzb)
+            else:
+                Hellanzb.queued_nzbs.insert(0, nzb)
 
-                from Hellanzb.NZBLeecher.NZBModel import NZB
-                nzb = NZB(nzbFile)
-                
-                found = False
-                for n in Hellanzb.queued_nzbs:
-                    if os.path.normpath(n.nzbFileName) == os.path.normpath(nzbFile):
-                        found = True
-                        error('Cannot add nzb file to queue: ' + os.path.basename(nzbFile) + \
-                              ' it already exists!')
-                if found:
-                    continue
-                        
-                if not next:
-                    Hellanzb.queued_nzbs.append(nzb)
-                else:
-                    Hellanzb.queued_nzbs.insert(0, nzb)
-
-                msg = 'Found new nzb: '
-                info(msg + archiveName(nzbFile))
-                growlNotify('Queue', 'hellanzb ' + msg, archiveName(nzbFile), False)
+            msg = 'Found new nzb: '
+            info(msg + archiveName(nzbFile))
+            growlNotify('Queue', 'hellanzb ' + msg, archiveName(nzbFile), False)
                 
     if writeQueue:
         writeQueueToDisk(Hellanzb.queued_nzbs)

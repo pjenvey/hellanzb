@@ -86,7 +86,7 @@ def scanQueueDir(firstRun = False, justScan = False):
     queuedMap = {}
     for nzb in Hellanzb.queued_nzbs:
         queuedMap[os.path.normpath(nzb.nzbFileName)] = nzb
-        
+
     for file in os.listdir(Hellanzb.QUEUE_DIR):
         if re.search(r'\.nzb$', file) and \
             os.path.normpath(Hellanzb.QUEUE_DIR + os.sep + file) not in queuedMap:
@@ -473,9 +473,6 @@ def enqueueNZBs(nzbFileOrFiles, next = False, writeQueue = True):
                 copy(nzbFile, Hellanzb.QUEUE_DIR + os.sep + os.path.basename(nzbFile))
             nzbFile = Hellanzb.QUEUE_DIR + os.sep + os.path.basename(nzbFile)
 
-            from Hellanzb.NZBLeecher.NZBModel import NZB
-            nzb = NZB(nzbFile)
-            
             found = False
             for n in Hellanzb.queued_nzbs:
                 if os.path.normpath(n.nzbFileName) == os.path.normpath(nzbFile):
@@ -485,6 +482,9 @@ def enqueueNZBs(nzbFileOrFiles, next = False, writeQueue = True):
             if found:
                 continue
                     
+            from Hellanzb.NZBLeecher.NZBModel import NZB
+            nzb = NZB(nzbFile)
+            
             if not next:
                 Hellanzb.queued_nzbs.append(nzb)
             else:
@@ -559,8 +559,21 @@ def forceNZB(nzbfilename):
             info('Interrupting: ' + nzb.archiveName + ' forcing: ' + archiveName(nzbfilename))
             
             move(nzb.nzbFileName, Hellanzb.QUEUE_DIR + os.sep + os.path.basename(nzb.nzbFileName))
+            nzb.nzbFileName = Hellanzb.QUEUE_DIR + os.sep + os.path.basename(nzb.nzbFileName)
             Hellanzb.queued_nzbs.append(nzb) # FIXME: use enqueue here?
             writeQueueToDisk(Hellanzb.queued_nzbs)
+
+            # remove what we've forced with from the old queue, if it exists
+            nzb = None
+            for n in Hellanzb.queued_nzbs:
+                if os.path.normpath(n.nzbFileName) == os.path.normpath(nzbfilename):
+                    n = nzb
+                    
+            if nzb == None:
+                from Hellanzb.NZBLeecher.NZBModel import NZB
+                nzb = NZB(nzbfilename)
+            else:
+                Hellanzb.queued_nzbs.remove(nzb)
     
             # Move the postponed files to the new postponed dir
             for file in os.listdir(Hellanzb.WORKING_DIR):
@@ -573,12 +586,13 @@ def forceNZB(nzbfilename):
             else:
                 move(nzbfilename, Hellanzb.CURRENT_DIR + os.sep + os.path.basename(nzbfilename))
             nzbfilename = Hellanzb.CURRENT_DIR + os.sep + os.path.basename(nzbfilename)
+            nzb.nzbFileName = nzbfilename
 
             # delete everything from the queue. priority will be reset
             Hellanzb.queue.postpone()
 
             # load the new file
-            reactor.callLater(0, parseNZB, nzbfilename)
+            reactor.callLater(0, parseNZB, nzb)
 
         except NameError, ne:
             # GC beat us. that should mean there is either a free spot open, or the next

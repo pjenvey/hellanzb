@@ -286,6 +286,13 @@ def errHandler(remoteCall, failure):
             
     reactor.stop()
 
+class RemoteCallArg:
+    REQUIRED, OPTIONAL = range(2)
+
+    def __init__(self, name, type):
+        self.name = name
+        self.type = type
+        
 class RemoteCall:
     """ XMLRPC client calls, and their callback info """
     callIndex = {}
@@ -294,13 +301,27 @@ class RemoteCall:
     # our XMLRPC call doc Strings -- this instance has no use other than allowing us
     # access to those doc strings
     serverInstance = HellaXMLRPCServer()
+
+    # for argument definitions
+    
     
     def __init__(self, funcName, callback, errback = errHandler):
         self.funcName = funcName
         self.callbackFunc = callback
         self.errbackFunc = errHandler
+        self.args = []
 
         RemoteCall.callIndex[funcName] = self
+
+    def addRequiredArg(self, argname):
+        """ denote this remote call as having the specified required arg. order is determined by
+        this or addOptionalArg calls are made """
+        self.args.append(RemoteCallArg(argname, RemoteCallArg.REQUIRED))
+
+    def addOptionalArg(self, argname):
+        """ denote this remote call as having the specified optional arg. order is determined by
+        this or addRequiredArg calls are made """
+        self.args.append(RemoteCallArg(argname, RemoteCallArg.OPTIONAL))
 
     def usage(self):
         """ Return the usage string for this rpc call. This is stolen from the xmlrpc Server's
@@ -342,6 +363,16 @@ class RemoteCall:
         reactor.callLater(0, rc.callRemote, serverUrl, *args)
     callLater = staticmethod(callLater)
 
+    def argsUsage(self):
+        """ generate a usage output for all known args """
+        msg = ''
+        for arg in self.args:
+            if arg.type == RemoteCallArg.REQUIRED:
+                msg += ' ' + arg.name
+            elif arg.type == RemoteCallArg.OPTIONAL:
+                msg += ' [' + arg.name + ']'
+        return msg
+
     def allUsage(indent = '  '):
         """ generate a usage output for all known xml rpc commands """
         msg = ''
@@ -349,7 +380,7 @@ class RemoteCall:
         calls.sort()
         for name in calls:
             call = RemoteCall.callIndex[name]
-            prefix = indent + name
+            prefix = indent + name + call.argsUsage()
             nextIndent = ' '*(24 - len(prefix))
             prefix += nextIndent
             msg += textwrap.fill(prefix + flattenDoc(call.usage()), 79,
@@ -390,23 +421,39 @@ def initXMLRPCServer():
 def initXMLRPCClient():
     """ initialize the xml rpc client """
     # Aliases to these calls would be nice
-    RemoteCall('aolsay', printResultAndExit)
-    RemoteCall('asciiart', printResultAndExit)
-    RemoteCall('cancel', resultMadeItBoolAndExit)
-    RemoteCall('clear', resultMadeItBoolAndExit)
-    RemoteCall('continue', resultMadeItBoolAndExit)
-    RemoteCall('dequeue', resultMadeItBoolAndExit)
-    RemoteCall('down', resultMadeItBoolAndExit)
-    RemoteCall('enqueue', resultMadeItBoolAndExit)
-    RemoteCall('force', resultMadeItBoolAndExit)
-    RemoteCall('list', printListAndExit)
-    RemoteCall('maxrate', resultMadeItBoolAndExit)
-    RemoteCall('next', resultMadeItBoolAndExit)
-    RemoteCall('pause', resultMadeItBoolAndExit)
-    RemoteCall('process', resultMadeItBoolAndExit)
-    RemoteCall('shutdown', resultMadeItBoolAndExit)
-    RemoteCall('status', printResultAndExit)
-    RemoteCall('up', resultMadeItBoolAndExit)
+    
+    # FIXME: force should put what it forced out back into the queue cancel is fine the
+    # way it is. if you want to swap what youre dling back into the queue, you have to be
+    # forcing anyway
+    r = RemoteCall('aolsay', printResultAndExit)
+    r = RemoteCall('asciiart', printResultAndExit)
+    r = RemoteCall('cancel', resultMadeItBoolAndExit)
+    r = RemoteCall('clear', resultMadeItBoolAndExit)
+    r = RemoteCall('continue', resultMadeItBoolAndExit)
+    r = RemoteCall('dequeue', resultMadeItBoolAndExit)
+    r.addRequiredArg('nzbid')
+    r = RemoteCall('down', resultMadeItBoolAndExit)
+    r.addRequiredArg('nzbid')
+    r = RemoteCall('enqueue', resultMadeItBoolAndExit)
+    r.addRequiredArg('nzbfile')
+    r = RemoteCall('force', resultMadeItBoolAndExit)
+    # FIXME
+    #r.addRequiredArg('nzbid')
+    r.addRequiredArg('nzbfile')
+    r = RemoteCall('list', printListAndExit)
+    r.addOptionalArg('showids')
+    r = RemoteCall('maxrate', resultMadeItBoolAndExit)
+    r.addOptionalArg('newrate')
+    r = RemoteCall('next', resultMadeItBoolAndExit)
+    #r.addRequiredArg('nzbid')
+    r.addRequiredArg('nzbfile')
+    r = RemoteCall('pause', resultMadeItBoolAndExit)
+    r = RemoteCall('process', resultMadeItBoolAndExit)
+    r.addRequiredArg('archivedir')
+    r = RemoteCall('shutdown', resultMadeItBoolAndExit)
+    r = RemoteCall('status', printResultAndExit)
+    r = RemoteCall('up', resultMadeItBoolAndExit)
+    r.addRequiredArg('nzbid')
 
 def hellaRemote(options, args):
     """ execute the remote RPC call with the specified cmd line args. args can be None """

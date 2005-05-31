@@ -159,16 +159,17 @@ class HellaXMLRPCServer(XMLRPC):
             totalSpeed = 'Idle'
 
         downloading += self.statusFromList(Hellanzb.queue.currentNZBs(),
-                                           lambda nzb : nzb.archiveName)
+                                           lambda nzb : nzb.archiveName, len(downloading))
 #                                           lambda nzb : nzb.archiveName + ' [' + totalSpeed + ']')
 
         Hellanzb.postProcessorLock.acquire()
         processing += self.statusFromList(Hellanzb.postProcessors,
-                                          lambda postProcessor : archiveName(postProcessor.dirName))
+                                          lambda postProcessor : archiveName(postProcessor.dirName),
+                                          len(processing))
         Hellanzb.postProcessorLock.release()
 
         queued += self.statusFromList(Hellanzb.queued_nzbs,
-                                      lambda nzb : archiveName(nzb.nzbFileName))
+                                      lambda nzb : archiveName(nzb.nzbFileName), len(queued))
 
         # FIXME: show if any archives failed during processing?
         #f = failedProcessing
@@ -206,15 +207,14 @@ class HellaXMLRPCServer(XMLRPC):
         from Hellanzb.Daemon import moveUp
         return moveUp(nzbId, shift)
     
-    def statusFromList(self, alist, statusFunc):
+    def statusFromList(self, alist, statusFunc, indent):
         """ generate a status message from the list of objects, using the specified function for
         formatting """
         status = ''
         if len(alist):
-            indent = len(status)
             i = 0
             for item in alist:
-                if not i:
+                if i:
                     status += ' '*indent
                 status += statusFunc(item)
                 if i < len(alist) - 1:

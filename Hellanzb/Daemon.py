@@ -147,7 +147,7 @@ def scanQueueDir(firstRun = False, justScan = False):
 
 def sortQueueFromDisk():
     """ sort the queue from what's on disk """
-    onDiskQueue = Set(loadQueueFromDisk())
+    onDiskQueue = loadQueueFromDisk()
     unsorted = Hellanzb.queued_nzbs[:]
     Hellanzb.queued_nzbs = []
     arranged = []
@@ -178,7 +178,15 @@ def loadQueueFromDisk():
 
 def writeQueueToDisk(queue):
     """ write the queue to disk """
-    queue = Set(queue)
+    unique = []
+    for item in queue:
+        if item not in unique:
+            unique.append(item)
+    if len(unique) != len(queue):
+        warn('Warning: Found duplicates in queue while writing to disk: ' + \
+             str([nzb.nzbFileName for nzb in queue]))
+    queue = unique
+        
     f = open(Hellanzb.QUEUE_LIST, 'w')
     for nzb in queue:
         f.write(os.path.basename(nzb.nzbFileName) + '\n')
@@ -397,7 +405,12 @@ def moveUp(nzbId, shift = 1, moveDown = False):
     try:
         nzbId = int(nzbId)
     except:
-        debug('Invalid ID: ' + nzbId)
+        debug('Invalid ID: ' + str(nzbId))
+        return False
+    try:
+        shift = int(shift)
+    except:
+        debug('Invalid shift: ' + str(shift))
         return False
             
     i = 0

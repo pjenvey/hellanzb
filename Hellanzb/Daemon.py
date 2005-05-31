@@ -72,7 +72,6 @@ def scanQueueDir(firstRun = False, justScan = False):
     """ Find new/resume old NZB download sessions """
     import time
     t = time.time()
-    debug('Ziplick scanning queue dir..')
 
     from Hellanzb.NZBLeecher.NZBModel import NZB
     current_nzbs = []
@@ -103,7 +102,9 @@ def scanQueueDir(firstRun = False, justScan = False):
         debug('scanQueueDir (justScan = True) TOOK: ' + str(e))
         Hellanzb.downloadScannerID = reactor.callLater(7, scanQueueDir, False, True)
         return
-    
+    else:
+        debug('Ziplick scanQueueDir scanned queue dir')
+
     # Nothing to do, lets wait 5 seconds and start over
     if not current_nzbs:
         if not Hellanzb.queued_nzbs:
@@ -199,7 +200,6 @@ def parseNZB(nzb, notification = 'Downloading', quiet = False):
             for nsf in Hellanzb.nsfs:
                 if not len(nsf.activeClients):
                     nsf.fetchNextNZBSegment()
-        Hellanzb.downloadScannerID = reactor.callLater(5, scanQueueDir, False, True)
 
     except FatalError, fe:
         error('Problem while parsing the NZB', fe)
@@ -274,8 +274,6 @@ def handleNZBDone(nzbfilename):
     # Give NZBLeecher some time (another reactor loop) to killHistory() & scrollEnd()
     # without any logging interference from PostProcessor
     reactor.callLater(0, troll.start)
-
-    Hellanzb.downloadScannerID.cancel()
     reactor.callLater(0, scanQueueDir)
 
 def postProcess(options):
@@ -294,6 +292,7 @@ def postProcess(options):
     troll = Hellanzb.PostProcessor.PostProcessor(options.postProcessDir, background = False,
                                                  rarPassword = rarPassword)
     info('\nStarting post processor')
+    
     reactor.callInThread(troll.run)
 
 def validNZB(nzbfilename):
@@ -435,7 +434,7 @@ def enqueueNZBs(nzbFileOrFiles, next = False, writeQueue = True):
         newNzbFiles = [ nzbFileOrFiles ]
     else:
         newNzbFiles = nzbFileOrFiles
-        
+
     if len(newNzbFiles) > 0:
         for nzbFile in newNzbFiles:
             
@@ -460,10 +459,11 @@ def enqueueNZBs(nzbFileOrFiles, next = False, writeQueue = True):
                     Hellanzb.queued_nzbs.append(nzb)
                 else:
                     Hellanzb.queued_nzbs.insert(0, nzb)
-                
+
                 msg = 'Found new nzb: '
                 info(msg + archiveName(nzbFile))
                 growlNotify('Queue', 'hellanzb ' + msg, archiveName(nzbFile), False)
+                
     if writeQueue:
         writeQueueToDisk(Hellanzb.queued_nzbs)
             

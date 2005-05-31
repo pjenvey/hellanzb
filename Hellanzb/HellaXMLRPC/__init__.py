@@ -119,7 +119,7 @@ class HellaXMLRPCServer(XMLRPC):
         """ Post process the specified directory. The -p option is preferable -- it will do this
         for you, or use the current process if this xml rpc call fails """
         troll = PostProcessor(archiveDir, rarPassword = rarPassword)
-        reactor.callInThread(troll.run)
+        troll.start()
         return True
 
     def xmlrpc_shutdown(self):
@@ -162,7 +162,7 @@ class HellaXMLRPCServer(XMLRPC):
         Hellanzb.postProcessorLock.release()
 
         queued += self.statusFromList(Hellanzb.queued_nzbs,
-                                      lambda nzbName : archiveName(nzbName))
+                                      lambda nzb : archiveName(nzb.nzbFileName))
 
         # FIXME: show if any archives failed during processing?
         #f = failedProcessing

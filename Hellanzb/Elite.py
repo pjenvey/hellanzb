@@ -6,6 +6,7 @@ Elite code -- no meaningful use/pure vanity
 [See end of file]
 """
 import random
+from Hellanzb.Util import cmHella
 
 __id__ = '$Id: ArticleDecoder.py 235 2005-04-28 02:41:24Z pjenvey $'
 
@@ -31,11 +32,13 @@ class Codez:
     
 C = Codez
 
+C('cmhella', cmHella())
+
 C('k0w0', """
                MoO0Oo0Oo0
          (__)
-         /oo\\################
-         \\/ ################ |
+         /oo\\\\################
+         \\\\/ ################ |
              ################ |
              ################ |
              ################
@@ -47,8 +50,8 @@ C('k0w1', """
                     Mo000O0oo0OOO
         
          (__) BBBBBB--EEEEEEE-EEEEEEE-FFFFFFF
-         /oo\\BB---BB-EE------EE------FF-----\\
-         \\  /~BBBBB--EEEEEE--EEEEEE--FFFFF-- |
+         /oo\\\\BB---BB-EE------EE------FF-----\\\\ 
+         \\\\  /~BBBBB--EEEEEE--EEEEEE--FFFFF-- |
           oo  BB---BB-EE------EE------FF----- |
               BBBBBB--EEEEEEE-EEEEEEE-FF----- ^
                | |                       | |
@@ -65,6 +68,35 @@ C('roflcopter', """
                   I     I
               -----------------/ 
                ROFL COPTER!!!
+""")
+
+C('donotfeedtrolls0', """
+         +-------------------+             .:\:\:/:/:.            
+         |   PLEASE DO NOT   |            :.:\:\:/:/:.:           
+         |  FEED THE TROLLS  |           :=.' -   - '.=:          
+         |                   |           '=(\ 9   9 /)='          
+         |   Thank you,      |              (  (_)  )             
+         |       Management  |              /`-vvv-'\             
+         +-------------------+             /         \            
+                 |  |        @@@          / /|,,,,,|\ \           
+                 |  |        @@@         /_//  /^\  \\_\          
+   @x@@x@        |  |         |/         WW(  (   )  )WW          
+   \||||/        |  |        \|           __\,,\ /,,/__           
+    \||/         |  |         |          (______Y______)          
+/\/\/\/\/\/\/\/\//\/\\/\/\/\/\/\/\/\/\/\/\/\/\/\/\/\/\/\/\/\/\/\/\ 
+==================================================================
+""")
+
+C('donotfeedtrolls1', """
+                       +----------+
+                       |  PLEASE  |
+                       |  DO NOT  |
+                       | FEED THE |
+                       |  TROLLS  |
+                       +----------+
+                           |  |    
+                           |  |    
+                         .\|.||/.. 
 """)
 
 aolSay = """

@@ -16,6 +16,7 @@ from twisted.internet.protocol import ReconnectingClientFactory
 from twisted.protocols.basic import LineReceiver
 from twisted.protocols.policies import TimeoutMixin, ThrottlingFactory
 from twisted.python import log
+from Hellanzb.Daemon import scanQueueDir
 from Hellanzb.Log import *
 from Hellanzb.Logging import LogOutputStream, NZBLeecherTicker
 from Hellanzb.Util import rtruncate, truncateToMultiLine
@@ -271,17 +272,17 @@ class NZBLeecher(NNTPClient, TimeoutMixin):
         NNTPClient.connectionLost(self) # calls self.factory.clientConnectionLost(self, reason)
 
         if self.currentSegment != None:
+            debug(str(self) + ' has segment: ' + self.currentSegment.getDestination())
             if (self.currentSegment.priority, self.currentSegment) in Hellanzb.scroller.segments:
                 Hellanzb.scroller.removeClient(self.currentSegment)
             # twisted doesn't reconnect our same client connections, we have to pitch
             # stuff back into the queue that hasn't finished before the connectionLost
             # occurred
                 
-            Hellanzb.queue.nzbsLock.acquire()
             # Only requeue the segment if its archive hasn't been previously postponed
-            if self.currentSegment.nzbFile.nzb in Hellanzb.queue.nzbs:
+            if self.currentSegment.nzbFile.nzb in Hellanzb.queue.currentNZBs():
+                debug(str(self) + ' requeueing segment: ' + self.currentSegment.getDestination())
                 Hellanzb.queue.put((self.currentSegment.priority, self.currentSegment))
-            Hellanzb.queue.nzbsLock.release()
             
             self.currentSegment = None
         
@@ -353,6 +354,7 @@ class NZBLeecher(NNTPClient, TimeoutMixin):
                         # statistics -- the logging system can interrupt this scroll
                         # temporarily (after scrollBegin)
                         scrollBegin()
+                        Hellanzb.downloadScannerID = reactor.callLater(5, scanQueueDir, False, True)
                 self.factory.activeClients.add(self)
                 
         elif not isActiveBool and self.activated:
@@ -385,6 +387,7 @@ class NZBLeecher(NNTPClient, TimeoutMixin):
                 Hellanzb.totalSpeed = 0
                 Hellanzb.scroller.currentLog = None
                 scrollEnd()
+                Hellanzb.downloadScannerID.cancel()
         
     def fetchNextNZBSegment(self):
         """ Pop nzb article from the queue, and attempt to retrieve it if it hasn't already been

@@ -21,7 +21,7 @@ distname         hellanzb-${version}
 checksums        ____MD5_CHECKSUM____
 
 depends_run  bin:par2:par2 \
-             bin:rar:rar \
+             bin:unrar:unrar \
              bin:flac:flac \
              bin:shorten:shorten \
              lib:XXX:py-twisted \

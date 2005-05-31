@@ -469,7 +469,7 @@ def enqueueNZBs(nzbFileOrFiles, next = False, writeQueue = True):
     
     for nzbFile in newNzbFiles:
         if validNZB(nzbFile):
-            if os.path.dirname(nzbFile) != Hellanzb.QUEUE_DIR:
+            if os.path.dirname(os.path.normpath(nzbFile)) != os.path.normpath(Hellanzb.QUEUE_DIR):
                 copy(nzbFile, Hellanzb.QUEUE_DIR + os.sep + os.path.basename(nzbFile))
             nzbFile = Hellanzb.QUEUE_DIR + os.sep + os.path.basename(nzbFile)
 

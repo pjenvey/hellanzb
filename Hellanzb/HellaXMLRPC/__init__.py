@@ -61,7 +61,7 @@ class HellaXMLRPCServer(XMLRPC):
 
     def xmlrpc_clear(self, andCancel = False):
         """ Clear the current nzb queue. Specify True as the second argument to clear anything
-        currently downloading (cancel) """
+        currently downloading as well (like the cancel call) """
         from Hellanzb.Daemon import clearCurrent
         return clearCurrent(andCancel)
 
@@ -87,7 +87,8 @@ class HellaXMLRPCServer(XMLRPC):
         return True
 
     def xmlrpc_list(self, includeIds = False):
-        """ List the current queue. Specify True as the second argument to include the NZB ID """
+        """ List the current queue. Specify True as the second argument to include the NZB ID in
+        the listing """
         from Hellanzb.Daemon import listQueue
         return listQueue(includeIds)
 
@@ -357,9 +358,22 @@ class RemoteCall:
         return msg
     allUsage = staticmethod(allUsage)
 
+def ensureXMLRPCOptions():
+    errors = []
+    for opt in ('PASSWORD'):
+        if not hasattr(Hellanzb, 'XMLRPC_' + opt):
+            errors.append('XMLRPC_' + opt)
+            
+    if len(errors):
+        msg = 'Required XMLRPC options not defined the the config file:'
+        for err in errors:
+            msg += ' ' + err
+        raise FatalError(err)
 
 def initXMLRPCServer():
     """ Start the XML RPC server """
+    #ensureXMLRPCOptions()
+
     hxmlrpcs = HellaXMLRPCServer()
     
     SECURE = True
@@ -396,6 +410,8 @@ def initXMLRPCClient():
 
 def hellaRemote(options, args):
     """ execute the remote RPC call with the specified cmd line args. args can be None """
+    #ensureXMLRPCOptions()
+    
     if options.postProcessDir and options.rarPassword:
         args = ['process', options.postProcessDir, options.rarPassword]
     elif options.postProcessDir:

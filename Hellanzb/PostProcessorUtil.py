@@ -272,6 +272,10 @@ def processRars(dirName, rarPassword):
             # processedRars.extend(justProcessedRars) # is this still necessary?
             # for rar in justProcessedRars:
             #     moveToProcessed(rar)
+
+    # FIXME: cleanup: there might be some leftover .1 files from par2 repair that are not
+    # picked up -- probably because they are so messed up that /bin/file doesn't report
+    # them as rars
     
     processComplete(dirName, 'rar',
                     lambda file : os.path.isfile(file) and isRar(file) and not isAlbumCoverArchive(file))

@@ -62,8 +62,9 @@ def startNZBLeecher():
     """ gogogo """
     defaultAntiIdle = 7 * 60
     
-    connectionCount = 0
+    totalCount = 0
     for serverId, serverInfo in Hellanzb.SERVERS.iteritems():
+        connectionCount = 0
         hosts = serverInfo['hosts']
         connections = int(serverInfo['connections'])
         info('(' + serverId + ') ', appendLF = False)
@@ -78,25 +79,34 @@ def startNZBLeecher():
             nsf = NZBLeecherFactory(serverInfo['username'], serverInfo['password'],
                                                       antiIdle)
             Hellanzb.nsfs.append(nsf)
+
+            split = host.split(':')
+            host = split[0]
+            if len(split) == 2:
+                port = int(split[1])
+            else:
+                port = 119
+            nsf.host, nsf.port = host, port
+
             nsf = HellaThrottlingFactory(nsf)
 
-            host, port = host.split(':')
             for connection in range(connections):
                 if serverInfo.has_key('bindTo') and serverInfo['bindTo'] != None and \
                         serverInfo['bindTo'] != '':
-                    reactor.connectTCP(host, int(port), nsf,
+                    reactor.connectTCP(host, port, nsf,
                                        bindAddress = serverInfo['bindTo'])
                 else:
-                    reactor.connectTCP(host, int(port), nsf)
+                    reactor.connectTCP(host, port, nsf)
                 connectionCount += 1
 
-    if connectionCount == 1:
-        info('Opening ' + str(connectionCount) + ' connection...')
-    else:
-        info('Opening ' + str(connectionCount) + ' connections...')
+        if connectionCount == 1:
+            info('Opening ' + str(connectionCount) + ' connection...')
+        else:
+            info('Opening ' + str(connectionCount) + ' connections...')
+        totalCount += connectionCount
 
     # How large the scroll ticker should be
-    Hellanzb.scroller.maxCount = connectionCount
+    Hellanzb.scroller.maxCount = totalCount
 
     # Allocate only one thread, just for decoding
     reactor.suggestThreadPoolSize(1)
@@ -115,6 +125,9 @@ class NZBLeecherFactory(ReconnectingClientFactory):
         self.password = password
         self.antiIdleTimeout = antiIdleTimeout
         self.activeTimeout = 30
+
+        self.host = None
+        self.port = None
 
         # statistics for the current session (sessions end when downloading stops on all
         # clients). used for the more accurate total speeds shown in the UI
@@ -313,7 +326,7 @@ class NZBLeecher(NNTPClient, TimeoutMixin):
     def setReaderSuccess(self):
         """ """
         debug(str(self) + ' MODE READER successful')
-        if self.setReaderAfterLogin:
+        if self.setReaderAfterLogin or (self.username == None and self.password == None):
             reactor.callLater(0, self.fetchNextNZBSegment)
         else:
             self.authInfo()
@@ -321,7 +334,11 @@ class NZBLeecher(NNTPClient, TimeoutMixin):
     def setReaderFailed(self, err):
         """ If the MODE READER failed prior to login, this server probably only accepts it after
         login """
-        if not self.isLoggedIn:
+        if self.username == None and self.password == None:
+            warn('Could not MODE READER on no auth server (%s:%i), returned: %s' % \
+                 (self.factory.host, self.factory.port, str(err)))
+            reactor.callLater(0, self.fetchNextNZBSegment)
+        elif not self.isLoggedIn:
             self.setReaderAfterLogin = True
             self.authInfo()
         else:
@@ -463,20 +480,6 @@ class NZBLeecher(NNTPClient, TimeoutMixin):
     def getBodyFailed(self, err):
         """ Handle a failure of the BODY command. Ensure the failed segment gets a 0 byte file
         written to the filesystem when this occurs """
-        # FIXME: appears that this can fail for other reasons. we need to catch:
-        # newshosting return this to us
-        # 2005-05-05 14:41:18,232 DEBUG NZBLeecher[7] get BODY FAILED, error: 400
-        # fe01-unl.iad01.newshosting.com: Idle timeout. for messageId:
-        # <part59of201.2T6kmGJqWQXOuewjuk&I@powerpost2000AA.local>
-        # /beans/incoming/nzb/daemon.working//Kornkingz'Orus
-        # Post#23.part091.rar.segment0059 expected size: 258789
-        # and reque the NZB instead of processAndContinue. Do we need to catch other
-        # cases?
-        # 2005-05-13 08:25:23,260 DEBUG NZBLeecher[24] get BODY FAILED, error: 400
-        # fe02-unl.iad01.newshosting.com: Session timeout. for messageId:
-        # <part19of201.Rp0zp0zFz7LkFy2sk2cN@powerpost2000AA.local>
-        # /beans/incoming/nzb/daemon.working//ZER WYD 06.part020.rar.segment0019 expected
-        # size: 259058
         debug(str(self) + ' get BODY FAILED, error: ' + str(err) + ' for messageId: <' + \
               self.currentSegment.messageId + '> ' + self.currentSegment.getDestination() + \
               ' expected size: ' + str(self.currentSegment.bytes))
@@ -490,6 +493,14 @@ class NZBLeecher(NNTPClient, TimeoutMixin):
             elif code == 400 and \
                     (msg.lower().find('idle timeout') > -1 or \
                      msg.lower().find('session timeout') > -1):
+                # Handle:
+                # 2005-05-05 14:41:18,232 DEBUG NZBLeecher[7] get BODY FAILED, error: 400
+                # fe01-unl.iad01.newshosting.com: Idle timeout. for messageId:
+                # <part59of201.2T6kmGJqWQXOuewjuk&I@powerpost2000AA.local>
+                # 2005-05-13 08:25:23,260 DEBUG NZBLeecher[24] get BODY FAILED, error: 400
+                # fe02-unl.iad01.newshosting.com: Session timeout. for messageId:
+                # <part19of201.Rp0zp0zFz7LkFy2sk2cN@powerpost2000AA.local>
+                 
                 # fine, be that way
                 debug(str(self) + ' received Session/Idle TIMEOUT from server, disconnecting')
                 self.transport.loseConnection()
@@ -596,8 +607,8 @@ class NZBLeecher(NNTPClient, TimeoutMixin):
                 try:
                     self._error[0](line)
                 except TypeError, te:
-                    debug('lineReceived GOT TYPE ERROR!: ' + str(te) + ' state name: ' + \
-                          self._state[0].__name__)
+                    debug(str(self) + ' lineReceived GOT TYPE ERROR!: ' + str(te) + ' state name: ' + \
+                          self._state[0].__name__ + ' code: ' + str(code) + ' line: ' + line)
                 self._endState()
             else:
                 self._setResponseCode(code)

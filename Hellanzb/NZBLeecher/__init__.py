@@ -51,6 +51,7 @@ def initNZBLeecher():
 def startNZBLeecher():
     """ gogogo """
     defaultAntiIdle = 7 * 60
+    defaultIdleTimeout = 30
     
     totalCount = 0
     for serverId, serverInfo in Hellanzb.SERVERS.iteritems():
@@ -62,9 +63,15 @@ def startNZBLeecher():
         for host in hosts:
             if serverInfo.has_key('antiIdle') and serverInfo['antiIdle'] != None and \
                    serverInfo['antiIdle'] != '':
-                antiIdle = serverInfo['antiIdle']
+                antiIdle = int(serverInfo['antiIdle'])
             else:
                 antiIdle = defaultAntiIdle
+                
+            if serverInfo.has_key('idleTimeout') and serverInfo['idleTimeout'] != None and \
+                   serverInfo['idleTimeout'] != '':
+                idleTimeout = int(serverInfo['idleTimeout'])
+            else:
+                idleTimeout = defaultIdleTimeout
 
             defaultReadLimit = None
             if serverInfo.has_key('maxSpeed') and serverInfo['maxSpeed'] != None and \
@@ -74,7 +81,7 @@ def startNZBLeecher():
                 readLimit = defaultReadLimit
 
             nsf = NZBLeecherFactory(serverInfo['username'], serverInfo['password'],
-                                                      antiIdle)
+                                                      idleTimeout, antiIdle)
             Hellanzb.nsfs.append(nsf)
 
             split = host.split(':')
@@ -118,11 +125,11 @@ def startNZBLeecher():
 PHI = (1 + math.sqrt(5)) / 2
 class NZBLeecherFactory(ReconnectingClientFactory):
 
-    def __init__(self, username, password, antiIdleTimeout):
+    def __init__(self, username, password, activeTimeout, antiIdleTimeout):
         self.username = username
         self.password = password
         self.antiIdleTimeout = antiIdleTimeout
-        self.activeTimeout = 30
+        self.activeTimeout = activeTimeout
 
         self.host = None
         self.port = None

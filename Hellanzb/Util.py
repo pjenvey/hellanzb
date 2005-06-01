@@ -287,6 +287,16 @@ class PriorityQueue(Queue):
         Queue.__init__(self)
         self.queue = []
         
+    def clear(self):
+        """ empty the queue """
+        self.mutex.acquire()
+        del self.queue
+        self.queue = []
+        if not hasattr(self, 'not_empty'):
+            # python 2.3
+            self.esema.acquire()
+        self.mutex.release()
+
     def _put(self, item):
         """ Assume Queue is backed by a list. Add the new item to the list, taking into account
             priority via heapq """

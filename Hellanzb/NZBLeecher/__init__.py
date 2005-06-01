@@ -11,6 +11,7 @@ Freddie (freddie@madcowdisease.org) utilizing the twisted framework
 """
 import math, os, re, time, Hellanzb
 from sets import Set
+from shutil import move
 from twisted.internet import reactor
 from twisted.internet.protocol import ReconnectingClientFactory
 from twisted.protocols.basic import LineReceiver
@@ -196,6 +197,10 @@ class NZBLeecher(NNTPClient, TimeoutMixin):
 
         # successful GROUP commands during this session
         self.activeGroups = []
+        # unsuccessful GROUP commands during this session
+        self.failedGroups = []
+        # group we're currently in the process of getting
+        self.gettingGroup = None
 
         # current article (<segment>) we're dealing with
         self.currentSegment = None
@@ -303,6 +308,8 @@ class NZBLeecher(NNTPClient, TimeoutMixin):
             debug(str(self) + ' lost connection: ' + str(reason))
 
         self.activeGroups = []
+        self.failedGroups = []
+        self.gettingGroup = None
         self.factory.clients.remove(self)
         if self in self.factory.activeClients:
             self.factory.activeClients.remove(self)
@@ -435,7 +442,7 @@ class NZBLeecher(NNTPClient, TimeoutMixin):
 
             # NOTE: we could get away with activating only one of the groups instead of
             # all
-            if group not in self.activeGroups:
+            if group not in self.activeGroups and group not in self.failedGroups:
                 debug(str(self) + ' getting GROUP: ' + group)
                 self.fetchGroup(group)
                 return
@@ -446,15 +453,18 @@ class NZBLeecher(NNTPClient, TimeoutMixin):
             # FIXME: prefix with segment name
         #    info('No valid group found!')
             
-        debug(str(self) + ' getting BODY: <' + self.currentSegment.messageId + '> ' + \
-              self.currentSegment.getDestination())
-        
         # Don't call later here -- we could be disconnected and lose our currentSegment
         # before it even happens!
         #reactor.callLater(0, self.fetchBody, str(self.currentSegment.messageId))
         self.fetchBody(str(self.currentSegment.messageId))
+
+    def fetchGroup(self, group):
+        self.gettingGroup = group
+        NNTPClient.fetchGroup(self, group)
         
     def fetchBody(self, index):
+        debug(str(self) + ' getting BODY: <' + self.currentSegment.messageId + '> ' + \
+              self.currentSegment.getDestination())
         start = time.time()
         if self.currentSegment.nzbFile.downloadStartTime == None:
             self.currentSegment.nzbFile.downloadStartTime = start
@@ -525,10 +535,49 @@ class NZBLeecher(NNTPClient, TimeoutMixin):
     def gotGroup(self, group):
         group = group[3]
         self.activeGroups.append(group)
+        self.gettingGroup = None
         debug(str(self) + ' got GROUP: ' + group)
 
         reactor.callLater(0, self.fetchNextNZBSegment)
 
+    def getGroupFailed(self, err):
+        group = self.gettingGroup
+        self.failedGroups.append(group)
+        self.gettingGroup = None
+        error('GROUP command failed for group: ' + group)
+        debug('GROUP command failed for group: ' + group + ' result: ' + str(err))
+
+        segmentHasActive = False
+        for group in self.activeGroups:
+            if group in self.currentSegment.nzbFile.groups:
+                segmentHasActive = True
+
+        if segmentHasActive:
+            # we should be able to get away with using the already active groups
+            self.fetchBody(str(self.currentSegment.messageId))
+        else:
+            failedForThisSegment = 0
+            for group in self.currentSegment.nzbFile.groups:
+                if group in self.failedGroups:
+                    failedForThisSegment += 1
+
+            if failedForThisSegment == len(self.failedGroups):
+                err = 'Unable to retrieve *any* groups for file (subject: ' + \
+                    self.currentSegment.nzbFile.subject + '), failed groups:'
+                for group in self.failedGroups:
+                    err += ' ' + group
+                error(err)
+                error('Cancelling NZB download: ' + self.currentSegment.nzbFile.nzb.archiveName)
+
+                # FIXME: call Daemon.cancelCurrent() in 0.6-pre
+                Hellanzb.queue.clear()
+                move(self.currentSegment.nzbFile.nzb.nzbFileName,
+                     Hellanzb.TEMP_DIR + os.sep + os.path.basename(self.currentSegment.nzbFile.nzb.nzbFileName))
+
+            else:
+                # Try retrieving another group
+                self.fetchNextNZBSegment()
+                
     def _stateBody(self, line):
         """ The normal _stateBody converts the list of lines downloaded to a string, we want to
         keep these lines in a list throughout life of the processing (should be more

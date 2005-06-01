@@ -5,8 +5,9 @@ PostProcessorUtil - support functions for the PostProcessor
 (c) Copyright 2005 Philip Jenvey, Ben Bangert
 [See end of file]
 """
-import Hellanzb, os, re, sys
+import os, re, sys, time, Hellanzb
 from threading import Thread
+from time import time
 from Hellanzb.Log import *
 from Hellanzb.Util import *
 
@@ -253,6 +254,8 @@ def processRars(dirName, rarPassword):
     processedRars = []
     files = os.listdir(dirName)
     files.sort()
+    start = time.time()
+    unrared = 0
     for file in files:
         absPath = os.path.normpath(dirName + os.sep + file)
         
@@ -267,6 +270,7 @@ def processRars(dirName, rarPassword):
             # for a .rar file if we specify this incorrect first file anyway
             
             processedRars.extend(unrar(absPath, rarPassword))
+            unrared += 1
             # FIXME: move rars into processed immediately
             # justProcessedRars = unrar(absPath, rarPassword)
             # processedRars.extend(justProcessedRars) # is this still necessary?
@@ -275,7 +279,12 @@ def processRars(dirName, rarPassword):
     
     processComplete(dirName, 'rar',
                     lambda file : os.path.isfile(file) and isRar(file) and not isAlbumCoverArchive(file))
-    info(archiveName(dirName) + ': Finished unraring')
+    e = time.time() - start
+    rarTxt = 'rar'
+    if unrared > 1:
+        rarTxt += 's'
+    info(archiveName(dirName) + ': Finished unraring (%i %s, took: %.1fs)' % (unrared,
+                                                                              rarTxt, e))
 
 def unrar(fileName, rarPassword = None, pathToExtract = None):
     """ Unrar the specified file. Returns all the rar files we extracted from """
@@ -409,6 +418,7 @@ def processPars(dirName):
         return
     
     info(archiveName(dirName) + ': Verifying via pars..')
+    start = time.time()
 
     dirName += os.sep
     repairCmd = 'par2 r "' + dirName + '*.PAR2" "' + dirName + '*.par2" "'
@@ -431,7 +441,8 @@ def processPars(dirName):
         # else:
         
         # Verified
-        info(archiveName(dirName) + ': Par verification passed')
+        e = time.time() - start 
+        info(archiveName(dirName) + ': Par verification passed (took: %.1fs)' % (e))
 
     elif returnCode == 2:
         # Repair required and impossible
@@ -517,20 +528,6 @@ def processComplete(dirName, processStateName, moveFileFilterFunction):
 
     # And make a note of the completition
     touch(dirName + os.sep + Hellanzb.PROCESSED_SUBDIR + os.sep + '.' + processStateName + '_done')
-
-def getRarPassword(msgId):
-    """ Get the specific rar password set for the specified msgId """
-    # FIXME: get rid of this older, lamer way of getting passwords
-    if hasattr(Hellanzb, 'PASSWORDS_DIR') and os.path.isdir(Hellanzb.PASSWORDS_DIR):
-        for file in os.listdir(Hellanzb.PASSWORDS_DIR):
-            if file == msgId:
-
-                absPath = Hellanzb.PASSWORDS_DIR + os.sep + msgId
-                if not os.access(absPath, os.R_OK):
-                    raise FatalError('Refusing to continue: unable to read rar password (no read access)')
-            
-                msgIdFile = open(absPath)
-                return msgIdFile.read().rstrip()
 
 def isFreshState(dirName, stateName):
     """ Determine if the specified state has already been completed """

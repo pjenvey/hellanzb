@@ -29,7 +29,7 @@ class PostProcessor(Thread):
     
     msgId = None
     nzbFile = None
-    
+
     def __init__(self, dirName, background = True, rarPassword = None):
         """ Ensure sanity of this instance before starting """
         # abort if we lack required binaries
@@ -45,6 +45,8 @@ class PostProcessor(Thread):
 
         self.rarPassword = rarPassword
 
+        self.startTime = None
+    
         Thread.__init__(self)
 
     def addDecompressor(self, decompressorThread):
@@ -218,7 +220,8 @@ class PostProcessor(Thread):
             rmtree(self.dirName + os.sep + Hellanzb.PROCESSED_SUBDIR)
                 
         # We're done
-        info(archiveName(self.dirName) + ': Finished processing')
+        e = time.time() - self.startTime 
+        info(archiveName(self.dirName) + ': Finished processing (took: %.1fs)' % (e))
         growlNotify('Archive Success', 'hellanzb Done Processing:', archiveName(self.dirName),
                     True)
                     #self.background)
@@ -228,6 +231,7 @@ class PostProcessor(Thread):
     def postProcess(self):
         """ process the specified directory """
         # Check for shutting down flag before doing any significant work
+        self.startTime = time.time()
         checkShutdown()
         
         # Put files we've processed and no longer need (like pars rars) in this dir
@@ -274,10 +278,6 @@ class PostProcessor(Thread):
             processPars(self.dirName)
         
         if dirHasRars(self.dirName):
-            # grab the rar password if one exists
-            if self.rarPassword == None:
-                self.rarPassword = getRarPassword(self.msgId)
-            
             checkShutdown()
             processRars(self.dirName, self.rarPassword)
         

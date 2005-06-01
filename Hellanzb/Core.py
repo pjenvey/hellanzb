@@ -9,6 +9,33 @@ Core - All of our main()ish functions. Initialization/shutdown/etc
 import twisted.internet.abstract
 twisted.internet.abstract.FileDescriptor.bufferSize = 4096
 
+def registerReapProcessHandler(pid, process):
+    import os
+    from twisted.python import log
+    from twisted.internet.process import reapProcessHandlers
+    from Hellanzb.Log import debug, error
+
+    if reapProcessHandlers.has_key(pid):
+        raise RuntimeError
+    try:
+        aux_pid, status = os.waitpid(pid, os.WNOHANG)
+    except:
+        msg = 'FAILURE: Failed to reap! pid: %s: class name: %s' % \
+            (str(pid), pid.__class__.__name__)
+        log.err()
+        error(msg)
+        debug(msg)
+        log.msg('Failed to reap %s:' % pid)
+        log.err()
+        aux_pid = None
+    if aux_pid:
+        process.processEnded(status)
+    else:
+        reapProcessHandlers[pid] = process
+
+import twisted.internet.process
+twisted.internet.process.registerReapProcessHandler = registerReapProcessHandler
+
 # Install our custom twisted reactor immediately
 from Hellanzb.HellaReactor import HellaReactor
 HellaReactor.install()

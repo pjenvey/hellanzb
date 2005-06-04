@@ -8,6 +8,8 @@ Util - hellanzb misc functions
 import os, popen2, pty, re, signal, string, thread, threading, time, Hellanzb
 from distutils import spawn
 from heapq import heappop, heappush
+from os.path import normpath
+from shutil import move
 from threading import Condition
 from traceback import print_stack
 from twisted.internet import protocol, utils
@@ -129,14 +131,14 @@ class TopenTwisted(protocol.ProcessProtocol):
 # /bin/sh. The shell will relay the *return code* of the process back to python correctly,
 # but I suspect when you check for WCOREDUMP you're checking whether or not /bin/sh core
 # dumped, not your process. The solution to this is to pass the cmd as a list -- the cmd
-# and it's args. This tells pty/popen to run the process directly instead of via /bin/sh,
+# and its args. This tells pty/popen to run the process directly instead of via /bin/sh,
 # and you get the right WCOREDUMP *status*
 class Ptyopen(popen2.Popen3):
     def __init__(self, cmd, capturestderr = False, bufsize = -1):
-        """ Popen3 class (isn't this actually Popen4, capturestderr = False?) that uses
-        ptys instead of pipes, to allow inline reading (instead of potential i/o
-        buffering) of output from the child process. It also stores the cmd it's running
-        (as a string) and the thread that created the object, for later use """
+        """ Popen3 class (isn't this actually Popen4, capturestderr = False?) that uses ptys
+        instead of pipes, to allow inline reading (instead of potential i/o buffering) of
+        output from the child process. It also stores the cmd its running (as a string)
+        and the thread that created the object, for later use """
         # NOTE: most of this is cutnpaste from Popen3 minus the openpty calls
         #popen2._cleanup()
         self.prettyCmd = cmd
@@ -231,10 +233,10 @@ class Ptyopen2(Ptyopen):
         Python was lame for naming it that way and I am just as lame
         for following suit """
     def __init__(self, cmd, bufsize = -1):
-        """ Popen3 class (isn't this actually Popen4, capturestderr = False?) that uses
-        ptys instead of pipes, to allow inline reading (instead of potential i/o
-        buffering) of output from the child process. It also stores the cmd it's running
-        (as a string) and the thread that created the object, for later use """
+        """ Popen3 class (isn't this actually Popen4, capturestderr = False?) that uses ptys
+        instead of pipes, to allow inline reading (instead of potential i/o buffering) of
+        output from the child process. It also stores the cmd its running (as a string)
+        and the thread that created the object, for later use """
         #popen2._cleanup()
         self.prettyCmd = cmd
         cmd = self.parseCmdToList(cmd)
@@ -286,6 +288,16 @@ class PriorityQueue(Queue):
         emulate 2.3 behavior everywhere for now """
         Queue.__init__(self)
         self.queue = []
+
+    def clear(self):
+        """ empty the queue """
+        self.mutex.acquire()
+        del self.queue
+        self.queue = []
+        if not hasattr(self, 'not_empty'):
+            # python 2.3
+            self.esema.acquire()
+        self.mutex.release()
         
     def clear(self):
         """ empty the queue """
@@ -332,8 +344,8 @@ def dirHasFileType(dirName, fileExtension):
     return dirHasFileTypes(dirName, [ fileExtension ])
 
 def dirHasFileTypes(dirName, fileExtensionList):
-    """ Determine if the specified directory contains any files of the specified type --
-    that type being defined by it's filename extension. the match is case insensitive """
+    """ Determine if the specified directory contains any files of the specified type -- that
+    type being defined by its filename extension. the match is case insensitive """
     for file in os.listdir(dirName):
         ext = getFileExtension(file)
         if ext:
@@ -361,12 +373,18 @@ def touch(fileName):
     os.utime(fileName, None)
 
 def archiveName(dirName):
-    """ Extract the name of the archive from the archive's absolute path, or it's .nzb
-    file name """
+    """ Extract the name of the archive from the archive's absolute path, or its .nzb file
+    name """
+    from Hellanzb.PostProcessorUtil import DirName
     # pop off separator and basename
     while dirName[len(dirName) - 1] == os.sep:
         dirName = dirName[0:len(dirName) - 1]
-    name = os.path.basename(dirName)
+    if isinstance(dirName, DirName) and dirName.isSubDir():
+        from Hellanzb.Log import info
+        name = os.path.basename(dirName.parentDir) + \
+        normpath(dirName).replace(normpath(dirName.parentDir), '')
+    else:
+        name = os.path.basename(dirName)
 
     # Strip the msg_id and .nzb extension from an nzb file name
     if len(name) > 3 and name[-3:].lower() == 'nzb':
@@ -419,6 +437,7 @@ def truncate(str, length = 60, reverse = False):
 def rtruncate(*args, **kwargs):
     return truncate(reverse = True, *args, **kwargs)
 
+# FIXME: textwrap.fill() should replace this function
 def truncateToMultiLine(line, length = 60, prefix = '', indentPrefix = None):
     """ Parse a one line message into multiple lines of the specified length """
     multiLine = StringIO()
@@ -435,6 +454,31 @@ def truncateToMultiLine(line, length = 60, prefix = '', indentPrefix = None):
             
         offset += length
     return multiLine.getvalue()
+
+def flattenDoc(docString):
+    """ Take an indented doc string, and remove its newlines and their surrounding whitespace
+    """
+    clean = ''
+    lines = docString.split('\n')
+    for line in lines:
+        clean += line.strip() + ' '
+    return clean
+
+def hellaRename(filename):
+    """ rename a dupe file to filename _hellanzb_renamedX """
+    if os.path.exists(filename):
+        # Rename the dir if it exists already
+        renamedDir = filename + '_hellanzb_renamed'
+        i = 0
+        while os.path.exists(renamedDir + str(i)):
+            i += 1
+        move(filename, renamedDir + str(i))
+
+def getMsgId(archiveName):
+    """ grab the msgid from a 'msgid_31337_HellaBlah.nzb string """
+    msgId = re.sub(r'.*msgid_', r'', os.path.basename(archiveName))
+    msgId = re.sub(r'_.*', r'', msgId)
+    return msgId
 
 def walk(root, recurse=0, pattern='*', return_folders=0):
     """ return a recursive directory listing.
@@ -488,6 +532,62 @@ def inMainThread():
     if Hellanzb.MAIN_THREAD_IDENT == thread.get_ident():
         return True
     return False
+
+
+# NOTE: if you're cut & pasting -- the ascii is escaped (\") in one spot
+Hellanzb.CMHELLA = \
+"""
+           ;;;;            .  .
+      ... :liil ...........:..:      ,._    ,._      ...................
+      :   l$$$:  _.,._       _..,,._ "$$$b. "$$$b.   `_..,,._        :::
+      :   $$$$.d$$$$$$L   .d$$$$$$$$L $$$$:  $$$$: .d$$$$$$$$$;      :::
+      :  :$$$$P`  T$$$$: :$$$$`  7$$F:$$$$  :$$$$ :$$$$: `$$$$ __  _  |_
+      :  l$$$F   :$$$$$  8$$$l""\"""` l$$$l  l$$$l l$$$l   $$$L | ) /_ |_)
+      :  $$$$:   l$$$$$L `4$$$bcmang;ACID$::$$$88:`4$$$bmm$$$$;.     ...
+      :    ```      ```""              ```    ```    .    ```.     ..:::..
+      :..............................................:              `:::`
+                                                                      `
+"""
+
+# NOTE: if you're cut & pasting -- the ascii is escaped (\") in one spot
+Hellanzb.CMHELLA_VERSIONED = \
+"""
+           ;;;;            .  .
+      ... :liil ...........:..:      ,._    ,._      ...................
+      :   l$$$:  _.,._       _..,,._ "$$$b. "$$$b.   `_..,,._        :::
+      :   $$$$.d$$$$$$L   .d$$$$$$$$L $$$$:  $$$$: .d$$$$$$$$$;      :::
+      :  :$$$$P`  T$$$$: :$$$$`  7$$F:$$$$  :$$$$ :$$$$: `$$$$ __  _  |_
+      :  l$$$F   :$$$$$  8$$$l""\"""` l$$$l  l$$$l l$$$l   $$$L | ) /_ |_)
+      :  $$$$:   l$$$$$L `4$$$bcmang;ACID$::$$$88:`4$$$bmm$$$$;.     ...
+      :    ```      ```""              ```    ```    .    ```.     ..:::..
+      :..............................................:     %s  `:::`
+                                                                      `
+"""
+def cmVersion():
+    """ try to make Hellanzb.version always look like this: 'V 1 . 0' """
+    cmV = 'V 1 . 0'
+    orig = Hellanzb.version
+    muck = lambda v : 'v' + v.replace('', ' ').rstrip()
+
+    # expand it
+    v = muck(orig)
+    if len(v) < len(cmV):
+        # just left justify for now
+        return v.ljust(len(cmV))
+
+    elif len(v) > len(cmV):
+        # now try removing non digits and non periods, then expand
+        v = muck(re.sub('[^\d.]', '', orig))
+        
+        if len(v) != len(cmV):
+            # just left jusity for now
+            v = orig.ljust(len(cmV))
+
+        return v
+
+def cmHella():
+    """ brand the ascii with a properly formatted version number """
+    return Hellanzb.CMHELLA_VERSIONED % (cmVersion())
 
 """
 /*

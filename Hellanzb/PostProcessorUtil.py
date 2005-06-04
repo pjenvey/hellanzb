@@ -5,8 +5,9 @@ PostProcessorUtil - support functions for the PostProcessor
 (c) Copyright 2005 Philip Jenvey, Ben Bangert
 [See end of file]
 """
-import Hellanzb, os, re, sys
+import os, re, sys, time, Hellanzb
 from threading import Thread
+from time import time
 from Hellanzb.Log import *
 from Hellanzb.Util import *
 
@@ -40,9 +41,11 @@ class MusicType:
 class DecompressionThread(Thread):
     """ decompress a file in a separate thread """
 
-    def __init__(self, parent):
+    def __init__(self, parent, dirName):
         self.file = parent.musicFiles[0]
         parent.musicFiles.remove(self.file)
+
+        self.dirName = dirName
 
         self.type = getMusicType(self.file)
         
@@ -59,10 +62,14 @@ class DecompressionThread(Thread):
     def run(self):
         """ decompress the song, then remove ourself from the active thread pool """
         # Catch exceptions here just in case, to ensure notify() will finally be called
-        archive = archiveName(os.path.dirname(self.file))
+        archive = archiveName(self.dirName)
         try:
-            decompressMusicFile(self.file, self.type)
+            decompressMusicFile(self.file, self.type, archive)
 
+        except SystemExit, se:
+            # Shutdown, stop what we're doing
+            self.parent.removeDecompressor(self)
+            return
         except Exception, e:
             error(archive + ': There was an unexpected problem while decompressing the musc file: ' + \
                   os.path.basename(self.file), e)
@@ -76,6 +83,14 @@ class DecompressionThread(Thread):
         self.parent.addDecompressor(self)
 
         Thread.start(self)
+
+class DirName(str):
+    def __init__(self, *args, **kwargs):
+        self.parentDir = None
+        str.__init__(self, *args, **kwargs)
+
+    def isSubDir(self):
+        return self.parentDir != None
 
 def dirHasRars(dirName):
     """ Determine if the specified directory contains rar files """
@@ -214,14 +229,15 @@ def getMusicType(fileName):
             return musicType
     return False
 
-def decompressMusicFile(fileName, musicType):
+def decompressMusicFile(fileName, musicType, archive = None):
     """ Decompress the specified file according to it's musicType """
     cmd = musicType.decompressor.replace('<FILE>', '"' + fileName + '"')
 
     extLen = len(getFileExtension(fileName))
     destFileName = fileName[:-extLen] + musicType.decompressToType
 
-    archive = archiveName(os.path.dirname(fileName))
+    if archive == None:
+        archive = archiveName(os.path.dirname(fileName))
     
     info(archive + ': Decompressing to ' + str(musicType.decompressToType) + ': ' + \
          os.path.basename(fileName))
@@ -253,6 +269,8 @@ def processRars(dirName, rarPassword):
     processedRars = []
     files = os.listdir(dirName)
     files.sort()
+    start = time.time()
+    unrared = 0
     for file in files:
         absPath = os.path.normpath(dirName + os.sep + file)
         
@@ -267,6 +285,7 @@ def processRars(dirName, rarPassword):
             # for a .rar file if we specify this incorrect first file anyway
             
             processedRars.extend(unrar(absPath, rarPassword))
+            unrared += 1
             # FIXME: move rars into processed immediately
             # justProcessedRars = unrar(absPath, rarPassword)
             # processedRars.extend(justProcessedRars) # is this still necessary?
@@ -279,7 +298,12 @@ def processRars(dirName, rarPassword):
     
     processComplete(dirName, 'rar',
                     lambda file : os.path.isfile(file) and isRar(file) and not isAlbumCoverArchive(file))
-    info(archiveName(dirName) + ': Finished unraring')
+    e = time.time() - start
+    rarTxt = 'rar'
+    if unrared > 1:
+        rarTxt += 's'
+    info(archiveName(dirName) + ': Finished unraring (%i %s, took: %.1fs)' % (unrared,
+                                                                              rarTxt, e))
 
 def unrar(fileName, rarPassword = None, pathToExtract = None):
     """ Unrar the specified file. Returns all the rar files we extracted from """
@@ -345,7 +369,7 @@ def unrar(fileName, rarPassword = None, pathToExtract = None):
         cmd = Hellanzb.UNRAR_CMD + ' x -y -p' + rarPassword + ' "' + fileName + '" "' + \
             pathToExtract + '"'
     else:
-        cmd = Hellanzb.UNRAR_CMD + ' x -y' + ' "' + fileName + '" "' + pathToExtract + '"'
+        cmd = Hellanzb.UNRAR_CMD + ' x -y -p-' + ' "' + fileName + '" "' + pathToExtract + '"'
     
     info(archiveName(dirName) + ': Unraring ' + os.path.basename(fileName) + '..')
     t = Topen(cmd)
@@ -413,8 +437,10 @@ def processPars(dirName):
         return
     
     info(archiveName(dirName) + ': Verifying via pars..')
+    start = time.time()
 
-    dirName += os.sep
+    dirName = DirName(dirName + os.sep)
+    
     repairCmd = 'par2 r "' + dirName + '*.PAR2" "' + dirName + '*.par2" "'
     if '.par2' in os.listdir(dirName):
         # a filename of '.par2' will not be wildcard glob'd by '*.par2'. WHY?????
@@ -435,7 +461,8 @@ def processPars(dirName):
         # else:
         
         # Verified
-        info(archiveName(dirName) + ': Par verification passed')
+        e = time.time() - start 
+        info(archiveName(dirName) + ': Par verification passed (took: %.1fs)' % (e))
 
     elif returnCode == 2:
         # Repair required and impossible
@@ -454,13 +481,11 @@ def processPars(dirName):
                              ' more recovery blocks for repair')
             # otherwise processComplete here (failed)
 
-    elif returnCode == 3:
-        raise FatalError('par2 repair failed: returned code: ' + str(returnCode) + \
-                         '. Please run par2 manually for more information: ' + repairCmd)
     else:
         # Abnormal behavior -- let the user deal with it
         raise FatalError('par2 repair failed: returned code: ' + str(returnCode) + \
-                         '. Please run par2 manually for more information')
+                         '. Please run par2 manually for more information, par2 cmd: ' + \
+                         repairCmd)
 
     processComplete(dirName, 'par', isPar)
 
@@ -523,20 +548,6 @@ def processComplete(dirName, processStateName, moveFileFilterFunction):
 
     # And make a note of the completition
     touch(dirName + os.sep + Hellanzb.PROCESSED_SUBDIR + os.sep + '.' + processStateName + '_done')
-
-def getRarPassword(msgId):
-    """ Get the specific rar password set for the specified msgId """
-    # FIXME: get rid of this older, lamer way of getting passwords
-    if hasattr(Hellanzb, 'PASSWORDS_DIR') and os.path.isdir(Hellanzb.PASSWORDS_DIR):
-        for file in os.listdir(Hellanzb.PASSWORDS_DIR):
-            if file == msgId:
-
-                absPath = Hellanzb.PASSWORDS_DIR + os.sep + msgId
-                if not os.access(absPath, os.R_OK):
-                    raise FatalError('Refusing to continue: unable to read rar password (no read access)')
-            
-                msgIdFile = open(absPath)
-                return msgIdFile.read().rstrip()
 
 def isFreshState(dirName, stateName):
     """ Determine if the specified state has already been completed """

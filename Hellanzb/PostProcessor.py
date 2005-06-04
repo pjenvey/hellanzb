@@ -7,6 +7,7 @@ nzbget
 [See end of file]
 """
 import Hellanzb, os, re, sys, time
+from os.path import join as pathjoin
 from shutil import rmtree
 from threading import Thread, Condition, Lock
 from Hellanzb.Log import *
@@ -16,7 +17,7 @@ from Hellanzb.Util import *
 __id__ = '$Id$'
 
 class PostProcessor(Thread):
-    """ A post processor (formerly troll) instance runs in it's own thread """
+    """ A post processor (formerly troll) instance runs in its own thread """
     dirName = None
     decompressionThreadPool = None
     decompressorCondition = None
@@ -29,22 +30,14 @@ class PostProcessor(Thread):
     
     msgId = None
     nzbFile = None
-    
-    def start(self):
-        """ Maintain a list of active PostProcessors """
-        Hellanzb.postProcessorLock.acquire()
-        # FIXME: could block if there are too many processors going
-        Hellanzb.postProcessors.append(self)
-        Hellanzb.postProcessorLock.release()
-        
-        Thread.start(self)
 
-    def __init__(self, dirName, background = True, rarPassword = None):
+    def __init__(self, dirName, background = True, rarPassword = None, parentDir = None):
         """ Ensure sanity of this instance before starting """
         # abort if we lack required binaries
         assertIsExe('par2')
         
         self.dirName = os.path.realpath(dirName)
+        self.dirName = DirName(self.dirName)
         
         # Whether or not this thread is the only thing happening in the app (-p mode)
         self.background = background
@@ -54,6 +47,16 @@ class PostProcessor(Thread):
 
         self.rarPassword = rarPassword
 
+        # The parent directory we the originating post process call started from, if we
+        # are post processing a sub directory
+        self.isSubDir = False
+        self.parentDir = parentDir
+        if self.parentDir != None:
+            self.isSubDir = True
+            self.dirName.parentDir = self.parentDir
+            
+        self.startTime = None
+    
         Thread.__init__(self)
 
     def addDecompressor(self, decompressorThread):
@@ -77,9 +80,18 @@ class PostProcessor(Thread):
         Hellanzb.postProcessorLock.acquire()
         Hellanzb.postProcessors.remove(self)
         Hellanzb.postProcessorLock.release()
+
+        if not self.background:
+            from twisted.internet import reactor
+            reactor.callFromThread(reactor.stop)
     
     def run(self):
         """ do the work """
+        Hellanzb.postProcessorLock.acquire()
+        # FIXME: could block if there are too many processors going
+        Hellanzb.postProcessors.append(self)
+        Hellanzb.postProcessorLock.release()
+        
         try:
             self.postProcess()
             
@@ -96,6 +108,7 @@ class PostProcessor(Thread):
                 sys.exit(1)
                 #thread.interrupt_main()
                 #raise
+            return
         
         except Exception, e:
             self.stop()
@@ -103,6 +116,9 @@ class PostProcessor(Thread):
             if not self.background:
                 # not sure what happened, let's see the backtrace
                 raise
+            return
+            
+        self.stop()
     
     def processMusic(self):
         """ Assume the integrity of the files in the specified directory have been
@@ -148,9 +164,9 @@ class PostProcessor(Thread):
             self.decompressorCondition.acquire()
             
             if len(self.decompressionThreadPool) < int(Hellanzb.MAX_DECOMPRESSION_THREADS):
-                decompressor = DecompressionThread(parent = self) # will pop the next
-                                                                  # music file off the
-                                                                  # list
+                # will pop the next music file off the list
+                decompressor = DecompressionThread(parent = self,         
+                                                   dirName = self.dirName)
                 decompressor.start()
     
             else:
@@ -159,6 +175,7 @@ class PostProcessor(Thread):
                 self.decompressorCondition.wait()
                 
             self.decompressorCondition.release()
+            checkShutdown()
 
         # We're not finished until all the threads are done
         for decompressor in self.decompressionThreadPool:
@@ -214,23 +231,28 @@ class PostProcessor(Thread):
             rmtree(self.dirName + os.sep + Hellanzb.PROCESSED_SUBDIR)
                 
         # We're done
-        info(archiveName(self.dirName) + ': Finished processing')
-        growlNotify('Archive Success', 'hellanzb Done Processing:', archiveName(self.dirName),
-                    True)
-                    #self.background)
+        e = time.time() - self.startTime 
+        if not self.isSubDir:
+            info(archiveName(self.dirName) + ': Finished processing (took: %.1fs)' % (e))
+            growlNotify('Archive Success', 'hellanzb Done Processing:',
+                        archiveName(self.dirName), True)
+                       #self.background)
         # FIXME: could unsticky the message if we're running hellanzb.py -p
         # and preferably if the post processing took say over 30 seconds
 
     def postProcess(self):
         """ process the specified directory """
         # Check for shutting down flag before doing any significant work
+        self.startTime = time.time()
         checkShutdown()
         
         # Put files we've processed and no longer need (like pars rars) in this dir
         processedDir = self.dirName + os.sep + Hellanzb.PROCESSED_SUBDIR
         
-        if not os.path.exists(self.dirName) or not os.path.isdir(self.dirName):
+        if not os.path.exists(self.dirName):
             raise FatalError('Directory does not exist: ' + self.dirName)
+        elif not os.path.isdir(self.dirName):
+            raise FatalError('Not a directory: ' + self.dirName)
                               
         if not os.path.exists(processedDir):
             os.mkdir(processedDir)
@@ -268,16 +290,26 @@ class PostProcessor(Thread):
             processPars(self.dirName)
         
         if dirHasRars(self.dirName):
-            # grab the rar password if one exists
-            if self.rarPassword == None:
-                self.rarPassword = getRarPassword(self.msgId)
-            
             checkShutdown()
             processRars(self.dirName, self.rarPassword)
         
         if dirHasMusic(self.dirName):
             checkShutdown()
             self.processMusic()
+
+        # Post process sub directories
+        for file in os.listdir(self.dirName):
+            if file == Hellanzb.PROCESSED_SUBDIR:
+                continue
+            
+            if os.path.isdir(pathjoin(self.dirName, file)):
+                if not self.isSubDir:
+                    troll = PostProcessor(pathjoin(self.dirName, file),
+                                          parentDir = self.dirName)
+                else:
+                    troll = PostProcessor(pathjoin(self.dirName, file),
+                                          parentDir = self.parentDir)
+                troll.postProcess()
 
         self.finishedPostProcess()
 

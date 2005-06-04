@@ -49,6 +49,7 @@ from Hellanzb.Log import *
 from Hellanzb.Logging import initLogging, stdinEchoOn
 from Hellanzb.PostProcessorUtil import defineMusicType
 from Hellanzb.Util import *
+from Hellanzb.HellaXMLRPC import hellaRemote, initXMLRPCClient
 
 __id__ = '$Id$'
 
@@ -127,7 +128,7 @@ def signalHandler(signum, frame):
         if len(TopenTwisted.activePool) == 0:
             shutdown()
             logShutdown('Caught interrupt, exiting..')
-            sys.exit(Hellanzb.SHUTDOWN_CODE)
+            return
 
         # The idea here is to 'cheat' again to exit the program ASAP if all the processes
         # are associated with the main thread (the processes would have already gotten the
@@ -140,7 +141,7 @@ def signalHandler(signum, frame):
         if not threadsOutsideMain:
             shutdown()
             logShutdown('Caught interrupt, exiting..')
-            sys.exit(Hellanzb.SHUTDOWN_CODE)
+            return
 
         # We couldn't cheat our way out of the program, tell the user the processes
         # (threads) we're waiting on, and wait for another signal
@@ -167,10 +168,10 @@ def signalHandler(signum, frame):
             TopenTwisted.killAll()
             shutdown()
             logShutdown('Killed all child processes, exiting..')
-            sys.exit(Hellanzb.SHUTDOWN_CODE)
+            return
             
 def assertHasARar():
-    """ assertIsExe rar or it's doppelganger """
+    """ assertIsExe rar or its doppelganger """
     Hellanzb.UNRAR_CMD = None
     for exe in [ 'rar', 'unrar' ]:
         if spawn.find_executable(exe):
@@ -198,9 +199,15 @@ def init(options = {}):
     # or not we may need to route things through twisted's callFromThread
     Hellanzb.MAIN_THREAD_IDENT = thread.get_ident()
 
+    Hellanzb.BEGIN_TIME = time.time()
+
+    Hellanzb.downloadPaused = False
+
     # Troll threads
     Hellanzb.postProcessors = []
     Hellanzb.postProcessorLock = Lock()
+
+    Hellanzb.totalPostProcessed = 0
 
     # How many times CTRL-C has been pressed
     Hellanzb.stopSignalCount = 0
@@ -211,9 +218,11 @@ def init(options = {}):
     assertIsExe('file')
 
     # One and only signal handler -- just used for the -p option. Twisted will replace
-    # this with it's own when initialized
+    # this with its own when initialized
     signal.signal(signal.SIGINT, signalHandler)
 
+    outlineRequiredDirs() # before the config file is loaded
+        
     if hasattr(options, 'configFile'):
         findAndLoadConfig(options.configFile)
     else:
@@ -226,7 +235,23 @@ def init(options = {}):
             setattr(sys.modules[__name__], attr, getattr(options, attr))
     Hellanzb.Logging.initLogFile(logFile = logFile, debugLogFile = debugLogFile)
 
-def shutdown():
+    # overwrite xml rpc vars from the command line options if they were set
+    for option, attr in { 'rpcServer': 'XMLRPC_SERVER',
+                          'rpcPassword': 'XMLRPC_PASSWORD',
+                          'rpcPort': 'XMLRPC_PORT' }.iteritems():
+        if getattr(options, option):
+            setattr(Hellanzb, attr, getattr(options, option))
+
+def outlineRequiredDirs():
+    """ Set all required directory attrs to None. they will be checked later for this value to
+    ensure they have been set """
+    requiredDirs = [ 'PREFIX', 'QUEUE', 'DEST', 'CURRENT', 'WORKING',
+                     #'POSTPONED', 'PROCESSING', 'TEMP' ]
+                     'POSTPONED', 'TEMP' ]
+    for dir in requiredDirs:
+        setattr(Hellanzb, dir + '_DIR', None)
+
+def shutdown(logStdout = False):
     """ turn the knob that tells all parts of the program we're shutting down """
     # that knob, that threads will constantly check
     Hellanzb.SHUTDOWN = True
@@ -243,31 +268,32 @@ def shutdownNow(returnCode = 0):
 
     sys.exit(returnCode)
 
-# NOTE: if you're cut & pasting -- the ascii is escaped (\") in one spot
 USAGE = """
 hellanzb version %s
-           ;;;;            .  .
-      ... :liil ...........:..:      ,._    ,._      ...................
-      :   l$$$:  _.,._       _..,,._ "$$$b. "$$$b.   `_..,,._        :::
-      :   $$$$.d$$$$$$L   .d$$$$$$$$L $$$$:  $$$$: .d$$$$$$$$$;      :::
-      :  :$$$$P`  T$$$$: :$$$$`  7$$F:$$$$  :$$$$ :$$$$: `$$$$ __  _  |_
-      :  l$$$F   :$$$$$  8$$$l""\"""` l$$$l  l$$$l l$$$l   $$$L | ) /_ |_)
-      :  $$$$:   l$$$$$L `4$$$bcmang;ACID$::$$$88:`4$$$bmm$$$$;.     ...
-      :    ```      ```""              ```    ```    .    ```.     ..:::..
-      :..............................................:              `:::`
-                                                                      `
+""".lstrip() + cmHella().rstrip() + \
+"""
    nzb downloader and post processor
    http://www.hellanzb.com
 
-usage: %s [options]
-""".lstrip()
+usage: %s [options] [remote-call] [remote-call-options]
+
+hellanzb will by default (no remote-call specified) start its one and only
+queue daemon. Specifying a remote call will attempt to talk to that already
+running queue daemon via XML-RPC.
+
+remote-calls (via XML-RPC):
+%s
+""".rstrip()
 def parseArgs():
     """ Parse the command line args """
     # prevent optparse from totally munging usage
     formatter = optparse.IndentedHelpFormatter()
     formatter.format_usage = lambda usage: usage
 
-    usage = USAGE % (str(Hellanzb.version), '%prog')
+    # Initialize this here, so we can probe it for xml rpc client commands in the usage
+    initXMLRPCClient()
+    from Hellanzb.HellaXMLRPC import RemoteCall
+    usage = USAGE % (str(Hellanzb.version), '%prog', RemoteCall.allUsage())
     
     parser = optparse.OptionParser(formatter = formatter, usage = usage, version = Hellanzb.version)
     parser.add_option('-c', '--config', type='string', dest='configFile',
@@ -278,36 +304,36 @@ def parseArgs():
                       help='specify the debug log file (turns on debugging output/overwrites the ' + \
                       'Hellanzb.DEBUG_MODE config file setting)')
     parser.add_option('-p', '--post-process-dir', type='string', dest='postProcessDir',
-                      help='don\'t run the daemon: post-process the specified nzb archive dir and exit')
+                      help='post-process the specified nzb archive dir either in an already running hellanzb (via xmlrpc) if one is available, otherwise in the current process. then exit')
     parser.add_option('-P', '--rar-password', type='string', dest='rarPassword',
                       help='when used with the -p option, specifies the nzb archive\'s rar password')
+    parser.add_option('-r', '--rpc-server', type='string', dest='rpcServer',
+                      help='specify the rpc server (overwrites Hellanzb.XMLRPC_SERVER config file setting)')
+    parser.add_option('-s', '--rpc-password', type='string', dest='rpcPassword',
+                      help='specify the rpc server password (overwrites Hellanzb.XMLRPC_PASSWORD config file setting)')
+    parser.add_option('-t', '--rpc-port', type='string', dest='rpcPort',
+                      help='specify the rpc server port (overwrites Hellanzb.XMLRPC_PORT config file setting)')
     return parser.parse_args()
 
-def processArgs(options):
+def processArgs(options, args):
     """ By default run the daemon, otherwise process the specified dir and exit """
-    if options.postProcessDir:
-        if not os.path.isdir(options.postProcessDir):
-            error('Unable to process, not a directory: ' + options.postProcessDir)
-            shutdownNow(1)
-
-        if not os.access(options.postProcessDir, os.R_OK):
-            error('Unable to process, no read access to directory: ' + options.postProcessDir)
-            shutdownNow(1)
-
-        rarPassword = None
-        if options.rarPassword:
-            rarPassword = options.rarPassword
-            
-        troll = Hellanzb.PostProcessor.PostProcessor(options.postProcessDir, background = False,
-                                                     rarPassword = rarPassword)
-        info('\nStarting post processor')
-        troll.start()
-        troll.join()
-        shutdownNow()
-    
-    else:
+    if not len(args) and not options.postProcessDir:
         info('\nStarting queue daemon')
         initDaemon()
+        
+    else:
+        try:
+            hellaRemote(options, args)
+        except SystemExit, se:
+            # sys.exit throws this, let it go
+            raise
+        except FatalError, fe:
+            error('Exiting', fe)
+            shutdownNow(1)
+        except Exception, e:
+            error('An unexpected problem occurred, exiting', e)
+            shutdown()
+            raise
 
 def main():
     """ Program main loop. Always called from the main thread """
@@ -327,7 +353,7 @@ def main():
         shutdown()
         raise
 
-    processArgs(options)
+    processArgs(options, args)
 
 """
 /*

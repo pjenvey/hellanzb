@@ -15,7 +15,8 @@ Hellanzb.LOG_FILE = '/var/tmp/hellanzb.log'
 # usenet server does not require authorization
 defineServer(id = 'changeme',
              hosts = [ 'news.changeme.com:119' ],
-             #hosts = [ 'news.changeme.com:119', 'morenews.changeme.com:119' ],
+             #hosts = [ 'news.changeme.com', 'morenews.changeme.com:8000' ],
+
 
              username = 'changeme',
              password = 'hella',
@@ -25,9 +26,10 @@ defineServer(id = 'changeme',
              connections = 4,
              antiIdle = 7 * 60,          # 7 minutes
              #bindTo = '204.31.33.7',    # connect FROM this ip address
-             #maxSpeed = 150             # limit to 150kB/s
              )
 
+# Uncomment this line to limit all server connections to the specified KB/s bandwidth
+#Hellanzb.MAX_RATE = 150 # limit to 150kB/s
 
 # Important locations
 Hellanzb.PREFIX_DIR = '/ext2/'
@@ -44,8 +46,19 @@ Hellanzb.CURRENT_DIR = Hellanzb.PREFIX_DIR + 'nzb/daemon.current/'
 # The archive currently being downloaded is stored here
 Hellanzb.WORKING_DIR = Hellanzb.PREFIX_DIR + 'nzb/daemon.working/'
 
+# Archives interrupted in the middle of downloading are stored here temporarily (FIXME:
+# NOT IN USE)
+Hellanzb.POSTPONED_DIR = Hellanzb.PREFIX_DIR + 'nzb/daemon.postponed/'
+
+# Archives currently being processed (FIXME: NOT IN USE)
+#Hellanzb.PROCESSING_DIR = Hellanzb.PREFIX_DIR + 'nzb/daemon.processing/'
+
 # Temp storage
 Hellanzb.TEMP_DIR = Hellanzb.PREFIX_DIR + 'nzb/daemon.temp/'
+
+# List storing the order of the queued .nzb files in the QUEUE_DIR. hellanzb will update
+# this file intermittently (FIXME: NOT IN USE)
+Hellanzb.QUEUE_LIST = Hellanzb.PREFIX_DIR + 'nzb/QUEUE_LIST'
 
 
 # _Sub directory within the nzb archive dir_ to move proccessed files to
@@ -94,6 +107,18 @@ Hellanzb.NOT_REQUIRED_FILE_TYPES = [ 'log', 'm3u', 'nfo', 'nzb', 'sfv', 'txt' ]
 # finished post processing (case insensitive)
 #Hellanzb.KEEP_FILE_TYPES = [ 'log', 'm3u', 'nfo', 'nzb', 'sfv', 'txt' ]
 Hellanzb.KEEP_FILE_TYPES = [ 'nfo', 'txt' ]
+
+
+# Hostname for the XMLRPC client to connect to. By default, localhost
+Hellanzb.XMLRPC_SERVER = 'localhost'
+
+# Port number the XML RPC server will listen on, and the client will connect to. Set to
+# 'None' for no XML RPC server
+Hellanzb.XMLRPC_PORT = 8760
+
+# Password for the XML RPC server. You might probably never use this, but the command line
+# XML RPC calls do -- it should definitely be changed from its default value
+Hellanzb.XMLRPC_PASSWORD = 'changeme'
 
 
 # Automatically rollover the log files when they reach LOG_FILE_MAX_BYTES size

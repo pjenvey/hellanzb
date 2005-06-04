@@ -23,7 +23,8 @@ RUN_DEPENDS=	par2:${PORTSDIR}/archivers/par2cmdline \
 		flac:${PORTSDIR}/audio/flac \
 		mac:${PORTSDIR}/audio/mac \
 		shorten:${PORTSDIR}/audio/shorten \
-		${PYTHON_SITELIBDIR}/twisted/__init__.py:${PORTSDIR}/devel/py-twisted
+		${PYTHON_SITELIBDIR}/twisted:${PORTSDIR}/devel/py-twistedCore \
+		${PYTHON_SITELIBDIR}/twisted/web:${PORTSDIR}/www/py-twistedWeb
 
 PLIST_FILES=	bin/hellanzb.py \
 		bin/hellagrowler.py \
@@ -37,6 +38,9 @@ PLIST_FILES=	bin/hellanzb.py \
 		%%PYTHON_SITELIBDIR%%/Hellanzb/Daemon.py \
 		%%PYTHON_SITELIBDIR%%/Hellanzb/Daemon.pyc \
 		%%PYTHON_SITELIBDIR%%/Hellanzb/Daemon.pyo \
+		%%PYTHON_SITELIBDIR%%/Hellanzb/Elite.py \
+		%%PYTHON_SITELIBDIR%%/Hellanzb/Elite.pyc \
+		%%PYTHON_SITELIBDIR%%/Hellanzb/Elite.pyo \
 		%%PYTHON_SITELIBDIR%%/Hellanzb/Growl.py \
 		%%PYTHON_SITELIBDIR%%/Hellanzb/Growl.pyc \
 		%%PYTHON_SITELIBDIR%%/Hellanzb/Growl.pyo \
@@ -61,19 +65,30 @@ PLIST_FILES=	bin/hellanzb.py \
 		%%PYTHON_SITELIBDIR%%/Hellanzb/__init__.py \
 		%%PYTHON_SITELIBDIR%%/Hellanzb/__init__.pyc \
 		%%PYTHON_SITELIBDIR%%/Hellanzb/__init__.pyo \
+		%%PYTHON_SITELIBDIR%%/Hellanzb/HellaXMLRPC/HtPasswdAuth.py \
+		%%PYTHON_SITELIBDIR%%/Hellanzb/HellaXMLRPC/HtPasswdAuth.pyc \
+		%%PYTHON_SITELIBDIR%%/Hellanzb/HellaXMLRPC/HtPasswdAuth.pyo \
+		%%PYTHON_SITELIBDIR%%/Hellanzb/HellaXMLRPC/__init__.py \
+		%%PYTHON_SITELIBDIR%%/Hellanzb/HellaXMLRPC/__init__.pyc \
+		%%PYTHON_SITELIBDIR%%/Hellanzb/HellaXMLRPC/__init__.pyo \
+		%%PYTHON_SITELIBDIR%%/Hellanzb/HellaXMLRPC/xmlrpc.py \
+		%%PYTHON_SITELIBDIR%%/Hellanzb/HellaXMLRPC/xmlrpc.pyc \
+		%%PYTHON_SITELIBDIR%%/Hellanzb/HellaXMLRPC/xmlrpc.pyo \
 		%%PYTHON_SITELIBDIR%%/Hellanzb/NZBLeecher/ArticleDecoder.py \
 		%%PYTHON_SITELIBDIR%%/Hellanzb/NZBLeecher/ArticleDecoder.pyc \
 		%%PYTHON_SITELIBDIR%%/Hellanzb/NZBLeecher/ArticleDecoder.pyo \
 		%%PYTHON_SITELIBDIR%%/Hellanzb/NZBLeecher/NZBModel.py \
 		%%PYTHON_SITELIBDIR%%/Hellanzb/NZBLeecher/NZBModel.pyc \
 		%%PYTHON_SITELIBDIR%%/Hellanzb/NZBLeecher/NZBModel.pyo \
+		%%PYTHON_SITELIBDIR%%/Hellanzb/NZBLeecher/NZBLeecherUtil.py \
+		%%PYTHON_SITELIBDIR%%/Hellanzb/NZBLeecher/NZBLeecherUtil.pyc \
+		%%PYTHON_SITELIBDIR%%/Hellanzb/NZBLeecher/NZBLeecherUtil.pyo \
 		%%PYTHON_SITELIBDIR%%/Hellanzb/NZBLeecher/__init__.py \
 		%%PYTHON_SITELIBDIR%%/Hellanzb/NZBLeecher/__init__.pyc \
 		%%PYTHON_SITELIBDIR%%/Hellanzb/NZBLeecher/__init__.pyo \
 		%%PYTHON_SITELIBDIR%%/Hellanzb/NZBLeecher/nntp.py \
 		%%PYTHON_SITELIBDIR%%/Hellanzb/NZBLeecher/nntp.pyc \
 		%%PYTHON_SITELIBDIR%%/Hellanzb/NZBLeecher/nntp.pyo
-
 
 PLIST_DIRS=	share/doc/hellanzb \
 		%%PYTHON_SITELIBDIR%%/Hellanzb/NZBLeecher \

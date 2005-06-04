@@ -54,13 +54,35 @@ def decode(segment):
     Hellanzb.queue.segmentDone(segment)
     debug('Decoded segment: ' + segment.getDestination())
 
+    if handleCanceled(segment):
+        return
+
     if segment.nzbFile.isAllSegmentsDecoded():
         try:
             assembleNZBFile(segment.nzbFile)
         except SystemExit, se:
             # checkShutdown() throws this, let the thread die
             pass
+        
+def nuke(f):
+    try:
+        os.remove(f)
+    except Exception, e:
+        pass
+    
+def handleCanceled(segmentOrFile):
+    """ if a file has been canceled, delete it """
+    from Hellanzb.NZBLeecher.NZBModel import NZBSegment
+    if (isinstance(segmentOrFile, NZBSegment) and \
+        segmentOrFile.nzbFile.nzb.isCanceled()) or \
+        (not isinstance(segmentOrFile, NZBSegment) and \
+         segmentOrFile.nzb.isCanceled()):
 
+        nuke(segmentOrFile.getDestination())
+        return True
+    
+    return False
+        
 def stripArticleData(articleData):
     """ Rip off leading/trailing whitespace from the articleData list """
     try:
@@ -348,18 +370,33 @@ def assembleNZBFile(nzbFile, autoFinish = True):
         # we'll try assembling it again later
         debug('(CTRL-C) Removing unfinished file: ' + nzbFile.getDestination())
         file.close()
-        os.remove(nzbFile.getDestination())
+        try:
+            os.remove(nzbFile.getDestination())
+        except OSError, ose:
+            # postponement might have moved the file we just wrote to:
+            # exceptions.OSError: [Errno 2] No such file or directory: 
+            if ose.errno != 2:
+                debug('Unexpected ERROR while removing nzbFile: ' + nzbFile.getDestination())
         raise
 
     file.close()
     # Finally, delete all the segment files when finished
     for segmentFile in segmentFiles:
-        os.remove(segmentFile)
+        try:
+            os.remove(segmentFile)
+        except OSError, ose:
+            # postponement might have moved the file we just wrote to:
+            # exceptions.OSError: [Errno 2] No such file or directory: 
+            if ose.errno != 2:
+                debug('Unexpected ERROR while removing segmentFile: ' + segmentFile)
         
     Hellanzb.queue.fileDone(nzbFile)
+    reactor.callFromThread(fileDone)
     
     debug('Assembled file: ' + nzbFile.getDestination() + ' from segment files: ' + \
           str([ nzbSegment.getDestination() for nzbSegment in nzbFile.nzbSegments ]))
+    
+    canceled = handleCanceled(nzbFile)
 
     # nudge gc
     for nzbSegment in nzbFile.nzbSegments:
@@ -370,9 +407,12 @@ def assembleNZBFile(nzbFile, autoFinish = True):
         debug('(GCDELAYED) GCING')
         gc.collect()
 
-    if autoFinish:
+    if autoFinish and not canceled:
         # After assembling a file, check the contents of the filesystem to determine if we're done 
         tryFinishNZB(nzbFile.nzb)
+
+def fileDone():
+    Hellanzb.totalFilesDownloaded += 1
 
 def tryFinishNZB(nzb):
     """ Determine if the NZB download/decode process is done for the specified NZB -- if it's
@@ -382,8 +422,17 @@ def tryFinishNZB(nzb):
     done = True
 
     # Simply check if there are any more nzbFiles in the queue that belong to this nzb
+    Hellanzb.queue.nzbsLock.acquire()
+    postponed = False
+    if nzb not in Hellanzb.queue.nzbs:
+        postponed = True
+    Hellanzb.queue.nzbsLock.release()
+        
     Hellanzb.queue.nzbFilesLock.acquire()
-    queueFilesCopy = Hellanzb.queue.nzbFiles.copy()
+    if not postponed:
+        queueFilesCopy = Hellanzb.queue.nzbFiles.copy()
+    else:
+        queueFilesCopy = Hellanzb.queue.postponedNzbFiles.copy()
     Hellanzb.queue.nzbFilesLock.release()
 
     for nzbFile in queueFilesCopy:
@@ -395,6 +444,7 @@ def tryFinishNZB(nzb):
         break
 
     if done:
+        Hellanzb.queue.nzbDone(nzb)
         debug('tryFinishNZB: finished downloading NZB: ' + nzb.archiveName)
         
         # nudge GC
@@ -405,7 +455,7 @@ def tryFinishNZB(nzb):
         del nzb.nzbFileElements
         del nzb
         gc.collect()
-        
+
         reactor.callFromThread(handleNZBDone, nzbFileName)
         
     finish = time.time() - start

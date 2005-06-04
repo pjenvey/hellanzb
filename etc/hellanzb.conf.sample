@@ -15,7 +15,7 @@ Hellanzb.LOG_FILE = '/var/tmp/hellanzb.log'
 # usenet server does not require authorization
 defineServer(id = 'changeme',
              hosts = [ 'news.changeme.com:119' ],
-             #hosts = [ 'news.changeme.com:119', 'morenews.changeme.com:119' ],
+             #hosts = [ 'news.changeme.com', 'morenews.changeme.com:8000' ],
 
              username = 'changeme',
              password = 'hella',

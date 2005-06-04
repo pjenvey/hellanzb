@@ -8,6 +8,7 @@ Util - hellanzb misc functions
 import os, popen2, pty, re, signal, string, thread, threading, time, Hellanzb
 from distutils import spawn
 from heapq import heappop, heappush
+from os.path import normpath
 from shutil import move
 from threading import Condition
 from traceback import print_stack
@@ -364,10 +365,16 @@ def touch(fileName):
 def archiveName(dirName):
     """ Extract the name of the archive from the archive's absolute path, or its .nzb file
     name """
+    from Hellanzb.PostProcessorUtil import DirName
     # pop off separator and basename
     while dirName[len(dirName) - 1] == os.sep:
         dirName = dirName[0:len(dirName) - 1]
-    name = os.path.basename(dirName)
+    if isinstance(dirName, DirName) and dirName.isSubDir():
+        from Hellanzb.Log import info
+        name = os.path.basename(dirName.parentDir) + \
+        normpath(dirName).replace(normpath(dirName.parentDir), '')
+    else:
+        name = os.path.basename(dirName)
 
     # Strip the msg_id and .nzb extension from an nzb file name
     if len(name) > 3 and name[-3:].lower() == 'nzb':

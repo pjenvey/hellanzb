@@ -41,9 +41,11 @@ class MusicType:
 class DecompressionThread(Thread):
     """ decompress a file in a separate thread """
 
-    def __init__(self, parent):
+    def __init__(self, parent, dirName):
         self.file = parent.musicFiles[0]
         parent.musicFiles.remove(self.file)
+
+        self.dirName = dirName
 
         self.type = getMusicType(self.file)
         
@@ -60,10 +62,14 @@ class DecompressionThread(Thread):
     def run(self):
         """ decompress the song, then remove ourself from the active thread pool """
         # Catch exceptions here just in case, to ensure notify() will finally be called
-        archive = archiveName(os.path.dirname(self.file))
+        archive = archiveName(self.dirName)
         try:
-            decompressMusicFile(self.file, self.type)
+            decompressMusicFile(self.file, self.type, archive)
 
+        except SystemExit, se:
+            # Shutdown, stop what we're doing
+            self.parent.removeDecompressor(self)
+            return
         except Exception, e:
             error(archive + ': There was an unexpected problem while decompressing the musc file: ' + \
                   os.path.basename(self.file), e)
@@ -77,6 +83,14 @@ class DecompressionThread(Thread):
         self.parent.addDecompressor(self)
 
         Thread.start(self)
+
+class DirName(str):
+    def __init__(self, *args, **kwargs):
+        self.parentDir = None
+        str.__init__(self, *args, **kwargs)
+
+    def isSubDir(self):
+        return self.parentDir != None
 
 def dirHasRars(dirName):
     """ Determine if the specified directory contains rar files """
@@ -215,14 +229,15 @@ def getMusicType(fileName):
             return musicType
     return False
 
-def decompressMusicFile(fileName, musicType):
+def decompressMusicFile(fileName, musicType, archive = None):
     """ Decompress the specified file according to it's musicType """
     cmd = musicType.decompressor.replace('<FILE>', '"' + fileName + '"')
 
     extLen = len(getFileExtension(fileName))
     destFileName = fileName[:-extLen] + musicType.decompressToType
 
-    archive = archiveName(os.path.dirname(fileName))
+    if archive == None:
+        archive = archiveName(os.path.dirname(fileName))
     
     info(archive + ': Decompressing to ' + str(musicType.decompressToType) + ': ' + \
          os.path.basename(fileName))
@@ -424,7 +439,8 @@ def processPars(dirName):
     info(archiveName(dirName) + ': Verifying via pars..')
     start = time.time()
 
-    dirName += os.sep
+    dirName = DirName(dirName + os.sep)
+    
     repairCmd = 'par2 r "' + dirName + '*.PAR2" "' + dirName + '*.par2" "'
     if '.par2' in os.listdir(dirName):
         # a filename of '.par2' will not be wildcard glob'd by '*.par2'. WHY?????

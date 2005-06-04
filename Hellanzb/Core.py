@@ -180,6 +180,8 @@ def init(options = {}):
     Hellanzb.postProcessors = []
     Hellanzb.postProcessorLock = Lock()
 
+    Hellanzb.totalPostProcessed = 0
+
     # How many times CTRL-C has been pressed
     Hellanzb.stopSignalCount = 0
     # When the first CTRL-C was pressed

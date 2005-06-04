@@ -62,6 +62,12 @@ def logFile(message):
     """ Log a message to only the log file (and not the console) """
     Hellanzb.logger.log(ScrollableHandler.LOGFILE, message)
 
+def noLogFile(message, appendLF = True):
+    """ Send a message to stdout, avoiding both log files"""
+    if appendLF:
+        message += '\n'
+    Hellanzb.logger.log(ScrollableHandler.NOLOGFILE, message)
+
 def growlNotify(type, title, description, sticky = False):
     """ send a message to the growl daemon via an xmlrpc proxy """
     # NOTE: growl doesn't tie in with logging yet because all it's sublevels/args makes it

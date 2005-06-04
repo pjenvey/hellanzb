@@ -5,7 +5,7 @@ HellaXMLRPC - The hellanzb XML RPC server and client
 (c) Copyright 2005 Philip Jenvey
 [See end of file]
 """
-import os, textwrap, time, Hellanzb
+import os, sys, textwrap, time, Hellanzb
 from time import localtime, strftime
 from twisted.internet import reactor
 from twisted.internet.error import CannotListenError, ConnectionRefusedError
@@ -92,11 +92,11 @@ class HellaXMLRPCServer(XMLRPC):
         from Hellanzb.Daemon import listQueue
         return listQueue(includeIds)
 
-    def xmlrpc_force(self, nzbFilename):
+    def xmlrpc_force(self, nzbId):
         """ Force hellanzb to begin downloading the specified NZB file immediately -- interrupting
         the current download, if necessary """
-        from Hellanzb.Daemon import forceNZB
-        reactor.callLater(0, forceNZB, nzbFilename)
+        from Hellanzb.Daemon import forceNZBId
+        reactor.callLater(0, forceNZBId, nzbId)
         return True
 
     def xmlrpc_maxrate(self, rate = None):
@@ -112,8 +112,8 @@ class HellaXMLRPCServer(XMLRPC):
     
     def xmlrpc_next(self, nzbFilename):
         """ Add the specified nzb file to the beginning of the queue """
-        from Hellanzb.Daemon import enqueueNZBs
-        reactor.callLater(0, enqueueNextNZBs, nzbFilename)
+        from Hellanzb.Daemon import nextNZBId
+        reactor.callLater(0, nextNZBId, nzbFilename)
         return True
 
     def xmlrpc_pause(self):
@@ -134,7 +134,7 @@ class HellaXMLRPCServer(XMLRPC):
         Hellanzb.SHUTDOWN = True
         TopenTwisted.killAll()
 
-        # Shutdown the reactor/alert/alert the ui
+        # Shutdown the reactor/alert the ui
         reactor.addSystemEventTrigger('after', 'shutdown', logShutdown, 'RPC shutdown call, exiting..')
         from Hellanzb.Core import shutdown
         reactor.callLater(1, shutdown)
@@ -181,9 +181,23 @@ class HellaXMLRPCServer(XMLRPC):
         # FIXME: optionally don't show ascii
         # hellanzb version %s
 
-        msg = """
-%s  up %s  %s
-""".lstrip() % (now, self.secondsToUptime(time.time() - Hellanzb.BEGIN_TIME), totalSpeed)
+        firstLine = """%s  up %s  %s  """
+        firstLine = firstLine % (now,
+                                 self.secondsToUptime(time.time() - Hellanzb.BEGIN_TIME),
+                                 totalSpeed)
+        two =  """downloaded %i nzbs,""" % (Hellanzb.totalArchivesDownloaded)
+        three = '\n' + ' '*len(firstLine) + """%i files, %i segments (%i MB)\n""" % \
+            (Hellanzb.totalFilesDownloaded,
+             Hellanzb.totalSegmentsDownloaded,
+             Hellanzb.totalBytesDownloaded / 1024 / 1024)
+        
+        msg = firstLine + two + three
+        #begin = firstLine + next
+        #msg = begin % (now, self.secondsToUptime(time.time() - Hellanzb.BEGIN_TIME),
+        #                            totalSpeed, Hellanzb.totalArchivesDownloaded,
+        #                            Hellanzb.totalFilesDownloaded,
+        #                            Hellanzb.totalSegmentsDownloaded,
+        #                            Hellanzb.totalBytesDownloaded / 1024 / 1024)
         
         msg += cmHella()
 
@@ -226,11 +240,19 @@ class HellaXMLRPCServer(XMLRPC):
 
 def printResultAndExit(remoteCall, result):
     """ generic xml rpc client call back -- simply print the result as a string and exit """
-    info(str(result))
+    if isinstance(result, unicode):
+        result = result.encode('utf-8')
+    noLogFile(str(result))
     reactor.stop()
 
 def printListAndExit(remoteCall, result):
-    [info(line) for line in result]
+    if isinstance(result, list):
+        [info(line) for line in result]
+    elif isinstance(result, dict):
+        length = 6
+        [info(id + ' '*(length - len(id)) + name) for id, name in result.iteritems()]
+    else:
+        return printResultAndExit
     reactor.stop()
 
 def resultMadeItBoolAndExit(remoteCall, result):
@@ -242,7 +264,7 @@ def resultMadeItBoolAndExit(remoteCall, result):
             info('Remote call to hellanzb queue daemon returned False! (there was a problem, see logs for details)')
         reactor.stop()
     else:
-        info(str(result))
+        noLogFile(str(result))
         reactor.stop()
 
 def errHandler(remoteCall, failure):
@@ -257,8 +279,12 @@ def errHandler(remoteCall, failure):
         # By default, post process in the already running hellanzb. otherwise do the work
         # in this current process, and exit
         if remoteCall.funcName == 'process':
-            from Hellanzb.Daemon import postProcess
-            return postProcess(RemoteCall.options)
+            if RemoteCall.options.postProcessDir != None:
+                from Hellanzb.Daemon import postProcess
+                return postProcess(RemoteCall.options)
+            else:
+                error(sys.argv[0] + ': error: process option requires a value')
+                reactor.stop()
         
         info('Unable to connect to XMLRPC server: error: ' + str(err) + '\n' + \
              'the hellanzb queue daemon @ ' + Hellanzb.serverUrl + ' probably isn\'t running')
@@ -277,12 +303,12 @@ def errHandler(remoteCall, failure):
     elif isinstance(err, Fault):
         if err.faultCode == 8001:
             info('Invalid command: ' + remoteCall.funcName + ' (XMLRPC server: ' + Hellanzb.serverUrl + \
-                 ')')
+                 ') faultString: ' + err.faultString)
         elif err.faultCode == 8002:
-            info('Invalid command arguments?: ' + remoteCall.funcName + ' (XMLRPC server: ' + \
-                 Hellanzb.serverUrl + ')')
+            info('Invalid arguments? for call: ' + remoteCall.funcName + ' (XMLRPC server: ' + \
+                 Hellanzb.serverUrl + ') faultString: ' + err.faultString)
         else:
-            info('Unexpected XMLRPC response: ' + getStack(err))
+            info('Unexpected XMLRPC response: ' + str(err) + ' : ' + getStack(err))
             
     reactor.stop()
 
@@ -302,13 +328,11 @@ class RemoteCall:
     # access to those doc strings
     serverInstance = HellaXMLRPCServer()
 
-    # for argument definitions
-    
-    
-    def __init__(self, funcName, callback, errback = errHandler):
+    def __init__(self, funcName, callback, errback = errHandler, published = True):
         self.funcName = funcName
         self.callbackFunc = callback
         self.errbackFunc = errHandler
+        self.published = published
         self.args = []
 
         RemoteCall.callIndex[funcName] = self
@@ -380,6 +404,9 @@ class RemoteCall:
         calls.sort()
         for name in calls:
             call = RemoteCall.callIndex[name]
+            if not call.published:
+                continue
+            
             prefix = indent + name + call.argsUsage()
             nextIndent = ' '*(24 - len(prefix))
             prefix += nextIndent
@@ -425,8 +452,8 @@ def initXMLRPCClient():
     # FIXME: force should put what it forced out back into the queue cancel is fine the
     # way it is. if you want to swap what youre dling back into the queue, you have to be
     # forcing anyway
-    r = RemoteCall('aolsay', printResultAndExit)
-    r = RemoteCall('asciiart', printResultAndExit)
+    r = RemoteCall('aolsay', printResultAndExit, published = False)
+    r = RemoteCall('asciiart', printResultAndExit, published = False)
     r = RemoteCall('cancel', resultMadeItBoolAndExit)
     r = RemoteCall('clear', resultMadeItBoolAndExit)
     r = RemoteCall('continue', resultMadeItBoolAndExit)
@@ -437,16 +464,13 @@ def initXMLRPCClient():
     r = RemoteCall('enqueue', resultMadeItBoolAndExit)
     r.addRequiredArg('nzbfile')
     r = RemoteCall('force', resultMadeItBoolAndExit)
-    # FIXME
-    #r.addRequiredArg('nzbid')
-    r.addRequiredArg('nzbfile')
+    r.addRequiredArg('nzbid')
     r = RemoteCall('list', printListAndExit)
     r.addOptionalArg('showids')
     r = RemoteCall('maxrate', resultMadeItBoolAndExit)
     r.addOptionalArg('newrate')
     r = RemoteCall('next', resultMadeItBoolAndExit)
-    #r.addRequiredArg('nzbid')
-    r.addRequiredArg('nzbfile')
+    r.addRequiredArg('nzbid')
     r = RemoteCall('pause', resultMadeItBoolAndExit)
     r = RemoteCall('process', resultMadeItBoolAndExit)
     r.addRequiredArg('archivedir')
@@ -454,6 +478,13 @@ def initXMLRPCClient():
     r = RemoteCall('status', printResultAndExit)
     r = RemoteCall('up', resultMadeItBoolAndExit)
     r.addRequiredArg('nzbid')
+
+# loading files: server takes arg, filename, fileData = None
+    
+# server can search for http://, file://. if none of those are there(and? or maybe the
+# filename starts with /), fileData is required
+
+#     
 
 def hellaRemote(options, args):
     """ execute the remote RPC call with the specified cmd line args. args can be None """
@@ -463,8 +494,8 @@ def hellaRemote(options, args):
         args = ['process', options.postProcessDir, options.rarPassword]
     elif options.postProcessDir:
         args = ['process', options.postProcessDir]
-    
-    if args[0] in ('force', 'process', 'enqueue', 'next'):
+
+    if args[0] in ('process', 'enqueue'):
         if len(args) > 1:
             # UNIX: os.path.realpath only available on UNIX
             args[1] = os.path.realpath(args[1])

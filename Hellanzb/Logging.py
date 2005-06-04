@@ -61,7 +61,8 @@ class ScrollableHandler(StreamHandlerNoLF):
     LOGFILE = 11
     SCROLL = 12
     SHUTDOWN = 13
-
+    NOLOGFILE = 14
+    
     def __init__(self, *args, **kwargs):
         self.scrollLock = RLock()
         StreamHandlerNoLF.__init__(self, *args, **kwargs)
@@ -412,6 +413,7 @@ def initLogging():
     logging.addLevelName(ScrollableHandler.LOGFILE, 'LOGFILE')
     logging.addLevelName(ScrollableHandler.SCROLL, 'SCROLL')
     logging.addLevelName(ScrollableHandler.SHUTDOWN, 'SHUTDOWN')
+    logging.addLevelName(ScrollableHandler.NOLOGFILE, 'NOLOGFILE')
 
     Hellanzb.logger = logging.getLogger('hellanzb')
     #Hellanzb.logger.setLevel(ScrollableHandler.SCROLL)
@@ -453,7 +455,8 @@ def initLogFile(logFile = None, debugLogFile = None):
     class LogFileFilter(logging.Filter):
         def filter(self, record):
             # SCROLL doesn't belong in log files and DEBUG will have it's own log file
-            if record.levelno == ScrollableHandler.SCROLL or record.levelno == logging.DEBUG:
+            if record.levelno == ScrollableHandler.SCROLL or record.levelno == logging.DEBUG \
+                    or record.levelno == ScrollableHandler.NOLOGFILE:
                 return False
             return True
     
@@ -474,7 +477,7 @@ def initLogFile(logFile = None, debugLogFile = None):
     if Hellanzb.DEBUG_MODE_ENABLED:
         class DebugFileFilter(logging.Filter):
             def filter(self, record):
-                if record.levelno > logging.DEBUG:
+                if record.levelno > logging.DEBUG or record.levelno == ScrollableHandler.NOLOGFILE:
                     return False
                 return True
             

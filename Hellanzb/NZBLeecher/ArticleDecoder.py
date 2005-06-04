@@ -391,6 +391,7 @@ def assembleNZBFile(nzbFile, autoFinish = True):
                 debug('Unexpected ERROR while removing segmentFile: ' + segmentFile)
         
     Hellanzb.queue.fileDone(nzbFile)
+    reactor.callFromThread(fileDone)
     
     debug('Assembled file: ' + nzbFile.getDestination() + ' from segment files: ' + \
           str([ nzbSegment.getDestination() for nzbSegment in nzbFile.nzbSegments ]))
@@ -409,6 +410,9 @@ def assembleNZBFile(nzbFile, autoFinish = True):
     if autoFinish and not canceled:
         # After assembling a file, check the contents of the filesystem to determine if we're done 
         tryFinishNZB(nzbFile.nzb)
+
+def fileDone():
+    Hellanzb.totalFilesDownloaded += 1
 
 def tryFinishNZB(nzb):
     """ Determine if the NZB download/decode process is done for the specified NZB -- if it's

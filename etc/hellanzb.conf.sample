@@ -28,7 +28,8 @@ defineServer(id = 'changeme',
              #bindTo = '204.31.33.7',    # connect FROM this ip address
              )
 
-# Uncomment this line to limit all server connections to the specified KB/s bandwidth
+# Uncomment this line to limit all server connections to the specified KB/s
+# bandwidth
 #Hellanzb.MAX_RATE = 150 # limit to 150kB/s
 
 # Important locations
@@ -46,18 +47,14 @@ Hellanzb.CURRENT_DIR = Hellanzb.PREFIX_DIR + 'nzb/daemon.current/'
 # The archive currently being downloaded is stored here
 Hellanzb.WORKING_DIR = Hellanzb.PREFIX_DIR + 'nzb/daemon.working/'
 
-# Archives interrupted in the middle of downloading are stored here temporarily (FIXME:
-# NOT IN USE)
+# Archives interrupted in the middle of downloading are stored here temporarily
 Hellanzb.POSTPONED_DIR = Hellanzb.PREFIX_DIR + 'nzb/daemon.postponed/'
-
-# Archives currently being processed (FIXME: NOT IN USE)
-#Hellanzb.PROCESSING_DIR = Hellanzb.PREFIX_DIR + 'nzb/daemon.processing/'
 
 # Temp storage
 Hellanzb.TEMP_DIR = Hellanzb.PREFIX_DIR + 'nzb/daemon.temp/'
 
-# List storing the order of the queued .nzb files in the QUEUE_DIR. hellanzb will update
-# this file intermittently (FIXME: NOT IN USE)
+# List storing the order of the queued .nzb files in the QUEUE_DIR. hellanzb
+# will update this file intermittently
 Hellanzb.QUEUE_LIST = Hellanzb.PREFIX_DIR + 'nzb/QUEUE_LIST'
 
 
@@ -72,7 +69,7 @@ Hellanzb.DELETE_PROCESSED = False
 
 # Supported music types (case insensitive) and optionally their decompression
 # executables
-# and the file type that executable will decompress to (case insensitive). The 
+# and the file type that executable will decompress to (case insensitive). The
 # exes must be in the PATH.
 #
 # <FILE> will be replaced with the name of music file
@@ -112,19 +109,20 @@ Hellanzb.KEEP_FILE_TYPES = [ 'nfo', 'txt' ]
 # Hostname for the XMLRPC client to connect to. By default, localhost
 Hellanzb.XMLRPC_SERVER = 'localhost'
 
-# Port number the XML RPC server will listen on, and the client will connect to. Set to
-# 'None' for no XML RPC server
+# Port number the XML RPC server will listen on, and the client will connect to.
+# Set to 'None' for no XML RPC server
 Hellanzb.XMLRPC_PORT = 8760
 
-# Password for the XML RPC server. You might probably never use this, but the command line
-# XML RPC calls do -- it should definitely be changed from its default value
+# Password for the XML RPC server. You might probably never use this, but the
+# command line XML RPC calls do -- it should definitely be changed from its
+# default value
 Hellanzb.XMLRPC_PASSWORD = 'changeme'
 
 
-# Automatically rollover the log files when they reach LOG_FILE_MAX_BYTES size
+# Automatically rollover both log files when they reach LOG_FILE_MAX_BYTES size
 Hellanzb.LOG_FILE_MAX_BYTES = 0
 
-# Save LOG_FILE_BACKUP_COUNT of those rolled over log files 
+# Save LOG_FILE_BACKUP_COUNT of those rolled over log files
 Hellanzb.LOG_FILE_BACKUP_COUNT = 0
 
 # Uncomment this line to log DEBUG messages to the specified file

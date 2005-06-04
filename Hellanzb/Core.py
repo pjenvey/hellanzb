@@ -303,8 +303,11 @@ def parseArgs():
     parser.add_option('-d', '--debug-file', type='string', dest='debugLogFile',
                       help='specify the debug log file (turns on debugging output/overwrites the ' + \
                       'Hellanzb.DEBUG_MODE config file setting)')
+    #parser.add_option('-n', '--just-download-nzb', type='string', dest='justDownload',
+    #                  help='download the specified nzb and exit the program (do not post process)')
     parser.add_option('-p', '--post-process-dir', type='string', dest='postProcessDir',
-                      help='post-process the specified nzb archive dir either in an already running hellanzb (via xmlrpc) if one is available, otherwise in the current process. then exit')
+                      help='post-process the specified nzb archive dir either in an already running hellanzb' + \
+                      ' (via xmlrpc) if one is available, otherwise in the current process. then exit')
     parser.add_option('-P', '--rar-password', type='string', dest='rarPassword',
                       help='when used with the -p option, specifies the nzb archive\'s rar password')
     parser.add_option('-r', '--rpc-server', type='string', dest='rpcServer',

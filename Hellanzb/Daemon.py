@@ -554,7 +554,7 @@ def maxRate(rate):
         except:
             return False
         
-    info('Resetting max download rate to: ' + str(rate))
+    info('Resetting MAX_RATE to: ' + str(rate) + 'KB/s')
     if rate == 0:
         rate = None
     else:
@@ -567,9 +567,11 @@ def maxRate(rate):
         Hellanzb.ht.unthrottleReads()
     elif Hellanzb.ht.readLimit == None and rate > None:
         restartCheckRead = True
+        
     Hellanzb.ht.readLimit = rate
     if restartCheckRead:
-        Hellanzb.ht.checkReadBandwidth()
+        Hellanzb.ht.readThisSecond = 0 # nobody's been resetting this value
+        reactor.callLater(1, Hellanzb.ht.checkReadBandwidth)
     return True
 
 """

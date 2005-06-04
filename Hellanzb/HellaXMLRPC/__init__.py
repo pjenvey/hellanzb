@@ -101,7 +101,7 @@ class HellaXMLRPCServer(XMLRPC):
 
     def xmlrpc_maxrate(self, rate = None):
         """ Set the Hellanzb.MAX_RATE (maximum download rate) value. A value of zero denotes no
-        rate """
+        maximum rate """
         if rate == None:
             if Hellanzb.ht.readLimit == None:
                 return str(None)
@@ -467,11 +467,8 @@ def initXMLRPCClient():
     r.addRequiredArg('nzbid')
     r = RemoteCall('list', printListAndExit)
     r.addOptionalArg('showids')
-
-    # FIXME: this isn't working
-    #r = RemoteCall('maxrate', resultMadeItBoolAndExit)
-    #r.addOptionalArg('newrate')
-    
+    r = RemoteCall('maxrate', resultMadeItBoolAndExit)
+    r.addOptionalArg('newrate')
     r = RemoteCall('next', resultMadeItBoolAndExit)
     r.addRequiredArg('nzbid')
     r = RemoteCall('pause', resultMadeItBoolAndExit)

@@ -525,7 +525,11 @@ def enqueueNextNZBs(nzbFileOrFiles):
 
 def nextNZBId(nzbId):
     """ enqueue the specified nzb to the beginning of the queue """
-    nzbId = int(nzbId)
+    try:
+        nzbId = int(nzbId)
+    except:
+        debug('Invalid ID: ' + str(nzbId))
+        return False
 
     foundNZB = None
     for nzb in Hellanzb.queued_nzbs:
@@ -602,7 +606,11 @@ def listQueue(includeIds = False):
 def forceNZBId(nzbId):
     """ Interrupt the current download, if necessary, to start the specified nzb in the queue
     """
-    nzbId = int(nzbId)
+    try:
+        nzbId = int(nzbId)
+    except:
+        debug('Invalid ID: ' + str(nzbId))
+        return False
 
     foundNZB = None
     for nzb in Hellanzb.queued_nzbs:

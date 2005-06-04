@@ -81,7 +81,7 @@ class HellaXMLRPCServer(XMLRPC):
         return moveDown(nzbId, shift)
 
     def xmlrpc_enqueue(self, nzbFilename):
-        """ Add the specified nzb file to the end of the queue """
+        """ Add the specified NZB file to the end of the queue """
         from Hellanzb.Daemon import enqueueNZBs
         reactor.callLater(0, enqueueNZBs, nzbFilename)
         return True
@@ -93,8 +93,8 @@ class HellaXMLRPCServer(XMLRPC):
         return listQueue(includeIds)
 
     def xmlrpc_force(self, nzbId):
-        """ Force hellanzb to begin downloading the specified NZB file immediately -- interrupting
-        the current download, if necessary """
+        """ Force hellanzb to begin downloading the NZB with the specified ID immediately,
+        interrupting the current download """
         from Hellanzb.Daemon import forceNZBId
         reactor.callLater(0, forceNZBId, nzbId)
         return True
@@ -111,7 +111,7 @@ class HellaXMLRPCServer(XMLRPC):
         return maxRate(rate)
     
     def xmlrpc_next(self, nzbFilename):
-        """ Add the specified nzb file to the beginning of the queue """
+        """ Move the NZB with the specified ID to the beginning of the queue """
         from Hellanzb.Daemon import nextNZBId
         reactor.callLater(0, nextNZBId, nzbFilename)
         return True
@@ -467,8 +467,11 @@ def initXMLRPCClient():
     r.addRequiredArg('nzbid')
     r = RemoteCall('list', printListAndExit)
     r.addOptionalArg('showids')
-    r = RemoteCall('maxrate', resultMadeItBoolAndExit)
-    r.addOptionalArg('newrate')
+
+    # FIXME: this isn't working
+    #r = RemoteCall('maxrate', resultMadeItBoolAndExit)
+    #r.addOptionalArg('newrate')
+    
     r = RemoteCall('next', resultMadeItBoolAndExit)
     r.addRequiredArg('nzbid')
     r = RemoteCall('pause', resultMadeItBoolAndExit)

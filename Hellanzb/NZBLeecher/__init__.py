@@ -111,14 +111,13 @@ def startNZBLeecher():
                 else:
                     reactor.connectTCP(host, port, nsf)
                 connectionCount += 1
+            preWrappedNsf.setConnectionCount(connectionCount)
 
         if connectionCount == 1:
             info('Opening ' + str(connectionCount) + ' connection...')
         else:
             info('Opening ' + str(connectionCount) + ' connections...')
         totalCount += connectionCount
-        
-        preWrappedNsf.setConnectionCount(connectionCount)
 
     # How large the scroll ticker should be
     Hellanzb.scroller.maxCount = totalCount

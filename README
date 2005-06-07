@@ -33,7 +33,7 @@ Twisted >= 1.3          http://www.twistedmartrix.com
 par2cmdline =~ 0.4      http://parchive.sourceforge.net
 rar or unrar =~ 3.41    http://www.rarlab.com
 
-hellanzb can either be ran from it's own directory, or to install it system wide,
+hellanzb can either be ran from its own directory, or to install it system wide,
 simply run (as root) in the hellanzb directory:
 
     "python setup.py install"
@@ -88,8 +88,8 @@ o You can make hellanzb simply post process an already downloaded archive and
 
   "hellanzb.py -p ArchiveDirectoryName -P rarPassword"
 
-o hellanzb logs it's output to /var/tmp/hellanzb.log by default (this can be
-  turned off in the configuration file -- we encourage it's use in the rare
+o hellanzb logs its output to /var/tmp/hellanzb.log by default (this can be
+  turned off in the configuration file -- we encourage its use in the rare
   case of something unexpected happening)
 
 o In the rare case that something unexpected happens, try reproducing it with

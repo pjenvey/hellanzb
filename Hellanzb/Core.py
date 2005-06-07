@@ -20,12 +20,15 @@ def registerReapProcessHandler(pid, process):
     try:
         aux_pid, status = os.waitpid(pid, os.WNOHANG)
     except:
-        msg = 'FAILURE: Failed to reap! pid: %s: class name: %s' % \
-            (str(pid), pid.__class__.__name__)
-        log.err()
-        error(msg)
-        debug(msg)
-        log.msg('Failed to reap %s:' % pid)
+        try:
+            log.msg('Failed to reap %s:' % pid)
+        except TypeError, te:
+            msg = 'FAILURE: TypeError during Failed to reap! pid: %s: class name: %s' % \
+                (str(pid), pid.__class__.__name__)
+            log.err()
+            error(msg)
+            debug(msg)
+            raise
         log.err()
         aux_pid = None
     if aux_pid:

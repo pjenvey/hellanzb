@@ -86,6 +86,9 @@ class HellaXMLRPCServer(XMLRPC):
         reactor.callLater(0, enqueueNZBs, nzbFilename)
         return True
 
+    #def xmlrpc_enqueuedl(self, newzbinId):
+    #    """ """
+
     def xmlrpc_list(self, includeIds = False):
         """ List the current queue. Specify True as the second argument to include the NZB ID in
         the listing """
@@ -175,8 +178,8 @@ class HellaXMLRPCServer(XMLRPC):
         #f = failedProcessing
 
         lt = localtime()
-        hour = int(strftime('%I', lt))
-        now = ' ' + str(hour) + strftime(':%M%p', lt)
+        hour = strftime('%I', lt)
+        now = hour + strftime(':%M%p', lt)
 
         # FIXME: optionally don't show ascii
         # hellanzb version %s
@@ -448,10 +451,6 @@ def initXMLRPCServer():
 def initXMLRPCClient():
     """ initialize the xml rpc client """
     # Aliases to these calls would be nice
-    
-    # FIXME: force should put what it forced out back into the queue cancel is fine the
-    # way it is. if you want to swap what youre dling back into the queue, you have to be
-    # forcing anyway
     r = RemoteCall('aolsay', printResultAndExit, published = False)
     r = RemoteCall('asciiart', printResultAndExit, published = False)
     r = RemoteCall('cancel', resultMadeItBoolAndExit)
@@ -478,13 +477,6 @@ def initXMLRPCClient():
     r = RemoteCall('status', printResultAndExit)
     r = RemoteCall('up', resultMadeItBoolAndExit)
     r.addRequiredArg('nzbid')
-
-# loading files: server takes arg, filename, fileData = None
-    
-# server can search for http://, file://. if none of those are there(and? or maybe the
-# filename starts with /), fileData is required
-
-#     
 
 def hellaRemote(options, args):
     """ execute the remote RPC call with the specified cmd line args. args can be None """

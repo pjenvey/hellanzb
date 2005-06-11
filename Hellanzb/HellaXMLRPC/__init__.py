@@ -250,10 +250,10 @@ def printResultAndExit(remoteCall, result):
 
 def printListAndExit(remoteCall, result):
     if isinstance(result, list):
-        [info(line) for line in result]
+        [noLogFile(line) for line in result]
     elif isinstance(result, dict):
         length = 6
-        [info(id + ' '*(length - len(id)) + name) for id, name in result.iteritems()]
+        [noLogFile(id + ' '*(length - len(id)) + name) for id, name in result.iteritems()]
     else:
         return printResultAndExit
     reactor.stop()

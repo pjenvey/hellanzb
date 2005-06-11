@@ -77,31 +77,39 @@ class PostProcessor(Thread):
         """ Perform any cleanup and remove ourself from the pool before exiting """
         cleanUp(self.dirName)
 
-        Hellanzb.postProcessorLock.acquire()
-        Hellanzb.postProcessors.remove(self)
-        Hellanzb.postProcessorLock.release()
+        if not self.isSubDir:
+            Hellanzb.postProcessorLock.acquire()
+            Hellanzb.postProcessors.remove(self)
+            Hellanzb.postProcessorLock.release()
 
-        if not self.background:
+        if not self.background and not self.isSubDir:
             from twisted.internet import reactor
             reactor.callFromThread(reactor.stop)
     
     def run(self):
         """ do the work """
-        Hellanzb.postProcessorLock.acquire()
-        # FIXME: could block if there are too many processors going
-        Hellanzb.postProcessors.append(self)
-        Hellanzb.postProcessorLock.release()
+        if not self.isSubDir:
+            Hellanzb.postProcessorLock.acquire()
+            # FIXME: could block if there are too many processors going
+            Hellanzb.postProcessors.append(self)
+            Hellanzb.postProcessorLock.release()
         
         try:
             self.postProcess()
             
         except SystemExit, se:
+            if self.isSubDir:
+                self.stop()
+                raise
             # sys.exit throws this. collect $200
             # FIXME: can I safely raise here instead?
             pass
         
         except FatalError, fe:
             self.stop()
+            if self.isSubDir:
+                raise
+            
             error(archiveName(self.dirName) + ': A problem occurred', fe)
             if not self.background:
                 # FIXME: none of these will cause the main thread to return 1
@@ -112,6 +120,9 @@ class PostProcessor(Thread):
         
         except Exception, e:
             self.stop()
+            if self.isSubDir:
+                raise
+            
             error(archiveName(self.dirName) + ': An unexpected problem occurred', e)
             if not self.background:
                 # not sure what happened, let's see the backtrace
@@ -220,6 +231,11 @@ class PostProcessor(Thread):
                 os.rename(self.dirName + os.sep + file,
                           self.dirName + os.sep + Hellanzb.PROCESSED_SUBDIR + os.sep + file)
 
+        handledPars = False
+        if os.path.isfile(self.dirName + os.sep + Hellanzb.PROCESSED_SUBDIR + \
+                          os.sep + '.par_done'):
+            handledPars = True
+        
         # Finally, nuke the processed dir. Hopefully the PostProcessor did its job and
         # there was absolutely no need for it, otherwise tough! (and disable the option
         # and try again) =]
@@ -235,8 +251,16 @@ class PostProcessor(Thread):
         # We're done
         e = time.time() - self.startTime 
         if not self.isSubDir:
-            info(archiveName(self.dirName) + ': Finished processing (took: %.1fs)' % (e))
-            growlNotify('Archive Success', 'hellanzb Done Processing:',
+            parMessage = ''
+            if not handledPars:
+                parMessage = ' (No Pars)'
+                
+            info((archiveName(self.dirName) + ': Finished processing (took: %.1fs)' + \
+                 parMessage) % (e))
+
+            if parMessage != '':
+                parMessage = '\n' + parMessage
+            growlNotify('Archive Success', 'hellanzb Done Processing' + parMessage + ':',
                         archiveName(self.dirName), True)
                        #self.background)
         # FIXME: could unsticky the message if we're running hellanzb.py -p
@@ -257,9 +281,24 @@ class PostProcessor(Thread):
             raise FatalError('Not a directory: ' + self.dirName)
                               
         if not os.path.exists(processedDir):
-            os.mkdir(processedDir)
+            try:
+                os.mkdir(processedDir)
+            except OSError, ose:
+                # We might have just unrared something with goofy permissions.
+                
+                # FIXME: hope we don't need the processed dir! this would typically only
+                # happen for say a VIDEO_TS dir anyway
+                warn('Unable to create processedDir: ' + processedDir + ' err: ' + str(ose))
+                pass
+
+                # FIXME: If we just unrared a directory bad perms, ideally we should fix
+                # the perms
+                #if ose.errno == errno.EACCES:
+                #    os.chmod(processedDir, 
+
         elif not os.path.isdir(processedDir):
-            raise FatalError('Unable to create processed directory, a non directory already exists there')
+            raise FatalError('Unable to create processed dir, a non dir already exists there: ' + \
+                             processedDir)
     
         # First, find broken files, in prep for repair. Grab the msg id and nzb
         # file names while we're at it
@@ -311,7 +350,7 @@ class PostProcessor(Thread):
                 else:
                     troll = PostProcessor(pathjoin(self.dirName, file),
                                           parentDir = self.parentDir)
-                troll.postProcess()
+                troll.run()
 
         self.finishedPostProcess()
 

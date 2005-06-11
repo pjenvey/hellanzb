@@ -89,7 +89,7 @@ def startNZBLeecher():
                 idleTimeout = defaultIdleTimeout
 
             nsf = NZBLeecherFactory(serverInfo['username'], serverInfo['password'],
-                                                      idleTimeout, antiIdle)
+                                                      idleTimeout, antiIdle, host)
             Hellanzb.nsfs.append(nsf)
 
             split = host.split(':')
@@ -134,11 +134,12 @@ def startNZBLeecher():
 PHI = (1 + math.sqrt(5)) / 2
 class NZBLeecherFactory(ReconnectingClientFactory):
 
-    def __init__(self, username, password, activeTimeout, antiIdleTimeout):
+    def __init__(self, username, password, activeTimeout, antiIdleTimeout, hostname):
         self.username = username
         self.password = password
         self.antiIdleTimeout = antiIdleTimeout
         self.activeTimeout = activeTimeout
+        self.hostname = hostname
 
         self.host = None
         self.port = None
@@ -282,7 +283,7 @@ class NZBLeecher(NNTPClient, TimeoutMixin):
     def authInfoFailed(self, err):
         "Override for notification when authInfoFailed() action fails"
         debug(str(self) + ' AUTHINFO failed: ' + str(err))
-        info('[' + str(self.id).zfill(2) + '] Authorization failed: ' + str(err))
+        info(self.factory.hostname + '[' + str(self.id).zfill(2) + '] Authorization failed: ' + str(err))
 
     def connectionMade(self):
         debug(str(self) + ' CONNECTION MADE')

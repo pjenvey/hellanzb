@@ -109,7 +109,7 @@ def scanQueueDir(firstRun = False, justScan = False):
         debug('Ziplick scanQueueDir scanned queue dir')
 
     if not current_nzbs:
-        if not Hellanzb.queued_nzbs:
+        if not Hellanzb.queued_nzbs or Hellanzb.downloadPaused:
             # Nothing to do, lets wait 5 seconds and start over
             reactor.callLater(5, scanQueueDir)
             return
@@ -332,7 +332,7 @@ def cancelCurrent():
     """ cancel the current d/l, remove the nzb. return False if there was nothing to cancel
     """
     if not isActive():
-        return False
+        return True
     
     canceled = False
     for nzb in Hellanzb.queue.currentNZBs():
@@ -364,10 +364,8 @@ def cancelCurrent():
 
 def pauseCurrent():
     """ pause the current download """
-    if not isActive():
-        return False
-
     Hellanzb.downloadPaused = True
+
     for nsf in Hellanzb.nsfs:
         clients = nsf.activeClients.copy()
         for client in clients:
@@ -378,8 +376,8 @@ def pauseCurrent():
 
 def continueCurrent():
     """ continue an already paused download """
-    if not isActive() or not Hellanzb.downloadPaused:
-        return False
+    if not Hellanzb.downloadPaused:
+        return True
     
     for nsf in Hellanzb.nsfs:
         clients = nsf.activeClients.copy()

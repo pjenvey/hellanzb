@@ -65,7 +65,7 @@ def initNZBLeecher():
 
 def startNZBLeecher():
     """ gogogo """
-    defaultAntiIdle = 7 * 60
+    defaultAntiIdle = int(4.5 * 60) # 4.5 minutes
     defaultIdleTimeout = 30
     
     totalCount = 0
@@ -282,6 +282,7 @@ class NZBLeecher(NNTPClient, TimeoutMixin):
     def authInfoFailed(self, err):
         "Override for notification when authInfoFailed() action fails"
         debug(str(self) + ' AUTHINFO failed: ' + str(err))
+        info('[' + str(self.id).zfill(2) + '] Authorization failed: ' + str(err))
 
     def connectionMade(self):
         debug(str(self) + ' CONNECTION MADE')

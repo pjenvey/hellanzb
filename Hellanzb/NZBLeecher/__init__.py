@@ -283,7 +283,8 @@ class NZBLeecher(NNTPClient, TimeoutMixin):
     def authInfoFailed(self, err):
         "Override for notification when authInfoFailed() action fails"
         debug(str(self) + ' AUTHINFO failed: ' + str(err))
-        info(self.factory.hostname + '[' + str(self.id).zfill(2) + '] Authorization failed: ' + str(err))
+        # FIXME: This gives us too much scroll. Need to only do it selectively
+        #error(self.factory.hostname + '[' + str(self.id).zfill(2) + '] Authorization failed: ' + str(err))
 
     def connectionMade(self):
         debug(str(self) + ' CONNECTION MADE')

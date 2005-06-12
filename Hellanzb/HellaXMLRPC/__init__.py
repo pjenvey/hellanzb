@@ -397,11 +397,13 @@ def initXMLRPCClient():
     r.addRequiredArg('nzbid')
     r = RemoteCall('down', resultMadeItBoolAndExit)
     r.addRequiredArg('nzbid')
+    r.addOptionalArg('shift')
     r = RemoteCall('enqueue', resultMadeItBoolAndExit)
     r.addRequiredArg('nzbfile')
     r = RemoteCall('force', resultMadeItBoolAndExit)
     r.addRequiredArg('nzbid')
     r = RemoteCall('last', resultMadeItBoolAndExit)
+    r.addRequiredArg('nzbid')
     r = RemoteCall('list', printListAndExit)
     r.addOptionalArg('showids')
     r = RemoteCall('maxrate', resultMadeItBoolAndExit)
@@ -415,6 +417,7 @@ def initXMLRPCClient():
     r = RemoteCall('status', statusString)
     r = RemoteCall('up', resultMadeItBoolAndExit)
     r.addRequiredArg('nzbid')
+    r.addOptionalArg('shift')
 
 def hellaRemote(options, args):
     """ execute the remote RPC call with the specified cmd line args. args can be None """

@@ -54,7 +54,7 @@ class HellaXMLRPCServer(XMLRPC):
         return clearCurrent(andCancel)
 
     def xmlrpc_continue(self):
-        """ Continue the paused download """
+        """ Continue downloading after being paused """
         from Hellanzb.Daemon import continueCurrent
         return continueCurrent()
 
@@ -106,6 +106,11 @@ class HellaXMLRPCServer(XMLRPC):
         
         from Hellanzb.Daemon import maxRate
         return maxRate(rate)
+
+    def xmlrpc_move(self, nzbId, index):
+        """ Move the NZB with the specified ID to the specified index in the queue """
+        from Hellanzb.Daemon import move
+        return move(nzbId, index)
     
     def xmlrpc_next(self, nzbFilename):
         """ Move the NZB with the specified ID to the beginning of the queue """
@@ -114,7 +119,7 @@ class HellaXMLRPCServer(XMLRPC):
         return True
 
     def xmlrpc_pause(self):
-        """ Pause the current download """
+        """ Pause downloading """
         from Hellanzb.Daemon import pauseCurrent
         return pauseCurrent()
 
@@ -408,6 +413,9 @@ def initXMLRPCClient():
     r.addOptionalArg('showids')
     r = RemoteCall('maxrate', resultMadeItBoolAndExit)
     r.addOptionalArg('newrate')
+    r = RemoteCall('move', resultMadeItBoolAndExit)
+    r.addRequiredArg('nzbid')
+    r.addRequiredArg('index')
     r = RemoteCall('next', resultMadeItBoolAndExit)
     r.addRequiredArg('nzbid')
     r = RemoteCall('pause', resultMadeItBoolAndExit)

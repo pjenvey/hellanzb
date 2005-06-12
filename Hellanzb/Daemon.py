@@ -570,6 +570,36 @@ def lastNZB(nzbId):
     writeQueueToDisk(Hellanzb.queued_nzbs)
     return True
 
+def moveNZB(nzbId, index):
+    try:
+        nzbId = int(nzbId)
+    except:
+        debug('Invalid ID: ' + str(nzbId))
+        return False
+    try:
+        index = int(index)
+    except:
+        debug('Invalid INDEX: ' + str(index))
+        return False
+
+    # FIXME: Validate index
+    # if index 
+    
+    foundNZB = None
+    for nzb in Hellanzb.queued_nzbs:
+        if nzb.id == nzbId:
+            foundNZB = nzb
+            
+    if not foundNZB:
+        return True
+    
+    Hellanzb.queued_nzbs.remove(foundNZB)
+    # FIXME: index or index + 1
+    Hellanzb.queued_nzbs.insert(index, foundNZB)
+
+    writeQueueToDisk(Hellanzb.queued_nzbs)
+    return True
+    
 def maxRate(rate):
     """ Switch the MAX RATE setting """
     if rate == 'None':

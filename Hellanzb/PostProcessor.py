@@ -43,7 +43,8 @@ class PostProcessor(Thread):
         self.background = background
         
         self.decompressionThreadPool = []
-        self.decompressorCondition = Condition()
+        self.decompressorLock = Lock()
+        self.decompressorCondition = Condition(self.decompressorCondition)
 
         self.rarPassword = rarPassword
 
@@ -189,8 +190,14 @@ class PostProcessor(Thread):
             checkShutdown()
 
         # We're not finished until all the threads are done
-        for decompressor in self.decompressionThreadPool:
+        self.decompressorLock.acquire()
+        decompressorThreads = self.decompressionThreadPool[:]
+        self.decompressorLock.release()
+        
+        for decompressor in decompressorThreads:
             decompressor.join()
+
+        del decompressorThreads
 
         if len(self.failedToProcesses) > 0:
             # Let the threads finish their logging (ScrollInterrupter can

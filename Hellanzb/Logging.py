@@ -368,17 +368,20 @@ def stdinEchoOff():
     
 def stdinEchoOn():
     from Hellanzb.Log import debug
-    if hasattr(Hellanzb, 'oldStdin'):
-        try:
-            fd = sys.stdin.fileno()
-            termios.tcsetattr(fd, termios.TCSADRAIN, Hellanzb.oldStdin)
-            del Hellanzb.oldStdin
-            debug('stdinEchoOn - ON')
-        except Exception, e:
-            debug('stdinEchoOn error', e)
-            pass
-    else:
-        debug('stdinEchoOn skipped (no Hellanzb.oldStdin)')
+    try:
+        fd = sys.stdin.fileno()
+    except:
+        pass
+
+    new = termios.tcgetattr(fd) # a copy to save
+
+    new[3] = new[3] | termios.ECHO # 3 == 'lflags'
+    try:
+        termios.tcsetattr(fd, termios.TCSAFLUSH, new)
+        debug('stdinEchoOn - ON')
+    except Exception, e:
+        debug('stdinEchoOn error', e)
+        pass
 
 def prettyException(exception):
     """ return a pretty rendition of the specified exception, or if no valid exception an

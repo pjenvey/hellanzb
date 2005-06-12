@@ -563,10 +563,10 @@ Hellanzb.CMHELLA_VERSIONED = \
       :..............................................:     %s  `:::`
                                                                       `
 """
-def cmVersion():
+def cmVersion(version = Hellanzb.version):
     """ try to make Hellanzb.version always look like this: 'V 1 . 0' """
     cmV = 'V 1 . 0'
-    orig = Hellanzb.version
+    orig = version
     muck = lambda v : 'v' + v.replace('', ' ').rstrip()
 
     # expand it
@@ -585,9 +585,9 @@ def cmVersion():
 
         return v
 
-def cmHella():
+def cmHella(version = Hellanzb.version):
     """ brand the ascii with a properly formatted version number """
-    return Hellanzb.CMHELLA_VERSIONED % (cmVersion())
+    return Hellanzb.CMHELLA_VERSIONED % (cmVersion(version))
 
 """
 /*

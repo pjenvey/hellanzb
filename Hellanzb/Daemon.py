@@ -93,6 +93,13 @@ def scanQueueDir(firstRun = False, justScan = False):
         if re.search(r'\.nzb$', file) and \
             os.path.normpath(Hellanzb.QUEUE_DIR + os.sep + file) not in queuedMap:
             new_nzbs.append(Hellanzb.QUEUE_DIR + os.sep + file)
+            
+        elif os.path.normpath(Hellanzb.QUEUE_DIR + os.sep + file) in queuedMap:
+            queuedMap.pop(os.path.normpath(Hellanzb.QUEUE_DIR + os.sep + file))
+
+    # Remove anything no longer in the queue directory
+    for nzb in queuedMap.itervalues():
+        Hellanzb.queued_nzbs.remove(nzb)
 
     enqueueNZBs(new_nzbs, writeQueue = not firstRun)
             
@@ -535,12 +542,33 @@ def nextNZBId(nzbId):
             foundNZB = nzb
             
     if not foundNZB:
-        return False
+        return True
 
     Hellanzb.queued_nzbs.remove(foundNZB)
     Hellanzb.queued_nzbs.insert(0, foundNZB)
 
     writeQueueToDisk(Hellanzb.queued_nzbs)
+
+def lastNZB(nzbId):
+    try:
+        nzbId = int(nzbId)
+    except:
+        debug('Invalid ID: ' + str(nzbId))
+        return False
+
+    foundNZB = None
+    for nzb in Hellanzb.queued_nzbs:
+        if nzb.id == nzbId:
+            foundNZB = nzb
+            
+    if not foundNZB:
+        return True
+    
+    Hellanzb.queued_nzbs.remove(foundNZB)
+    Hellanzb.queued_nzbs.insert(len(Hellanzb.queued_nzbs) - 1, foundNZB)
+
+    writeQueueToDisk(Hellanzb.queued_nzbs)
+    return True
 
 def maxRate(rate):
     """ Switch the MAX RATE setting """

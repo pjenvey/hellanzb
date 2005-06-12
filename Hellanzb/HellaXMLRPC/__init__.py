@@ -6,13 +6,14 @@ HellaXMLRPC - The hellanzb XML RPC server and client
 [See end of file]
 """
 import os, sys, textwrap, time, Hellanzb
-from time import localtime, strftime
+from datetime import datetime
+from time import strftime
 from twisted.internet import reactor
 from twisted.internet.error import CannotListenError, ConnectionRefusedError
 from twisted.python import log
 from twisted.web import xmlrpc, server
 from twisted.web.server import Site
-from xmlrpclib import Fault
+from xmlrpclib import DateTime, Fault
 from Hellanzb.Elite import C
 from Hellanzb.HellaXMLRPC.xmlrpc import Proxy, XMLRPC # was twisted.web.xmlrpc
 from Hellanzb.HellaXMLRPC.HtPasswdAuth import HtPasswdWrapper
@@ -30,19 +31,6 @@ class HellaXMLRPCServer(XMLRPC):
         """ This object generates 404s (Default resource.Resource getChild) with HTTP auth turned
         on, so this was needed. not exactly sure why """
         return self
-    
-    def secondsToUptime(self, seconds):
-        """ convert seconds to a pretty uptime output: 2 days, 19:45 """
-        days = int(seconds / (60 * 60 * 24))
-        hours = int((seconds - (days * 60 * 60 * 24)) / (60 * 60))
-        minutes = int((seconds - (days * 60 * 60 * 24) - (hours * 60 * 60)) / 60)
-        msg = ''
-        if days == 1:
-            msg = '%i day, ' % (days)
-        elif days > 1:
-            msg = '%i days, ' % (days)
-        msg += '%.2i:%.2i' % (hours, minutes)
-        return msg
 
     def xmlrpc_asciiart(self):
         """ Return a random ascii art """
@@ -76,7 +64,8 @@ class HellaXMLRPCServer(XMLRPC):
         return dequeueNZBs(nzbId)
     
     def xmlrpc_down(self, nzbId, shift = 1):
-        """ Move the NZB with the specified ID down in the queue """
+        """ Move the NZB with the specified ID down in the queue. The optional second argument
+        specifys the number of spaces to shift by (Default: 1) """
         from Hellanzb.Daemon import moveDown
         return moveDown(nzbId, shift)
 
@@ -88,6 +77,11 @@ class HellaXMLRPCServer(XMLRPC):
 
     #def xmlrpc_enqueuedl(self, newzbinId):
     #    """ """
+
+    def xmlrpc_last(self, nzbId):
+        """ Move the NZB with the specified ID to the end of the queue. """
+        from Hellanzb.Daemon import lastNZB
+        return lastNZB(nzbId)
 
     def xmlrpc_list(self, includeIds = False):
         """ List the current queue. Specify True as the second argument to include the NZB ID in
@@ -146,11 +140,8 @@ class HellaXMLRPCServer(XMLRPC):
         
     def xmlrpc_status(self, aolsay = False):
         """ Return hellanzb's current status text """
-        downloading = 'Currently Downloading: '
-        processing = 'Currently Processing: '
-        failedProcessing = 'Failed Processing: '
-        queued = 'Queued: '
-
+        s = {}
+    
         totalSpeed = 0
         activeClients = 0
         for nsf in Hellanzb.nsfs:
@@ -161,85 +152,29 @@ class HellaXMLRPCServer(XMLRPC):
         else:
             totalSpeed = 'Idle'
 
-        downloading += self.statusFromList(Hellanzb.queue.currentNZBs(),
-                                           lambda nzb : nzb.archiveName, len(downloading))
-#                                           lambda nzb : nzb.archiveName + ' [' + totalSpeed + ']')
+        s['time'] = DateTime()
+        s['uptime'] = secondsToUptime(time.time() - Hellanzb.BEGIN_TIME)
+        s['rate'] = totalSpeed
+        if Hellanzb.ht.readLimit == None or Hellanzb.ht.readLimit == 0:
+            s['maxrate'] = 0
+        else:
+            s['maxrate'] = Hellanzb.ht.readLimit / 1024
+        s['total_dl_nzbs'] = Hellanzb.totalArchivesDownloaded
+        s['total_dl_files'] = Hellanzb.totalFilesDownloaded
+        s['total_dl_segments'] = Hellanzb.totalSegmentsDownloaded
+        s['total_dl_mb'] = Hellanzb.totalBytesDownloaded / 1024 / 1024
+        s['version'] = Hellanzb.version
+        s['currently_downloading'] = [nzb.archiveName for nzb in Hellanzb.queue.currentNZBs()]
+        s['currently_processing'] = [archiveName(processor.dirName) for processor in Hellanzb.postProcessors]
+        s['queued'] = [nzb.archiveName for nzb in Hellanzb.queued_nzbs]
 
-        Hellanzb.postProcessorLock.acquire()
-        processing += self.statusFromList(Hellanzb.postProcessors,
-                                          lambda postProcessor : archiveName(postProcessor.dirName),
-                                          len(processing))
-        Hellanzb.postProcessorLock.release()
-
-        queued += self.statusFromList(Hellanzb.queued_nzbs,
-                                      lambda nzb : archiveName(nzb.nzbFileName), len(queued))
-
-        # FIXME: show if any archives failed during processing?
-        #f = failedProcessing
-
-        lt = localtime()
-        hour = strftime('%I', lt)
-        now = hour + strftime(':%M%p', lt)
-
-        # FIXME: optionally don't show ascii
-        # hellanzb version %s
-
-        firstLine = """%s  up %s  %s  """
-        firstLine = firstLine % (now,
-                                 self.secondsToUptime(time.time() - Hellanzb.BEGIN_TIME),
-                                 totalSpeed)
-        two =  """downloaded %i nzbs,""" % (Hellanzb.totalArchivesDownloaded)
-        three = '\n' + ' '*len(firstLine) + """%i files, %i segments (%i MB)\n""" % \
-            (Hellanzb.totalFilesDownloaded,
-             Hellanzb.totalSegmentsDownloaded,
-             Hellanzb.totalBytesDownloaded / 1024 / 1024)
-        
-        msg = firstLine + two + three
-        #begin = firstLine + next
-        #msg = begin % (now, self.secondsToUptime(time.time() - Hellanzb.BEGIN_TIME),
-        #                            totalSpeed, Hellanzb.totalArchivesDownloaded,
-        #                            Hellanzb.totalFilesDownloaded,
-        #                            Hellanzb.totalSegmentsDownloaded,
-        #                            Hellanzb.totalBytesDownloaded / 1024 / 1024)
-        
-        msg += cmHella()
-
-        if aolsay:
-            msg += '\n' + textwrap.fill(C.aolSay(), 80, initial_indent = ' '*5,
-                                        subsequent_indent = ' '*5) + '\n\n'
-
-        msg += \
-"""
-%s
-%s
-%s
-        """.strip() % (downloading, processing, queued)
-
-#        \"\"\".strip() % (Hellanzb.version, self.secondsToUptime(time.time() - Hellanzb.BEGIN_TIME),
-                       
-        return msg
+        return s
 
     def xmlrpc_up(self, nzbId, shift = 1):
-        """ Move the NZB with the specified ID up in the queue """
+        """ Move the NZB with the specified ID up in the queue. The optional second argument
+        specifys the number of spaces to shift by (Default: 1) """
         from Hellanzb.Daemon import moveUp
         return moveUp(nzbId, shift)
-    
-    def statusFromList(self, alist, statusFunc, indent):
-        """ generate a status message from the list of objects, using the specified function for
-        formatting """
-        status = ''
-        if len(alist):
-            i = 0
-            for item in alist:
-                if i:
-                    status += ' '*indent
-                status += statusFunc(item)
-                if i < len(alist) - 1:
-                    status += '\n'
-                i += 1
-        else:
-            status += 'None'
-        return status
 
 def printResultAndExit(remoteCall, result):
     """ generic xml rpc client call back -- simply print the result as a string and exit """
@@ -255,7 +190,7 @@ def printListAndExit(remoteCall, result):
         length = 6
         [noLogFile(id + ' '*(length - len(id)) + name) for id, name in result.iteritems()]
     else:
-        return printResultAndExit
+        return printResultAndExit()
     reactor.stop()
 
 def resultMadeItBoolAndExit(remoteCall, result):
@@ -378,6 +313,8 @@ class RemoteCall:
 
     def call(serverUrl, funcName, args):
         """ lookup the specified function in our pool of known commands, and call it """
+        # FIXME:
+        pass 
 
     def callLater(serverUrl, funcName, args):
         try:
@@ -464,6 +401,7 @@ def initXMLRPCClient():
     r.addRequiredArg('nzbfile')
     r = RemoteCall('force', resultMadeItBoolAndExit)
     r.addRequiredArg('nzbid')
+    r = RemoteCall('last', resultMadeItBoolAndExit)
     r = RemoteCall('list', printListAndExit)
     r.addOptionalArg('showids')
     r = RemoteCall('maxrate', resultMadeItBoolAndExit)
@@ -474,7 +412,7 @@ def initXMLRPCClient():
     r = RemoteCall('process', resultMadeItBoolAndExit)
     r.addRequiredArg('archivedir')
     r = RemoteCall('shutdown', resultMadeItBoolAndExit)
-    r = RemoteCall('status', printResultAndExit)
+    r = RemoteCall('status', statusString)
     r = RemoteCall('up', resultMadeItBoolAndExit)
     r.addRequiredArg('nzbid')
 
@@ -510,7 +448,121 @@ def hellaRemote(options, args):
     RemoteCall.options = options
     RemoteCall.callLater(Hellanzb.serverUrl, funcName, args)
     reactor.run()
+
+
+def statusString(remoteCall, result):
+    s = result
+
+    # yyyymmddThh:mm:ss
+    t = s['time'].value
+    y = int(t[0:4])
+    m = int(t[4:6])
+    d = int(t[6:8])
+    #z = int(t[8:1])
+    h = int(t[9:11])
+    min = int(t[12:14])
+    sec = int(t[15:17])
     
+    currentTime = datetime(y, m, d, h, min, sec)
+    uptime = s['uptime']
+    totalSpeed = s['rate']
+    totalNZBs = s['total_dl_nzbs']
+    totalFiles = s['total_dl_files']
+    totalSegments = s['total_dl_segments']
+    totalMb = s['total_dl_mb']
+    version = s['version']
+    currentNZBs = s['currently_downloading']
+    processingNZBs = s['currently_processing']
+    queuedNZBs = s['queued']
+    
+    
+    downloading = 'Currently Downloading: '
+    processing = 'Currently Processing: '
+    failedProcessing = 'Failed Processing: '
+    queued = 'Queued: '
+
+    downloading += statusFromList(currentNZBs, len(downloading))
+#                                           lambda nzb : nzb.archiveName + ' [' + totalSpeed + ']')
+
+    Hellanzb.postProcessorLock.acquire()
+    processing += statusFromList(processingNZBs, len(processing))
+    Hellanzb.postProcessorLock.release()
+
+    queued += statusFromList(queuedNZBs, len(queued))
+
+    # FIXME: show if any archives failed during processing?
+    #f = failedProcessing
+
+    now = currentTime.strftime('%I:%M%p')
+
+    # FIXME: optionally don't show ascii
+    # hellanzb version %s
+
+    firstLine = """%s  up %s  %s  """
+    firstLine = firstLine % (now,
+                             uptime,
+                             totalSpeed)
+    two =  """downloaded %i nzbs,""" % (totalNZBs)
+    three = '\n' + ' '*len(firstLine) + """%i files, %i segments (%i MB)\n""" % \
+        (totalFiles,
+         totalSegments,
+         totalMb)
+    
+    msg = firstLine + two + three
+    #begin = firstLine + next
+    #msg = begin % (now, secondsToUptime(time.time() - Hellanzb.BEGIN_TIME),
+    #                            totalSpeed, Hellanzb.totalArchivesDownloaded,
+    #                            Hellanzb.totalFilesDownloaded,
+    #                            Hellanzb.totalSegmentsDownloaded,
+    #                            Hellanzb.totalBytesDownloaded / 1024 / 1024)
+    
+    msg += cmHella(version)
+
+    msg += \
+"""
+%s
+%s
+%s
+    """.strip() % (downloading, processing, queued)
+
+#        \"\"\".strip() % (Hellanzb.version, secondsToUptime(time.time() - Hellanzb.BEGIN_TIME),
+
+    if isinstance(msg, unicode):
+        msg = msg.encode('utf-8')
+    noLogFile(str(msg))
+    
+    reactor.stop()
+
+def secondsToUptime(seconds):
+    """ convert seconds to a pretty uptime output: 2 days, 19:45 """
+    days = int(seconds / (60 * 60 * 24))
+    hours = int((seconds - (days * 60 * 60 * 24)) / (60 * 60))
+    minutes = int((seconds - (days * 60 * 60 * 24) - (hours * 60 * 60)) / 60)
+    msg = ''
+    if days == 1:
+        msg = '%i day, ' % (days)
+    elif days > 1:
+        msg = '%i days, ' % (days)
+    msg += '%.2i:%.2i' % (hours, minutes)
+    return msg
+
+def statusFromList(alist, indent):
+    """ generate a status message from the list of objects, using the specified function for
+    formatting """
+    status = ''
+    if len(alist):
+        i = 0
+        for item in alist:
+            if i:
+                status += ' '*indent
+            status += item
+            if i < len(alist) - 1:
+                status += '\n'
+            i += 1
+    else:
+        status += 'None'
+    return status
+
 """
 /*
  * Copyright (c) 2005 Philip Jenvey <pjenvey@groovie.org>

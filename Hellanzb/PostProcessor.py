@@ -44,7 +44,7 @@ class PostProcessor(Thread):
         
         self.decompressionThreadPool = []
         self.decompressorLock = Lock()
-        self.decompressorCondition = Condition(self.decompressorCondition)
+        self.decompressorCondition = Condition(self.decompressorLock)
 
         self.rarPassword = rarPassword
 

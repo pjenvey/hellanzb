@@ -170,7 +170,9 @@ class HellaXMLRPCServer(XMLRPC):
         s['total_dl_mb'] = Hellanzb.totalBytesDownloaded / 1024 / 1024
         s['version'] = Hellanzb.version
         s['currently_downloading'] = [nzb.archiveName for nzb in Hellanzb.queue.currentNZBs()]
+        Hellanzb.postProcessorLock.acquire()
         s['currently_processing'] = [archiveName(processor.dirName) for processor in Hellanzb.postProcessors]
+        Hellanzb.postProcessorLock.release()
         s['queued'] = [nzb.archiveName for nzb in Hellanzb.queued_nzbs]
 
         return s
@@ -495,9 +497,7 @@ def statusString(remoteCall, result):
     downloading += statusFromList(currentNZBs, len(downloading))
 #                                           lambda nzb : nzb.archiveName + ' [' + totalSpeed + ']')
 
-    Hellanzb.postProcessorLock.acquire()
     processing += statusFromList(processingNZBs, len(processing))
-    Hellanzb.postProcessorLock.release()
 
     queued += statusFromList(queuedNZBs, len(queued))
 

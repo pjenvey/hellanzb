@@ -224,7 +224,7 @@ def parseNZB(nzb, notification = 'Downloading', quiet = False):
         growlNotify('Error', 'hellanzb', 'Problem while parsing the NZB' + prettyException(fe),
                     True)
         error('Moving bad NZB out of queue into TEMP_DIR: ' + Hellanzb.TEMP_DIR)
-        move(nzbfile, Hellanzb.TEMP_DIR + os.sep)
+        move(nzb.nzbFileName, Hellanzb.TEMP_DIR + os.sep)
         reactor.callLater(5, scanQueueDir)
 
 def findAndLoadPostponedDir(nzb):

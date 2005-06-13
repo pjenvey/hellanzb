@@ -374,8 +374,7 @@ def pauseCurrent():
     Hellanzb.downloadPaused = True
 
     for nsf in Hellanzb.nsfs:
-        clients = nsf.activeClients.copy()
-        for client in clients:
+        for client in nsf.clients:
             client.transport.stopReading()
 
     info('Pausing download')
@@ -385,14 +384,32 @@ def continueCurrent():
     """ continue an already paused download """
     if not Hellanzb.downloadPaused:
         return True
-    
+
+    reconnected = 0
     for nsf in Hellanzb.nsfs:
-        clients = nsf.activeClients.copy()
-        for client in clients:
-            client.transport.startReading()
+        for client in nsf.clients:
+
+            # When we pause a download, we simply stop reading from the socket. That
+            # usually causes the connection to become lost fairly quickly. When that
+            # connection is lost, a new client is created with the flag
+            # pauseReconnected=True. This new client acts normally (anti idles the
+            # connection, etc) except it does not enter the fetchNextNZBSegment loop. Thus
+            # when we encounter these clients we simply tell them to begin downloading
+            if client.pauseReconnected:
+                debug(str(client) + ' pauseReconnect')
+                reactor.callLater(0, client.fetchNextNZBSegment)
+                reconnected += 1
+            else:
+                # Otherwise this was a short pause, the connection hasn't been lost, and
+                # we can simply continue reading from the socket
+                debug(str(client) + ' startReading')
+                client.transport.startReading()
 
     Hellanzb.downloadPaused = False
-    info('Continuing download')
+    if not reconnected:
+        info('Continuing download')
+    else:
+        info('Continuing download (Connections were reset)')
     return True
 
 def clearCurrent(andCancel):

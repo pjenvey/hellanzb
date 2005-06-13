@@ -149,6 +149,7 @@ class HellaXMLRPCServer(XMLRPC):
     
         totalSpeed = 0
         activeClients = 0
+        # FIXME: rename nsfs. call it factories
         for nsf in Hellanzb.nsfs:
             totalSpeed += nsf.sessionSpeed
             activeClients += len(nsf.activeClients)

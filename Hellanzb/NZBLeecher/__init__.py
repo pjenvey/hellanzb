@@ -231,6 +231,9 @@ class NZBLeecher(NNTPClient, TimeoutMixin):
 
         self.connectionCount = 0
 
+        # Whether or not this client was created when hellanzb downloading was paused
+        self.pauseReconnected = False
+
         # This value exists in twisted and doesn't do much (except call lineLimitExceeded
         # when a line that long is exceeded). Knowing twisted that function is probably a
         # hook for defering processing when it might take too long with too much received
@@ -278,7 +281,11 @@ class NZBLeecher(NNTPClient, TimeoutMixin):
         if self.setReaderAfterLogin:
             self.setReader()
         else:
-            reactor.callLater(0, self.fetchNextNZBSegment)
+            if Hellanzb.downloadPaused:
+                self.pauseReconnected = True
+                return
+            else:
+                reactor.callLater(0, self.fetchNextNZBSegment)
 
     def authInfoFailed(self, err):
         "Override for notification when authInfoFailed() action fails"
@@ -360,7 +367,11 @@ class NZBLeecher(NNTPClient, TimeoutMixin):
         """ """
         debug(str(self) + ' MODE READER successful')
         if self.setReaderAfterLogin or (self.username == None and self.password == None):
-            reactor.callLater(0, self.fetchNextNZBSegment)
+            if Hellanzb.downloadPaused:
+                self.pauseReconnected = True
+                return
+            else:
+                reactor.callLater(0, self.fetchNextNZBSegment)
         else:
             self.authInfo()
         

@@ -53,6 +53,9 @@ def needsDownload(object, threadRealNameWork = False):
         # We only know about the temp filename. In that case, fall back to matching
         # filenames in our subject line
         for file in os.listdir(Hellanzb.WORKING_DIR):
+            if not os.path.isfile(Hellanzb.WORKING_DIR + os.sep + file):
+                continue
+            
             ext = getFileExtension(file)
 
             # Segment Match
@@ -112,6 +115,9 @@ def segmentsNeedDownload(segmentList):
 
     # Cache all WORKING_DIR segment filenames in a map of lists
     for file in os.listdir(Hellanzb.WORKING_DIR):
+        if not os.path.isfile(Hellanzb.WORKING_DIR + os.sep + file):
+            continue
+        
         ext = getFileExtension(file)
         if ext != None and segmentEndRe.match(ext):
             segmentNumber = int(ext[-4:])
@@ -486,7 +492,7 @@ class NZBQueue(PriorityQueue):
             parser.parse(fileName)
         except SAXParseException, saxpe:
             raise FatalError('Unable to parse Invalid NZB file: ' + os.path.basename(fileName))
-        
+
         s = time.time()
         # The parser will add all the segments of all the NZBFiles that have not already
         # been downloaded. After the parsing, we'll check if each of those segments have

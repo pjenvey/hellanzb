@@ -27,7 +27,6 @@ RUN_DEPENDS=	par2:${PORTSDIR}/archivers/par2cmdline \
 		${PYTHON_SITELIBDIR}/twisted/web:${PORTSDIR}/www/py-twistedWeb
 
 PLIST_FILES=	bin/hellanzb.py \
-		bin/hellagrowler.py \
 		etc/hellanzb.conf.sample \
 		share/doc/hellanzb/CREDITS \
 		share/doc/hellanzb/README \

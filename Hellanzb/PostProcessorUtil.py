@@ -440,6 +440,10 @@ def processPars(dirName):
     start = time.time()
 
     dirName = DirName(dirName + os.sep)
+
+    # Remove any .1 files after succesful par2 that weren't previously there (aren't in
+    # this list)
+    dotOneFiles = [file for file in os.listdir(dirName) if file[-2:] == '.1']
     
     repairCmd = 'par2 r "' + dirName + '*.PAR2" "' + dirName + '*.par2" "'
     if '.par2' in os.listdir(dirName):
@@ -487,7 +491,8 @@ def processPars(dirName):
                          '. Please run par2 manually for more information, par2 cmd: ' + \
                          repairCmd)
 
-    processComplete(dirName, 'par', isPar)
+    processComplete(dirName, 'par', lambda file : isPar(file) or \
+                    (file[-2:] == '.1' and file not in dotOneFiles))
 
 def parseParNeedsBlocksOutput(archive, output):
     """ Return a list of broken or damaged required files from par2 v output, and the

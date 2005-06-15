@@ -9,7 +9,7 @@ nzbget
 import Hellanzb, os, re, sys, time
 from os.path import join as pathjoin
 from shutil import rmtree
-from threading import Thread, Condition, Lock
+from threading import Thread, Condition, Lock, RLock
 from Hellanzb.Log import *
 from Hellanzb.PostProcessorUtil import *
 from Hellanzb.Util import *
@@ -43,7 +43,7 @@ class PostProcessor(Thread):
         self.background = background
         
         self.decompressionThreadPool = []
-        self.decompressorLock = Lock()
+        self.decompressorLock = RLock()
         self.decompressorCondition = Condition(self.decompressorLock)
 
         self.rarPassword = rarPassword

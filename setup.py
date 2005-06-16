@@ -26,7 +26,7 @@ def runSetup():
         license = 'BSD',
 
         packages = [ 'Hellanzb', 'Hellanzb.NZBLeecher', 'Hellanzb.HellaXMLRPC' ],
-        scripts = [ 'hellanzb.py', 'hellagrowler.py' ],
+        scripts = [ 'hellanzb.py' ],
         data_files = [ ( 'etc', [ 'etc/hellanzb.conf.sample' ] ),
                        ( 'share/doc/hellanzb', [ 'CREDITS', 'README', 'LICENSE' ] ) ],
         )

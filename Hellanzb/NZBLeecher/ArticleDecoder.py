@@ -96,6 +96,15 @@ def stripArticleData(articleData):
     except IndexError:
         pass
 
+def yInt(object, message = None):
+    """ Helper function for casting yEncode keywords to integers """
+    try:
+        return int(object)
+    except ValueError:
+        if messsage != None:
+            error(message)
+        return None
+
 def parseArticleData(segment, justExtractFilename = False):
     """ get the article's filename from the articleData. if justExtractFilename == False,
     continue parsing the articleData -- decode that articleData (uudecode/ydecode) to the
@@ -132,18 +141,30 @@ def parseArticleData(segment, justExtractFilename = False):
                 raise FatalError('* Invalid =ybegin line in part %d!' % segment.number)
 
             setRealFileName(segment, ybegin['name'])
+            if segment.nzbFile.ySize == None:
+                    segment.nzbFile.ySize = yInt(ybegin['size'],
+                                                  '* Invalid =ybegin line in part %d!' % segment.number)
+                    
             encodingType = YENCODE
 
         elif line.startswith('=ypart'):
             # ybegin doesn't ensure a ypart on the next line
             withinData = True
+
+            ypart = ySplit(line)
+            if 'begin' in ypart:
+                segment.yBegin = yInt(ypart['begin'])
+            if 'end' in ypart:
+                segment.yEnd = yInt(ypart['end'])
             
         elif line.startswith('=yend'):
             yend = ySplit(line)
+            if 'size' in yend:
+                segment.ySize = yInt(yend['size'])
             if 'pcrc32' in yend:
-                segment.crc = '0' * (8 - len(yend['pcrc32'])) + yend['pcrc32'].upper()
+                segment.yCrc = '0' * (8 - len(yend['pcrc32'])) + yend['pcrc32'].upper()
             elif 'crc32' in yend and yend.get('part', '1') == '1':
-                segment.crc = '0' * (8 - len(yend['crc32'])) + yend['crc32'].upper()
+                segment.yCrc = '0' * (8 - len(yend['crc32'])) + yend['crc32'].upper()
 
         elif line.startswith('begin '):
             filename = line.rstrip().split(' ', 2)[2]
@@ -210,34 +231,67 @@ def setRealFileName(segment, filename):
               ' has incorrect filename header!: ' + filename + ' should be: ' + \
               segment.nzbFile.showFilename)
 
+def yDecodeCRCCheck(segment, decodedLines):
+    """ Validate the CRC of the segment with the yencode keyword """
+    passedCRC = False
+    if segment.yCrc == None:
+        # FIXME: I've seen CRC errors at the end of archive cause logNow = True to
+        # print I think after handleNZBDone appends a newline (looks like crap)
+        error(segment.nzbFile.showFilename + ' segment: ' + str(segment.number) + \
+              ' does not have a valid CRC/yend line!')
+    else:
+        decoded = ''.join(decodedLines)
+        crc = '%08X' % (crc32(decoded) & 2**32L - 1)
+        
+        if crc == segment.yCrc:
+            passedCRC = True
+        else:
+            message = segment.nzbFile.showFilename + ' segment ' + str(segment.number) + \
+                ': CRC mismatch ' + crc + ' != ' + segment.yCrc
+            error(message)
+            
+        del decoded
+        
+    return passedCRC
+
+def yDecodeFileSizeCheck(segment, size):
+    """ Ensure the file size from the yencode keyword """
+    if segment.ySize != None and size != segment.ySize:
+        message = segment.nzbFile.showFilename + ' segment ' + str(segment.number) + \
+            ': file size mismatch: actual: ' + str(size) + ' != ' + str(segment.ySize) + ' (expected)'
+        warn(message)
+
+def writeLines(dest, lines):
+    """ Write the lines out to the destination. Return the size of the file """
+    size = 0
+    out = open(dest, 'wb')
+    for line in lines:
+        size += len(line)
+        out.write(line)
+    out.close()
+
+    return size
+            
 def decodeSegmentToFile(segment, encodingType = YENCODE):
     """ Decode the clean data (clean as in it's headers (mime and yenc/uudecode) have been
     removed) list to the specified destination """
     decodedLines = []
+
     if encodingType == YENCODE:
         decodedLines = yDecode(segment.articleData)
 
         # CRC check
-        if segment.crc == None:
-            # FIXME: I've seen CRC errors at the end of archive cause logNow = True to
-            # print I think after handleNZBDone appends a newline (looks like crap)
-            error(segment.nzbFile.showFilename + ' segment: ' + str(segment.number) + \
-                  ' does not have a valid CRC/yend line!')
-        else:
-            decoded = ''.join(decodedLines)
-            crc = '%08X' % (crc32(decoded) & 2**32L - 1)
-            if crc != segment.crc:
-                message = segment.nzbFile.showFilename + ' segment ' + str(segment.number) + \
-                    ': CRC mismatch ' + crc + ' != ' + segment.crc
-                error(message)
-            del decoded
-            
-        out = open(segment.getDestination(), 'wb')
-        for line in decodedLines:
-            out.write(line)
-        out.close()
+        passedCRC = yDecodeCRCCheck(segment, decodedLines)
 
-        # Get rid of all this data now that we're done with it
+        # Write the decoded segment to disk
+        size = writeLines(segment.getDestination(), decodedLines)
+        
+        if passedCRC:
+            # File size check vs ydecode header. We only do the file size check if the CRC
+            # passed. If the CRC didn't pass the CRC check, the file size check will most
+            # likely fail as well, so we skip it
+            yDecodeFileSizeCheck(segment, size)
+
         debug('YDecoded articleData to file: ' + segment.getDestination())
 
     elif encodingType == UUENCODE:
@@ -249,17 +303,15 @@ def decodeSegmentToFile(segment, encodingType = YENCODE):
             debug('Decode failed in file: %s (part number: %d) error: %s' % \
                   (segment.getDestination(), segment.number, prettyException(msg)))
 
-        out = open(segment.getDestination(), 'wb')
-        for line in decodedLines:
-            out.write(line)
-        out.close()
+        # Write the decoded segment to disk
+        writeLines(segment.getDestination(), decodedLines)
 
-        # Get rid of all this data now that we're done with it
         debug('UUDecoded articleData to file: ' + segment.getDestination())
 
     elif segment.articleData == '':
         debug('NO articleData, touching file: ' + segment.getDestination())
         touch(segment.getDestination())
+
     else:
         debug('FIXME: Did not YY/UDecode!!')
         #raise FatalError('(Panic) Did not YY/UDecode!!')

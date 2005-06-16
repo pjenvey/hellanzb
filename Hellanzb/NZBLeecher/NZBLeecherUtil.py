@@ -133,19 +133,21 @@ class HellaThrottlingFactory(WrappingFactory):
             log.msg("Max connection count reached!")
             return None
 
+    def cancelScheduled(self, scheduled):
+        if scheduled is not None and not schedule.cancelled:
+            scheduled.cancel()
+
     def unregisterProtocol(self, p):
         WrappingFactory.unregisterProtocol(self, p)
         self.connectionCount -= 1
         self.ht.connectionCount -= 1
+        
         if self.ht.connectionCount == 0:
-            if self.ht.unthrottleReadsID is not None:
-                self.ht.unthrottleReadsID.cancel()
-            if self.ht.checkReadBandwidthID is not None:
-                self.ht.checkReadBandwidthID.cancel()
-            if self.ht.unthrottleWritesID is not None:
-                self.ht.unthrottleWritesID.cancel()
-            if self.ht.checkWriteBandwidthID is not None:
-                self.ht.checkWriteBandwidthID.cancel()    
+            for name in ('unthrottleReadsID', 'checkReadBandwidthID',
+                         'unthrottleWritesID', 'checkWriteBandwidthID'):
+                scheduled = getattr(self.ht, name)
+                if scheduled is not None and not scheduled.cancelled:
+                    scheduled.cancel()
 
 """
 /*

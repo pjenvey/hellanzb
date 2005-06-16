@@ -377,8 +377,10 @@ def unrar(fileName, rarPassword = None, pathToExtract = None):
 
     if unrarReturnCode > 0:
         errMsg = 'There was a problem during unrar, output:\n\n'
+        err = ''
         for line in output:
-            errMsg += line
+            err += line
+        errMsg += err.lstrip()
         raise FatalError(errMsg)
 
     # Return a tally of all the rars extracted from
@@ -392,6 +394,30 @@ def unrar(fileName, rarPassword = None, pathToExtract = None):
             processedRars.append(rarFile)
 
     return processedRars
+
+parRecoveryRe = re.compile(r'.vol\d+[-+]\d+.')
+def findPar2Groups(dirName):
+    """ Find all par2 file groupings """
+    pars = [file for file in os.listdir(dirName) if isPar(file)]
+    pars.sort()
+
+    parGroups = {}
+    for file in pars:
+        if file.find('.vol') > -1:
+            # Find the parent .par2
+            key = parRecoveryRe.sub('.', file).lower()
+
+            if not parGroups.has_key(key):
+                warn('Could not find par2 parent group for file: ' + file + ', key: ' + key)
+                continue
+            
+            group = parGroups[key]
+            group.append(file)
+            
+        else:
+            parGroups[file.lower()] = []
+
+    return parGroups
 
 """
 ## From par2cmdline-0.4
@@ -435,6 +461,8 @@ def processPars(dirName):
     if not isFreshState(dirName, 'par'):
         info(archiveName(dirName) + ': Skipping par processing')
         return
+
+    #info('groups: ' + str(findPar2Groups(dirName)))
     
     info(archiveName(dirName) + ': Verifying via pars..')
     start = time.time()

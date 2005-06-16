@@ -58,8 +58,11 @@ def logShutdown(message):
     """ log messages ocurring just before shutdown, handled specially """
     Hellanzb.logger.log(ScrollableHandler.SHUTDOWN, message)
 
-def logFile(message):
+def logFile(message, exception = None):
     """ Log a message to only the log file (and not the console) """
+    prettyEx = prettyException(exception)
+    if prettyEx != '':
+        message += ': ' + prettyEx
     Hellanzb.logger.log(ScrollableHandler.LOGFILE, message)
 
 def noLogFile(message, appendLF = True):

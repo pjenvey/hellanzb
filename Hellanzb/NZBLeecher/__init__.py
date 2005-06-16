@@ -9,7 +9,7 @@ Freddie (freddie@madcowdisease.org) utilizing the twisted framework
 (c) Copyright 2005 Philip Jenvey, Ben Bangert
 [See end of file]
 """
-import math, os, re, time, Hellanzb
+import os, re, time, Hellanzb
 from sets import Set
 from shutil import move
 from twisted.internet import reactor
@@ -40,7 +40,6 @@ def initNZBLeecher():
 
     Hellanzb.totalReadBytes = 0
     Hellanzb.totalStartTime = None
-    #Hellanzb.totalDownloadedFiles = 0
     
     # The NZBLeecherFactories
     Hellanzb.nsfs = []
@@ -92,6 +91,7 @@ def startNZBLeecher():
                                                       idleTimeout, antiIdle, host)
             Hellanzb.nsfs.append(nsf)
 
+            # FIXME: pass this to the factory constructor
             split = host.split(':')
             host = split[0]
             if len(split) == 2:
@@ -131,7 +131,7 @@ def startNZBLeecher():
     reactor.run()
     # Spam! Spam! Spam! Spam! Lovely spam! Spam! Spam!
 
-PHI = (1 + math.sqrt(5)) / 2
+PHI = 1.6180339887498948 # (1 + math.sqrt(5)) / 2
 class NZBLeecherFactory(ReconnectingClientFactory):
 
     def __init__(self, username, password, activeTimeout, antiIdleTimeout, hostname):
@@ -152,25 +152,23 @@ class NZBLeecherFactory(ReconnectingClientFactory):
 
         # all of this factory's clients 
         self.clients = []
+        # The factory maintains the NZBLeecher id, and recycles them when building new
+        # clients
         self.clientIds = []
 
-        # all clients that are actively leeching
-        # FIXME: is a Set necessary here
+        # all clients that are actively leeching FIXME: is a Set necessary here?
         self.activeClients = Set()
 
-        # FIXME: factories need to know when we're idle (done downloading). then it can
-        # turn the auto reconnect maxDelay up back to the default value (3600)
-        #self.maxDelay = 5
-        # turning this off for now -- but it might be useful for when usenet servers start
-        # shitting themselves
-
-        # FIXME: after too many disconnections and or no established
-        # connections, info('Unable to connect!: + str(error)')
-
+        # Maximum delay before reconnecting after disconnection
+        self.maxDelay = 2 * 60
+        
         # server reconnecting drop off factor, by default e. PHI (golden ratio) is a lower
         # factor than e
         self.factor = PHI # (Phi is acceptable for use as a factor if e is too large for
                           # your application.)
+
+        # FIXME: after too many disconnections and or no established
+        # connections, info('Unable to connect!: + str(error)')
 
     def buildProtocol(self, addr):
         p = NZBLeecher(self.username, self.password)
@@ -188,6 +186,16 @@ class NZBLeecherFactory(ReconnectingClientFactory):
         Hellanzb.scroller.size += 1
         return p
 
+    def clientConnectionFailed(self, connector, reason):
+        """ Overwrite ReconnectClientFactory so reconnecting happens after a connection timeout
+        (TimeoutError) """
+        # FIXME: twisted should provide a toggle for this. submit a patch
+        from twisted.internet import error
+        if self.continueTrying:
+            self.connector = connector
+            if not reason.check(error.UserError) or reason.check(error.TimeoutError):
+                self.retry()
+
     def fetchNextNZBSegment(self):
         for p in self.clients:
             reactor.callLater(0, p.fetchNextNZBSegment)
@@ -202,8 +210,6 @@ class NZBLeecher(NNTPClient, TimeoutMixin):
     """ Extends twisted NNTPClient to download NZB segments from the queue, until the queue
     contents are exhausted """
 
-    #nextId = 0 # Id Pool
-    
     def __init__(self, username, password):
         """ """
         NNTPClient.__init__(self)
@@ -393,6 +399,7 @@ class NZBLeecher(NNTPClient, TimeoutMixin):
     def isActive(self, isActiveBool):
         """ Activate/Deactivate this client -- notify the factory, etc"""
         if isActiveBool and not self.activated:
+            debug(str(self) + ' ACTIVATING')
             self.activated = True
 
             # we're now timing out the connection, set the appropriate timeout
@@ -419,6 +426,7 @@ class NZBLeecher(NNTPClient, TimeoutMixin):
                 self.factory.activeClients.add(self)
                 
         elif not isActiveBool and self.activated:
+            debug(str(self) + ' DEACTIVATING')
             self.activated = False
 
             # we're now anti idling the connection, set the appropriate timeout

@@ -348,15 +348,14 @@ class NZBLeecherTicker:
             self.scrollHeaders = []
 
 def stdinEchoOff():
-    # Stolen from python's getpass
+    """ ECHO OFF standard input """
     from Hellanzb.Log import debug
     try:
         fd = sys.stdin.fileno()
     except:
         pass
 
-    Hellanzb.oldStdin = termios.tcgetattr(fd) # a copy to save
-    new = Hellanzb.oldStdin[:]
+    new = termios.tcgetattr(fd)
 
     new[3] = new[3] & ~termios.ECHO # 3 == 'lflags'
     try:
@@ -367,13 +366,14 @@ def stdinEchoOff():
         pass
     
 def stdinEchoOn():
+    """ ECHO ON standard input """
     from Hellanzb.Log import debug
     try:
         fd = sys.stdin.fileno()
     except:
         pass
 
-    new = termios.tcgetattr(fd) # a copy to save
+    new = termios.tcgetattr(fd)
 
     new[3] = new[3] | termios.ECHO # 3 == 'lflags'
     try:
@@ -384,7 +384,7 @@ def stdinEchoOn():
         pass
 
 def prettyException(exception):
-    """ return a pretty rendition of the specified exception, or if no valid exception an
+    """ Return a pretty rendition of the specified exception, or if no valid exception an
     empty string """
     message = ''
     if exception != None:
@@ -400,7 +400,7 @@ def prettyException(exception):
     return message
 
 def lockScrollableHandlers(func, *args, **kwargs):
-    """ call the function with all ScrollableHandlers locked """
+    """ Call the function with all ScrollableHandlers locked """
     lockedLoggers = []
     for logger in Hellanzb.logger.handlers:
         if isinstance(logger, ScrollableHandler):
@@ -486,7 +486,7 @@ def initLogFile(logFile = None, debugLogFile = None):
             
         debugFileHdlr = RotatingFileHandlerNoLF(Hellanzb.DEBUG_MODE, maxBytes = maxBytes,
                                                 backupCount = backupCount)
-        debugFileHdlr.setFormatter(logging.Formatter('%(asctime)s %(levelname)s %(message)s'))
+        debugFileHdlr.setFormatter(logging.Formatter('%(asctime)s %(message)s'))
         debugFileHdlr.setLevel(logging.DEBUG)
         debugFileHdlr.addFilter(DebugFileFilter())
         Hellanzb.logger.addHandler(debugFileHdlr)

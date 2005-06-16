@@ -217,6 +217,10 @@ def parseNZB(nzb, notification = 'Downloading', quiet = False):
         if not Hellanzb.queue.parseNZB(nzb):
             for nsf in Hellanzb.nsfs:
                 if not len(nsf.activeClients):
+                    # FIXME: Probably shouldn't call client.fetchNext unless the client is
+                    # authorized/connected. Otherwise it's should call fetchNext on it's
+                    # own in a later reactor loop, and begin downloading since we just
+                    # filled the Queue. The fix for this goes in NZBLeecherFactory.
                     nsf.fetchNextNZBSegment()
 
     except FatalError, fe:
@@ -390,11 +394,11 @@ def continueCurrent():
         for client in nsf.clients:
 
             # When we pause a download, we simply stop reading from the socket. That
-            # usually causes the connection to become lost fairly quickly. When that
-            # connection is lost, a new client is created with the flag
-            # pauseReconnected=True. This new client acts normally (anti idles the
-            # connection, etc) except it does not enter the fetchNextNZBSegment loop. Thus
-            # when we encounter these clients we simply tell them to begin downloading
+            # causes the connection to become lost fairly quickly. When that happens a new
+            # client is created with the flag pauseReconnected=True. This new client acts
+            # normally (anti idles the connection, etc) except it does not enter the
+            # fetchNextNZBSegment loop. Thus when we encounter these clients we simply
+            # tell them to begin downloading
             if client.pauseReconnected:
                 debug(str(client) + ' pauseReconnect')
                 reactor.callLater(0, client.fetchNextNZBSegment)

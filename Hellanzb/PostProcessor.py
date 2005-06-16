@@ -11,6 +11,7 @@ from os.path import join as pathjoin
 from shutil import rmtree
 from threading import Thread, Condition, Lock, RLock
 from Hellanzb.Log import *
+from Hellanzb.Logging import prettyException
 from Hellanzb.PostProcessorUtil import *
 from Hellanzb.Util import *
 
@@ -110,8 +111,20 @@ class PostProcessor(Thread):
             self.stop()
             if self.isSubDir:
                 raise
+
+            pe = prettyException(fe)
+            lines = pe.split('\n')
+            if Hellanzb.LOG_FILE and len(lines) > 13:
+                # Show only the first 4 and last 4 lines of the error
+                begin = ''.join([line + '\n' for line in lines[:3]])
+                end = ''.join([line + '\n' for line in lines[-9:]])
+                msg = begin + '\n <hellanzb truncated the error\'s output, see the log file for full output>\n' + end
+            else:
+                msg = pe
             
-            error(archiveName(self.dirName) + ': A problem occurred', fe)
+            noLogFile(archiveName(self.dirName) + ': A problem occurred: ' + msg)
+            logFile(archiveName(self.dirName) + ': A problem occurred: ', fe)
+
             if not self.background:
                 # FIXME: none of these will cause the main thread to return 1
                 sys.exit(1)

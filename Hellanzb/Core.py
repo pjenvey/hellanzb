@@ -47,7 +47,7 @@ import optparse, os, signal, sys, time, thread, threading, Hellanzb, Hellanzb.Po
 from distutils import spawn
 from threading import Lock
 from twisted.internet import reactor
-from Hellanzb.Daemon import initDaemon
+from Hellanzb.Daemon import initDaemon, postProcess
 from Hellanzb.Log import *
 from Hellanzb.Logging import initLogging, stdinEchoOn
 from Hellanzb.PostProcessorUtil import defineMusicType
@@ -313,6 +313,9 @@ def parseArgs():
                       ' (via xmlrpc) if one is available, otherwise in the current process. then exit')
     parser.add_option('-P', '--rar-password', type='string', dest='rarPassword',
                       help='when used with the -p option, specifies the nzb archive\'s rar password')
+    parser.add_option('-L', '--local-post-process', action='store_true', dest='localPostProcess',
+                      help='when used with the -p option, do the post processing work in the current ' + \
+                      'process (do not attempt contact an already running queue daemon)')
     parser.add_option('-r', '--rpc-server', type='string', dest='rpcServer',
                       help='specify the rpc server (overwrites Hellanzb.XMLRPC_SERVER config file setting)')
     parser.add_option('-s', '--rpc-password', type='string', dest='rpcPassword',
@@ -326,7 +329,11 @@ def processArgs(options, args):
     if not len(args) and not options.postProcessDir:
         info('\nStarting queue daemon')
         initDaemon()
-        
+
+    elif options.postProcessDir and options.localPostProcess:
+        reactor.callLater(0, postProcess, options)
+        reactor.run()
+
     else:
         try:
             hellaRemote(options, args)

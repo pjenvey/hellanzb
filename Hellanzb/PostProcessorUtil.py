@@ -134,13 +134,37 @@ def isRar(fileName):
     return False
 
 def isPar(fileName):
-    """ Determine if the specified file is a par """
-    fileName = os.path.basename(fileName)
+    """ Determine if the specified file is a par2 or par1 file """
+    return isPar2(fileName) or isPar1(fileName)
+
+def isPar2(fileName):
+    """ Determine if the specified file is a par2 file """
     ext = getFileExtension(fileName)
     if not ext:
         return False
-    if ext.lower() == 'par2' or ext.lower() == 'par2_broken':
+    
+    # FIXME: the downloader doesn't make _broken files (nzbget did) -- but it might in the
+    # future
+    ext = ext.lower()
+    if ext == 'par2' or ext == 'par2_broken':
         return True
+
+    return False
+
+par1ParityVolumeFileExtRe = re.compile(r'[pq]\d{2}$')
+EOLbroken = re.compile(r'_broken$')
+def isPar1(fileName):
+    """ Determine if the specified file is a par1 file """
+    ext = getFileExtension(fileName)
+    if not ext:
+        return False
+
+    ext = ext.lower()
+    if ext == 'par' or ext == 'par_broken':
+        return True
+    if par1ParityVolumeFileExtRe.match(EOLbroken.sub('', ext)):
+        return True
+
     return False
 
 def isDuplicate(fileName):
@@ -230,7 +254,7 @@ def getMusicType(fileName):
     return False
 
 def decompressMusicFile(fileName, musicType, archive = None):
-    """ Decompress the specified file according to it's musicType """
+    """ Decompress the specified file according to its musicType """
     cmd = musicType.decompressor.replace('<FILE>', '"' + fileName + '"')
 
     extLen = len(getFileExtension(fileName))
@@ -284,7 +308,7 @@ def processRars(dirName, rarPassword):
             # unless there is a .rar file. However, rar seems to be smart enough to look
             # for a .rar file if we specify this incorrect first file anyway
             
-            processedRars.extend(unrar(absPath, rarPassword))
+            processedRars.extend(unrar(dirName, file, rarPassword))
             unrared += 1
             # FIXME: move rars into processed immediately
             # justProcessedRars = unrar(absPath, rarPassword)
@@ -305,7 +329,7 @@ def processRars(dirName, rarPassword):
     info(archiveName(dirName) + ': Finished unraring (%i %s, took: %.1fs)' % (unrared,
                                                                               rarTxt, e))
 
-def unrar(fileName, rarPassword = None, pathToExtract = None):
+def unrar(dirName, fileName, rarPassword = None, pathToExtract = None):
     """ Unrar the specified file. Returns all the rar files we extracted from """
     # FIXME: since we unrar multiple files, this function's FatalErrors shouldn't destroy
     # the chain of unraring (it currently does)
@@ -314,7 +338,7 @@ def unrar(fileName, rarPassword = None, pathToExtract = None):
         # could mean the only rars we found are were album covers
         raise FatalError('Unable to locate the first rar')
 
-    dirName = os.path.dirname(fileName)
+    fileName = os.path.normpath(dirName + os.sep + fileName)
 
     # By default extract to the file's dir
     if pathToExtract == None:
@@ -395,30 +419,147 @@ def unrar(fileName, rarPassword = None, pathToExtract = None):
 
     return processedRars
 
-parRecoveryRe = re.compile(r'.vol\d+[-+]\d+.')
 def findPar2Groups(dirName):
     """ Find all par2 file groupings """
     pars = [file for file in os.listdir(dirName) if isPar(file)]
     pars.sort()
 
+    # A map of a wildcards defining a par file group and its par file names. The wildcard
+    # isn't actually used as a wildcard, it's simply a label
     parGroups = {}
+    parGroupOrder = [] # maintain the correct order
     for file in pars:
-        if file.find('.vol') > -1:
-            # Find the parent .par2
-            key = parRecoveryRe.sub('.', file).lower()
-
-            if not parGroups.has_key(key):
-                warn('Could not find par2 parent group for file: ' + file + ', key: ' + key)
-                continue
-            
-            group = parGroups[key]
-            group.append(file)
-            
+        if isPar2(file):
+            key = flattenPar2Name(file)
         else:
-            parGroups[file.lower()] = []
+            key = flattenPar1Name(file)
 
-    return parGroups
+        if parGroups.has_key(key):
+            group = parGroups[key]
+        else:
+            group = []
+            parGroups[key] = group
+            parGroupOrder.append(key)
 
+        group.append(file)
+
+    return parGroups, parGroupOrder
+
+par2RecoveryPacketRe = re.compile(r'.vol\d+[-+]\d+.')
+def flattenPar2Name(file):
+    """ Flatten a PAR2 filename for grouping (remove the unique characters distinguishing it
+    from other par files in its same group) via wildcards (and add wildcard values where
+    appropriate)
+
+    A list of par2 files containing multiple groups might look like:
+    
+    download.part1.par2            download.part2.par2
+    download.part1.vol000+01.PAR2  download.part2.vol000+01.PAR2
+    download.part1.vol001+02.PAR2  download.part2.vol001+02.PAR2
+    download.part1.vol003+04.PAR2  download.part2.vol003+04.PAR2
+
+    Would have 2 wildcards: download.part1*.{par2,PAR2}
+                            download.part2*.{par2,PAR2}
+                            
+    or possibly even:
+    
+    dataGroupA.vol007+08.PAR2  dataGroupA.vol053+48.PAR2 dataGroupB.vol28+25.PAR2
+    dataGroupA.vol015+13.PAR2  dataGroupB.vol07+08.PAR2  dataGroupC.vol12+10.PAR2
+    dataGroupA.vol028+25.PAR2  dataGroupB.vol15+13.PAR2  dataGroupC.vol22+19.PAR2
+
+    Would have 3 wildcards: dataGroupA*.{par2,PAR2}
+                            dataGroupB*.{par2,PAR2}
+                            dataGroupC*.{par2,PAR2}
+
+    From the PAR2 Specification: http://www.par2.net/par2spec.php (Note the specification
+    specifys '-' as the vol delimiter, however Usenet appears to use '+' for some unknown
+    reason)
+
+    PAR 2.0 files should always end in ".par2". For example, "file.par2". If a file
+    contains recovery slices, the ".par2" should be preceded by ".volXX-YY" where XX to YY
+    is the range of exponents for the recovery slices. For example,
+    "file.vol20-29.par2". More than 2 digits should be used if necessary. Any exponents
+    that contain fewer digits than the largest exponent should be preceded by zeros so
+    that all filenames have the same length. For example,
+    "file.vol075-149.par2". Exponents should start at 0 and go upwards.
+
+    If multiple PAR files are generated, they may either have a constant number of slices
+    per file (e.g. 20, 20, 20, ...) or exponentially increasing number of slices (e.g., 1,
+    2, 4, 8, ...). Note that to store 1023 slices takes 52 files if each has 20 slices,
+    but takes only 10 files with the exponential pattern.
+
+    When generating multiple PAR files, it is expected that one file be generated without
+    any slices and containing all main, file description, and input file checksum
+    packets. The other files should also include the main, file description and input file
+    checksum packets. This repeats data that cannot be recovered.
+    
+    """
+    # Removing all the '.vol' cruft reveals the group
+    file = par2RecoveryPacketRe.sub('.', file)
+    return file[:-5] + '*.{par2,PAR2}'
+
+def flattenPar1Name(file):
+    """ Flatten a PAR1 filename for grouping (remove the unique characters distinguishing it
+    from other par files in its same group) via wildcards (and add wildcard values where
+    appropriate)
+    
+    A typical par1 listing:
+    
+    Data.part01.PAR  Data.part01.P01
+    Data.part01.P02
+
+    Would have a wildcard of: Data.part01.*
+    
+    From http://www.par2.net/parspec.php:
+    A parity volume set consists of two parts. First there is a .PAR file (the index
+    file).
+
+    Second there are the parity volume files. They are named .P00, .P01,
+    P02..... PXX. (After .P99, there will be .Q00...)
+    """
+    # Removing the file extension reveals the group
+    return file[:-len(getFileExtension(file))] + '*'
+
+def processPars(dirName):
+    """ Verify (and repair) the integrity of the files in the specified directory via par2
+    (which supports both par1 and par2 files). If files need repair and there are not
+    enough recovery blocks, raise a fatal exception. Each different grouping of pars will
+    have their own explicit par2 process ran on the grouping's files """
+    # Just incase we're running the program again, and we already successfully processed
+    # the pars, don't bother doing it again
+    if not isFreshState(dirName, 'par'):
+        info(archiveName(dirName) + ': Skipping par processing')
+        return
+
+    start = time.time()
+    dirName = DirName(dirName + os.sep)
+
+    # Remove any .1 files after succesful par2 that weren't previously there (aren't in
+    # this list)
+    dotOneFiles = [file for file in os.listdir(dirName) if file[-2:] == '.1']
+
+    parGroups, parGroupOrder = findPar2Groups(dirName)
+    for wildcard in parGroupOrder:
+        parFiles = parGroups[wildcard]
+        
+        par2(dirName, parFiles, wildcard)
+        
+        # Successful par2, move them out of the way
+        for parFile in parFiles:
+            moveToProcessed(dirName + parFile)
+
+    e = time.time() - start
+    parTxt = 'par group'
+    groupCount = len(parGroups)
+    if groupCount > 1:
+        parTxt += 's'
+    info(archiveName(dirName) + ': Finished par verifiy (%i %s, took: %.1fs)' % (groupCount,
+                                                                              parTxt, e))
+    
+    processComplete(dirName, 'par', lambda file : isPar(file) or \
+                    (file[-2:] == '.1' and file not in dotOneFiles))
+
+    
 """
 ## From par2cmdline-0.4
 
@@ -452,33 +593,14 @@ typedef enum Result
 
 } Result;
 """
-def processPars(dirName):
-    """ Verify the integrity of the files in the specified directory via par2. If files
-    need repair and there are enough recovery blocks, repair the files. If files need
-    repair and there are not enough recovery blocks, raise a fatal exception """
-    # Just incase we're running the program again, and we already successfully processed
-    # the pars, don't bother doing it again
-    if not isFreshState(dirName, 'par'):
-        info(archiveName(dirName) + ': Skipping par processing')
-        return
-
-    #info('groups: ' + str(findPar2Groups(dirName)))
-    
-    info(archiveName(dirName) + ': Verifying via pars..')
-    start = time.time()
-
-    dirName = DirName(dirName + os.sep)
-
-    # Remove any .1 files after succesful par2 that weren't previously there (aren't in
-    # this list)
-    dotOneFiles = [file for file in os.listdir(dirName) if file[-2:] == '.1']
-    
-    repairCmd = 'par2 r "' + dirName + '*.PAR2" "' + dirName + '*.par2" "'
-    if '.par2' in os.listdir(dirName):
-        # a filename of '.par2' will not be wildcard glob'd by '*.par2'. WHY?????
-        repairCmd += dirName + '.par2" "'
-    repairCmd += dirName + '*_broken"'
-
+def par2(dirName, parFiles, wildcard):
+    """ Verify (and repair) the integrity of the files in the specified directory via par2. If
+    files need repair and there are not enough recovery blocks, raise a fatal exception """
+    info(archiveName(dirName) + ': Verifying ' + wildcard + ' via pars..')
+    repairCmd = 'par2 r'
+    for parFile in parFiles:
+        repairCmd += ' "' + dirName + parFile + '"'
+        
     t = Topen(repairCmd)
     output, returnCode = t.readlinesAndWait()
 
@@ -493,8 +615,7 @@ def processPars(dirName):
         # else:
         
         # Verified
-        e = time.time() - start 
-        info(archiveName(dirName) + ': Par verification passed (took: %.1fs)' % (e))
+        return
 
     elif returnCode == 2:
         # Repair required and impossible
@@ -518,9 +639,6 @@ def processPars(dirName):
         raise FatalError('par2 repair failed: returned code: ' + str(returnCode) + \
                          '. Please run par2 manually for more information, par2 cmd: ' + \
                          repairCmd)
-
-    processComplete(dirName, 'par', lambda file : isPar(file) or \
-                    (file[-2:] == '.1' and file not in dotOneFiles))
 
 def parseParNeedsBlocksOutput(archive, output):
     """ Return a list of broken or damaged required files from par2 v output, and the

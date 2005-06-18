@@ -54,6 +54,13 @@ class HellaReactor(SelectReactor):
         except SystemExit:
             pass
 
+    def sigTerm(self, *args):
+        """ Exit gracefully """
+        from twisted.internet import reactor
+        from Hellanzb.Core import shutdown
+        reactor.addSystemEventTrigger('after', 'shutdown', logShutdown, 'Caught SIGTERM, exiting..')
+        reactor.callLater(0, shutdown, True)
+
     def _doReadOrWrite(self, selectable, method, dict, faildict={
         error.ConnectionDone: failure.Failure(error.ConnectionDone()),
         error.ConnectionLost: failure.Failure(error.ConnectionLost())

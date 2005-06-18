@@ -24,15 +24,21 @@ o Dan Klay - Tester
 
 o cmang - ASCII
 
-o Hellanzb.NZBLeecher uses code from pyNewsleecher by:
+o Hellanzb.NZBLeecher uses code from pynewsleecher by:
   - Freddie (freddie@madcowdisease.org)
 
-o hellanzb uses Growl Network Protocol Client for Python by:
+o Hellanzb.Growl is the Growl Network Protocol Client for Python by:
   - Rui Carmo (http://the.taoofmac.com)
+
+o Hellanzb.HellaXMLRPC.HtPasswdAuth is originally Andrew Bennets'
+  htpasswdauth.py with slight modifications
+  
+o Hellanzb.HellaXMLRPC.xmlrpc is from twisted's web module (TwistedWeb-0.5.0),
+  with small modifications for HTTP basic auth enabled XMLRPC
 
 o Hellanzb.NZBLeecher.nntp is twisted's news module (TwistedNews-0.1.0) --
   included so there is no TwistedNews dependency with Twisted-2.0
-  
+
       ________________________
 o     \   |    /  ___/_   _  /
       |   _   /  \_   /   _  \

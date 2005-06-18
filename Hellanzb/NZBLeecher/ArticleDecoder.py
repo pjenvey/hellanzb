@@ -213,6 +213,7 @@ def setRealFileName(segment, filename):
         # using the temp name
         segment.nzbFile.tempFileNameLock.acquire()
         segment.nzbFile.filename = filename
+        # do we really have to lock for this entire operation?
 
         tempFileNames = {}
         for nzbSegment in segment.nzbFile.nzbSegments:

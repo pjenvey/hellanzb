@@ -60,8 +60,8 @@ def initDaemon():
         initXMLRPCServer()
     except FatalError, fe:
         error('Exiting', fe)
-        from Hellanzb.Core import shutdownNow
-        shutdownNow(1)
+        from Hellanzb.Core import shutdownAndExit
+        shutdownAndExit(1)
 
     reactor.callLater(0, info, 'hellanzb - Now monitoring queue...')
     reactor.callLater(0, growlNotify, 'Queue', 'hellanzb', 'Now monitoring queue..', False)
@@ -307,11 +307,11 @@ def handleNZBDone(nzbfilename):
 def postProcess(options):
     if not os.path.isdir(options.postProcessDir):
         error('Unable to process, not a directory: ' + options.postProcessDir)
-        shutdownNow(1)
+        shutdownAndExit(1)
 
     if not os.access(options.postProcessDir, os.R_OK):
         error('Unable to process, no read access to directory: ' + options.postProcessDir)
-        shutdownNow(1)
+        shutdownAndExit(1)
 
     rarPassword = None
     if options.rarPassword:

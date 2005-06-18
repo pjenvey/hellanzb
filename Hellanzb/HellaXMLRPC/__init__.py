@@ -20,7 +20,7 @@ from Hellanzb.HellaXMLRPC.HtPasswdAuth import HtPasswdWrapper
 from Hellanzb.Logging import LogOutputStream
 from Hellanzb.Log import *
 from Hellanzb.PostProcessor import PostProcessor
-from Hellanzb.Util import archiveName, cmHella, flattenDoc, truncateToMultiLine, TopenTwisted
+from Hellanzb.Util import archiveName, cmHella, flattenDoc, prettyEta, truncateToMultiLine, TopenTwisted
 
 __id__ = '$Id$'
 
@@ -79,7 +79,7 @@ class HellaXMLRPCServer(XMLRPC):
     #    """ """
 
     def xmlrpc_last(self, nzbId):
-        """ Move the NZB with the specified ID to the end of the queue. """
+        """ Move the NZB with the specified ID to the end of the queue """
         from Hellanzb.Daemon import lastNZB
         return lastNZB(nzbId)
 
@@ -97,8 +97,8 @@ class HellaXMLRPCServer(XMLRPC):
         return True
 
     def xmlrpc_maxrate(self, rate = None):
-        """ Set the Hellanzb.MAX_RATE (maximum download rate) value. A value of zero denotes no
-        maximum rate """
+        """ Return the Hellanzb.MAX_RATE (maximum download rate) value. Specify a second argument
+        to change the value -- a value of zero denotes no maximum rate """
         if rate == None:
             if Hellanzb.ht.readLimit == None:
                 return str(None)
@@ -131,15 +131,11 @@ class HellaXMLRPCServer(XMLRPC):
         return True
 
     def xmlrpc_shutdown(self):
-        """ shutdown hellanzb. will quietly kill any post processing threads that may exist """
-        # First allow the processors to die/be killed
-        Hellanzb.SHUTDOWN = True
-        TopenTwisted.killAll()
-
+        """ Shutdown hellanzb. Will quietly kill any post processing threads that may exist """
         # Shutdown the reactor/alert the ui
         reactor.addSystemEventTrigger('after', 'shutdown', logShutdown, 'RPC shutdown call, exiting..')
         from Hellanzb.Core import shutdown
-        reactor.callLater(1, shutdown)
+        reactor.callLater(1, shutdown, True)
         
         return True
         
@@ -153,18 +149,22 @@ class HellaXMLRPCServer(XMLRPC):
         for nsf in Hellanzb.nsfs:
             totalSpeed += nsf.sessionSpeed
             activeClients += len(nsf.activeClients)
-        if activeClients:
-            totalSpeed = '%.1fKB/s' % (totalSpeed)
-        else:
-            totalSpeed = 'Idle'
 
         s['time'] = DateTime()
         s['uptime'] = secondsToUptime(time.time() - Hellanzb.BEGIN_TIME)
         s['rate'] = totalSpeed
+        s['queued_mb'] = Hellanzb.queue.totalQueuedBytes / 1024 / 1024
+        
+        if totalSpeed == 0:
+            s['eta'] = 0
+        else:
+            s['eta'] = (Hellanzb.queue.totalQueuedBytes / 1024) / totalSpeed
+            
         if Hellanzb.ht.readLimit == None or Hellanzb.ht.readLimit == 0:
             s['maxrate'] = 0
         else:
             s['maxrate'] = Hellanzb.ht.readLimit / 1024
+            
         s['total_dl_nzbs'] = Hellanzb.totalArchivesDownloaded
         s['total_dl_files'] = Hellanzb.totalFilesDownloaded
         s['total_dl_segments'] = Hellanzb.totalSegmentsDownloaded
@@ -488,7 +488,11 @@ def statusString(remoteCall, result):
     currentNZBs = s['currently_downloading']
     processingNZBs = s['currently_processing']
     queuedNZBs = s['queued']
-    
+
+    if totalSpeed == 0:
+        totalSpeed = 'Idle'
+    else:
+        totalSpeed = '%.1fKB/s' % (totalSpeed)
     
     downloading = 'Currently Downloading: '
     processing = 'Currently Processing: '

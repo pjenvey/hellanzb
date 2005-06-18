@@ -254,10 +254,14 @@ def outlineRequiredDirs():
     for dir in requiredDirs:
         setattr(Hellanzb, dir + '_DIR', None)
 
-def shutdown(logStdout = False):
-    """ turn the knob that tells all parts of the program we're shutting down """
+def shutdown(killPostProcessors = False):
+    """ Turn the knob that tells all parts of the program we're shutting down, and kill the
+    twisted reactor """
     # that knob, that threads will constantly check
     Hellanzb.SHUTDOWN = True
+
+    if killPostProcessors:
+        TopenTwisted.killAll()
 
     # stop the twisted reactor
     reactor.callLater(0, reactor.stop)
@@ -265,8 +269,8 @@ def shutdown(logStdout = False):
     # Just in case we left it off
     stdinEchoOn()
     
-def shutdownNow(returnCode = 0):
-    """ shutdown the program ASAP """
+def shutdownAndExit(returnCode = 0):
+    """ Shutdown hellanzb's twisted reactor, AND call sys.exit """
     shutdown()
 
     sys.exit(returnCode)
@@ -342,7 +346,7 @@ def processArgs(options, args):
             raise
         except FatalError, fe:
             error('Exiting', fe)
-            shutdownNow(1)
+            shutdownAndExit(1)
         except Exception, e:
             error('An unexpected problem occurred, exiting', e)
             shutdown()
@@ -360,7 +364,7 @@ def main():
         raise
     except FatalError, fe:
         error('Exiting', fe)
-        shutdownNow(1)
+        shutdownAndExit(1)
     except Exception, e:
         error('An unexpected problem occurred, exiting', e)
         shutdown()

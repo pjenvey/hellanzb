@@ -70,7 +70,12 @@ class TopenTwisted(protocol.ProcessProtocol):
     def processEnded(self, reason):
         self.returnCode = reason.value.exitCode
 
+        from Hellanzb.Log import debug
+        import thread
+        debug('processEnded THREAD ID: ' + str(thread.get_ident()) + ' (' + self.cmd + ') ' + \
+              'aquiring lock')
         self.finished.acquire()
+        debug('processEnded THREAD ID: ' + str(thread.get_ident()) + ' (' + self.cmd + ')')
         self.finished.notify()
         self.finished.release()
 
@@ -105,6 +110,9 @@ class TopenTwisted(protocol.ProcessProtocol):
         TopenTwisted.activePool.append(self)
 
         self.finished.acquire()
+        from Hellanzb.Log import debug
+        import thread
+        debug('spawnProcess THREAD ID: ' + str(thread.get_ident()) + ' (' + self.cmd + ')')
         reactor.spawnProcess(self, self.args[0], args = self.args, env = os.environ)
         self.finished.wait()
         self.finished.release()
@@ -533,6 +541,12 @@ def inMainThread():
         return True
     return False
 
+def prettyEta(etaSeconds):
+    """ return a cute eta string from seconds """
+    hours = int(etaSeconds / (60 * 60))
+    minutes = int((etaSeconds - (hours * 60 * 60)) / 60)
+    seconds = etaSeconds - (hours * 60 * 60) - (minutes * 60)
+    return '%.2d:%.2d:%.2d' % (hours, minutes, seconds)
 
 # NOTE: if you're cut & pasting -- the ascii is escaped (\") in one spot
 Hellanzb.CMHELLA = \

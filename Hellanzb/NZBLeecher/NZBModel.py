@@ -222,7 +222,11 @@ class NZBFile:
         # LAME: re-entrant lock for maintaing temp filenames/renaming temp -> real file
         # names in separate threads. FIXME: This is a lot of RLock() construction, it
         # should be removed eventually
-        self.tempFileNameLock = RLock()
+        self.tempFileNameLock = RLock() # this isn't used right
+        # filename could be modified/accessed concurrently (getDestination called by the
+        # downloader doesnt lock).
+        # NOTE: maybe just change nzbFile.filename via the reactor (callFromThread), and
+        # remove the lock entirely?
 
     def getDestination(self):
         """ Return the full pathname of where this NZBFile should be written to on disk """
@@ -276,10 +280,7 @@ class NZBFile:
                 
                 workingDirListing.append(file)
     
-        self.tempFileNameLock.acquire()
-    
         if os.path.isfile(self.getDestination()):
-            self.tempFileNameLock.release()
             end = time.time() - start
             debug('needsDownload took: ' + str(end))
             return False
@@ -291,12 +292,10 @@ class NZBFile:
                 
                 # Whole file match
                 if self.subject.find(file) > -1:
-                    self.tempFileNameLock.release()
                     end = time.time() - start
                     debug('needsDownload took: ' + str(end))
                     return False
     
-        self.tempFileNameLock.release()
         end = time.time() - start
         debug('needsDownload took: ' + str(end))
         return True

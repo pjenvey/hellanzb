@@ -228,13 +228,6 @@ class NZBLeecherTicker:
         # segments should be empty at this point anyway
         self.segments = []
 
-    def prettyEta(self, etaSeconds):
-        """ return a cute eta string from seconds """
-        hours = int(etaSeconds / (60 * 60))
-        minutes = int((etaSeconds - (hours * 60 * 60)) / 60)
-        seconds = etaSeconds - (hours * 60 * 60) - (minutes * 60)
-        return '%.2d:%.2d:%.2d' % (hours, minutes, seconds)
-
     # FIXME: probably doesn't matter much, but should be using StringIO for concatenation
     # here, anyway
     def updateLog(self, logNow = False):
@@ -337,7 +330,7 @@ class NZBLeecherTicker:
         if totalSpeed == 0:
             eta = '00:00:00'
         else:
-            eta = self.prettyEta((Hellanzb.queue.totalQueuedBytes / 1024) / totalSpeed)
+            eta = prettyEta((Hellanzb.queue.totalQueuedBytes / 1024) / totalSpeed)
             
         self.currentLog += line % ('Total', totalSpeed,
                                    Hellanzb.queue.totalQueuedBytes / 1024 / 1024,

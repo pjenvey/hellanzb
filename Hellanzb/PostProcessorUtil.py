@@ -6,6 +6,7 @@ PostProcessorUtil - support functions for the PostProcessor
 [See end of file]
 """
 import os, re, sys, time, Hellanzb
+from shutil import move
 from threading import Thread
 from time import time
 from Hellanzb.Log import *
@@ -173,22 +174,6 @@ def isDuplicate(fileName):
         return True
     return False
 
-def isAlbumCoverArchive(fileName):
-    """ determine if the archive (zip or rar) file likely contains album cover art, which
-    requires special handling """
-    # FIXME: check for images jpg/gif/tiff, and or look for key words like 'cover',
-    # 'front' 'back' in the file name, AND within the archive
-
-    # NOTE: i notice rar has this option:
-    #i[i|c|h|t]=<string>
-    #        Find string in archives.
-    #Supports following optional parameters:
-    # i - case insensitive search (default);
-    # c - case sensitive search;
-    
-    #return True
-    return False
-
 def isRequiredFile(fileName):
     """ Given the specified of file name, determine if the file is required for the full
     completition of the unarchiving process (ie, the completition of this
@@ -272,8 +257,8 @@ def decompressMusicFile(fileName, musicType, archive = None):
 
     if returnCode == 0:
         # Successful, move the old file away
-        os.rename(fileName, os.path.dirname(fileName) + os.sep + Hellanzb.PROCESSED_SUBDIR + os.sep +
-                  os.path.basename(fileName))
+        move(fileName, os.path.dirname(fileName) + os.sep + Hellanzb.PROCESSED_SUBDIR + os.sep +
+             os.path.basename(fileName))
         
     elif returnCode > 0:
         msg = 'There was a problem while decompressing music file: ' + os.path.basename(fileName) + \
@@ -302,42 +287,31 @@ def processRars(dirName, rarPassword):
         # leave more than just the .1
         if not os.path.isdir(absPath) and isRar(absPath) and \
                 not isDuplicate(absPath) and not stringEndsWith(absPath, '.1') and \
-                not stringEndsWith(absPath, '_broken') and not isAlbumCoverArchive(absPath) and \
-                absPath not in processedRars:
+                not stringEndsWith(absPath, '_broken') and absPath not in processedRars:
             # Found the first rar. this is always the first rar to start extracting with,
             # unless there is a .rar file. However, rar seems to be smart enough to look
             # for a .rar file if we specify this incorrect first file anyway
             
-            processedRars.extend(unrar(dirName, file, rarPassword))
-            unrared += 1
-            # FIXME: move rars into processed immediately
-            # justProcessedRars = unrar(absPath, rarPassword)
-            # processedRars.extend(justProcessedRars) # is this still necessary?
-            # for rar in justProcessedRars:
-            #     moveToProcessed(rar)
+            justProcessedRars = unrar(dirName, file, rarPassword)
+            processedRars.extend(justProcessedRars)
 
-    # FIXME: cleanup: there might be some leftover .1 files from par2 repair that are not
-    # picked up -- probably because they are so messed up that /bin/file doesn't report
-    # them as rars
-    
-    processComplete(dirName, 'rar',
-                    lambda file : os.path.isfile(file) and isRar(file) and not isAlbumCoverArchive(file))
+            # Move the processed rars out of the way immediately
+            for rar in justProcessedRars:
+                moveToProcessed(rar)
+                
+            unrared += 1
+
     e = time.time() - start
     rarTxt = 'rar'
     if unrared > 1:
         rarTxt += 's'
     info(archiveName(dirName) + ': Finished unraring (%i %s, took: %.1fs)' % (unrared,
                                                                               rarTxt, e))
+    processComplete(dirName, 'rar',
+                    lambda file : os.path.isfile(file) and isRar(file))
 
 def unrar(dirName, fileName, rarPassword = None, pathToExtract = None):
     """ Unrar the specified file. Returns all the rar files we extracted from """
-    # FIXME: since we unrar multiple files, this function's FatalErrors shouldn't destroy
-    # the chain of unraring (it currently does)
-    if fileName == None:
-        # FIXME: this last part is dumb, when isAlbumCoverArchive works, this FetalError
-        # could mean the only rars we found are were album covers
-        raise FatalError('Unable to locate the first rar')
-
     fileName = os.path.normpath(dirName + os.sep + fileName)
 
     # By default extract to the file's dir
@@ -559,7 +533,6 @@ def processPars(dirName):
     processComplete(dirName, 'par', lambda file : isPar(file) or \
                     (file[-2:] == '.1' and file not in dotOneFiles))
 
-    
 """
 ## From par2cmdline-0.4
 
@@ -685,8 +658,8 @@ def parseParNeedsBlocksOutput(archive, output):
 
 def moveToProcessed(file):
     """ Move files to the processed dir """
-    os.rename(file, os.path.dirname(file) + os.sep + Hellanzb.PROCESSED_SUBDIR + os.sep + \
-              os.path.basename(file))
+    move(file, os.path.dirname(file) + os.sep + Hellanzb.PROCESSED_SUBDIR + os.sep + \
+         os.path.basename(file))
         
 def processComplete(dirName, processStateName, moveFileFilterFunction):
     """ Once we've finished a particular processing state, this function will be called to
@@ -694,7 +667,8 @@ def processComplete(dirName, processStateName, moveFileFilterFunction):
     indicating this state is done """
     # ensure we pass the absolute path to the filter function
     if moveFileFilterFunction != None:
-        for file in filter(moveFileFilterFunction, [dirName + os.sep + file for file in os.listdir(dirName)]):
+        for file in filter(moveFileFilterFunction,
+                           [dirName + os.sep + file for file in os.listdir(dirName)]):
             moveToProcessed(file)
 
     # And make a note of the completition

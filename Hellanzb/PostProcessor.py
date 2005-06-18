@@ -8,7 +8,7 @@ nzbget
 """
 import Hellanzb, os, re, sys, time
 from os.path import join as pathjoin
-from shutil import rmtree
+from shutil import move, rmtree
 from threading import Thread, Condition, Lock, RLock
 from Hellanzb.Log import *
 from Hellanzb.Logging import prettyException
@@ -38,8 +38,10 @@ class PostProcessor(Thread):
         assertIsExe('par2')
         
         self.dirName = os.path.realpath(dirName)
+         # DirName is a hack printing out the correct directory name when running nested
+         # post processors on sub directories
         self.dirName = DirName(self.dirName)
-        
+
         # Whether or not this thread is the only thing happening in the app (-p mode)
         self.background = background
         
@@ -230,26 +232,26 @@ class PostProcessor(Thread):
         if self.nzbFile != None:
             if os.path.isfile(self.dirName + os.sep + self.nzbFile) and \
                     os.access(self.dirName + os.sep + self.nzbFile, os.R_OK):
-                os.rename(self.dirName + os.sep + self.nzbFile,
-                          self.dirName + os.sep + Hellanzb.PROCESSED_SUBDIR + os.sep + self.nzbFile)
+                move(self.dirName + os.sep + self.nzbFile,
+                     self.dirName + os.sep + Hellanzb.PROCESSED_SUBDIR + os.sep + self.nzbFile)
 
         # Move out anything else that's broken, a dupe or tagged as
         # not required
         for file in self.brokenFiles:
             if os.path.isfile(self.dirName + os.sep + file):
-                os.rename(self.dirName + os.sep + file,
-                          self.dirName + os.sep + Hellanzb.PROCESSED_SUBDIR + os.sep + file)
+                move(self.dirName + os.sep + file,
+                     self.dirName + os.sep + Hellanzb.PROCESSED_SUBDIR + os.sep + file)
 
         for file in os.listdir(self.dirName):
             ext = getFileExtension(file)
             if ext != None and len(ext) > 0 and ext.lower() not in Hellanzb.KEEP_FILE_TYPES and \
                    ext.lower() in Hellanzb.NOT_REQUIRED_FILE_TYPES:
-                os.rename(self.dirName + os.sep + file,
-                          self.dirName + os.sep + Hellanzb.PROCESSED_SUBDIR + os.sep + file)
+                move(self.dirName + os.sep + file,
+                     self.dirName + os.sep + Hellanzb.PROCESSED_SUBDIR + os.sep + file)
                 
             elif re.match(r'.*_duplicate\d{0,4}', file):
-                os.rename(self.dirName + os.sep + file,
-                          self.dirName + os.sep + Hellanzb.PROCESSED_SUBDIR + os.sep + file)
+                move(self.dirName + os.sep + file,
+                     self.dirName + os.sep + Hellanzb.PROCESSED_SUBDIR + os.sep + file)
 
         handledPars = False
         if os.path.isfile(self.dirName + os.sep + Hellanzb.PROCESSED_SUBDIR + \
@@ -338,7 +340,8 @@ class PostProcessor(Thread):
                     self.nzbFile = file
     
         # If there are required broken files and we lack pars, punt
-        if len(self.brokenFiles) > 0 and containsRequiredFiles(self.brokenFiles) and not dirHasPars(self.dirName):
+        if len(self.brokenFiles) > 0 and containsRequiredFiles(self.brokenFiles) and \
+                not dirHasPars(self.dirName):
             errorMessage = 'Unable to process directory: ' + self.dirName + '\n' + \
                 'This directory has the following broken files: '
             for brokenFile in self.brokenFiles:

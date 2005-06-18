@@ -232,6 +232,8 @@ def parseNZB(nzb, notification = 'Downloading', quiet = False):
         reactor.callLater(5, scanQueueDir)
 
 def findAndLoadPostponedDir(nzb):
+    """ move a postponed working directory for the specified nzb, if one is found, to the
+    WORKING_DIR """
     def fixNZBFileName(nzb):
         if os.path.normpath(os.path.dirname(nzb.destDir)) == os.path.normpath(Hellanzb.POSTPONED_DIR):
             nzb.destDir = Hellanzb.WORKING_DIR
@@ -305,13 +307,16 @@ def handleNZBDone(nzbfilename):
     reactor.callLater(0, scanQueueDir)
 
 def postProcess(options):
+    from Hellanzb.Core import shutdown
     if not os.path.isdir(options.postProcessDir):
         error('Unable to process, not a directory: ' + options.postProcessDir)
-        shutdownAndExit(1)
+        shutdown()
+        return
 
     if not os.access(options.postProcessDir, os.R_OK):
         error('Unable to process, no read access to directory: ' + options.postProcessDir)
-        shutdownAndExit(1)
+        shutdown()
+        return
 
     rarPassword = None
     if options.rarPassword:
@@ -651,27 +656,10 @@ def maxRate(rate):
         reactor.callLater(1, Hellanzb.ht.checkReadBandwidth)
     return True
 
-"""
-# FIXME: returning an xml struct would be nice, but this loses the queue order
-def listQueue(includeIds = False):
-    #Return a listing of the current queue
-    if includeIds:
-        queueList = {}
-        def add(key, val): queueList[key] = val
-    else:
-        queueList = []
-        add = lambda key, val : queueList.append(val)
-        
-    for nzb in Hellanzb.queued_nzbs:
-        name = os.path.basename(nzb.nzbFileName)
-        id = str(nzb.id)
-        add(id, name)
-        
-    return queueList
-"""
-
 def listQueue(includeIds = False):
     """ Return a listing of the current queue """
+    # FIXME: returning an xml struct would be nice, but that (python dict) loses the queue
+    # order
     members = []
     for nzb in Hellanzb.queued_nzbs:
         member = os.path.basename(nzb.nzbFileName)

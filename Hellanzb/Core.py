@@ -133,9 +133,9 @@ def signalHandler(signum, frame):
             logShutdown('Caught interrupt, exiting..')
             return
 
-        # The idea here is to 'cheat' again to exit the program ASAP if all the processes
-        # are associated with the main thread (the processes would have already gotten the
-        # signal. I'm not exactly sure why)
+        # We can safely exit ASAP if all the processes are associated with the main thread
+        # (the thread processes? seem to have have already gotten the signal as well at
+        # this point. I'm not exactly sure why)
         threadsOutsideMain = False
         for topen in TopenTwisted.activePool:
             if topen.threadIdent != Hellanzb.MAIN_THREAD_IDENT:
@@ -164,8 +164,8 @@ def signalHandler(signum, frame):
             warn(msg)
             
         else:
-            # Simply kill anything. If any processes are lying around after a kill -9,
-            # it's either an o/s problem (we don't care) or a bug in hellanzb (we aren't
+            # Kill the processes. If any processes are lying around after a kill -9, it's
+            # either an o/s problem (we don't care) or a bug in hellanzb (we aren't
             # allowing the process to exit/still reading from it)
             warn('Killing child processes..')
             TopenTwisted.killAll()
@@ -204,6 +204,7 @@ def init(options = {}):
 
     Hellanzb.BEGIN_TIME = time.time()
 
+    # Whether or not the downloader has been paused
     Hellanzb.downloadPaused = False
 
     # Troll threads
@@ -220,8 +221,7 @@ def init(options = {}):
     assertHasARar()
     assertIsExe('file')
 
-    # One and only signal handler -- just used for the -p option. Twisted will replace
-    # this with its own when initialized
+    # Twisted will replace this with its own signal handler when initialized
     signal.signal(signal.SIGINT, signalHandler)
 
     outlineRequiredDirs() # before the config file is loaded
@@ -255,9 +255,10 @@ def outlineRequiredDirs():
         setattr(Hellanzb, dir + '_DIR', None)
 
 def shutdown(killPostProcessors = False):
-    """ Turn the knob that tells all parts of the program we're shutting down, and kill the
-    twisted reactor """
-    # that knob, that threads will constantly check
+    """ Turn the knob that tells all parts of the program we're shutting down, optionally kill
+    any sub processes (that could prevent the program from exiting) and kill the twisted
+    reactor """
+    # that knob, that threads will check on before doing significant work
     Hellanzb.SHUTDOWN = True
 
     if killPostProcessors:

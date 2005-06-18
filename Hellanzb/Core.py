@@ -128,7 +128,7 @@ def signalHandler(signum, frame):
     # CTRL-C
     if signum == signal.SIGINT:
         # If there aren't any proceses to wait for exit immediately
-        if len(TopenTwisted.activePool) == 0:
+        if len(Topen.activePool) == 0:
             shutdown()
             logShutdown('Caught interrupt, exiting..')
             return
@@ -137,7 +137,7 @@ def signalHandler(signum, frame):
         # (the thread processes? seem to have have already gotten the signal as well at
         # this point. I'm not exactly sure why)
         threadsOutsideMain = False
-        for topen in TopenTwisted.activePool:
+        for topen in Topen.activePool:
             if topen.threadIdent != Hellanzb.MAIN_THREAD_IDENT:
                 threadsOutsideMain = True
 
@@ -156,7 +156,7 @@ def signalHandler(signum, frame):
 
         if Hellanzb.stopSignalCount < 2:
             msg = 'Caught interrupt, waiting for these child processes to finish:\n'
-            for topen in TopenTwisted.activePool:
+            for topen in Topen.activePool:
                 msg += truncateToMultiLine(topen.prettyCmd, length = 68,
                                            prefix = str(topen.getPid()) + '  ',
                                            indentPrefix = ' '*8) + '\n'
@@ -168,7 +168,7 @@ def signalHandler(signum, frame):
             # either an o/s problem (we don't care) or a bug in hellanzb (we aren't
             # allowing the process to exit/still reading from it)
             warn('Killing child processes..')
-            TopenTwisted.killAll()
+            Topen.killAll()
             shutdown()
             logShutdown('Killed all child processes, exiting..')
             return
@@ -262,7 +262,7 @@ def shutdown(killPostProcessors = False):
     Hellanzb.SHUTDOWN = True
 
     if killPostProcessors:
-        TopenTwisted.killAll()
+        Topen.killAll()
 
     # stop the twisted reactor
     reactor.callLater(0, reactor.stop)

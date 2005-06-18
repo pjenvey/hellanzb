@@ -339,6 +339,10 @@ def yDecode(dataList):
         data = string.split(line, '=')
         buffer.append(string.translate(data[0], yenc42))
         for data in data[1:]:
+            if not data:
+                #error('Bad yEncoded data, file: %s (part number: %d)' % \
+                #      (segment.getDestination(), segment.number))
+                continue
             data = string.translate(data, yenc42)
             buffer.append(string.translate(data[0], yenc64))
             buffer.append(data[1:])

@@ -285,9 +285,9 @@ def processRars(dirName, rarPassword):
         
         # Sometimes nzbget leaves .1 files lying around. I'm not sure why, or if it will
         # leave more than just the .1
-        if not os.path.isdir(absPath) and isRar(absPath) and \
-                not isDuplicate(absPath) and not stringEndsWith(absPath, '.1') and \
-                not stringEndsWith(absPath, '_broken') and absPath not in processedRars:
+        if absPath not in processedRars and not os.path.isdir(absPath) and \
+                isRar(absPath) and not isDuplicate(absPath) and \
+                not stringEndsWith(absPath, '.1') and not stringEndsWith(absPath, '_broken'):
             # Found the first rar. this is always the first rar to start extracting with,
             # unless there is a .rar file. However, rar seems to be smart enough to look
             # for a .rar file if we specify this incorrect first file anyway

@@ -20,7 +20,7 @@ from Hellanzb.HellaXMLRPC.HtPasswdAuth import HtPasswdWrapper
 from Hellanzb.Logging import LogOutputStream
 from Hellanzb.Log import *
 from Hellanzb.PostProcessor import PostProcessor
-from Hellanzb.Util import archiveName, cmHella, flattenDoc, prettyEta, truncateToMultiLine, TopenTwisted
+from Hellanzb.Util import archiveName, cmHella, flattenDoc, prettyEta, truncateToMultiLine
 
 __id__ = '$Id$'
 

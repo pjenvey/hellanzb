@@ -324,9 +324,8 @@ def postProcess(options):
         
     troll = Hellanzb.PostProcessor.PostProcessor(options.postProcessDir, background = False,
                                                  rarPassword = rarPassword)
-    info('\nStarting post processor')
-    
-    reactor.callInThread(troll.run)
+    reactor.callLater(0, info, '\nStarting post processor')
+    reactor.callLater(0, reactor.callInThread, troll.run)
 
 def validNZB(nzbfilename):
     if nzbfilename == None or not os.path.isfile(nzbfilename):

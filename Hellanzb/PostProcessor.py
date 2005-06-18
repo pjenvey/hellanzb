@@ -87,6 +87,8 @@ class PostProcessor(Thread):
             Hellanzb.postProcessorLock.release()
 
         if not self.background and not self.isSubDir:
+            # We're not running in the background of a downloader -- we're post processing
+            # and then immeidately exiting (-Lp)
             from twisted.internet import reactor
             reactor.callFromThread(reactor.stop)
     
@@ -102,49 +104,51 @@ class PostProcessor(Thread):
             self.postProcess()
             
         except SystemExit, se:
+            # REACTOR STOPPED IF NOT BACKGROUND/SUBIDR
+            self.stop()
+            
             if self.isSubDir:
-                self.stop()
+                # Propagate up to the original Post Processor
                 raise
-            # sys.exit throws this. collect $200
-            # FIXME: can I safely raise here instead?
-            pass
         
         except FatalError, fe:
+            # REACTOR STOPPED IF NOT BACKGROUND/SUBIDR
             self.stop()
+
+            # Propagate up to the original Post Processor
             if self.isSubDir:
                 raise
 
             pe = prettyException(fe)
             lines = pe.split('\n')
-            if Hellanzb.LOG_FILE and len(lines) > 13:
+            if self.background and Hellanzb.LOG_FILE and len(lines) > 13:
                 # Show only the first 4 and last 4 lines of the error
                 begin = ''.join([line + '\n' for line in lines[:3]])
                 end = ''.join([line + '\n' for line in lines[-9:]])
-                msg = begin + '\n <hellanzb truncated the error\'s output, see the log file for full output>\n' + end
+                msg = begin + \
+                    '\n <hellanzb truncated the error\'s output, see the log file for full output>\n' + \
+                    end
             else:
                 msg = pe
             
             noLogFile(archiveName(self.dirName) + ': A problem occurred: ' + msg)
             logFile(archiveName(self.dirName) + ': A problem occurred: ', fe)
 
-            if not self.background:
-                # FIXME: none of these will cause the main thread to return 1
-                sys.exit(1)
-                #thread.interrupt_main()
-                #raise
             return
         
         except Exception, e:
+            # REACTOR STOPPED IF NOT BACKGROUND/SUBIDR
             self.stop()
+            
+            # Propagate up to the original Post Processor
             if self.isSubDir:
                 raise
             
             error(archiveName(self.dirName) + ': An unexpected problem occurred', e)
-            if not self.background:
-                # not sure what happened, let's see the backtrace
-                raise
+
             return
-            
+
+        # REACTOR STOPPED IF NOT BACKGROUND/SUBIDR
         self.stop()
     
     def processMusic(self):
@@ -296,7 +300,7 @@ class PostProcessor(Thread):
         
         # Put files we've processed and no longer need (like pars rars) in this dir
         processedDir = self.dirName + os.sep + Hellanzb.PROCESSED_SUBDIR
-        
+
         if not os.path.exists(self.dirName):
             raise FatalError('Directory does not exist: ' + self.dirName)
         elif not os.path.isdir(self.dirName):

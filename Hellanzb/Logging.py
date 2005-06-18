@@ -289,7 +289,7 @@ class NZBLeecherTicker:
             except AttributeError, ae:
                 from Hellanzb.Log import debug
                 debug('ATTRIBUTE ERROR: ' + str(ae) + ' num: ' + str(segment.number) + \
-                      'duh: ' + str(segment.articleData))
+                      ' duh: ' + str(segment.articleData))
                 pass
                 
             if lastSegment != None and lastSegment.nzbFile == segment.nzbFile:

@@ -26,7 +26,7 @@ class FatalError(Exception):
         self.message = message
 
 SPLIT_CMDLINE_ARGS_RE = re.compile(r'( |"[^"]*")')
-class TopenTwisted(protocol.ProcessProtocol):
+class Topen(protocol.ProcessProtocol):
     """ Ptyopen (popen + extra hellanzb stuff)-like class for Twisted. Runs a sub process
     and wait()s for output """
 
@@ -80,9 +80,10 @@ class TopenTwisted(protocol.ProcessProtocol):
         self.finished.release()
 
         self.isRunning = False
-        TopenTwisted.activePool.remove(self)
+        Topen.activePool.remove(self)
 
     def kill(self):
+        from Hellanzb.Log import error
         if self.isRunning:
             try:
                 os.kill(self.transport.pid, signal.SIGKILL)
@@ -107,13 +108,26 @@ class TopenTwisted(protocol.ProcessProtocol):
     def readlinesAndWait(self):
         from twisted.internet import reactor
         self.isRunning = True
-        TopenTwisted.activePool.append(self)
+        Topen.activePool.append(self)
 
         self.finished.acquire()
         from Hellanzb.Log import debug
         import thread
         debug('spawnProcess THREAD ID: ' + str(thread.get_ident()) + ' (' + self.cmd + ')')
+
+        # The reactor could have fallen asleep on us in -Lp mode! Why? I'm not sure, but
+        # it dies after the first par2 process (Topen call) =[
+        reactor.wakeUp()
+        # seems to actually run the process in this current thread. the process
+        # ignores signals sent to the main thread
         reactor.spawnProcess(self, self.args[0], args = self.args, env = os.environ)
+
+        # seems to run the process in the main thread. they will die when the main
+        # thread receives a CTRL-C. Used for -Lp mode. reactor.spawnProcess does
+        # strange things in -Lp mode =[ (like it seems to cause the reactor to stall
+        # itself)
+        #reactor.callFromThread(reactor.spawnProcess, self, self.args[0], self.args, os.environ)
+
         self.finished.wait()
         self.finished.release()
 
@@ -128,11 +142,15 @@ class TopenTwisted(protocol.ProcessProtocol):
     
     def killAll():
         """ kill -9 all active topens """
-        for active in TopenTwisted.activePool:
+        for active in Topen.activePool:
             active.kill()
     killAll = staticmethod(killAll)
 
-# FIXME: Don't use ptyopen/popen at all any longer
+# FIXME: Ptyopen has been deprecated by Topen (because we now used twisted all of the
+# time, all processes are ran through twisted). However it is still used by the build
+# scripts. they should be converted to normal popen, or the Ptyopen code should be moved
+# into the build code
+    
 # NOTE: Ptyopen, like popens, is odd with return codes and their status. You seem to be
 # able to get the correct *return code* from a Ptyopen.wait(), but you won't be able to
 # get the correct WCOREDUMP *status*. This is because pty/popen run your executable via
@@ -175,7 +193,7 @@ class Ptyopen(popen2.Popen3):
             self.childerr = os.fdopen(errout, 'r', bufsize)
         else:
             self.childerr = None
-        TopenTwisted.activePool.append(self)
+        Topen.activePool.append(self)
 
     def parseCmdToList(self, cmd):
         cleanDoubleQuotesRe = re.compile(r'^"|"$')
@@ -201,7 +219,7 @@ class Ptyopen(popen2.Popen3):
                 pid, sts = os.waitpid(self.pid, os.WNOHANG)
                 if pid == self.pid:
                     self.sts = sts
-                    TopenTwisted.activePool.remove(self)
+                    Topen.activePool.remove(self)
             except os.error:
                 pass
         return self.sts
@@ -212,7 +230,7 @@ class Ptyopen(popen2.Popen3):
             pid, sts = os.waitpid(self.pid, 0)
             if pid == self.pid:
                 self.sts = sts
-                TopenTwisted.activePool.remove(self)
+                Topen.activePool.remove(self)
         return self.sts
 
     def readlinesAndWait(self):
@@ -264,16 +282,7 @@ class Ptyopen2(Ptyopen):
         self.tochild = os.fdopen(p2cwrite, 'w', bufsize)
         os.close(c2pwrite)
         self.fromchild = os.fdopen(c2pread, 'r', bufsize)
-        TopenTwisted.activePool.append(self)
-
-def Topen(cmd):
-    """ FIXME: Don't use ptyopen anymore at all. Rename TopenTwisted to Topen (or
-    something better)"""
-    from twisted.internet import reactor
-    if reactor.running:
-        return TopenTwisted(cmd)
-    else:
-        return Ptyopen2(cmd)
+        Topen.activePool.append(self)
 
 # Future optimization: Faster way to init this from xml files would be to set the entire
 # list backing the queue in one operation (instead of putting 20k times)

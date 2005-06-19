@@ -337,6 +337,9 @@ def unrar(dirName, fileName, rarPassword = None, pathToExtract = None):
 
     # First, list the contents of the rar, if any filenames are preceeded with *, the rar
     # is passworded
+        
+    # FIXME: we should use -p- here too (for rars w/ password protected data AND
+    # headers). although it core dumped my rar pretty easily
     listCmd = Hellanzb.UNRAR_CMD + ' l -y ' + ' "' + fileName + '"'
     t = Topen(listCmd)
     output, listReturnCode = t.readlinesAndWait()
@@ -379,7 +382,7 @@ def unrar(dirName, fileName, rarPassword = None, pathToExtract = None):
                     True)
         raise FatalError('Cannot continue, this archive requires a RAR password. Run ' + sys.argv[0] + \
                          ' -p on the archive directory with the -P option to specify a password')
-        
+
     if isPassworded:
         cmd = Hellanzb.UNRAR_CMD + ' x -y -p' + rarPassword + ' "' + fileName + '" "' + \
             pathToExtract + '"'

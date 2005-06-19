@@ -54,7 +54,7 @@ class PostProcessor(Thread):
 
         self.rarPassword = rarPassword
         if self.rarPassword != None:
-            rarPasswordFile = open(dirName + os.sep + '.hellanzb_rar_password')
+            rarPasswordFile = open(dirName + os.sep + '.hellanzb_rar_password', 'w')
             rarPasswordFile.write(self.rarPassword)
             rarPasswordFile.close()
 

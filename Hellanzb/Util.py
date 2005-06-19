@@ -40,7 +40,7 @@ class Topen(protocol.ProcessProtocol):
         self.prettyCmd = cmd # FIXME: for compat. with ptyopen
         self.captureStdErr = captureStdErr
         self.args = self.parseCmdToList(cmd)
-        self.outBuf = []
+        self.outBuf = StringIO()
         self.finished = Condition()
         self.returnCode = None
         self.isRunning = False
@@ -53,9 +53,7 @@ class Topen(protocol.ProcessProtocol):
             protocol.ProcessProtocol.__init__(self)
 
     def received(self, data):
-        lines = data.split('\n')
-        for line in lines:
-            self.outBuf.append(line + '\n')
+        self.outBuf.write(data)
         
     def outReceived(self, data):
         self.received(data)
@@ -134,7 +132,10 @@ class Topen(protocol.ProcessProtocol):
         # Here is where PostProcessor will typically die. After a process has been killed
         checkShutdown()
 
-        return self.outBuf, self.returnCode
+        # prepare the outbuffer (LAME)
+        output = self.outBuf.getvalue().split('\n')
+        
+        return output, self.returnCode
 
     def getPid(self):
         # FIXME: this is for compat. w/ ptyopen

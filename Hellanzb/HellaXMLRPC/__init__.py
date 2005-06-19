@@ -20,7 +20,7 @@ from Hellanzb.HellaXMLRPC.HtPasswdAuth import HtPasswdWrapper
 from Hellanzb.Logging import LogOutputStream
 from Hellanzb.Log import *
 from Hellanzb.PostProcessor import PostProcessor
-from Hellanzb.Util import archiveName, cmHella, flattenDoc, prettyEta, truncateToMultiLine
+from Hellanzb.Util import archiveName, cmHella, dupeName, flattenDoc, prettyEta, truncateToMultiLine
 
 __id__ = '$Id$'
 
@@ -126,6 +126,23 @@ class HellaXMLRPCServer(XMLRPC):
     def xmlrpc_process(self, archiveDir, rarPassword = None):
         """ Post process the specified directory. The -p option is preferable -- it will do this
         for you, or use the current process if this xml rpc call fails """
+        # FIXME: merge this with Daemon.postProcess
+        if not os.path.isdir(archiveDir):
+            error('Unable to process, not a directory: ' + archiveDir)
+            return False
+
+        if not os.access(archiveDir, os.R_OK):
+            error('Unable to process, no read access to directory: ' + archiveDir)
+            return False
+        
+        dirName = os.path.dirname(archiveDir.rstrip(os.sep))
+        # We are the queue daemon -- Symlink to the archiveDir. If we are ctrl-ced, we'll
+        # pick up the post processing afterward restart
+        if os.path.normpath(dirName) != os.path.normpath(Hellanzb.PROCESSING_DIR):
+            destDir = dupeName(Hellanzb.PROCESSING_DIR + os.sep + os.path.basename(archiveDir.rstrip(os.sep)))
+            os.symlink(archiveDir, destDir)
+            archiveDir = destDir
+
         troll = PostProcessor(archiveDir, rarPassword = rarPassword)
         troll.start()
         return True

@@ -9,6 +9,7 @@ Core - All of our main()ish functions. Initialization/shutdown/etc
 import twisted.internet.abstract
 twisted.internet.abstract.FileDescriptor.bufferSize = 4096
 
+### DEBUGGING/FIXME ###
 def registerReapProcessHandler(pid, process):
     import os
     from twisted.python import log
@@ -38,6 +39,7 @@ def registerReapProcessHandler(pid, process):
 
 import twisted.internet.process
 twisted.internet.process.registerReapProcessHandler = registerReapProcessHandler
+### /DEBUGGING/FIXME ###
 
 # Install our custom twisted reactor immediately
 from Hellanzb.HellaReactor import HellaReactor
@@ -160,7 +162,8 @@ def signalHandler(signum, frame):
                 msg += truncateToMultiLine(topen.prettyCmd, length = 68,
                                            prefix = str(topen.getPid()) + '  ',
                                            indentPrefix = ' '*8) + '\n'
-            msg += '(CTRL-C again within 5 seconds to kill them and exit immediately)'
+            msg += '(CTRL-C again within 5 seconds to kill them and exit immediately.\n' + \
+                'PostProcessors will automatically resume when hellanzb is restarted)'
             warn(msg)
             
         else:
@@ -249,8 +252,7 @@ def outlineRequiredDirs():
     """ Set all required directory attrs to None. they will be checked later for this value to
     ensure they have been set """
     requiredDirs = [ 'PREFIX', 'QUEUE', 'DEST', 'CURRENT', 'WORKING',
-                     #'POSTPONED', 'PROCESSING', 'TEMP' ]
-                     'POSTPONED', 'TEMP' ]
+                     'POSTPONED', 'PROCESSING', 'TEMP' ]
     for dir in requiredDirs:
         setattr(Hellanzb, dir + '_DIR', None)
 
@@ -258,10 +260,12 @@ def shutdown(killPostProcessors = False):
     """ Turn the knob that tells all parts of the program we're shutting down, optionally kill
     any sub processes (that could prevent the program from exiting) and kill the twisted
     reactor """
-    # that knob, that threads will check on before doing significant work
+    # that knob, that threads (PostProcessors) will check on before doing significant work
     Hellanzb.SHUTDOWN = True
 
     if killPostProcessors:
+        # However PostProcessors may be running sub-processes, which are all kill -9ed
+        # here
         Topen.killAll()
 
     # stop the twisted reactor
@@ -320,7 +324,7 @@ def parseArgs():
                       help='when used with the -p option, specifies the nzb archive\'s rar password')
     parser.add_option('-L', '--local-post-process', action='store_true', dest='localPostProcess',
                       help='when used with the -p option, do the post processing work in the current ' + \
-                      'process (do not attempt contact an already running queue daemon)')
+                      'process (do not attempt to contact an already running queue daemon)')
     parser.add_option('-r', '--rpc-server', type='string', dest='rpcServer',
                       help='specify the rpc server (overwrites Hellanzb.XMLRPC_SERVER config file setting)')
     parser.add_option('-s', '--rpc-password', type='string', dest='rpcPassword',
@@ -330,7 +334,8 @@ def parseArgs():
     return parser.parse_args()
 
 def processArgs(options, args):
-    """ By default run the daemon, otherwise process the specified dir and exit """
+    """ By default (no args) run the daemon. Otherwise we could be making an XML RPC call, or
+    calling a PostProcessor on the specified dir then exiting """
     if not len(args) and not options.postProcessDir:
         info('\nStarting queue daemon')
         initDaemon()

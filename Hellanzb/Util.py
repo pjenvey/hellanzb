@@ -376,6 +376,7 @@ def getFileExtension(fileName):
     if len(fileName) > 1 and fileName.find('.') > -1:
         return string.lower(os.path.splitext(fileName)[1][1:])
 
+# FIXME: replace with path.split()[-1]?
 def stringEndsWith(string, match):
     matchLen = len(match)
     if len(string) >= matchLen and string[-matchLen:] == match:
@@ -452,6 +453,7 @@ def truncate(str, length = 60, reverse = False):
     return str
 
 def rtruncate(*args, **kwargs):
+    """ Reverse truncate (truncate from the beginning) """ 
     return truncate(reverse = True, *args, **kwargs)
 
 # FIXME: textwrap.fill() should replace this function
@@ -490,6 +492,18 @@ def hellaRename(filename):
         while os.path.exists(renamedDir + str(i)):
             i += 1
         move(filename, renamedDir + str(i))
+        
+def dupeName(filename):
+    """ Return a new filename with '_hellanzb_dupeX' appended to it, if a duplicate name
+    already exists on the file system """
+    if not os.path.exists(filename):
+        return filename
+    
+    renamed = filename + '_hellanzb_dupe'
+    i = 0
+    while os.path.exists(renamed + str(i)):
+        i += 1
+    return renamed + str(i)
 
 def getMsgId(archiveName):
     """ grab the msgid from a 'msgid_31337_HellaBlah.nzb string """

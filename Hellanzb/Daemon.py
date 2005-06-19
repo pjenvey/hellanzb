@@ -65,10 +65,26 @@ def initDaemon():
 
     reactor.callLater(0, info, 'hellanzb - Now monitoring queue...')
     reactor.callLater(0, growlNotify, 'Queue', 'hellanzb', 'Now monitoring queue..', False)
+    reactor.callLater(0, resumePostProcessors)
     reactor.callLater(0, scanQueueDir, True)
-
+    
     from Hellanzb.NZBLeecher import initNZBLeecher
     initNZBLeecher()
+
+def resumePostProcessors():
+    """ Pickup left off Post Processors that were cancelled via CTRL-C """
+    for archive in os.listdir(Hellanzb.PROCESSING_DIR):
+        if archive[0] == '.':
+            continue
+
+        archiveDir = Hellanzb.PROCESSING_DIR + os.sep + archive
+        rarPassword = None
+        if os.path.isfile(archiveDir + os.sep + '.hellanzb_rar_password'):
+            rarPassword = ''.join(open(archiveDir + os.sep + '.hellanzb_rar_password').readlines())
+
+        troll = PostProcessor.PostProcessor(archiveDir, rarPassword = rarPassword)
+        info('Resuming post processor: ' + archiveName(archive))
+        troll.start()
 
 def scanQueueDir(firstRun = False, justScan = False):
     """ Find new/resume old NZB download sessions """
@@ -283,7 +299,7 @@ def handleNZBDone(nzbfilename):
     """ Hand-off from the downloader -- make a dir for the NZB with its contents, then post
     process it in a separate thread"""
     # Make our new directory, minus the .nzb
-    newdir = Hellanzb.DEST_DIR + archiveName(nzbfilename)
+    newdir = Hellanzb.PROCESSING_DIR + archiveName(nzbfilename)
     
     # Grab the message id, we'll store it in the newdir for later use
     msgId = getMsgId(nzbfilename)
@@ -306,7 +322,7 @@ def handleNZBDone(nzbfilename):
     reactor.callLater(0, troll.start)
     reactor.callLater(0, scanQueueDir)
 
-def postProcess(options):
+def postProcess(options, isQueueDaemon = False):
     from Hellanzb.Core import shutdown
     if not os.path.isdir(options.postProcessDir):
         error('Unable to process, not a directory: ' + options.postProcessDir)
@@ -321,8 +337,9 @@ def postProcess(options):
     rarPassword = None
     if options.rarPassword:
         rarPassword = options.rarPassword
-        
-    troll = Hellanzb.PostProcessor.PostProcessor(options.postProcessDir, background = False,
+
+    dirName = os.path.realpath(options.postProcessDir)
+    troll = Hellanzb.PostProcessor.PostProcessor(dirName, background = False,
                                                  rarPassword = rarPassword)
     reactor.callLater(0, info, '\nStarting post processor')
     reactor.callLater(0, reactor.callInThread, troll.run)
@@ -708,7 +725,7 @@ def forceNZB(nzbfilename):
             
             move(nzb.nzbFileName, Hellanzb.QUEUE_DIR + os.sep + os.path.basename(nzb.nzbFileName))
             nzb.nzbFileName = Hellanzb.QUEUE_DIR + os.sep + os.path.basename(nzb.nzbFileName)
-            Hellanzb.queued_nzbs.append(nzb) # FIXME: use enqueue here?
+            Hellanzb.queued_nzbs.insert(0, nzb)
             writeQueueToDisk(Hellanzb.queued_nzbs)
 
             # remove what we've forced with from the old queue, if it exists

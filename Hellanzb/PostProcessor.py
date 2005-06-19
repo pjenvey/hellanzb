@@ -6,7 +6,7 @@ nzbget
 (c) Copyright 2005 Philip Jenvey, Ben Bangert
 [See end of file]
 """
-import Hellanzb, os, re, sys, time
+import os, re, sys, time, Hellanzb
 from os.path import join as pathjoin
 from shutil import move, rmtree
 from threading import Thread, Condition, Lock, RLock
@@ -36,20 +36,27 @@ class PostProcessor(Thread):
         """ Ensure sanity of this instance before starting """
         # abort if we lack required binaries
         assertIsExe('par2')
-        
-        self.dirName = os.path.realpath(dirName)
+
          # DirName is a hack printing out the correct directory name when running nested
          # post processors on sub directories
-        self.dirName = DirName(self.dirName)
+        self.dirName = DirName(dirName)
 
         # Whether or not this thread is the only thing happening in the app (-p mode)
         self.background = background
+        
+        # If we're a background Post Processor, our MO is to move dirName to DEST_DIR when
+        # finished (successfully or not)
+        self.movedDestDir = False
         
         self.decompressionThreadPool = []
         self.decompressorLock = RLock()
         self.decompressorCondition = Condition(self.decompressorLock)
 
         self.rarPassword = rarPassword
+        if self.rarPassword != None:
+            rarPasswordFile = open(dirName + os.sep + '.hellanzb_rar_password')
+            rarPasswordFile.write(self.rarPassword)
+            rarPasswordFile.close()
 
         # The parent directory we the originating post process call started from, if we
         # are post processing a sub directory
@@ -85,12 +92,33 @@ class PostProcessor(Thread):
             Hellanzb.postProcessorLock.acquire()
             Hellanzb.postProcessors.remove(self)
             Hellanzb.postProcessorLock.release()
-
+            
+        # When a Post Processor fails, we end up moving the destDir here
+        self.moveDestDir() 
+            
         if not self.background and not self.isSubDir:
             # We're not running in the background of a downloader -- we're post processing
             # and then immeidately exiting (-Lp)
             from twisted.internet import reactor
             reactor.callFromThread(reactor.stop)
+
+    def moveDestDir(self):
+        if self.movedDestDir or Hellanzb.SHUTDOWN:
+            return
+        
+        if self.background and not self.isSubDir and \
+                os.path.normpath(os.path.dirname(self.dirName.rstrip(os.sep))) == \
+                os.path.normpath(Hellanzb.PROCESSING_DIR):
+            
+            if os.path.islink(self.dirName):
+                # A symlink in the processing dir, remove it
+                os.remove(self.dirName)
+
+            elif os.path.isdir(self.dirName):
+                # A dir in the processing dir, move it to DEST
+                move(self.dirName, Hellanzb.DEST_DIR + os.sep + os.path.basename(self.dirName))
+                
+        self.movedDestDir = True
     
     def run(self):
         """ do the work """
@@ -110,6 +138,8 @@ class PostProcessor(Thread):
             if self.isSubDir:
                 # Propagate up to the original Post Processor
                 raise
+
+            return
         
         except FatalError, fe:
             # REACTOR STOPPED IF NOT BACKGROUND/SUBIDR
@@ -149,7 +179,7 @@ class PostProcessor(Thread):
             return
 
         # REACTOR STOPPED IF NOT BACKGROUND/SUBIDR
-        self.stop()
+        self.stop() # successful post process
     
     def processMusic(self):
         """ Assume the integrity of the files in the specified directory have been
@@ -219,10 +249,6 @@ class PostProcessor(Thread):
         del decompressorThreads
 
         if len(self.failedToProcesses) > 0:
-            # Let the threads finish their logging (ScrollInterrupter can
-            # lag)
-            # FIXME: is this still necessary?
-            time.sleep(.1)
             raise FatalError('Failed to complete music decompression')
 
         processComplete(self.dirName, 'music', None)
@@ -273,7 +299,10 @@ class PostProcessor(Thread):
                                              1, return_folders = 1))
             logFile(msg)
             rmtree(self.dirName + os.sep + Hellanzb.PROCESSED_SUBDIR)
-                
+
+        # Finished. Move dirName to DEST_DIR if we need to
+        self.moveDestDir()
+        
         # We're done
         e = time.time() - self.startTime 
         if not self.isSubDir:
@@ -360,12 +389,15 @@ class PostProcessor(Thread):
         if dirHasRars(self.dirName):
             checkShutdown()
             processRars(self.dirName, self.rarPassword)
-        
+
         if dirHasMusic(self.dirName):
             checkShutdown()
             self.processMusic()
 
+        # FIXME: do we need to gc.collect() after post processing a lot of data?
+
         # Post process sub directories
+        trolled = 0
         for file in os.listdir(self.dirName):
             if file == Hellanzb.PROCESSED_SUBDIR:
                 continue
@@ -378,7 +410,8 @@ class PostProcessor(Thread):
                     troll = PostProcessor(pathjoin(self.dirName, file),
                                           parentDir = self.parentDir)
                 troll.run()
-
+                trolled += 1
+                
         self.finishedPostProcess()
 
 """

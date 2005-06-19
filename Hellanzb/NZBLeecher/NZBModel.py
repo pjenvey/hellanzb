@@ -519,6 +519,10 @@ class NZBQueue(PriorityQueue):
         else:
             info('Parsed: ' + str(dh.segmentCount) + ' posts (' + str(dh.fileCount) + ' files)')
 
+        # Tally what was skipped for correct percentages in the UI
+        for nzbSegment in onDiskSegments:
+            nzbSegment.nzbFile.totalSkippedBytes += nzbSegment.bytes
+
         # The needWorkFiles will tell us what nzbFiles are missing from the
         # FS. segmentsNeedDownload will further tell us what files need to be
         # downloaded. files missing from the FS (needWorkFiles) but not needing to be
@@ -528,6 +532,9 @@ class NZBQueue(PriorityQueue):
                 # Don't automatically 'finish' the NZB, we'll take care of that in this
                 # function if necessary
                 info(nzbFile.getFilename() + ': assembling -- all segments were on disk')
+                
+                # NOTE: this function is destructive to the passed in nzbFile! And is only
+                # called on occasion (might bite you in the ass one day)
                 assembleNZBFile(nzbFile, autoFinish = False)
 
         if not len(needDlSegments):
@@ -553,10 +560,6 @@ class NZBQueue(PriorityQueue):
             self.put((nzbSegment.priority, nzbSegment))
 
         self.calculateTotalQueuedBytes()
-
-        # Tally what was skipped for correct percentages in the UI
-        for nzbSegment in onDiskSegments:
-            nzbSegment.nzbFile.totalSkippedBytes += nzbSegment.bytes
 
         # Finally, figure out what on disk segments are part of partially downloaded
         # files. adjust the queued byte count to not include these aleady downloaded
@@ -635,6 +638,8 @@ class NZBParser(ContentHandler):
                 # done adding all child segments to this NZBFile. make note that none of
                 # them need to be downloaded
                 self.file.todoNzbSegments.clear()
+
+                # FIXME: (GC) can we del self.nzbfile here???
             
             self.file = None
             self.fileNeedsDownload = None

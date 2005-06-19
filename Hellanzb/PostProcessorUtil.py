@@ -71,8 +71,13 @@ class DecompressionThread(Thread):
             # Shutdown, stop what we're doing
             self.parent.removeDecompressor(self)
             return
+
+        except FatalError, fe:
+            error(archive, fe)
+            self.failure()
+            
         except Exception, e:
-            error(archive + ': There was an unexpected problem while decompressing the musc file: ' + \
+            error(archive + ': There was an unexpected problem while decompressing the music file: ' + \
                   os.path.basename(self.file), e)
             self.failure()
 
@@ -267,6 +272,20 @@ def decompressMusicFile(fileName, musicType, archive = None):
             msg += line
         raise FatalError(msg)
 
+def dotRarFirstCmp(x, y):
+    """ Sort .rars first """
+    if stringEndsWith(x.lower(), '.rar') and \
+        stringEndsWith(y.lower(), '.rar'):
+        return cmp(x, y)
+    
+    if stringEndsWith(x.lower(), '.rar'):
+        return -1
+        
+    if stringEndsWith(y.lower(), '.rar'):
+        return 1
+
+    return cmp(x, y)
+        
 def processRars(dirName, rarPassword):
     """ If the specified directory contains rars, unrar them. """
     if not isFreshState(dirName, 'rar'):
@@ -277,14 +296,12 @@ def processRars(dirName, rarPassword):
     # already processed, and repeat
     processedRars = []
     files = os.listdir(dirName)
-    files.sort()
+    files.sort(dotRarFirstCmp) # .rars come first
     start = time.time()
     unrared = 0
     for file in files:
         absPath = os.path.normpath(dirName + os.sep + file)
         
-        # Sometimes nzbget leaves .1 files lying around. I'm not sure why, or if it will
-        # leave more than just the .1
         if absPath not in processedRars and not os.path.isdir(absPath) and \
                 isRar(absPath) and not isDuplicate(absPath) and \
                 not stringEndsWith(absPath, '.1') and not stringEndsWith(absPath, '_broken'):
@@ -389,7 +406,9 @@ def unrar(dirName, fileName, rarPassword = None, pathToExtract = None):
             rarFile = line[len(prefix):].rstrip()
             # Distrust the dirname rar returns (just incase)
             rarFile = os.path.normpath(os.path.dirname(fileName) + os.sep + os.path.basename(rarFile))
-            processedRars.append(rarFile)
+            
+            if rarFile not in processedRars:
+                processedRars.append(rarFile)
 
     return processedRars
 
@@ -569,7 +588,7 @@ typedef enum Result
 def par2(dirName, parFiles, wildcard):
     """ Verify (and repair) the integrity of the files in the specified directory via par2. If
     files need repair and there are not enough recovery blocks, raise a fatal exception """
-    info(archiveName(dirName) + ': Verifying ' + wildcard + ' via pars..')
+    info(archiveName(dirName) + ': Verifying via par group: ' + wildcard + '..')
     repairCmd = 'par2 r'
     for parFile in parFiles:
         repairCmd += ' "' + dirName + parFile + '"'

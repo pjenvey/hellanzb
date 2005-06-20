@@ -410,8 +410,9 @@ def continueCurrent():
     if not Hellanzb.downloadPaused:
         return True
 
-    reconnected = 0
+    resetConnections = 0
     for nsf in Hellanzb.nsfs:
+        connectionCount = nsf.connectionCount
         for client in nsf.clients:
 
             # When we pause a download, we simply stop reading from the socket. That
@@ -423,18 +424,21 @@ def continueCurrent():
             if client.pauseReconnected:
                 debug(str(client) + ' pauseReconnect')
                 reactor.callLater(0, client.fetchNextNZBSegment)
-                reconnected += 1
             else:
                 # Otherwise this was a short pause, the connection hasn't been lost, and
                 # we can simply continue reading from the socket
                 debug(str(client) + ' startReading')
                 client.transport.startReading()
+                connectionCount -= 1
+                
+        resetConnections += connectionCount
 
     Hellanzb.downloadPaused = False
-    if not reconnected:
-        info('Continuing download')
-    else:
+    if resetConnections:
         info('Continuing download (Connections were reset)')
+        debug('Connections reset: ' + str(resetConnections))
+    else:
+        info('Continuing download')
     return True
 
 def clearCurrent(andCancel):

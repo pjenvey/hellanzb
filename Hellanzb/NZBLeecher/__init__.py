@@ -161,6 +161,8 @@ class NZBLeecherFactory(ReconnectingClientFactory):
 
         # Maximum delay before reconnecting after disconnection
         self.maxDelay = 2 * 60
+
+        self.connectionCount = 0
         
         # server reconnecting drop off factor, by default e. PHI (golden ratio) is a lower
         # factor than e

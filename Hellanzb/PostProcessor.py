@@ -109,14 +109,16 @@ class PostProcessor(Thread):
         if self.background and not self.isSubDir and \
                 os.path.normpath(os.path.dirname(self.dirName.rstrip(os.sep))) == \
                 os.path.normpath(Hellanzb.PROCESSING_DIR):
-            
+
             if os.path.islink(self.dirName):
                 # A symlink in the processing dir, remove it
                 os.remove(self.dirName)
 
             elif os.path.isdir(self.dirName):
                 # A dir in the processing dir, move it to DEST
-                move(self.dirName, Hellanzb.DEST_DIR + os.sep + os.path.basename(self.dirName))
+                newdir = Hellanzb.DEST_DIR + os.sep + os.path.basename(self.dirName)
+                hellaRename(newdir)
+                move(self.dirName, newdir)
                 
         self.movedDestDir = True
     

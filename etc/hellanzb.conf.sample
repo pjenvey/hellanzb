@@ -50,8 +50,8 @@ Hellanzb.WORKING_DIR = Hellanzb.PREFIX_DIR + 'nzb/daemon.working/'
 # Archives interrupted in the middle of downloading are stored here temporarily
 Hellanzb.POSTPONED_DIR = Hellanzb.PREFIX_DIR + 'nzb/daemon.postponed/'
 
-# Archives currently being processed. May contains archive directories, or symbolic links
-# to archive directories
+# Archives currently being processed. May contains archive directories, or
+# symbolic links to archive directories
 Hellanzb.PROCESSING_DIR = Hellanzb.PREFIX_DIR + 'nzb/daemon.processing/'
 
 # Temp storage

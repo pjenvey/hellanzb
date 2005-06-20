@@ -9,7 +9,7 @@ import binascii, gc, os, re, shutil, string, time, Hellanzb
 from threading import Lock
 from twisted.internet import reactor
 from zlib import crc32
-from Hellanzb.Daemon import handleNZBDone
+from Hellanzb.Daemon import handleNZBDone, pauseCurrent
 from Hellanzb.Log import *
 from Hellanzb.Logging import prettyException
 from Hellanzb.Util import checkShutdown, touch
@@ -39,12 +39,21 @@ class ArticleAssemblyGCDelay:
     shouldGC = staticmethod(shouldGC)
 GCDelay = ArticleAssemblyGCDelay
 
+class HellaTooMuchWares(FatalError):
+    """ User has downloaded too many things and ran out of disk space """
+
 def decode(segment):
     """ Decode the NZBSegment's articleData to it's destination. Toggle the NZBSegment
     instance as having been decoded, then assemble all the segments together if all their
     decoded segment filenames exist """
     try:
         decodeArticleData(segment)
+        
+    except HellaTooMuchWares:
+        # Ran out of disk space and download was paused! Easiest way out of this sticky
+        # situation is to requeue the segment =[
+        reactor.callFromThread(Hellanzb.queue.put, (segment.priority, segment))
+        return
     except Exception, e:
         touch(segment.getDestination())
         error(segment.nzbFile.showFilename + ' segment: ' + str(segment.number) + \
@@ -262,13 +271,27 @@ def yDecodeFileSizeCheck(segment, size):
             ': file size mismatch: actual: ' + str(size) + ' != ' + str(segment.ySize) + ' (expected)'
         warn(message)
 
+def handleIOError(ioe):
+    if ioe.errno == 28:
+        error('No space left on device!')
+        pauseCurrent()
+        growlNotify('Error', 'hellanzb Download Paused', 'No space left on device!', True)
+        raise HellaTooMuchWares('LOL BURN SOME DVDS LOL')
+    else:
+        raise
+    
 def writeLines(dest, lines):
     """ Write the lines out to the destination. Return the size of the file """
     size = 0
     out = open(dest, 'wb')
-    for line in lines:
-        size += len(line)
-        out.write(line)
+    try:
+        for line in lines:
+            size += len(line)
+            out.write(line)
+            
+    except IOError, ioe:
+        handleIOError(ioe)
+        
     out.close()
 
     return size
@@ -421,6 +444,9 @@ def assembleNZBFile(nzbFile, autoFinish = True):
 
             # Avoid delaying CTRL-C
             checkShutdown()
+
+    except IOError, ioe:
+        handleIOError(ioe)
             
     except SystemExit, se:
         # We were interrupted. Instead of waiting to finish, just delete the file and

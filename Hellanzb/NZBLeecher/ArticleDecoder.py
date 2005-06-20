@@ -12,7 +12,7 @@ from zlib import crc32
 from Hellanzb.Daemon import handleNZBDone, pauseCurrent
 from Hellanzb.Log import *
 from Hellanzb.Logging import prettyException
-from Hellanzb.Util import checkShutdown, touch
+from Hellanzb.Util import checkShutdown, touch, TooMuchWares
 
 __id__ = '$Id$'
 
@@ -39,9 +39,6 @@ class ArticleAssemblyGCDelay:
     shouldGC = staticmethod(shouldGC)
 GCDelay = ArticleAssemblyGCDelay
 
-class HellaTooMuchWares(FatalError):
-    """ User has downloaded too many things and ran out of disk space """
-
 def decode(segment):
     """ Decode the NZBSegment's articleData to it's destination. Toggle the NZBSegment
     instance as having been decoded, then assemble all the segments together if all their
@@ -49,9 +46,10 @@ def decode(segment):
     try:
         decodeArticleData(segment)
         
-    except HellaTooMuchWares:
+    except TooMuchWares:
         # Ran out of disk space and download was paused! Easiest way out of this sticky
         # situation is to requeue the segment =[
+        nuke(segment.getDestination())
         reactor.callFromThread(Hellanzb.queue.put, (segment.priority, segment))
         return
     except Exception, e:
@@ -69,6 +67,11 @@ def decode(segment):
     if segment.nzbFile.isAllSegmentsDecoded():
         try:
             assembleNZBFile(segment.nzbFile)
+            
+        except TooMuchWares:
+            # Delete the partially assembled file, it will be re-assembled later
+            nuke(segment.nzbFile.getDestination())
+            
         except SystemExit, se:
             # checkShutdown() throws this, let the thread die
             pass
@@ -276,7 +279,7 @@ def handleIOError(ioe):
         error('No space left on device!')
         pauseCurrent()
         growlNotify('Error', 'hellanzb Download Paused', 'No space left on device!', True)
-        raise HellaTooMuchWares('LOL BURN SOME DVDS LOL')
+        raise TooMuchWares('LOL BURN SOME DVDS LOL')
     else:
         raise
     
@@ -290,7 +293,8 @@ def writeLines(dest, lines):
             out.write(line)
             
     except IOError, ioe:
-        handleIOError(ioe)
+        out.close()
+        handleIOError(ioe) # will re-raise
         
     out.close()
 
@@ -430,37 +434,41 @@ def assembleNZBFile(nzbFile, autoFinish = True):
     # FIXME: don't overwrite existing files???
     file = open(nzbFile.getDestination(), 'wb')
     segmentFiles = []
-    try:
-        for nzbSegment in nzbFile.nzbSegments:
-            segmentFiles.append(nzbSegment.getDestination())
-    
-            decodedSegmentFile = open(nzbSegment.getDestination(), 'rb')
+    for nzbSegment in nzbFile.nzbSegments:
+        segmentFiles.append(nzbSegment.getDestination())
+
+        decodedSegmentFile = open(nzbSegment.getDestination(), 'rb')
+        try:
             for line in decodedSegmentFile:
                 if line == '':
                     break
-    
-                file.write(line)
-            decodedSegmentFile.close()
 
-            # Avoid delaying CTRL-C
+                file.write(line)
+
+        except IOError, ioe:
+            file.close()
+            decodedSegmentFile.close()
+            handleIOError(ioe) # will re-raise
+                    
+        decodedSegmentFile.close()
+
+        # Avoid delaying CTRL-C during this possibly lengthy file assembly loop
+        try:
             checkShutdown()
 
-    except IOError, ioe:
-        handleIOError(ioe)
-            
-    except SystemExit, se:
-        # We were interrupted. Instead of waiting to finish, just delete the file and
-        # we'll try assembling it again later
-        debug('(CTRL-C) Removing unfinished file: ' + nzbFile.getDestination())
-        file.close()
-        try:
-            os.remove(nzbFile.getDestination())
-        except OSError, ose:
-            # postponement might have moved the file we just wrote to:
-            # exceptions.OSError: [Errno 2] No such file or directory: 
-            if ose.errno != 2:
-                debug('Unexpected ERROR while removing nzbFile: ' + nzbFile.getDestination())
-        raise
+        except SystemExit, se:
+            # We were interrupted. Instead of waiting to finish, just delete the file. It
+            # will be automatically assembled upon restart
+            debug('(CTRL-C) Removing unfinished file: ' + nzbFile.getDestination())
+            file.close()
+            try:
+                os.remove(nzbFile.getDestination())
+            except OSError, ose:
+                # postponement might have moved the file we just wrote to:
+                # exceptions.OSError: [Errno 2] No such file or directory: 
+                if ose.errno != 2:
+                    debug('Unexpected ERROR while removing nzbFile: ' + nzbFile.getDestination())
+            raise
 
     file.close()
     # Finally, delete all the segment files when finished

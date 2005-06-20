@@ -11,11 +11,12 @@ from threading import Lock, RLock
 from twisted.internet import reactor
 from xml.sax import make_parser, SAXParseException
 from xml.sax.handler import ContentHandler, feature_external_ges, feature_namespaces
+from Hellanzb.Core import shutdown
 from Hellanzb.Daemon import handleNZBDone
 from Hellanzb.Log import *
 from Hellanzb.NZBLeecher.ArticleDecoder import assembleNZBFile, parseArticleData, \
     setRealFileName, tryFinishNZB
-from Hellanzb.Util import archiveName, getFileExtension, PriorityQueue
+from Hellanzb.Util import archiveName, getFileExtension, PriorityQueue, TooMuchWares
 
 __id__ = '$Id$'
 
@@ -535,7 +536,11 @@ class NZBQueue(PriorityQueue):
                 
                 # NOTE: this function is destructive to the passed in nzbFile! And is only
                 # called on occasion (might bite you in the ass one day)
-                assembleNZBFile(nzbFile, autoFinish = False)
+                try:
+                    assembleNZBFile(nzbFile, autoFinish = False)
+                except TooMuchWares:
+                    error('Cannot assemble ' + nzb.getFileName() + ': No space left on device! Exiting..')
+                    shutdown(True)
 
         if not len(needDlSegments):
             # FIXME: this block of code is the end of tryFinishNZB. there should be a

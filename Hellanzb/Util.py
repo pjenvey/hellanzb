@@ -25,6 +25,9 @@ class FatalError(Exception):
         self.args = [message]
         self.message = message
 
+class TooMuchWares(FatalError):
+    """ Out of disk space """
+
 SPLIT_CMDLINE_ARGS_RE = re.compile(r'( |"[^"]*")')
 class Topen(protocol.ProcessProtocol):
     """ Ptyopen (popen + extra hellanzb stuff)-like class for Twisted. Runs a sub process

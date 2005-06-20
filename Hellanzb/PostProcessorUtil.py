@@ -270,6 +270,7 @@ def decompressMusicFile(fileName, musicType, archive = None):
             ' output:\n'
         for line in output:
             msg += line
+        msg = msg.strip()
         raise FatalError(msg)
 
 def dotRarFirstCmp(x, y):
@@ -345,9 +346,10 @@ def unrar(dirName, fileName, rarPassword = None, pathToExtract = None):
     output, listReturnCode = t.readlinesAndWait()
 
     if listReturnCode > 0:
-        errMsg = 'There was a problem during the rar listing, output:\n\n'
+        errMsg = 'There was a problem during the rar listing, output:\n'
         for line in output:
             errMsg += line
+        errMsg = errMsg.strip()
         raise FatalError(errMsg)
 
     isPassworded = False
@@ -398,7 +400,7 @@ def unrar(dirName, fileName, rarPassword = None, pathToExtract = None):
         err = ''
         for line in output:
             err += line
-        errMsg += err.lstrip()
+        errMsg += err.strip()
         raise FatalError(errMsg)
 
     # Return a tally of all the rars extracted from
@@ -643,6 +645,9 @@ def parseParNeedsBlocksOutput(archive, output):
     neededBlocks = None
     damagedRE = re.compile(r'"\ -\ damaged\.\ Found\ \d+\ of\ \d+\ data\ blocks\.')
 
+    maxSpam = 4 # only spam this many lines (before truncating)
+    spammed = 0
+    extraSpam = []
     for line in output:
         line = line.rstrip()
             
@@ -666,15 +671,34 @@ def parseParNeedsBlocksOutput(archive, output):
                 warnMsg = archive + ': Archive has damaged, non-required file: ' + file
 
             if isRequiredFile(file):
-                error(errMsg)
+                if spammed <= maxSpam:
+                    error(errMsg)
+                    spammed += 1
+                else:
+                    extraSpam.append(errMsg)
+                    
                 damagedAndRequired.append(file)
             else:
-                warn(warnMsg)
+                if spammed <= maxSpam:
+                    warn(warnMsg)
+                    spammed += 1
+                else:
+                    extraSpam.append(errMsg)
 
         elif line[0:len('You need ')] == 'You need ' and \
             stringEndsWith(line, ' more recovery blocks to be able to repair.'):
             line = line[len('You need '):]
             neededBlocks = line[:-len(' more recovery blocks to be able to repair.')]
+
+    if spammed > maxSpam and len(extraSpam):
+        error(' <hellanzb truncated the missing/damaged listing, see the log for full output>')
+        
+        # Hi I'm lame. Why do I even bother enforcing warn() usage anyway
+        lastMsg = extraSpam[-1]
+        if lastMsg.find('non-required') > 1:
+            warn(lastMsg)
+        else:
+            error(lastMsg)
             
     return damagedAndRequired, neededBlocks
 

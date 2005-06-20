@@ -133,7 +133,7 @@ class Topen(protocol.ProcessProtocol):
         checkShutdown()
 
         # prepare the outbuffer (LAME)
-        output = self.outBuf.getvalue().split('\n')
+        output = [line + '\n' for line in self.outBuf.getvalue().split('\n')]
         
         return output, self.returnCode
 

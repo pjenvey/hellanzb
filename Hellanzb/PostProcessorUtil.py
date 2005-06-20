@@ -600,6 +600,7 @@ def par2(dirName, parFiles, wildcard):
         
     t = Topen(repairCmd)
     output, returnCode = t.readlinesAndWait()
+    debug('PAR2 output:\n' + ''.join(output))
 
     if returnCode == 0:
         # FIXME: checkout for 'repaired blah' messages.

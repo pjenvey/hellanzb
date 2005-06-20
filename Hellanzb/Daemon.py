@@ -435,8 +435,7 @@ def continueCurrent():
 
     Hellanzb.downloadPaused = False
     if resetConnections:
-        info('Continuing download (Connections were reset)')
-        debug('Connections reset: ' + str(resetConnections))
+        info('Continuing download (%i connections were reset)' % resetConnections)
     else:
         info('Continuing download')
     return True

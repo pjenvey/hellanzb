@@ -24,6 +24,14 @@ def runSetup():
         author_email = '<pjenvey@groovie.org>',
         url = 'http://www.hellanzb.com',
         license = 'BSD',
+        platforms = [ 'unix' ],
+        description = 'nzb downloader and post processor',
+        long_description = ("hellanzb is an easy to use app designed to retrieve nzb files "
+                            "and fully process them. The goal being to make getting files from "
+                            "Usenet as hands-free as possible. Once fully installed, all that's "
+                            "required is moving an nzb file to the queue directory. The rest: "
+                            "downloading, par-checking, un-raring, etc. is done automatically by "
+                            "hellanzb."),
 
         packages = [ 'Hellanzb', 'Hellanzb.NZBLeecher', 'Hellanzb.HellaXMLRPC' ],
         scripts = [ 'hellanzb.py' ],

@@ -15,7 +15,8 @@ from Hellanzb.Util import assertIsExe, stringEndsWith
 
 __id__ = '$Id$'
 
-UPLOAD_HOST = 'groovie.org:/usr/local/www/hellanzb.com/distfiles/'
+UPLOAD_HOST = 'groovie.org'
+UPLOAD_HOST_DIR = '/usr/local/www/hellanzb.com/distfiles/'
     
 try:
     parser = optparse.OptionParser()
@@ -83,7 +84,7 @@ try:
                       newVersion + '" ' + VERSION_FILENAME)
             
             print 'Deploying new build to host: ' + UPLOAD_HOST
-            uploadToHost(version, UPLOAD_HOST)
+            uploadToHost(version, UPLOAD_HOST, UPLOAD_HOST_DIR)
 
     else:
         print 'Error: Version number: ' + version + ' is not the trunk!'

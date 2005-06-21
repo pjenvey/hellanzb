@@ -154,7 +154,7 @@ def md5File(fileName):
         m.update(line)
     return m.hexdigest()
 
-def uploadToHost(version, host):
+def uploadToHost(version, host, dir):
     """ Upload the new build of version to the UPLOAD_HOST """
     files = []
     for file in os.listdir('dist'):
@@ -168,8 +168,11 @@ def uploadToHost(version, host):
     cmd = 'scp '
     for file in files:
             cmd += 'dist/' + file + ' '
-    cmd += host
+    cmd += host + ':' + dir
 
+    # First, move the old release out of the way
+    os.system('ssh ' + host + ' mv ' + dir + '/*.gz ' + dir + '/old/')
+        
     os.system(cmd)
 
 def writeVersion(newVersion, destDir = None):

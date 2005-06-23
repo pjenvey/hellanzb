@@ -568,7 +568,7 @@ def flattenPar1Name(file):
     # Removing the file extension reveals the group
     return file[:-len(getFileExtension(file))] + '*'
 
-def processPars(dirName):
+def processPars(dirName, needAssembly = None):
     """ Verify (and repair) the integrity of the files in the specified directory via par2
     (which supports both par1 and par2 files). If files need repair and there are not
     enough recovery blocks, raise a fatal exception. Each different grouping of pars will
@@ -590,7 +590,7 @@ def processPars(dirName):
     for wildcard in parGroupOrder:
         parFiles = parGroups[wildcard]
         
-        par2(dirName, parFiles, wildcard)
+        par2(dirName, parFiles, wildcard, needAssembly)
         
         # Successful par2, move them out of the way
         for parFile in parFiles:
@@ -640,10 +640,13 @@ typedef enum Result
 
 } Result;
 """
-def par2(dirName, parFiles, wildcard):
+def par2(dirName, parFiles, wildcard, needAssembly = None):
     """ Verify (and repair) the integrity of the files in the specified directory via par2. If
     files need repair and there are not enough recovery blocks, raise a fatal exception """
     info(archiveName(dirName) + ': Verifying via par group: ' + wildcard + '..')
+    if needAssembly == None:
+        needAssembly = {}
+        
     repairCmd = 'par2 r'
     for parFile in parFiles:
         repairCmd += ' "' + dirName + parFile + '"'
@@ -670,15 +673,26 @@ def par2(dirName, parFiles, wildcard):
         # First, if the repair is not possible, double check the output for what files are
         # missing or damaged (a missing file is considered as damaged in this case). they
         # may be unimportant
-        damagedAndRequired, allDamaged, neededBlocks = parseParNeedsBlocksOutput(archiveName(dirName), output)
+        damagedAndRequired, allMissing, neededBlocks, isPar1 = \
+            parseParNeedsBlocksOutput(archiveName(dirName), output)
+
+        for file in allMissing:
+            if needAssembly.has_key(file):
+                # Found a file we need to assemble for Par2. Throw us back out to handle
+                # that work, we'll run par2 again later
+                raise ParExpectsUnsplitFiles('')
 
         # The archive is only totally broken when we're missing required files
         if len(damagedAndRequired) > 0:
-            growlNotify('Error', 'hellanzb Cannot par repair:', archiveName(dirName) +
-                        '\nNeed ' + neededBlocks + ' more recovery blocks', True)
+            needType = 'blocks'
+            if isPar1:
+                needType = 'files (par1)'
+                
+            growlNotify('Error', 'hellanzb Cannot par repair:', archiveName(dirName) + \
+                        '\nNeed ' + neededBlocks + ' more recovery ' + needType, True)
             # FIXME: download more pars and try again
             raise FatalError('Unable to par repair: archive requires ' + neededBlocks + \
-                             ' more recovery blocks for repair')
+                             ' more recovery ' + needType + ' for repair')
             # otherwise processComplete here (failed)
 
     else:
@@ -692,9 +706,10 @@ def parseParNeedsBlocksOutput(archive, output):
     required blocks needed. Will also log warn the user when it finds either of these
     kinds of files, or log error when they're required """
     damagedAndRequired = []
-    allDamaged = []
+    allMissing = []
     neededBlocks = None
     damagedRE = re.compile(r'"\ -\ damaged\.\ Found\ \d+\ of\ \d+\ data\ blocks\.')
+    isPar1 = False
 
     maxSpam = 4 # only spam this many lines (before truncating)
     spammed = 0
@@ -716,13 +731,12 @@ def parseParNeedsBlocksOutput(archive, output):
                 # in this function)
                 errMsg = archive + ': Archive missing required file: ' + file
                 warnMsg = archive + ': Archive missing non-required file: ' + file
+                allMissing.append(file)
             else:
                 file = damagedRE.sub('', line)
                 errMsg = archive + ': Archive has damaged, required file: ' + file
                 warnMsg = archive + ': Archive has damaged, non-required file: ' + file
 
-            allDamaged.append(file)
-            
             if isRequiredFile(file):
                 if spammed <= maxSpam:
                     error(errMsg)
@@ -739,9 +753,16 @@ def parseParNeedsBlocksOutput(archive, output):
                     extraSpam.append(errMsg)
 
         elif line[0:len('You need ')] == 'You need ' and \
-            stringEndsWith(line, ' more recovery blocks to be able to repair.'):
+            stringEndsWith(line, ' to be able to repair.'):
             line = line[len('You need '):]
-            neededBlocks = line[:-len(' more recovery blocks to be able to repair.')]
+            
+            if line.find(' more recovery files '):
+                # Par 1 format
+                isPar1 = True
+                neededBlocks = line[:-len(' more recovery files to be able to repair.')]
+            else:
+                # Par 2
+                neededBlocks = line[:-len(' more recovery blocks to be able to repair.')]
 
     if spammed > maxSpam and len(extraSpam):
         error(' <hellanzb truncated the missing/damaged listing, see the log for full output>')
@@ -753,10 +774,10 @@ def parseParNeedsBlocksOutput(archive, output):
         else:
             error(lastMsg)
             
-    return damagedAndRequired, allDamaged, neededBlocks
+    return damagedAndRequired, allMissing, neededBlocks, isPar1
 
 SPLIT_RE = re.compile(r'.*\.\d{3,4}$')
-def assembleSplitFiles(dirName):
+def findSplitFiles(dirName):
     toAssemble = {}
 
     # Find anything matching the split file re
@@ -785,7 +806,10 @@ def assembleSplitFiles(dirName):
                 break
         if foundRar:
             toAssemble.remove(key)
-
+            
+    return toAssemble
+    
+def assembleSplitFiles(dirName, toAssemble):
     # Finally assemble the main file from the parts. Cancel the assembly and delete the
     # main file if we are CTRL-Ced
     for key, parts in toAssemble.iteritems():

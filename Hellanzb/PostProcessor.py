@@ -383,10 +383,18 @@ class PostProcessor(Thread):
                 errorMessage += '\n' + ' '*4 + brokenFile
             errorMessage += '\nand contains no par2 files for repair'
             raise FatalError(errorMessage)
+
+        # Find any files that need to assembled (e.g. file.avi.001, file.avi.002)
+        needAssembly = findSplitFiles(self.dirName)
         
         if dirHasPars(self.dirName):
             checkShutdown()
-            processPars(self.dirName)
+            try:
+                processPars(self.dirName, needAssembly)
+            except ParExpectsUnsplitFiles:
+                info(archiveName(self.dirName) + ': This archive requires assembly before running par2')
+                assembleSplitFiles(self.dirName, needAssembly)
+                processPars(self.dirName, None)
         
         if dirHasRars(self.dirName):
             checkShutdown()
@@ -397,7 +405,7 @@ class PostProcessor(Thread):
             self.processMusic()
 
         # Assemble split up files
-        #assembleSplitFiles(self.dirName)
+        assembleSplitFiles(self.dirName, findSplitFiles(self.dirName))
 
         # FIXME: do we need to gc.collect() after post processing a lot of data?
 

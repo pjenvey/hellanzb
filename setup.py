@@ -36,7 +36,7 @@ def runSetup():
         packages = [ 'Hellanzb', 'Hellanzb.NZBLeecher', 'Hellanzb.HellaXMLRPC' ],
         scripts = [ 'hellanzb.py' ],
         data_files = [ ( 'etc', [ 'etc/hellanzb.conf.sample' ] ),
-                       ( 'share/doc/hellanzb', [ 'CREDITS', 'README', 'LICENSE' ] ) ],
+                       ( 'share/doc/hellanzb', [ 'CHANGELOG', 'CREDITS', 'README', 'LICENSE' ] ) ],
         )
 
 if __name__ == '__main__':

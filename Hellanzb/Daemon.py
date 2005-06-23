@@ -663,8 +663,10 @@ def maxRate(rate):
         
     restartCheckRead = False
     if rate == None:
-        Hellanzb.ht.unthrottleReadsID.cancel()
-        Hellanzb.ht.checkReadBandwidthID.cancel()
+        if Hellanzb.ht.unthrottleReadsID != None:
+            Hellanzb.ht.unthrottleReadsID.cancel()
+        if Hellanzb.ht.checkReadBandwidthID != None:
+            Hellanzb.ht.checkReadBandwidthID.cancel()
         Hellanzb.ht.unthrottleReads()
     elif Hellanzb.ht.readLimit == None and rate > None:
         restartCheckRead = True

@@ -1,0 +1,106 @@
+v0.6:
+
+Daemon:
+
+o Added XMLRPC calls to control an already running hellanzb, similar to nzbq
+  and related programs. hellanzb, when invoked with a 'remote-call', will send
+  xmlrpc calls to the main hellanzb process:
+
+(From hellanzb.py --help)
+
+remote-calls (via XML-RPC):
+  cancel                Cancel the current download and move the current NZB to
+                        Hellanzb.TEMP_DIR
+  clear                 Clear the current nzb queue. Specify True as the second
+                        argument to clear anything currently downloading as
+                        well (like the cancel call)
+  continue              Continue downloading after being paused
+  dequeue nzbid         Remove the NZB with specified ID from the queue
+  down nzbid [shift]    Move the NZB with the specified ID down in the queue.
+                        The optional second argument specifys the number of
+                        spaces to shift by (Default: 1)
+  enqueue nzbfile       Add the specified NZB file to the end of the queue
+  force nzbid           Force hellanzb to begin downloading the NZB with the
+                        specified ID immediately, interrupting the current
+                        download
+  last nzbid            Move the NZB with the specified ID to the end of the
+                        queue
+  list [showids]        List the current queue. Specify True as the second
+                        argument to include the NZB ID in the listing
+  maxrate [newrate]     Return the Hellanzb.MAX_RATE (maximum download rate)
+                        value. Specify a second argument to change the value --
+                        a value of zero denotes no maximum rate
+  move nzbid index      Move the NZB with the specified ID to the specified
+                        index in the queue
+  next nzbid            Move the NZB with the specified ID to the beginning of
+                        the queue
+  pause                 Pause downloading
+  process archivedir    Post process the specified directory. The -p option is
+                        preferable -- it will do this for you, or use the
+                        current process if this xml rpc call fails
+  shutdown              Shutdown hellanzb. Will quietly kill any post
+                        processing threads that may exist
+  status                Return hellanzb's current status text
+  up nzbid [shift]      Move the NZB with the specified ID up in the queue. The
+                        optional second argument specifys the number of spaces
+                        to shift by (Default: 1)
+
+PostProcessor:
+
+o Multiple par2 file sets are now handled correctly (fixed)
+
+o Added config option DELETE_PROCESSED to delete the processed sub directories
+  after successful post processing
+
+o Post processing now also occurs on sub directories (and walks down the tree
+  of sub directories)
+
+o Post processing will now be automatically resumed upon restart of hellanzb,
+  if previously interrupted (such as via CTRL-C)
+
+o Timing unrar/par2 commands
+
+o par2 left-over repair ('.1') files now moved to PROCESSED_SUBDIR
+
+NZBLeecher:
+
+o Fixed bandwidth throttling to be a global value applying to all defineServer
+  lines in the config file. Set the Hellanzb.MAX_RATE value to enable
+
+o Supporting Usenet servers not requiring authorization
+
+o Better handling of invalid groups (failed nntp GROUP commands) (thanks
+  No1UKnow)
+
+o Now overwrites (re-downloads) 0 byte files
+
+o Fixed connect timeouts permanently killing connections (blank download status
+  lines, requiring CTRL-C & restart to un-blank)
+
+o Quicker automatic reconnections when they are lost
+
+ArticleDecoder:
+
+o Fixed the 0 CRC problem occurring with some files/servers (e.g.: 'CRC mismatch
+  00000000 != 3B0B8959') (Thanks drak0 and Weavus)
+
+Misc:
+
+o Fixed darwin port unrar dependency
+
+o Other small bug fixes/changes
+
+
+v0.5:
+
+o NZB downloader rewritten from scratch (and some pyNewsleecher code by Freddie
+  <freddie@madcowdisease.org>) to use the twisted framework. With new NZB
+  downloader status ticker
+
+o Automatic reconnection and anti idle of NNTP server connections
+
+o Bandwidth throttling 
+
+o Can resume interrupted (CTRL-C, etc) downloads, at the segment level 
+
+o Improved logging

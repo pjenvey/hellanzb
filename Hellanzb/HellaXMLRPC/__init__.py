@@ -65,7 +65,7 @@ class HellaXMLRPCServer(XMLRPC):
     
     def xmlrpc_down(self, nzbId, shift = 1):
         """ Move the NZB with the specified ID down in the queue. The optional second argument
-        specifys the number of spaces to shift by (Default: 1) """
+        specifies the number of spaces to shift by (Default: 1) """
         from Hellanzb.Daemon import moveDown
         return moveDown(nzbId, shift)
 
@@ -125,7 +125,7 @@ class HellaXMLRPCServer(XMLRPC):
 
     def xmlrpc_process(self, archiveDir, rarPassword = None):
         """ Post process the specified directory. The -p option is preferable -- it will do this
-        for you, or use the current process if this xml rpc call fails """
+        for you, or use the current process if this XML-RPC call fails """
         # FIXME: merge this with Daemon.postProcess
         if not os.path.isdir(archiveDir):
             error('Unable to process, not a directory: ' + archiveDir)
@@ -169,6 +169,7 @@ class HellaXMLRPCServer(XMLRPC):
 
         s['time'] = DateTime()
         s['uptime'] = secondsToUptime(time.time() - Hellanzb.BEGIN_TIME)
+        s['is_paused'] = Hellanzb.downloadPaused
         s['rate'] = totalSpeed
         s['queued_mb'] = Hellanzb.queue.totalQueuedBytes / 1024 / 1024
         
@@ -197,7 +198,7 @@ class HellaXMLRPCServer(XMLRPC):
 
     def xmlrpc_up(self, nzbId, shift = 1):
         """ Move the NZB with the specified ID up in the queue. The optional second argument
-        specifys the number of spaces to shift by (Default: 1) """
+        specifies the number of spaces to shift by (Default: 1) """
         from Hellanzb.Daemon import moveUp
         return moveUp(nzbId, shift)
 
@@ -482,6 +483,7 @@ def hellaRemote(options, args):
 
 
 def statusString(remoteCall, result):
+    """ Generate and print status txt to stdout from the result of an xml rpc status call """
     s = result
 
     # yyyymmddThh:mm:ss
@@ -495,7 +497,11 @@ def statusString(remoteCall, result):
     sec = int(t[15:17])
     
     currentTime = datetime(y, m, d, h, min, sec)
+    # NOTE: Could try: getting values from the result dict, and default to a None for
+    # each, for the case of possible later versions of hellanzb expecting more/different
+    # arguments -- they won't necessarily fail (not a big deal)
     uptime = s['uptime']
+    isPaused = s['is_paused']
     totalSpeed = s['rate']
     totalNZBs = s['total_dl_nzbs']
     totalFiles = s['total_dl_files']
@@ -506,7 +512,9 @@ def statusString(remoteCall, result):
     processingNZBs = s['currently_processing']
     queuedNZBs = s['queued']
 
-    if totalSpeed == 0:
+    if isPaused:
+        totalSpeed = 'Paused'
+    elif totalSpeed == 0:
         totalSpeed = 'Idle'
     else:
         totalSpeed = '%.1fKB/s' % (totalSpeed)
@@ -517,10 +525,7 @@ def statusString(remoteCall, result):
     queued = 'Queued: '
 
     downloading += statusFromList(currentNZBs, len(downloading))
-#                                           lambda nzb : nzb.archiveName + ' [' + totalSpeed + ']')
-
     processing += statusFromList(processingNZBs, len(processing))
-
     queued += statusFromList(queuedNZBs, len(queued))
 
     # FIXME: show if any archives failed during processing?
@@ -542,23 +547,13 @@ def statusString(remoteCall, result):
          totalMb)
     
     msg = firstLine + two + three
-    #begin = firstLine + next
-    #msg = begin % (now, secondsToUptime(time.time() - Hellanzb.BEGIN_TIME),
-    #                            totalSpeed, Hellanzb.totalArchivesDownloaded,
-    #                            Hellanzb.totalFilesDownloaded,
-    #                            Hellanzb.totalSegmentsDownloaded,
-    #                            Hellanzb.totalBytesDownloaded / 1024 / 1024)
-    
     msg += cmHella(version)
-
     msg += \
 """
 %s
 %s
 %s
     """.strip() % (downloading, processing, queued)
-
-#        \"\"\".strip() % (Hellanzb.version, secondsToUptime(time.time() - Hellanzb.BEGIN_TIME),
 
     if isinstance(msg, unicode):
         msg = msg.encode('utf-8')

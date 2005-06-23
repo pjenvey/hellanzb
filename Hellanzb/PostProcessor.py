@@ -383,7 +383,7 @@ class PostProcessor(Thread):
                 errorMessage += '\n' + ' '*4 + brokenFile
             errorMessage += '\nand contains no par2 files for repair'
             raise FatalError(errorMessage)
-
+        
         if dirHasPars(self.dirName):
             checkShutdown()
             processPars(self.dirName)
@@ -395,6 +395,9 @@ class PostProcessor(Thread):
         if dirHasMusic(self.dirName):
             checkShutdown()
             self.processMusic()
+
+        # Assemble split up files
+        #assembleSplitFiles(self.dirName)
 
         # FIXME: do we need to gc.collect() after post processing a lot of data?
 

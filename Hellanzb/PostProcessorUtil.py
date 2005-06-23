@@ -98,6 +98,38 @@ class DirName(str):
     def isSubDir(self):
         return self.parentDir != None
 
+class ParExpectsUnsplitFiles(Exception):
+    """ Before Par2ing, the post processor finds any files that look like they need to be
+    assembled (E.g. file.avi.001, file.avi.002)
+
+    Now, before continuing, I'll just make it clear that, IMHO (pjenvey), posters using
+    .001-.XXX files (with some exceptions) like this should be tapped on the shoulder and
+    asked nicely to please use rar for splitting up files instead
+
+    Now, here's where it gets tricky. Posters who use .001-.XXX files AND use par2 files,
+    seem to typically create their par2 files to expect the .001-.XXX files. That makes
+    sense, your par files should validate the files you downloaded without having to do
+    any work on them first
+
+    Other posters, who IMHO, should be beaten severly over the head with a blunt obtuse
+    angled object, create their par2 files to expect the ASSEMBLED version of .001-.XXX
+    files (for file.avi.001-.XXX, it expects file.avi). So these knuckleheads expect you
+    to combine the split up file parts, then run par2. Fine you dumb bastards, hellanzb
+    will handle your 'sub-par' (LOL @ MY PUN) posts
+
+    So when the files-to-be-assembled are determined, they are passed along to
+    PostProcessor's par2 code. If par2 command line determines it's missing files that we
+    identified earlier as needing to assembled, this exception is thrown, letting us know
+    we need to do the assembly work and then re-run the par2 code again
+
+    Otherwise we simply do the assembly afterwards
+
+    Fuckers.
+    
+    """
+    # FIXME: not in use yet
+    pass
+
 def dirHasRars(dirName):
     """ Determine if the specified directory contains rar files """
     for file in os.listdir(dirName):
@@ -327,7 +359,14 @@ def processRars(dirName, rarPassword):
                                                                               rarTxt, e))
     processComplete(dirName, 'rar',
                     lambda file : os.path.isfile(file) and isRar(file))
+"""
+## From unrarsrc-3.4.3
 
+// rar return codes
+
+enum { SUCCESS,WARNING,FATAL_ERROR,CRC_ERROR,LOCK_ERROR,WRITE_ERROR,
+       OPEN_ERROR,USER_ERROR,MEMORY_ERROR,CREATE_ERROR,USER_BREAK=255};
+"""
 def unrar(dirName, fileName, rarPassword = None, pathToExtract = None):
     """ Unrar the specified file. Returns all the rar files we extracted from """
     fileName = os.path.normpath(dirName + os.sep + fileName)
@@ -338,14 +377,24 @@ def unrar(dirName, fileName, rarPassword = None, pathToExtract = None):
 
     # First, list the contents of the rar, if any filenames are preceeded with *, the rar
     # is passworded
-        
-    # FIXME: we should use -p- here too (for rars w/ password protected data AND
-    # headers). although it core dumped my rar pretty easily
-    listCmd = Hellanzb.UNRAR_CMD + ' l -y ' + ' "' + fileName + '"'
+    if rarPassword != None:
+        # Specify the password during the listing, in the case that the data AND headers
+        # are passworded
+        listCmd = Hellanzb.UNRAR_CMD + ' l -y -p' + rarPassword + ' "' + fileName + '"'
+    else:
+        listCmd = Hellanzb.UNRAR_CMD + ' l -y -p-' + ' "' + fileName + '"'
     t = Topen(listCmd)
     output, listReturnCode = t.readlinesAndWait()
 
-    if listReturnCode > 0:
+    if rarPassword == None and listReturnCode == 3:
+        # For CRC_ERROR (password failed) example:
+        # Encrypted file:  CRC failed in h.rar (password incorrect ?)
+        growlNotify('Archive Error', 'hellanzb requires password', archiveName(dirName) + \
+                    ' requires a rar password for extraction', True)
+        raise FatalError('Cannot continue, this archive requires a RAR password. Run ' + sys.argv[0] + \
+                         ' -p on the archive directory with the -P option to specify a password')
+        
+    elif listReturnCode > 0:
         errMsg = 'There was a problem during the rar listing, output:\n'
         for line in output:
             errMsg += line
@@ -380,7 +429,8 @@ def unrar(dirName, fileName, rarPassword = None, pathToExtract = None):
         # kill -9 the process
         # for every password that does not work, append to the processed/.rar_failed_passwords
         # known passwords for this loop are all known passwords minus those in that file
-        growlNotify('Archive Error', 'hellanzb Archive requires password:', archiveName(dirName),
+        growlNotify('Archive Error', 'hellanzb requires password', archiveName(dirName) + \
+                    ' requires a rar password for extraction',
                     True)
         raise FatalError('Cannot continue, this archive requires a RAR password. Run ' + sys.argv[0] + \
                          ' -p on the archive directory with the -P option to specify a password')
@@ -470,7 +520,7 @@ def flattenPar2Name(file):
                             dataGroupC*.{par2,PAR2}
 
     From the PAR2 Specification: http://www.par2.net/par2spec.php (Note the specification
-    specifys '-' as the vol delimiter, however Usenet appears to use '+' for some unknown
+    specifies '-' as the vol delimiter, however Usenet appears to use '+' for some unknown
     reason)
 
     PAR 2.0 files should always end in ".par2". For example, "file.par2". If a file
@@ -600,7 +650,6 @@ def par2(dirName, parFiles, wildcard):
         
     t = Topen(repairCmd)
     output, returnCode = t.readlinesAndWait()
-    debug('PAR2 output:\n' + ''.join(output))
 
     if returnCode == 0:
         # FIXME: checkout for 'repaired blah' messages.
@@ -621,7 +670,7 @@ def par2(dirName, parFiles, wildcard):
         # First, if the repair is not possible, double check the output for what files are
         # missing or damaged (a missing file is considered as damaged in this case). they
         # may be unimportant
-        damagedAndRequired, neededBlocks = parseParNeedsBlocksOutput(archiveName(dirName), output)
+        damagedAndRequired, allDamaged, neededBlocks = parseParNeedsBlocksOutput(archiveName(dirName), output)
 
         # The archive is only totally broken when we're missing required files
         if len(damagedAndRequired) > 0:
@@ -643,6 +692,7 @@ def parseParNeedsBlocksOutput(archive, output):
     required blocks needed. Will also log warn the user when it finds either of these
     kinds of files, or log error when they're required """
     damagedAndRequired = []
+    allDamaged = []
     neededBlocks = None
     damagedRE = re.compile(r'"\ -\ damaged\.\ Found\ \d+\ of\ \d+\ data\ blocks\.')
 
@@ -671,6 +721,8 @@ def parseParNeedsBlocksOutput(archive, output):
                 errMsg = archive + ': Archive has damaged, required file: ' + file
                 warnMsg = archive + ': Archive has damaged, non-required file: ' + file
 
+            allDamaged.append(file)
+            
             if isRequiredFile(file):
                 if spammed <= maxSpam:
                     error(errMsg)
@@ -701,7 +753,69 @@ def parseParNeedsBlocksOutput(archive, output):
         else:
             error(lastMsg)
             
-    return damagedAndRequired, neededBlocks
+    return damagedAndRequired, allDamaged, neededBlocks
+
+SPLIT_RE = re.compile(r'.*\.\d{3,4}$')
+def assembleSplitFiles(dirName):
+    toAssemble = {}
+
+    # Find anything matching the split file re
+    for file in os.listdir(dirName):
+        if not SPLIT_RE.match(file):
+            continue
+        else:
+            key = file[:file.rfind('.')]
+
+        if toAssemble.has_key(key):
+            parts = toAssemble[key]
+            parts.append(file)
+        else:
+            parts = []
+            parts.append(file)
+            toAssemble[key] = parts
+
+    # Remove any file sets that contain rar files, just in case
+    verify = toAssemble.copy()
+    for key, parts in verify.iteritems():
+
+        foundRar = False
+        for part in parts:
+            if isRar(dirName + os.sep + part):
+                foundRar = True
+                break
+        if foundRar:
+            toAssemble.remove(key)
+
+    # Finally assemble the main file from the parts. Cancel the assembly and delete the
+    # main file if we are CTRL-Ced
+    for key, parts in toAssemble.iteritems():
+        info(archiveName(dirName) + ': Assembling split file from parts: ' + key + '.*..')
+        
+        assembledFile = open(dirName + os.sep + key, 'w')
+        
+        for file in parts:
+            partFile = open(dirName + os.sep + file)
+            for line in partFile:
+                assembledFile.write(line)
+            partFile.close()
+            
+            try:
+                checkShutdown()
+            except SystemExit:
+                # We were interrupted. Instead of waiting to finish, just delete the file. It
+                # will be automatically assembled upon restart
+                debug('PostProcessor: (CTRL-C) Removing unfinished file: ' + dirName + os.sep + key)
+                assembledFile.close()
+                try:
+                    os.remove(dirName + os.sep + key)
+                except:
+                    pass
+                raise
+            
+        assembledFile.close()
+
+        for part in parts:
+            moveToProcessed(dirName + os.sep + part)
 
 def moveToProcessed(file):
     """ Move files to the processed dir """

@@ -80,8 +80,9 @@ def buildPort(version):
     os.system('cat ' + portStubDir + os.sep + 'Makefile | sed s/____VERSION____/' + version + '/ > ' +
               destDir + os.sep + 'Makefile')
 
-    # copy over the pkg-descr file
+    # copy over the pkg-descr and pkg-plist file
     shutil.copy(portStubDir + os.sep + 'pkg-descr', destDir + os.sep + 'pkg-descr')
+    shutil.copy(portStubDir + os.sep + 'pkg-plist', destDir + os.sep + 'pkg-plist')
 
     # create a distinfo with the checksum
     distinfo = open(destDir + os.sep + 'distinfo', 'w')
@@ -170,8 +171,10 @@ def uploadToHost(version, host, dir):
             cmd += 'dist/' + file + ' '
     cmd += host + ':' + dir
 
-    # First, move the old release out of the way
-    os.system('ssh ' + host + ' mv ' + dir + '/*.gz ' + dir + '/old/')
+    # NOTE: actually, keep the old releases around. Don't break their url so soon, someone
+    # could even be installing an old port
+    # First, move the old release out of the way.
+    #os.system('ssh ' + host + ' mv ' + dir + '/*.gz ' + dir + '/old/')
         
     os.system(cmd)
 

@@ -326,10 +326,10 @@ def parseArgs():
                       help='when used with the -p option, do the post processing work in the current ' + \
                       'process (do not attempt to contact an already running queue daemon)')
     parser.add_option('-r', '--rpc-server', type='string', dest='rpcServer',
-                      help='specify the rpc server (overwrites Hellanzb.XMLRPC_SERVER config file setting)')
+                      help='specify the rpc server hostname (overwrites Hellanzb.XMLRPC_SERVER config file setting)')
     parser.add_option('-s', '--rpc-password', type='string', dest='rpcPassword',
                       help='specify the rpc server password (overwrites Hellanzb.XMLRPC_PASSWORD config file setting)')
-    parser.add_option('-t', '--rpc-port', type='string', dest='rpcPort',
+    parser.add_option('-t', '--rpc-port', type='int', dest='rpcPort',
                       help='specify the rpc server port (overwrites Hellanzb.XMLRPC_PORT config file setting)')
     return parser.parse_args()
 

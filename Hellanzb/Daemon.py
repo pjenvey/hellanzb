@@ -338,6 +338,7 @@ def postProcess(options, isQueueDaemon = False):
     if options.rarPassword:
         rarPassword = options.rarPassword
 
+    # UNIX: realpath
     dirName = os.path.realpath(options.postProcessDir)
     troll = Hellanzb.PostProcessor.PostProcessor(dirName, background = False,
                                                  rarPassword = rarPassword)
@@ -610,7 +611,7 @@ def lastNZB(nzbId):
         return True
     
     Hellanzb.queued_nzbs.remove(foundNZB)
-    Hellanzb.queued_nzbs.insert(len(Hellanzb.queued_nzbs) - 1, foundNZB)
+    Hellanzb.queued_nzbs.append(foundNZB)
 
     writeQueueToDisk(Hellanzb.queued_nzbs)
     return True

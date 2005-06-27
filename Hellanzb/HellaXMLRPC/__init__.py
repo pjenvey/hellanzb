@@ -9,7 +9,7 @@ import os, sys, textwrap, time, Hellanzb
 from datetime import datetime
 from time import strftime
 from twisted.internet import reactor
-from twisted.internet.error import CannotListenError, ConnectionRefusedError
+from twisted.internet.error import CannotListenError, ConnectionRefusedError, DNSLookupError
 from twisted.python import log
 from twisted.web import xmlrpc, server
 from twisted.web.server import Site
@@ -140,6 +140,7 @@ class HellaXMLRPCServer(XMLRPC):
         # pick up the post processing afterward restart
         if os.path.normpath(dirName) != os.path.normpath(Hellanzb.PROCESSING_DIR):
             destDir = dupeName(Hellanzb.PROCESSING_DIR + os.sep + os.path.basename(archiveDir.rstrip(os.sep)))
+            # UNIX: symlink, windows =[
             os.symlink(archiveDir, destDir)
             archiveDir = destDir
 
@@ -240,39 +241,43 @@ def errHandler(remoteCall, failure):
     err = failure.value
     if isinstance(err, ConnectionRefusedError):
 
+        error('Unable to connect to XMLRPC server,\nerror: ' + str(err) + '\n' + \
+             'The hellanzb queue daemon @ ' + Hellanzb.serverUrl + ' probably isn\'t running')
+
         # By default, post process in the already running hellanzb. otherwise do the work
         # in this current process, and exit
         if remoteCall.funcName == 'process':
+            info('\nProcessing locally (-L) instead..')
             if RemoteCall.options.postProcessDir != None:
                 from Hellanzb.Daemon import postProcess
                 return postProcess(RemoteCall.options)
             else:
                 error(sys.argv[0] + ': error: process option requires a value')
-                reactor.stop()
         
-        info('Unable to connect to XMLRPC server: error: ' + str(err) + '\n' + \
-             'the hellanzb queue daemon @ ' + Hellanzb.serverUrl + ' probably isn\'t running')
-
     elif isinstance(err, ValueError):
         if len(err.args) == 2 and err.args[0] == '401':
-            info('Incorrect Hellanzb.XMLRPC_PASSWORD: ' + err.args[1] + ' (XMLRPC server: ' + \
+            error('Incorrect Hellanzb.XMLRPC_PASSWORD: ' + err.args[1] + ' (XMLRPC server: ' + \
                  Hellanzb.serverUrl + ')')
         elif len(err.args) == 2 and err.args[0] == '405':
-            info('XMLRPC server: ' + Hellanzb.serverUrl + ' did not understand command: ' + \
+            error('XMLRPC server: ' + Hellanzb.serverUrl + ' did not understand command: ' + \
                  remoteCall.funcName + \
                  ' -- this server is probably not the hellanzb XML RPC server!')
         else:
-            info('Unexpected XMLRPC problem: ' + str(err))
+            error('Unexpected XMLRPC problem: ' + str(err))
             
     elif isinstance(err, Fault):
         if err.faultCode == 8001:
-            info('Invalid command: ' + remoteCall.funcName + ' (XMLRPC server: ' + Hellanzb.serverUrl + \
+            error('Invalid command: ' + remoteCall.funcName + ' (XMLRPC server: ' + Hellanzb.serverUrl + \
                  ') faultString: ' + err.faultString)
         elif err.faultCode == 8002:
-            info('Invalid arguments? for call: ' + remoteCall.funcName + ' (XMLRPC server: ' + \
+            error('Invalid arguments? for call: ' + remoteCall.funcName + ' (XMLRPC server: ' + \
                  Hellanzb.serverUrl + ') faultString: ' + err.faultString)
         else:
-            info('Unexpected XMLRPC response: ' + str(err) + ' : ' + getStack(err))
+            error('Unexpected XMLRPC response: ' + str(err) + ' : ' + getStack(err))
+
+    elif isinstance(err, DNSLookupError):
+        error('No address associated with hostname (dns lookup failed)\nurl: ' + Hellanzb.serverUrl)
+        pass
             
     reactor.stop()
 
@@ -382,31 +387,56 @@ class RemoteCall:
         return msg
     allUsage = staticmethod(allUsage)
 
-def ensureXMLRPCOptions():
-    errors = []
-    for opt in ('PASSWORD'):
-        if not hasattr(Hellanzb, 'XMLRPC_' + opt):
-            errors.append('XMLRPC_' + opt)
-            
-    if len(errors):
-        msg = 'Required XMLRPC options not defined the the config file:'
-        for err in errors:
-            msg += ' ' + err
-        raise FatalError(err)
+def ensureXMLRPCOptions(isClient = False):
+    """ Ensure all the config file options are set for the XMLRPC server & client """
+    DEFAULT_PORT = 8760
+    if not hasattr(Hellanzb, 'XMLRPC_PORT') or (isClient and Hellanzb.XMLRPC_PORT == None):
+        Hellanzb.XMLRPC_PORT = DEFAULT_PORT
 
+    elif not isClient and Hellanzb.XMLRPC_PORT == None:
+        # explicitly do not initialize an xml rpc server when the port is set to none
+        pass
+        
+    elif isinstance(Hellanzb.XMLRPC_PORT, str):
+        try:
+            Hellanzb.XMLRPC_PORT = int(Hellanzb.XMLRPC_PORT)
+        except ValueError, ve:
+            raise FatalError('Invalid Hellanzb.XMLRPC_PORT value: ' + str(Hellanzb.XMLRPC_PORT))
+
+    elif not isinstance(Hellanzb.XMLRPC_PORT, int):
+        raise FatalError('Invalid Hellanzb.XMLRPC_PORT value: ' + str(Hellanzb.XMLRPC_PORT))
+
+
+    if not hasattr(Hellanzb, 'XMLRPC_SERVER') or Hellanzb.XMLRPC_SERVER == None:
+        Hellanzb.XMLRPC_SERVER = 'localhost'
+    elif not isinstance(Hellanzb.XMLRPC_SERVER, str):
+        raise FatalError('Invalid Hellanzb.XMLRPC_SERVER value: ' + str(Hellanzb.XMLRPC_SERVER))
+
+        
+    if not hasattr(Hellanzb, 'XMLRPC_PASSWORD'):
+        raise FatalError('Required option Hellanzb.XMLRPC_PASSWORD not defined in config file')
+    elif Hellanzb.XMLRPC_PASSWORD == None:
+        Hellanzb.XMLRPC_PASSWORD == ''
+    elif not isinstance(Hellanzb.XMLRPC_PASSWORD, str):
+        raise FatalError('Invalid Hellanzb.XMLRPC_PASSWORD value: ' + str(Hellanzb.XMLRPC_PASSWORD))
+        
 def initXMLRPCServer():
     """ Start the XML RPC server """
-    #ensureXMLRPCOptions()
+    ensureXMLRPCOptions()
 
+    if Hellanzb.XMLRPC_PORT == None:
+        warn('Hellanzb.XMLRPC_PORT = None, not starting the XML-RPC server')
+        return
+        
     hxmlrpcs = HellaXMLRPCServer()
     
     SECURE = True
     try:
         if SECURE:
             secure = HtPasswdWrapper(hxmlrpcs, 'hellanzb', Hellanzb.XMLRPC_PASSWORD, 'hellanzb XML RPC')
-            reactor.listenTCP(int(Hellanzb.XMLRPC_PORT), Site(secure))
+            reactor.listenTCP(Hellanzb.XMLRPC_PORT, Site(secure))
         else:
-            reactor.listenTCP(int(Hellanzb.XMLRPC_PORT), Site(hxmlrpcs))
+            reactor.listenTCP(Hellanzb.XMLRPC_PORT, Site(hxmlrpcs))
     except CannotListenError, cle:
         error(str(cle))
         raise FatalError('Cannot bind to XML RPC port, is another hellanzb queue daemon already running?')
@@ -450,7 +480,7 @@ def initXMLRPCClient():
 
 def hellaRemote(options, args):
     """ execute the remote RPC call with the specified cmd line args. args can be None """
-    #ensureXMLRPCOptions()
+    ensureXMLRPCOptions(isClient = True)
     
     if options.postProcessDir and options.rarPassword:
         args = ['process', options.postProcessDir, options.rarPassword]
@@ -462,13 +492,6 @@ def hellaRemote(options, args):
             # UNIX: os.path.realpath only available on UNIX
             args[1] = os.path.realpath(args[1])
 
-    if Hellanzb.XMLRPC_PORT == None:
-        raise FatalError('Hellanzb.XMLRPC_PORT not defined, cannot make remote call')
-
-    if not hasattr(Hellanzb, 'XMLRPC_SERVER') or Hellanzb.XMLRPC_SERVER == None:
-        Hellanzb.XMLRPC_SERVER = 'localhost'
-    if Hellanzb.XMLRPC_PASSWORD == None:
-        Hellanzb.XMLRPC_PASSWORD == ''
     Hellanzb.serverUrl = 'http://hellanzb:%s@%s:%i' % (Hellanzb.XMLRPC_PASSWORD, Hellanzb.XMLRPC_SERVER,
                                                        Hellanzb.XMLRPC_PORT)
 

@@ -84,13 +84,15 @@ class Topen(protocol.ProcessProtocol):
         Topen.activePool.remove(self)
 
     def kill(self):
-        from Hellanzb.Log import error
+        from Hellanzb.Log import debug, error
         if self.isRunning:
             try:
                 os.kill(self.transport.pid, signal.SIGKILL)
             except OSError, ose:
                 error('Unexpected problem while kill -9ing pid: ' + str(self.transport.pid) + \
                       ' process: ' + self.cmd, ose)
+            except Exception, e:
+                debug('could not kill process: ' + self.cmd + ': ' + str(e))
                 
         self.finished.acquire()
         self.finished.notify()

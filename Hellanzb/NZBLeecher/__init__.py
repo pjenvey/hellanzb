@@ -13,6 +13,7 @@ import os, re, time, Hellanzb
 from sets import Set
 from shutil import move
 from twisted.internet import reactor
+from twisted.internet.error import ConnectionRefusedError, DNSLookupError
 from twisted.internet.protocol import ReconnectingClientFactory
 from twisted.protocols.basic import LineReceiver
 from twisted.protocols.policies import TimeoutMixin, ThrottlingFactory
@@ -189,13 +190,23 @@ class NZBLeecherFactory(ReconnectingClientFactory):
         return p
 
     def clientConnectionFailed(self, connector, reason):
-        """ Overwrite ReconnectClientFactory so reconnecting happens after a connection timeout
-        (TimeoutError) """
+        """ Handle failed connection attempts """
+        #debug('clientConnectionFailed: ' + str(connector) + ' reason: ' + str(reason))
+        #debug('class: ' + str(reason.value.__class__) + ' args: ' + str(reason.value.args), reason)
+        if isinstance(reason.value, DNSLookupError):
+            error('DNS lookup failed for hostname: ' + connector.getDestination().host)
+        elif isinstance(reason.value, ConnectionRefusedError):
+            # FIXME: this spams too much
+            #error('Connection refused, hostname: ' + connector.getDestination().host)
+            pass
+            
+        # Overwrite ReconnectClientFactory so reconnecting happens after a connection
+        # timeout (TimeoutError)
         # FIXME: twisted should provide a toggle for this. submit a patch
-        from twisted.internet import error
+        from twisted.internet.error import TimeoutError, UserError
         if self.continueTrying:
             self.connector = connector
-            if not reason.check(error.UserError) or reason.check(error.TimeoutError):
+            if not reason.check(UserError) or reason.check(TimeoutError):
                 self.retry()
 
     def fetchNextNZBSegment(self):

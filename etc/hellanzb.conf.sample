@@ -114,7 +114,7 @@ Hellanzb.KEEP_FILE_TYPES = [ 'nfo', 'txt' ]
 Hellanzb.XMLRPC_SERVER = 'localhost'
 
 # Port number the XML RPC server will listen on, and the client will connect to.
-# Set to 'None' for no XML RPC server
+# Set to 'None' (without the quotes!) for no XML RPC server
 Hellanzb.XMLRPC_PORT = 8760
 
 # Password for the XML RPC server. You might probably never use this, but the

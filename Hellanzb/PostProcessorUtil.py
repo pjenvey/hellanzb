@@ -158,7 +158,8 @@ def isRar(fileName):
     if ext and ext.lower() == 'rar':
         return True
 
-    # If it doesn't end in rar, use unix file(1) 
+    # UNIX: /usr/bin/file
+    # If it doesn't end in rar, use unix file(1)
     t = Topen('file -b "' + absPath + '"')
     output, returnCode = t.readlinesAndWait()
 
@@ -389,6 +390,7 @@ def unrar(dirName, fileName, rarPassword = None, pathToExtract = None):
     if rarPassword == None and listReturnCode == 3:
         # For CRC_ERROR (password failed) example:
         # Encrypted file:  CRC failed in h.rar (password incorrect ?)
+        # FIXME: only sticky this growl if we're a background processor
         growlNotify('Archive Error', 'hellanzb requires password', archiveName(dirName) + \
                     ' requires a rar password for extraction', True)
         raise FatalError('Cannot continue, this archive requires a RAR password. Run ' + sys.argv[0] + \
@@ -424,14 +426,9 @@ def unrar(dirName, fileName, rarPassword = None, pathToExtract = None):
             withinFiles = True
 
     if isPassworded and rarPassword == None:
-        # FIXME: for each known password, run unrar, read output line by line. look for
-        # 'need password' line blocking for input. try one password, if it doesn't work,
-        # kill -9 the process
-        # for every password that does not work, append to the processed/.rar_failed_passwords
-        # known passwords for this loop are all known passwords minus those in that file
+        # FIXME: only sticky this growl if we're a background processor
         growlNotify('Archive Error', 'hellanzb requires password', archiveName(dirName) + \
-                    ' requires a rar password for extraction',
-                    True)
+                    ' requires a rar password for extraction', True)
         raise FatalError('Cannot continue, this archive requires a RAR password. Run ' + sys.argv[0] + \
                          ' -p on the archive directory with the -P option to specify a password')
 

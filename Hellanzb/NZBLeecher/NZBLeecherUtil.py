@@ -66,6 +66,11 @@ class HellaThrottler:
 
     def unthrottleReads(self):
         """Stop throttling reads on all protocols."""
+        # unthrottling reads just means the protocls startReading() again. Obviously we
+        # don't want to ever begin reading when the download is currently paused
+        if Hellanzb.downloadPaused:
+            return
+        
         self.unthrottleReadsID = None
         for f in self.factories:
             log.msg("Stopped throttling reads on %s" % f)

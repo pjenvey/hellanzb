@@ -57,7 +57,8 @@ o Open hellanzb.conf and edit the directories (PREFIX, DEST_DIR, etc) to your
   nzb files to add to the queue) and the DEST dir (where the finished files are
   placed)
 
-o Configure your usenet connection with a defineServer line
+o Configure your Usenet connection with a defineServer line. There may be
+  multiple defineServer lines
 
 o Edit the defineMusicType lines to match the music decompressors installed
   on your system (any defined music decompression command line utilities must
@@ -75,6 +76,8 @@ Move .nzb files into the QUEUE directory
 
 Watch hellanzb (or go do something else) download and process your nzb
 archives, leaving the finished files in the DEST dir
+
+Also, see the 'Safe Usage' section at the bottom of this file
 
 
 MISCELLANEOUS
@@ -117,6 +120,20 @@ o In the rare case that something unexpected happens, try reproducing it with
   Hellanzb.DEBUG_MODE (or hellanzb.py -d) enabled. This will produce a
   highly verbose DEBUG file that will contain any unexpected errors that were
   not picked up by the normal log file
+
+
+SAFE USAGE
+--------------------------------------------------
+Copyright laws and laws pertaining to patents and inventions protect original
+works of authorship and inventions. Individuals who reproduce, distribute
+copies, receive copies, publicly perform or display works or inventions other
+than their own and without the consent of the owners or holders of rights, or
+their authorized agents, in original works of authorship or inventions, may be
+in violation of copyright, patent or other intellectual property infringement.
+The hellanzb authors and contributors do not encourage or condone the illegal
+copying of copyrighted material. This is not intended to be legal counsel or
+advice. If you have any questions, consult your attorney.
+
 
 hellanzb -
 http://www.hellanzb.com/

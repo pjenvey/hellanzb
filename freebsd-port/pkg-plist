@@ -1,9 +1,9 @@
 bin/hellanzb.py
 etc/hellanzb.conf.sample
-share/doc/hellanzb/CHANGELOG
-share/doc/hellanzb/CREDITS
-share/doc/hellanzb/README
-share/doc/hellanzb/LICENSE
+%%PORTDOCS%%%%DOCSDIR%%/CHANGELOG
+%%PORTDOCS%%%%DOCSDIR%%/CREDITS
+%%PORTDOCS%%%%DOCSDIR%%/README
+%%PORTDOCS%%%%DOCSDIR%%/LICENSE
 %%PYTHON_SITELIBDIR%%/Hellanzb/Core.py
 %%PYTHON_SITELIBDIR%%/Hellanzb/Core.pyc
 %%PYTHON_SITELIBDIR%%/Hellanzb/Core.pyo
@@ -61,7 +61,7 @@ share/doc/hellanzb/LICENSE
 %%PYTHON_SITELIBDIR%%/Hellanzb/NZBLeecher/nntp.py
 %%PYTHON_SITELIBDIR%%/Hellanzb/NZBLeecher/nntp.pyc
 %%PYTHON_SITELIBDIR%%/Hellanzb/NZBLeecher/nntp.pyo
-@dirrm share/doc/hellanzb
+%%PORTDOCS%%@dirrm %%DOCSDIR%%
 @dirrm %%PYTHON_SITELIBDIR%%/Hellanzb/HellaXMLRPC
 @dirrm %%PYTHON_SITELIBDIR%%/Hellanzb/NZBLeecher
 @dirrm %%PYTHON_SITELIBDIR%%/Hellanzb

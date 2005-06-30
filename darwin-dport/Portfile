@@ -7,7 +7,7 @@ name             hellanzb
 version          ____VERSION____
 categories       news python
 maintainers      pjenvey@groovie.org
-description      nzb downloader and post processor
+description      Nzb downloader and post processor
 long_description \
                  hellanzb is an easy to use app designed to retrieve nzb files and fully process them. \
                  The goal being to make getting files from Usenet as hands-free as possible. Once fully \

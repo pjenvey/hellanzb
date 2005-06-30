@@ -72,7 +72,7 @@ def noLogFile(message, appendLF = True):
     Hellanzb.logger.log(ScrollableHandler.NOLOGFILE, message)
 
 def growlNotify(type, title, description, sticky = False):
-    """ send a message to the growl daemon via an xmlrpc proxy """
+    """ send a message to the remote growl daemon via udp """
     # NOTE: growl doesn't tie in with logging yet because all it's sublevels/args makes it
     # not play well with the rest of the logging.py
     
@@ -99,7 +99,7 @@ def growlNotify(type, title, description, sticky = False):
     # Unicode the message, so the python Growl lib can succesfully UTF-8 it. It can fail
     # to UTF-8 the description if it contains unusual characters. we also have to force
     # latin-1, otherwise converting to unicode can fail too
-    # (e.g. 'Secrets_of_SÃÂ£o_Paulo_(Full_DVD5_2003)')
+    # (e.g. 'SÃÂ£o_Paulo')
     description = unicode(description, 'latin-1')
     
     p = GrowlNotificationPacket(application="hellanzb",

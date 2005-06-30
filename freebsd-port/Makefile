@@ -13,10 +13,7 @@ MASTER_SITES=	http://www.hellanzb.com/distfiles/
 DISTNAME=	${PORTNAME}-${PORTVERSION}
 
 MAINTAINER=	pjenvey@groovie.org
-COMMENT?=	nzb downloader and post processor
-
-USE_PYTHON=	yes
-USE_PYDISTUTILS=yes
+COMMENT=	Nzb downloader and post processor
 
 RUN_DEPENDS=	par2:${PORTSDIR}/archivers/par2cmdline \
 		rar:${PORTSDIR}/archivers/rar \
@@ -25,6 +22,9 @@ RUN_DEPENDS=	par2:${PORTSDIR}/archivers/par2cmdline \
 		shorten:${PORTSDIR}/audio/shorten \
 		${PYTHON_SITELIBDIR}/twisted:${PORTSDIR}/devel/py-twistedCore \
 		${PYTHON_SITELIBDIR}/twisted/web:${PORTSDIR}/www/py-twistedWeb
+
+USE_PYTHON=	yes
+USE_PYDISTUTILS=yes
 
 post-install:
 

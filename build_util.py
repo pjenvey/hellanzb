@@ -80,9 +80,10 @@ def buildPort(version):
     os.system('cat ' + portStubDir + os.sep + 'Makefile | sed s/____VERSION____/' + version + '/ > ' +
               destDir + os.sep + 'Makefile')
 
-    # copy over the pkg-descr and pkg-plist file
+    # copy over the port files
     shutil.copy(portStubDir + os.sep + 'pkg-descr', destDir + os.sep + 'pkg-descr')
     shutil.copy(portStubDir + os.sep + 'pkg-plist', destDir + os.sep + 'pkg-plist')
+    shutil.copytree(portStubDir + os.sep + 'files', destDir + os.sep + 'files')
 
     # create a distinfo with the checksum
     distinfo = open(destDir + os.sep + 'distinfo', 'w')

@@ -26,11 +26,22 @@ RUN_DEPENDS=	par2:${PORTSDIR}/archivers/par2cmdline \
 USE_PYTHON=	yes
 USE_PYDISTUTILS=yes
 
+.ifndef(NOPORTDOCS)
+PORTDOCS=	CHANGELOG CREDITS README LICENSE
+.endif
+
 post-install:
 
 	@if [ ! -f ${LOCALBASE}/etc/hellanzb.conf ]; then \
 		${ECHO} "Installing default configuration file."; \
 		${INSTALL_DATA} ${WRKSRC}/etc/hellanzb.conf.sample ${LOCALBASE}/etc/hellanzb.conf; \
 	fi
+
+.ifndef(NOPORTDOCS)
+	@${MKDIR} ${DOCSDIR}
+.for doc in ${PORTDOCS}
+	@${INSTALL_DATA} ${WRKSRC}/${doc} ${DOCSDIR}
+.endfor
+.endif
 
 .include <bsd.port.mk>

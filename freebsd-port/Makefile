@@ -16,15 +16,27 @@ MAINTAINER=	pjenvey@groovie.org
 COMMENT=	Nzb downloader and post processor
 
 RUN_DEPENDS=	par2:${PORTSDIR}/archivers/par2cmdline \
-		rar:${PORTSDIR}/archivers/rar \
 		flac:${PORTSDIR}/audio/flac \
-		mac:${PORTSDIR}/audio/mac \
 		shorten:${PORTSDIR}/audio/shorten \
 		${PYTHON_SITELIBDIR}/twisted:${PORTSDIR}/devel/py-twistedCore \
 		${PYTHON_SITELIBDIR}/twisted/web:${PORTSDIR}/www/py-twistedWeb
 
 USE_PYTHON=	yes
 USE_PYDISTUTILS=yes
+
+.include <bsd.port.pre.mk>
+
+# monkey audio (mac) needs FreeBSD 5
+.if ${OSVERSION} >= 500000
+RUN_DEPENDS+=	mac:${PORTSDIR}/audio/mac
+.endif
+
+# more fully-featured rar needs at least 5.3
+.if ${OSVERSION} >= 503000
+RUN_DEPENDS+=	rar:${PORTSDIR}/archivers/rar
+.else
+RUN_DEPENDS+=	unrar:${PORTSDIR}/archivers/unrar
+.endif
 
 .ifndef(NOPORTDOCS)
 PORTDOCS=	CHANGELOG CREDITS README LICENSE
@@ -44,4 +56,4 @@ post-install:
 .endfor
 .endif
 
-.include <bsd.port.mk>
+.include <bsd.port.post.mk>

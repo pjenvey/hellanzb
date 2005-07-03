@@ -502,6 +502,7 @@ class NZBQueue(PriorityQueue):
         try:
             parser.parse(fileName)
         except SAXParseException, saxpe:
+            self.nzbDone(nzb)
             raise FatalError('Unable to parse Invalid NZB file: ' + os.path.basename(fileName))
 
         s = time.time()
@@ -539,6 +540,7 @@ class NZBQueue(PriorityQueue):
                 try:
                     assembleNZBFile(nzbFile, autoFinish = False)
                 except TooMuchWares:
+                    self.nzbDone(nzb)
                     error('Cannot assemble ' + nzb.getFileName() + ': No space left on device! Exiting..')
                     shutdown(True)
 

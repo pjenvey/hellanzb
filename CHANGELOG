@@ -1,3 +1,11 @@
+v0.7:
+
+Queue:
+
+o Invalid NZB files weren't being removed from the list of current downloads
+  seen in the status call (fixed)
+
+
 v0.6:
 
 Daemon:

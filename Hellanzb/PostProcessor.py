@@ -291,15 +291,24 @@ class PostProcessor(Thread):
             handledPars = True
         
         # Finally, nuke the processed dir. Hopefully the PostProcessor did its job and
-        # there was absolutely no need for it, otherwise tough! (and disable the option
-        # and try again) =]
+        # there was absolutely no need for any of the files in the processed dir,
+        # otherwise tough! (otherwise disable the option and redownload again)
+            
+        # Strip the parentDir name from the filename's full path
+        parentDir = self.dirName
+        if self.isSubDir:
+            parentDir = self.parentDir
+
+        deleteDir = self.dirName + os.sep + Hellanzb.PROCESSED_SUBDIR
+        deletedFiles = walk(deleteDir, 1, return_folders = 1)
+        deletedFiles.sort()
+        deletedFiles = [fileName.replace(deleteDir + os.sep, '') for fileName in deletedFiles]
+
         if hasattr(Hellanzb, 'DELETE_PROCESSED') and Hellanzb.DELETE_PROCESSED:
-            msg = 'Deleting processed dir: ' + self.dirName + os.sep + \
-                Hellanzb.PROCESSED_SUBDIR + \
-                ', it contains: ' + str(walk(self.dirName + os.sep + \
-                                             Hellanzb.PROCESSED_SUBDIR,
-                                             1, return_folders = 1))
-            logFile(msg)
+            msg = 'Deleting processed dir: ' + archiveName(self.dirName) + os.sep + \
+                Hellanzb.PROCESSED_SUBDIR + ', it contains: ' + str(deletedFiles)
+            if len(deletedFiles):
+                logFile(msg)
             rmtree(self.dirName + os.sep + Hellanzb.PROCESSED_SUBDIR)
 
         # Finished. Move dirName to DEST_DIR if we need to

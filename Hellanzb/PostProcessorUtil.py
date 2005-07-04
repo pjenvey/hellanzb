@@ -91,6 +91,8 @@ class DecompressionThread(Thread):
         Thread.start(self)
 
 class DirName(str):
+    """ A hack to print out the correct dirName via Util.archiveName, when processing nested
+    sub directories"""
     def __init__(self, *args, **kwargs):
         self.parentDir = None
         str.__init__(self, *args, **kwargs)
@@ -149,24 +151,22 @@ def dirHasMusic(dirName):
     """ Determine if the specified directory contains any known music files """
     return dirHasFileTypes(dirName, getMusicTypeExtensions())
 
+RAR_HEADER = 'Rar!'
 def isRar(fileName):
     """ Determine if the specified file is a rar """
-    absPath = fileName
-    fileName = os.path.basename(fileName)
-
+    if not os.path.isfile(fileName):
+        return False
+    
     ext = getFileExtension(fileName)
     if ext and ext.lower() == 'rar':
         return True
 
-    # UNIX: /usr/bin/file
-    # If it doesn't end in rar, use unix file(1)
-    t = Topen('file -b "' + absPath + '"')
-    output, returnCode = t.readlinesAndWait()
+    fh = open(fileName)
+    firstFourBytes = fh.read(4)
+    fh.close()
 
-    if len(output) > 0:
-        line = output[0]
-        if len(line) > 2 and line[0:3].lower() == 'rar':
-            return True
+    if firstFourBytes == RAR_HEADER:
+        return True
 
     # NOTE We could check for part001 or ending in 001, r01 or something similar if we
     # don't want to use file(1)

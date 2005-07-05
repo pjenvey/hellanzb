@@ -116,8 +116,7 @@ class ParExpectsUnsplitFiles(Exception):
     Other posters, who IMHO, should be beaten severly over the head with a blunt obtuse
     angled object, create their par2 files to expect the ASSEMBLED version of .001-.XXX
     files (for file.avi.001-.XXX, it expects file.avi). So these knuckleheads expect you
-    to combine the split up file parts, then run par2. Fine you dumb bastards, hellanzb
-    will handle your 'sub-par' (LOL @ MY PUN) posts
+    to combine the split up file parts, then run par2. Fine, hellanzb will handle them too
 
     So when the files-to-be-assembled are determined, they are passed along to
     PostProcessor's par2 code. If par2 command line determines it's missing files that we
@@ -125,11 +124,7 @@ class ParExpectsUnsplitFiles(Exception):
     we need to do the assembly work and then re-run the par2 code again
 
     Otherwise we simply do the assembly afterwards
-
-    Fuckers.
-    
     """
-    # FIXME: not in use yet
     pass
 
 def dirHasRars(dirName):

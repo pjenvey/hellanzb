@@ -123,7 +123,8 @@ class Topen(protocol.ProcessProtocol):
         reactor.wakeUp()
         # seems to actually run the process in this current thread. the process
         # ignores signals sent to the main thread
-        reactor.spawnProcess(self, self.args[0], args = self.args, env = os.environ)
+        reactor.spawnProcess(self, self.args[0], args = self.args, env = os.environ,
+                             usePTY = 1)
 
         # seems to run the process in the main thread. they will die when the main
         # thread receives a CTRL-C. Used for -Lp mode. reactor.spawnProcess does

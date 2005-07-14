@@ -627,7 +627,7 @@ def cmVersion(version = Hellanzb.version):
             # just left jusity for now
             v = orig.ljust(len(cmV))
 
-        return v
+    return v
 
 def cmHella(version = Hellanzb.version):
     """ brand the ascii with a properly formatted version number """

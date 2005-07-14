@@ -479,6 +479,7 @@ class NZBLeecher(NNTPClient, TimeoutMixin):
 
             try:
                 priority, self.currentSegment = Hellanzb.queue.get_nowait()
+                debug(str(self) + ' PULLED FROM QUEUE: ' + self.currentSegment.getDestination())
 
                 # got a segment - set ourselves as active unless we're already set as so
                 self.isActive(True)

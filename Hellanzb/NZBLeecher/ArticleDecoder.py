@@ -358,11 +358,6 @@ def yDecode(dataList):
         elif not line or line[:5] == '=yend':
             break
 
-        if line[-2:] == '\r\n':
-            line = line[:-2]
-        elif line[-1:] in '\r\n':
-            line = line[:-1]
-
         data = string.split(line, '=')
         buffer.append(string.translate(data[0], yenc42))
         for data in data[1:]:
@@ -403,11 +398,6 @@ def UUDecode(dataList):
             continue
         elif not line or line[:3] == 'end':
             break
-        
-        if line[-2:] == '\r\n':
-            line = line[:-2]
-        elif line[-1:] in '\r\n':
-            line = line[:-1]
 
         # From pyNewsleecher. Which ripped it from python's uu module (with maybe extra
         # overhead stripped out)

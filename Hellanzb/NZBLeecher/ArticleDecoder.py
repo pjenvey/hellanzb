@@ -244,7 +244,7 @@ def setRealFileName(segment, filename):
               ' has incorrect filename header!: ' + filename + ' should be: ' + \
               segment.nzbFile.showFilename)
 
-def yDecodeCRCCheck(segment, decodedLines):
+def yDecodeCRCCheck(segment, decoded):
     """ Validate the CRC of the segment with the yencode keyword """
     passedCRC = False
     if segment.yCrc == None:
@@ -253,7 +253,7 @@ def yDecodeCRCCheck(segment, decodedLines):
         error(segment.nzbFile.showFilename + ' segment: ' + str(segment.number) + \
               ' does not have a valid CRC/yend line!')
     else:
-        decoded = ''.join(decodedLines)
+        decoded
         crc = '%08X' % (crc32(decoded) & 2**32L - 1)
         
         if crc == segment.yCrc:
@@ -306,14 +306,21 @@ def decodeSegmentToFile(segment, encodingType = YENCODE):
     decodedLines = []
 
     if encodingType == YENCODE:
-        decodedLines = yDecode(segment.articleData)
+        decoded = yDecode(segment.articleData)
 
         # CRC check
-        passedCRC = yDecodeCRCCheck(segment, decodedLines)
+        passedCRC = yDecodeCRCCheck(segment, decoded)
 
         # Write the decoded segment to disk
-        size = writeLines(segment.getDestination(), decodedLines)
-        
+        size = len(decoded)
+        out = open(segment.getDestination(), 'wb')
+        try:
+            out.write(decoded)
+        except IOError, ioe:
+            out.close()
+            handleIOError(ioe) # will re-raise
+        out.close()
+              
         if passedCRC:
             # File size check vs ydecode header. We only do the file size check if the CRC
             # passed. If the CRC didn't pass the CRC check, the file size check will most
@@ -343,11 +350,13 @@ def decodeSegmentToFile(segment, encodingType = YENCODE):
     else:
         debug('FIXME: Did not YY/UDecode!!')
         #raise FatalError('(Panic) Did not YY/UDecode!!')
-        
+
+## This yDecoder is verified to be 100% correct. We have reverted back to our older one,
+## though. It had bugs, which seemed to now be fixed. Not 100% sure of that yet though
 # From effbot.org/zone/yenc-decoder.htm -- does not suffer from yDecodeOLD's bug -pjenvey
 yenc42 = string.join(map(lambda x: chr((x-42) & 255), range(256)), '')
 yenc64 = string.join(map(lambda x: chr((x-64) & 255), range(256)), '')
-def yDecode(dataList):
+def yDecode_SAFE(dataList):
     """ yDecode the specified list of data, returning results as a list """
     buffer = []
     index = -1
@@ -370,7 +379,29 @@ def yDecode(dataList):
             buffer.append(data[1:])
 
     return buffer
-                                 
+
+# Build the yEnc decode table
+YDEC_TRANS = ''.join([chr((i + 256 - 42) % 256) for i in range(256)])
+def yDecode(dataList):
+    buffer = []
+    index = -1
+    for line in dataList:
+       if index <= 5 and (line[:7] == '=ybegin' or line[:6] == '=ypart'):
+           continue
+       elif not line or line[:5] == '=yend':
+           break
+
+       buffer.append(line)
+
+    data = ''.join(buffer)
+    
+    # unescape NUL, TAB, LF, CR, ' ', ., =
+    for i in (0, 9, 10, 13, 32, 46, 61):
+        j = '=%c' % (i + 64)
+        data = data.replace(j, chr(i))
+        
+    return data.translate(YDEC_TRANS)
+               
 YSPLIT_RE = re.compile(r'(\S+)=')
 def ySplit(line):
     """ Split a =y* line into key/value pairs """

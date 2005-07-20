@@ -14,7 +14,6 @@ from twisted.python import log
 from twisted.web import xmlrpc, server
 from twisted.web.server import Site
 from xmlrpclib import DateTime, Fault
-from Hellanzb.Elite import C
 from Hellanzb.HellaXMLRPC.xmlrpc import Proxy, XMLRPC # was twisted.web.xmlrpc
 from Hellanzb.HellaXMLRPC.HtPasswdAuth import HtPasswdWrapper
 from Hellanzb.Logging import LogOutputStream

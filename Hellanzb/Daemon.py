@@ -718,7 +718,7 @@ def forceNZB(nzbfilename):
 
     if not len(Hellanzb.queue.nzbs):
         # No need to actually 'force'
-        return parseNZB(nzbfilename)
+        return parseNZB(NZB(nzbfilename))
 
     # postpone the current NZB download
     for nzb in Hellanzb.queue.currentNZBs():

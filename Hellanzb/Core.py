@@ -248,6 +248,18 @@ def init(options = {}):
         if getattr(options, option):
             setattr(Hellanzb, attr, getattr(options, option))
 
+    if not hasattr(Hellanzb, 'GROWL_NOTIFY'):
+        error('Required option not defined in config file: Hellanzb.GROWL_NOTIFY')
+        sys.exit(1)
+    elif Hellanzb.GROWL_NOTIFY:
+        errors = []
+        for attr in ('GROWL_SERVER', 'GROWL_PASSWORD'):
+            if not hasattr(Hellanzb, attr):
+                errors.append('Required option not defined in config file: Hellanzb.' + attr)
+        if len(errors):
+            [error(err) for err in errors]
+            sys.exit(1)
+
 def outlineRequiredDirs():
     """ Set all required directory attrs to None. they will be checked later for this value to
     ensure they have been set """

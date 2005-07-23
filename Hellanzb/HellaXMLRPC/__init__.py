@@ -573,13 +573,19 @@ def statusString(remoteCall, result):
     msg += cmHella(version)
     msg += \
 """
-%s
-%s%s, %s MB queued, ETA: %s
+%s""" % (downloading)
+
+    if len(currentNZBs):
+        msg += \
+"""    
+%s%s, %s MB queued, ETA: %s""" % (downloadingSpacer, totalSpeed, queuedMB, prettyEta(eta))
+        
+    msg += \
+"""
 
 %s
 %s
-    """.strip() % (downloading, downloadingSpacer, totalSpeed, queuedMB, prettyEta(eta),
-                   processing, queued)
+    """.rstrip() % (processing, queued)
 
     if isinstance(msg, unicode):
         msg = msg.encode('utf-8')

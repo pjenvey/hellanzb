@@ -176,7 +176,7 @@ class HellaXMLRPCServer(XMLRPC):
         if totalSpeed == 0:
             s['eta'] = 0
         else:
-            s['eta'] = (Hellanzb.queue.totalQueuedBytes / 1024) / totalSpeed
+            s['eta'] = int((Hellanzb.queue.totalQueuedBytes / 1024) / totalSpeed)
             
         if Hellanzb.ht.readLimit == None or Hellanzb.ht.readLimit == 0:
             s['maxrate'] = 0
@@ -533,6 +533,8 @@ def statusString(remoteCall, result):
     currentNZBs = s['currently_downloading']
     processingNZBs = s['currently_processing']
     queuedNZBs = s['queued']
+    queuedMB = s['queued_mb']
+    eta = s['eta']
 
     if isPaused:
         totalSpeed = 'Paused'
@@ -541,10 +543,11 @@ def statusString(remoteCall, result):
     else:
         totalSpeed = '%.1fKB/s' % (totalSpeed)
     
-    downloading = 'Currently Downloading: '
-    processing = 'Currently Processing: '
+    downloading = 'Downloading: '
+    processing = 'Processing: '
     failedProcessing = 'Failed Processing: '
     queued = 'Queued: '
+    downloadingSpacer = ' '*len(downloading)
 
     downloading += statusFromList(currentNZBs, len(downloading))
     processing += statusFromList(processingNZBs, len(processing))
@@ -558,24 +561,25 @@ def statusString(remoteCall, result):
     # FIXME: optionally don't show ascii
     # hellanzb version %s
 
-    firstLine = """%s  up %s  %s  """
+    firstLine = """%s  up %s  """
     firstLine = firstLine % (now,
-                             uptime,
-                             totalSpeed)
-    two =  """downloaded %i nzbs,""" % (totalNZBs)
-    three = '\n' + ' '*len(firstLine) + """%i files, %i segments (%i MB)\n""" % \
-        (totalFiles,
-         totalSegments,
-         totalMb)
+                             uptime)
+    two =  """downloaded %i nzbs, %i files, %i segments""" % (totalNZBs, totalFiles,
+                                                              totalSegments)
+    three = '\n' + ' '*len(firstLine) + """(%i MB)\n""" % \
+        (totalMb)
     
     msg = firstLine + two + three
     msg += cmHella(version)
     msg += \
 """
 %s
+%s%s, %s MB queued, ETA: %s
+
 %s
 %s
-    """.strip() % (downloading, processing, queued)
+    """.strip() % (downloading, downloadingSpacer, totalSpeed, queuedMB, prettyEta(eta),
+                   processing, queued)
 
     if isinstance(msg, unicode):
         msg = msg.encode('utf-8')

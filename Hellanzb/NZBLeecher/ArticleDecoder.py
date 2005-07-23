@@ -348,8 +348,11 @@ def decodeSegmentToFile(segment, encodingType = YENCODE):
         touch(segment.getDestination())
 
     else:
-        debug('FIXME: Did not YY/UDecode!!')
-        #raise FatalError('(Panic) Did not YY/UDecode!!')
+        # FIXME: should this be an info instead of debug? Should probably change the
+        # above: articleData == '' check to articleData.strip() == ''. that block would
+        # cover all null articleData and would be safer to always info() about
+        debug('Mysterious data, did not YY/UDecode!! Touching file: ' + segment.getDestination())
+        touch(segment.getDestination())
 
 ## This yDecoder is verified to be 100% correct. We have reverted back to our older one,
 ## though. It had bugs, which seemed to now be fixed. Not 100% sure of that yet though

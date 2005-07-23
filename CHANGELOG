@@ -1,9 +1,25 @@
 v0.7:
 
-Queue:
+Daemon:
+
+o RPC status call now shows queued MB and ETA when downloading
 
 o Invalid NZB files weren't being removed from the list of current downloads
-  seen in the status call (fixed)
+  seen in the RPC status call (fixed)
+
+o Fixed an odd case where a segment with no articleData could prevent the queue
+  from continuing onto the next NZB
+
+PostProcessor:
+
+o No longer using /bin/file for identifying rars. Running /bin/file via twisted
+  seems to have triggered a twisted bug where it wouldn't allow the /bin/file
+  process to exit cleanly (on some if not all platforms)
+
+ArticleDecoder:
+
+o Optimized the YDecoder. Benchmarks show it using approximately 6-8% less CPU on an
+  Athlon XP 2600+, FreeBSD 4.10
 
 
 v0.6:

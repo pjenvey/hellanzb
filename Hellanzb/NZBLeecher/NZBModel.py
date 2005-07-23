@@ -94,8 +94,13 @@ def segmentsNeedDownload(segmentList, overwriteZeroByteSegments = False):
         
         foundFileName = None
         for segmentFileName in segmentFileNames:
-            # FIXME: should prbobably check if they match the tempfilename as well
-            if segment.nzbFile.subject.find(segmentFileName) > -1:
+
+            # We've matched to our on disk segment if we:
+            # a) find that on disk segment's file name in our potential segment's subject
+            # b) match that on disk segment's file name to our potential segment's temp
+            # file name (w/ .segmentXXXX cutoff)
+            if segment.nzbFile.subject.find(segmentFileName) > -1 or \
+                    segment.getTempFileName()[:-12] == segmentFileName:
                 foundFileName = segmentFileName
                 # make note that this segment doesn't have to be downloaded
                 segment.nzbFile.todoNzbSegments.remove(segment)
@@ -105,9 +110,7 @@ def segmentsNeedDownload(segmentList, overwriteZeroByteSegments = False):
             needDlSegments.append(segment)
             needDlFiles.add(segment.nzbFile)
         else:
-            # FIXME: when we start checking for tempfilename we have to check here as well
-            # before setReal
-            if segment.number == 1:
+            if segment.number == 1 and foundFileName.find('hellanzb-tmp-') != 0:
                 # HACK: filename is None. so we only have the temporary name in
                 # memory. since we didnt see the temporary name on the filesystem, but
                 # we found a subject match, that means we have the real name on the

@@ -9,7 +9,7 @@ Freddie (freddie@madcowdisease.org) utilizing the twisted framework
 (c) Copyright 2005 Philip Jenvey, Ben Bangert
 [See end of file]
 """
-import os, re, time, Hellanzb
+import gc, os, re, time, Hellanzb
 from sets import Set
 from shutil import move
 from twisted.internet import reactor
@@ -60,6 +60,13 @@ def initNZBLeecher():
 
     # loop to scan the queue dir during download
     Hellanzb.downloadScannerID = None
+
+    from Hellanzb.NZBLeecher.ArticleDecoder import ArticleAssemblyGCDelay
+    Hellanzb.doh = ArticleAssemblyGCDelay()
+
+    from twisted.python.threadpool import ThreadPool
+    Hellanzb.writers = ThreadPool(minthreads = 1, maxthreads = 4)
+    Hellanzb.writers.start()
     
     startNZBLeecher()
 
@@ -581,8 +588,19 @@ class NZBLeecher(NNTPClient, TimeoutMixin):
         
     def deferSegmentDecode(self, segment):
         """ Decode the specified segment in a separate thread """
-        reactor.callInThread(decode, segment)
+        #reactor.callInThread(self.writeEncodedData, segment)
+        Hellanzb.writers.dispatch(None, self.writeEncodedData, segment)
 
+    def writeEncodedData(self, segment):
+        """ Write the encoded data to disk """
+        encodedData = open(Hellanzb.TEMP_DIR + os.sep + segment.getTempFileName() + '_ENC',
+                           'w')
+        encodedData.write('\n'.join(segment.articleData))
+        encodedData.write('\n')
+        encodedData.close()
+        del segment.articleData
+        reactor.callInThread(decode, segment)
+        
     def gotGroup(self, group):
         group = group[3]
         self.activeGroups.append(group)

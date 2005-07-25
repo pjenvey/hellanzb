@@ -44,6 +44,10 @@ def decode(segment):
     instance as having been decoded, then assemble all the segments together if all their
     decoded segment filenames exist """
     try:
+        encodedData = open(Hellanzb.TEMP_DIR + os.sep + segment.getTempFileName() + '_ENC')
+        segment.articleData = [line[:-1] for line in encodedData.readlines()]
+        encodedData.close()
+        nuke(Hellanzb.TEMP_DIR + os.sep + segment.getTempFileName())
         decodeArticleData(segment)
         
     except TooMuchWares:
@@ -253,7 +257,6 @@ def yDecodeCRCCheck(segment, decoded):
         error(segment.nzbFile.showFilename + ' segment: ' + str(segment.number) + \
               ' does not have a valid CRC/yend line!')
     else:
-        decoded
         crc = '%08X' % (crc32(decoded) & 2**32L - 1)
         
         if crc == segment.yCrc:

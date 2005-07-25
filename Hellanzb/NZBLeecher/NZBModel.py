@@ -355,7 +355,11 @@ class NZBSegment:
     def getDestination(self):
         """ Where this decoded segment will reside on the fs """
         return self.nzbFile.getDestination() + '.segment' + str(self.number).zfill(4)
-    
+
+    def getFilename(self):
+        """ """
+        return self.nzbFile.getFilename() + '.segment' + str(self.number).zfill(4)
+        
     def getTempFileName(self):
         """ """
         return self.nzbFile.getTempFileName() + '.segment' + str(self.number).zfill(4)

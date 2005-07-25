@@ -12,7 +12,9 @@ from zlib import crc32
 from Hellanzb.Daemon import handleNZBDone, pauseCurrent
 from Hellanzb.Log import *
 from Hellanzb.Logging import prettyException
-from Hellanzb.Util import checkShutdown, touch, TooMuchWares
+from Hellanzb.Util import checkShutdown, touch, TooMuchWares, Topen
+import popen2
+#from apihelper import *
 
 __id__ = '$Id$'
 
@@ -39,13 +41,56 @@ class ArticleAssemblyGCDelay:
     shouldGC = staticmethod(shouldGC)
 GCDelay = ArticleAssemblyGCDelay
 
+MATCH_BAD_RE = re.compile(r'.*\.bad-\w{3,4}\.|$')
 def decode(segment):
     """ Decode the NZBSegment's articleData to it's destination. Toggle the NZBSegment
     instance as having been decoded, then assemble all the segments together if all their
     decoded segment filenames exist """
-    try:
-        decodeArticleData(segment)
+
+    index = -1
+    for line in segment.articleData:
+        index += 1
+
+        if line[:2] == '..':
+            line = line[1:]
+            segment.articleData[index] = line
+    
+    #f = open(segment.getDestination() + '_ENC', 'w')
+    tempDest = Hellanzb.TEMP_DIR + os.sep + segment.getFilename() + '_ENC'
+    f = open(tempDest, 'w')
+    f.write('\r\n'.join(segment.articleData) + '\r\n')
+    f.close()	 	
+    del segment.articleData
+
+    t = Topen('/usr/local/bin/ydecode -k -D "' + tempDest + '" -o "' + Hellanzb.TEMP_DIR + '"')
+
+    output, returnCode = t.readlinesAndWait()
+
+    # FIXME: check returnCode
+
+    #nuke(tempDest)
+    if os.path.isfile(tempDest):
+        shutil.move(tempDest, '/home/pjenvey/dump/')
+
+    # FIXME: be more safe about what files we're moving. Definitely use a subdir in
+    # TEMP_DIR, even one w/ our current pid
+    for file in os.listdir(Hellanzb.TEMP_DIR):
+        if file[-4:] == '_ENC':
+            continue
         
+        realname = file
+        if MATCH_BAD_RE.match(realname):
+            realname = realname.replace('.bad-crc', '')
+            realname = realname.replace('.bad-size', '')
+
+        if not realname.find('hellanzb-tmp-') == 0:
+            setRealFileName(segment, realname)
+        shutil.move(Hellanzb.TEMP_DIR + file, segment.getDestination())
+    
+    try:
+         #decodeArticleData(segment)
+	 pass
+       
     except TooMuchWares:
         # Ran out of disk space and download was paused! Easiest way out of this sticky
         # situation is to requeue the segment =[

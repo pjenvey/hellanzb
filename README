@@ -29,7 +29,12 @@ Prerequisites:
 
 Unix O/S               E.g.: http://www.freebsd.org, http://www.apple.com/macosx
 Python >= 2.3          http://www.python.org
+
+Twisted >= 2.0         http://www.twistedmatrix.com *and*
+Twisted Web            http://www.twistedmatrix.com/projects/web
+  OR
 Twisted >= 1.3         http://www.twistedmatrix.com
+
 par2cmdline =~ 0.4     http://parchive.sourceforge.net
 rar or unrar =~ 3.41   http://www.rarlab.com
 

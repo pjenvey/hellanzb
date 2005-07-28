@@ -797,7 +797,7 @@ def findSplitFiles(dirName):
                 foundRar = True
                 break
         if foundRar:
-            toAssemble.remove(key)
+            toAssemble.pop(key)
             
     return toAssemble
     

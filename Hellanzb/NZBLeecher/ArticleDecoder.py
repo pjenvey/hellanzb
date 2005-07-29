@@ -45,9 +45,9 @@ def decode(segment):
     decoded segment filenames exist """
     try:
         encodedData = open(Hellanzb.TEMP_DIR + os.sep + segment.getTempFileName() + '_ENC')
-        segment.articleData = [line[:-1] for line in encodedData.readlines()]
+        segment.articleData = [line[:-2] for line in encodedData.readlines()]
         encodedData.close()
-        nuke(Hellanzb.TEMP_DIR + os.sep + segment.getTempFileName())
+        nuke(Hellanzb.TEMP_DIR + os.sep + segment.getTempFileName() + '_ENC')
         decodeArticleData(segment)
         
     except TooMuchWares:
@@ -256,6 +256,7 @@ def yDecodeCRCCheck(segment, decoded):
         # print I think after handleNZBDone appends a newline (looks like crap)
         error(segment.nzbFile.showFilename + ' segment: ' + str(segment.number) + \
               ' does not have a valid CRC/yend line!')
+        error('\n'.join(segment.articleData[-10:]))
     else:
         crc = '%08X' % (crc32(decoded) & 2**32L - 1)
         

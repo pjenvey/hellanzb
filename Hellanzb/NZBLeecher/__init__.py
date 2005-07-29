@@ -486,6 +486,9 @@ class NZBLeecher(NNTPClient, TimeoutMixin):
 
             try:
                 priority, self.currentSegment = Hellanzb.queue.get_nowait()
+                self.currentSegment.encodedData = open(Hellanzb.TEMP_DIR + os.sep + \
+                                                       self.currentSegment.getTempFileName() + '_ENC',
+                                                       'w')
                 debug(str(self) + ' PULLED FROM QUEUE: ' + self.currentSegment.getDestination())
 
                 # got a segment - set ourselves as active unless we're already set as so
@@ -588,19 +591,10 @@ class NZBLeecher(NNTPClient, TimeoutMixin):
         
     def deferSegmentDecode(self, segment):
         """ Decode the specified segment in a separate thread """
-        #reactor.callInThread(self.writeEncodedData, segment)
-        Hellanzb.writers.dispatch(None, self.writeEncodedData, segment)
-
-    def writeEncodedData(self, segment):
-        """ Write the encoded data to disk """
-        encodedData = open(Hellanzb.TEMP_DIR + os.sep + segment.getTempFileName() + '_ENC',
-                           'w')
-        encodedData.write('\n'.join(segment.articleData))
-        encodedData.write('\n')
-        encodedData.close()
-        del segment.articleData
+        segment.encodedData.write(self.delimiter)
+        segment.encodedData.close()
         reactor.callInThread(decode, segment)
-        
+
     def gotGroup(self, group):
         group = group[3]
         self.activeGroups.append(group)
@@ -652,10 +646,15 @@ class NZBLeecher(NNTPClient, TimeoutMixin):
         keep these lines in a list throughout life of the processing (should be more
         efficient) """
         if line != '.':
-            self._newLine(line, 0)
+            self._newBodyLine(line, 0)
         else:
             #self.gotBody('\n'.join(self._endState()))
             self.gotBody(self._endState())
+
+    def _newBodyLine(self, line, check = 1):
+        if check and line and line[0] == '.':
+            line = line[1:]
+        self.currentSegment.encodedData.write(line + '\r\n')
 
     def _stateHelp(self, line):
         if line != '.':

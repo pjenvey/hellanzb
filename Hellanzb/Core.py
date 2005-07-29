@@ -280,6 +280,9 @@ def shutdown(killPostProcessors = False):
         # here
         Topen.killAll()
 
+    if hasattr(Hellanzb, 'writers'):
+        Hellanzb.writers.stop()
+
     # stop the twisted reactor
     reactor.callLater(0, reactor.stop)
 

@@ -665,7 +665,7 @@ def par2(dirName, parFiles, wildcard, needAssembly = None):
         # First, if the repair is not possible, double check the output for what files are
         # missing or damaged (a missing file is considered as damaged in this case). they
         # may be unimportant
-        damagedAndRequired, allMissing, neededBlocks, isPar1 = \
+        damagedAndRequired, allMissing, neededBlocks, isPar1Archive = \
             parseParNeedsBlocksOutput(archiveName(dirName), output)
 
         for file in allMissing:
@@ -677,7 +677,7 @@ def par2(dirName, parFiles, wildcard, needAssembly = None):
         # The archive is only totally broken when we're missing required files
         if len(damagedAndRequired) > 0:
             needType = 'blocks'
-            if isPar1:
+            if isPar1Archive:
                 needType = 'files (par1)'
                 
             growlNotify('Error', 'hellanzb Cannot par repair:', archiveName(dirName) + \
@@ -701,7 +701,7 @@ def parseParNeedsBlocksOutput(archive, output):
     allMissing = []
     neededBlocks = None
     damagedRE = re.compile(r'"\ -\ damaged\.\ Found\ \d+\ of\ \d+\ data\ blocks\.')
-    isPar1 = False
+    isPar1Archive = False
 
     maxSpam = 4 # only spam this many lines (before truncating)
     spammed = 0
@@ -748,9 +748,9 @@ def parseParNeedsBlocksOutput(archive, output):
             stringEndsWith(line, ' to be able to repair.'):
             line = line[len('You need '):]
             
-            if line.find(' more recovery files '):
+            if line.find(' more recovery files ') > -1:
                 # Par 1 format
-                isPar1 = True
+                isPar1Archive = True
                 neededBlocks = line[:-len(' more recovery files to be able to repair.')]
             else:
                 # Par 2
@@ -766,7 +766,7 @@ def parseParNeedsBlocksOutput(archive, output):
         else:
             error(lastMsg)
             
-    return damagedAndRequired, allMissing, neededBlocks, isPar1
+    return damagedAndRequired, allMissing, neededBlocks, isPar1Archive
 
 SPLIT_RE = re.compile(r'.*\.\d{3,4}$')
 def findSplitFiles(dirName):

@@ -5,10 +5,6 @@ Core - All of our main()ish functions. Initialization/shutdown/etc
 (c) Copyright 2005 Philip Jenvey, Ben Bangert
 [See end of file]
 """
-# FIXME: this buffer size change probably has no effect
-import twisted.internet.abstract
-twisted.internet.abstract.FileDescriptor.bufferSize = 4096
-
 ### DEBUGGING/FIXME ###
 def registerReapProcessHandler(pid, process):
     import os
@@ -47,6 +43,7 @@ HellaReactor.install()
 
 import optparse, os, signal, sys, time, thread, threading, Hellanzb, Hellanzb.PostProcessor
 from distutils import spawn
+from shutil import rmtree
 from threading import Lock
 from twisted.internet import reactor
 from Hellanzb.Daemon import initDaemon, postProcess
@@ -288,6 +285,12 @@ def shutdown(killPostProcessors = False):
 
     # Just in case we left it off
     stdinEchoOn()
+
+    if hasattr(Hellanzb, 'DOWNLOAD_TEMP_DIR'):
+        # Remove the temporary files with the encoded data. Any errors causing hellanzb to
+        # shut down prematurely (like can't bind to specific port -- maybe another
+        # hellanzb is running?) should unset this var so this doesn't get called
+        rmtree(Hellanzb.DOWNLOAD_TEMP_DIR)
     
 def shutdownAndExit(returnCode = 0):
     """ Shutdown hellanzb's twisted reactor, AND call sys.exit """

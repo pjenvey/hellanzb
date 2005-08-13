@@ -9,7 +9,7 @@ Freddie (freddie@madcowdisease.org) utilizing the twisted framework
 (c) Copyright 2005 Philip Jenvey, Ben Bangert
 [See end of file]
 """
-import gc, os, re, time, Hellanzb
+import os, re, time, Hellanzb
 from sets import Set
 from shutil import move
 from twisted.internet import reactor
@@ -171,7 +171,7 @@ class NZBLeecherFactory(ReconnectingClientFactory):
         self.maxDelay = 2 * 60
 
         self.connectionCount = 0
-        
+
         # server reconnecting drop off factor, by default e. PHI (golden ratio) is a lower
         # factor than e
         self.factor = PHI # (Phi is acceptable for use as a factor if e is too large for
@@ -229,6 +229,25 @@ class NZBLeecherFactory(ReconnectingClientFactory):
 class NZBLeecher(NNTPClient, TimeoutMixin):
     """ Extends twisted NNTPClient to download NZB segments from the queue, until the queue
     contents are exhausted """
+        
+    # From Twisted 2.0, twisted.basic.LineReceiver, specifically for the imported
+    # Twisted 2.0 dataReceieved
+    line_mode = 1
+    __buffer = ''
+    delimiter = '\r\n'
+    paused = False
+
+    # This value exists in twisted and doesn't do much (except call lineLimitExceeded
+    # when a line that long is exceeded). Knowing twisted that function is probably a
+    # hook for defering processing when it might take too long with too much received
+    # data. hellanzb can definitely receive much longer lines than LineReceiver's
+    # default value. i doubt higher limits degrade its performance much
+    MAX_LENGTH = 262144
+    
+    # End twisted.basic.LineReceiver 
+        
+    # usenet EOF char minus the final '\r\n'
+    RSTRIPPED_END = delimiter + '.'
 
     def __init__(self, username, password):
         """ """
@@ -253,26 +272,18 @@ class NZBLeecher(NNTPClient, TimeoutMixin):
         # Idle time -- after being idle this long send anti idle requests
         self.antiIdleTimeout = None
 
+        # whether or not this NZBLeecher is the in the fetchNextNZBSegment download loop
         self.activated = False
-
-        self.connectionCount = 0
 
         # Whether or not this client was created when hellanzb downloading was paused
         self.pauseReconnected = False
 
-        # This value exists in twisted and doesn't do much (except call lineLimitExceeded
-        # when a line that long is exceeded). Knowing twisted that function is probably a
-        # hook for defering processing when it might take too long with too much received
-        # data. hellanzb can definitely receive much longer lines than LineReceiver's
-        # default value. i doubt higher limits degrade its performance much
-        self.MAX_LENGTH = 262144
+        # cache whether or not the response code has been received. only the BODY call
+        # (dataReceivedToFile) utilizes this var
+        self.gotResponseCode = False
 
-        # From Twisted 2.0 LineReceiver, specifically for the imported Twisted 2.0
-        # dataReceieved
-        self.line_mode = 1
-        self.__buffer = ''
-        self.delimiter = '\r\n'
-        self.paused = False
+        # hold the last chunk's final few bytes for when searching for the EOF char
+        self.lastChunk = ''
 
     def authInfo(self):
         """ """
@@ -349,6 +360,14 @@ class NZBLeecher(NNTPClient, TimeoutMixin):
         if self.currentSegment != None:
             if (self.currentSegment.priority, self.currentSegment) in Hellanzb.scroller.segments:
                 Hellanzb.scroller.removeClient(self.currentSegment)
+
+            if self.currentSegment.encodedData != None:
+                # Close the file handle if it's still open
+                try:
+                    self.currentSegment.encodedData.close()
+                finally:
+                    pass
+
             # twisted doesn't reconnect our same client connections, we have to pitch
             # stuff back into the queue that hasn't finished before the connectionLost
             # occurred
@@ -376,6 +395,8 @@ class NZBLeecher(NNTPClient, TimeoutMixin):
         self.isLoggedIn = False
         self.setReaderAfterLogin = False
         self.factory.clientIds.insert(0, self.id)
+        self.gotResponseCode = False
+        self.lastChunk = ''
 
     def setReader(self):
         """ Tell the server we're a news reading client (MODE READER) """
@@ -486,7 +507,7 @@ class NZBLeecher(NNTPClient, TimeoutMixin):
 
             try:
                 priority, self.currentSegment = Hellanzb.queue.get_nowait()
-                self.currentSegment.encodedData = open(Hellanzb.TEMP_DIR + os.sep + \
+                self.currentSegment.encodedData = open(Hellanzb.DOWNLOAD_TEMP_DIR + os.sep + \
                                                        self.currentSegment.getTempFileName() + '_ENC',
                                                        'w')
                 debug(str(self) + ' PULLED FROM QUEUE: ' + self.currentSegment.getDestination())
@@ -551,6 +572,8 @@ class NZBLeecher(NNTPClient, TimeoutMixin):
         debug(str(self) + ' get BODY FAILED, error: ' + str(err) + ' for messageId: <' + \
               self.currentSegment.messageId + '> ' + self.currentSegment.getDestination() + \
               ' expected size: ' + str(self.currentSegment.bytes))
+        self.gotResponseCode = False # for dataReceivedToFile
+        self.lastChunk = ''
         
         code = extractCode(err)
         if code is not None:
@@ -591,10 +614,8 @@ class NZBLeecher(NNTPClient, TimeoutMixin):
         
     def deferSegmentDecode(self, segment):
         """ Decode the specified segment in a separate thread """
-        segment.encodedData.write(self.delimiter)
-        segment.encodedData.close()
         reactor.callInThread(decode, segment)
-
+        
     def gotGroup(self, group):
         group = group[3]
         self.activeGroups.append(group)
@@ -646,15 +667,10 @@ class NZBLeecher(NNTPClient, TimeoutMixin):
         keep these lines in a list throughout life of the processing (should be more
         efficient) """
         if line != '.':
-            self._newBodyLine(line, 0)
+            self._newLine(line, 0)
         else:
             #self.gotBody('\n'.join(self._endState()))
             self.gotBody(self._endState())
-
-    def _newBodyLine(self, line, check = 1):
-        if check and line and line[0] == '.':
-            line = line[1:]
-        self.currentSegment.encodedData.write(line + '\r\n')
 
     def _stateHelp(self, line):
         if line != '.':
@@ -748,7 +764,25 @@ class NZBLeecher(NNTPClient, TimeoutMixin):
         # got data -- reset the anti idle timeout
         self.resetTimeout()
 
-        # Below on from Twisted 2.0
+        if self._state[0] == self._stateBody:
+            # Write the data to disk as it's received
+            return self.dataReceivedToFile(data)
+
+        else:
+            # return an array of the received data's lines to the callback function
+            return self.dataReceivedToLines(data)
+
+    def dataReceivedToLines(self, data):
+        """ Convert the raw dataReceived into lines subsequently parsed by lineReceived. This is
+        slower/more CPU intensive than the optimized dataReceivedToFile. This function
+        parses the received data into lines (delimited by new lines) -- the typical
+        twisted-2.0 LineReceiver way of doing things. Unlike dataReceivedToFile, it
+        doesn't require a file object to write to """
+        #  *From Twisted-2.0*
+        # Supposed to be at least 3x as fast.
+        # Protocol.dataReceived.
+        # Translates bytes into lines, and calls lineReceived (or
+        # rawDataReceived, depending on mode.)
         self.__buffer = self.__buffer+data
         lastoffset=0
         while not self.paused:
@@ -774,6 +808,91 @@ class NZBLeecher(NNTPClient, TimeoutMixin):
                 return why
         else:
             self.__buffer=self.__buffer[lastoffset:]
+
+    def dataReceivedToFile(self, data):
+        """ Dump the raw recieved data to the current segment's encoded-data-temp file. This
+        function is faster than parsing the received data into individual lines
+        (dataReceivedToLines) -- it simply dumps the data to file, and looks for the EOF
+        string for usenet messages: "\r\n.\r\n".
+
+        It manually rstrip()s every chunk of data received, then matches both the
+        rstripped data and rstripped-off data with their associated usenet EOF pieces (to
+        safely detect the EOF across potentially two data chunks)
+
+        It is smarter about parsing the usenet response code (lineReceived does this for
+        dataReceivedToLines and is lazier about it)
+        
+        Ultimately, significantly less work than dataReceivedToLines """
+        if not self.gotResponseCode:
+            # find the nntp response in the header of the message (the BODY command)
+            lstripped = data.lstrip()
+            off = lstripped.find(self.delimiter)
+            line = lstripped[:off]
+
+            code = extractCode(line)
+            if code is None or (not (200 <= code[0] < 400) and code[0] != 100): # An error!
+                try:
+                    self.currentSegment.encodedData.close()
+                    self._error[0](line)
+                # FIXME: why is this exception thrown? it was previously breaking
+                # connections -- this is now caught to avoid the completely breaking of
+                # the connection
+                except TypeError, te:
+                    debug(str(self) + ' lineReceived GOT TYPE ERROR!: ' + str(te) + ' state name: ' + \
+                          self._state[0].__name__ + ' code: ' + str(code) + ' line: ' + line)
+                self._endState()
+                return
+            else:
+                self._setResponseCode(code)
+                self.gotResponseCode = True
+                data = lstripped[off:]
+
+        # write data to disk
+        self.currentSegment.encodedData.write(data)
+
+        # check for the EOF string in the last certain bytes of the received data
+        # (possibly across two different received chunks)
+        test = self.lastChunk + data
+
+        # NOTE: we manually rstrip here because it's the fastest failsafe way of finding
+        # the EOF string. These downloaded chunks will not have trailing whitespace
+        # probably max 95% of the time, and when they do they're likely to have few
+        # trailing whitespace characters (so the while loop will iterate once, or maybe
+        # just a few times). The alternative is rfind()ing the entire EOF string -- rfind
+        # is implemented in C but would end up searching the entire string that 95% of the
+        # time
+        
+        # rstrip the test data. determine if that stripped off data only begins with
+        # '\r\n' and the stripped data ends with '\r\n.'
+        length = len(test)
+        index = length - 1
+        while index >= 0:
+            if test[index].isspace():
+                index -= 1
+                continue
+
+            # we just passed the end
+            index += 1
+            break
+
+        if index != length:
+            # rstripped some whitespace. since there is trailing whitespace, check for the
+            # EOF string
+            stripped = test[:index]
+            firstTwoWhitespace = test[index:index + 2]
+        
+            if firstTwoWhitespace == self.delimiter and \
+                    stripped[-len(self.RSTRIPPED_END):] == self.RSTRIPPED_END:
+                # found EOF, done
+                self.currentSegment.encodedData.close()
+                self.gotResponseCode = False
+                self.lastChunk = ''
+                self.gotBody(self._endState())
+                
+        else:
+            # didn't strip anything, or didn't find the EOF.  save the last small chunk
+            # for later comparison
+            self.lastChunk = data[-(len(self.delimiter) - 1):]
 
     def timeoutConnection(self):
         """ Called when the connection times out -- i.e. when we've been idle longer than the

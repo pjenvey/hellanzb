@@ -44,10 +44,10 @@ def decode(segment):
     instance as having been decoded, then assemble all the segments together if all their
     decoded segment filenames exist """
     try:
-        encodedData = open(Hellanzb.TEMP_DIR + os.sep + segment.getTempFileName() + '_ENC')
+        encodedData = open(Hellanzb.DOWNLOAD_TEMP_DIR + os.sep + segment.getTempFileName() + '_ENC')
         segment.articleData = [line[:-2] for line in encodedData.readlines()]
         encodedData.close()
-        nuke(Hellanzb.TEMP_DIR + os.sep + segment.getTempFileName() + '_ENC')
+        nuke(Hellanzb.DOWNLOAD_TEMP_DIR + os.sep + segment.getTempFileName() + '_ENC')
         decodeArticleData(segment)
         
     except TooMuchWares:

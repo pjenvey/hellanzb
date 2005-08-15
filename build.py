@@ -32,7 +32,6 @@ try:
     # If not local, make sure the working copy is up to date with the repository!
     if not options.local:
         assertUpToDate()
-        pass
         
     versionFile = open(VERSION_FILENAME)
     versionLine = versionFile.read()

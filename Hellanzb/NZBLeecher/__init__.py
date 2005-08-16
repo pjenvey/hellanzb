@@ -61,13 +61,6 @@ def initNZBLeecher():
     # loop to scan the queue dir during download
     Hellanzb.downloadScannerID = None
 
-    from Hellanzb.NZBLeecher.ArticleDecoder import ArticleAssemblyGCDelay
-    Hellanzb.doh = ArticleAssemblyGCDelay()
-
-    from twisted.python.threadpool import ThreadPool
-    Hellanzb.writers = ThreadPool(minthreads = 1, maxthreads = 4)
-    Hellanzb.writers.start()
-    
     startNZBLeecher()
 
 def startNZBLeecher():
@@ -231,7 +224,7 @@ class NZBLeecher(NNTPClient, TimeoutMixin):
     contents are exhausted """
         
     # From Twisted 2.0, twisted.basic.LineReceiver, specifically for the imported
-    # Twisted 2.0 dataReceieved
+    # Twisted 2.0 dataReceived (now dataReceivedToLines)
     line_mode = 1
     __buffer = ''
     delimiter = '\r\n'

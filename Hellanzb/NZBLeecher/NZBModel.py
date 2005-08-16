@@ -339,8 +339,8 @@ class NZBSegment:
         self.nzbFile.todoNzbSegments.add(self)
         self.nzbFile.totalBytes += self.bytes
 
-        ## To be a file object that we'll write the downloaded article data to immediately
-        ## as it's received from the other end
+        ## To-be a file object. Downloaded article data will be written to this file
+        ## immediately as it's received from the other end
         self.encodedData = None
         
         ## Downloaded article data stored as an array of lines whose CRLFs are stripped

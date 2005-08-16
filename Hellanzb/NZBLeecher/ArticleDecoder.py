@@ -44,10 +44,16 @@ def decode(segment):
     instance as having been decoded, then assemble all the segments together if all their
     decoded segment filenames exist """
     try:
+        # downloaded articleData was written to disk by the downloader
         encodedData = open(Hellanzb.DOWNLOAD_TEMP_DIR + os.sep + segment.getTempFileName() + '_ENC')
+        # remove crlfs. FIXME: should avoid looping over the entire data set here. remove
+        # the CRLFs during a later loop
         segment.articleData = [line[:-2] for line in encodedData.readlines()]
         encodedData.close()
+
+        # Delete the copy on disk ASAP
         nuke(Hellanzb.DOWNLOAD_TEMP_DIR + os.sep + segment.getTempFileName() + '_ENC')
+        
         decodeArticleData(segment)
         
     except TooMuchWares:
@@ -256,7 +262,6 @@ def yDecodeCRCCheck(segment, decoded):
         # print I think after handleNZBDone appends a newline (looks like crap)
         error(segment.nzbFile.showFilename + ' segment: ' + str(segment.number) + \
               ' does not have a valid CRC/yend line!')
-        error('\n'.join(segment.articleData[-10:]))
     else:
         crc = '%08X' % (crc32(decoded) & 2**32L - 1)
         

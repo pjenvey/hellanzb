@@ -376,7 +376,7 @@ def unrar(dirName, fileName, rarPassword = None, pathToExtract = None):
     if rarPassword != None:
         # Specify the password during the listing, in the case that the data AND headers
         # are passworded
-        listCmd = Hellanzb.UNRAR_CMD + ' l -y -p' + rarPassword + ' "' + fileName + '"'
+        listCmd = Hellanzb.UNRAR_CMD + ' l -y "-p' + rarPassword + '" "' + fileName + '"'
     else:
         listCmd = Hellanzb.UNRAR_CMD + ' l -y -p-' + ' "' + fileName + '"'
     t = Topen(listCmd)
@@ -428,7 +428,7 @@ def unrar(dirName, fileName, rarPassword = None, pathToExtract = None):
                          ' -p on the archive directory with the -P option to specify a password')
 
     if isPassworded:
-        cmd = Hellanzb.UNRAR_CMD + ' x -y -p' + rarPassword + ' "' + fileName + '" "' + \
+        cmd = Hellanzb.UNRAR_CMD + ' x -y "-p' + rarPassword + '" "' + fileName + '" "' + \
             pathToExtract + '"'
     else:
         cmd = Hellanzb.UNRAR_CMD + ' x -y -p-' + ' "' + fileName + '" "' + pathToExtract + '"'

@@ -21,7 +21,7 @@ from twisted.python import log
 from Hellanzb.Daemon import cancelCurrent, scanQueueDir
 from Hellanzb.Log import *
 from Hellanzb.Logging import LogOutputStream, NZBLeecherTicker
-from Hellanzb.Util import rtruncate, truncateToMultiLine, PoolsExhausted
+from Hellanzb.Util import rtruncate, truncateToMultiLine, EmptyForThisPool, PoolsExhausted
 from Hellanzb.NZBLeecher.nntp import NNTPClient, extractCode
 from Hellanzb.NZBLeecher.ArticleDecoder import decode
 from Hellanzb.NZBLeecher.NZBModel import NZBQueue
@@ -64,7 +64,7 @@ def initNZBLeecher():
     startNZBLeecher()
 
 def setWithDefault(dict, key, default):
-    """ Return value for the specified key set via the config file. use the default when the
+    """ Return value for the specified key set via the config file. Use the default when the
     value is blank or doesn't exist """
     value = dict.get(key, default)
     if value != None and value != '':
@@ -117,6 +117,7 @@ def connectServer(serverName, serverDict, defaultAntiIdle, defaultIdleTimeout):
     else:
         info('Opening ' + str(connectionCount) + ' connections...')
 
+    # Let the queue know about this new serverPool
     Hellanzb.queue.serverAdd(serverName)
         
     return connectionCount
@@ -131,10 +132,10 @@ def startNZBLeecher():
         totalCount += connectServer(serverId, serverDict, defaultAntiIdle, defaultIdleTimeout)
 
     if len(Hellanzb.SERVERS) > 1:
-        # Initialize the retry queue. it contains multiple sub-queues that work within the
-        # NZBQueue, for queueing segments that failed to download on particular server
-        # pools. Obviously there's no need for this unless we're using multiple server
-        # pools
+        # Initialize the retry queue. It contains multiple sub-queues that work within the
+        # NZBQueue, for queueing segments that failed to download on particular
+        # serverPools. Obviously there's no need for this unless we're using multiple
+        # serverPools
         Hellanzb.queue.initRetryQueue()
 
     # How large the scroll ticker should be
@@ -435,7 +436,7 @@ class NZBLeecher(NNTPClient, TimeoutMixin):
 
     # change this to inFetchLoop(). move factory stuff into factory
     # clientInFetchLoop. activeFetchLoop/inActiveFetchLoop?
-    def isActive(self, isActiveBool):
+    def isActive(self, isActiveBool, justThisDownloadPool = False):
         """ Activate/Deactivate this client -- notify the factory, etc"""
         if isActiveBool and not self.activated:
             debug(str(self) + ' ACTIVATING')
@@ -480,6 +481,9 @@ class NZBLeecher(NNTPClient, TimeoutMixin):
                 self.factory.sessionStartTime = None
 
             # Check if we're completely done
+            if justThisDownloadPool:
+                return
+
             totalActiveClients = 0
             for nsf in Hellanzb.nsfs:
                 totalActiveClients += len(nsf.activeClients)
@@ -523,6 +527,12 @@ class NZBLeecher(NNTPClient, TimeoutMixin):
                         
                     self.currentSegment.nzbFile.showFilename = self.currentSegment.nzbFile.getFilename()
 
+            except EmptyForThisPool:
+                debug(str(self) + ' EMPTY QUEUE (for just this pool)')
+                # done for this download pool
+                self.isActive(False, justThisDownloadPool = True)
+                return
+            
             except Empty:
                 debug(str(self) + ' EMPTY QUEUE')
                 # all done
@@ -545,7 +555,7 @@ class NZBLeecher(NNTPClient, TimeoutMixin):
             # all groups (if so, punt) here instead of getGroupFailed
             elif self.allGroupsFailed(self.currentSegment.nzbFile.groups):
                 try:
-                    Hellanzb.queue.requeueMissing(self.factory.serverPoolName, self.currentSegment)
+                    Hellanzb.queue.requeueFailed(self.factory.serverPoolName, self.currentSegment)
                     debug(str(self) + ' All groups failed, requeueing to another pool!')
                     self.currentSegment = None
                     reactor.callLater(0, self.fetchNextNZBSegment)
@@ -593,7 +603,7 @@ class NZBLeecher(NNTPClient, TimeoutMixin):
     def getBodyFailed(self, err):
         """ Handle a failure of the BODY command. Ensure the failed segment gets a 0 byte file
         written to the filesystem when this occurs """
-        debug(str(self) + ' get BODY FAILED, error: ' + str(err) + ' for messageId: <' + \
+        debug(str(self) + ' get BODY FAILED, errno: ' + str(err) + ' for messageId: <' + \
               self.currentSegment.messageId + '> ' + self.currentSegment.getDestination() + \
               ' expected size: ' + str(self.currentSegment.bytes))
         
@@ -602,7 +612,7 @@ class NZBLeecher(NNTPClient, TimeoutMixin):
             code, msg = code
             if code in (423, 430):
                 try:
-                    Hellanzb.queue.requeueMissing(self.factory.serverPoolName, self.currentSegment)
+                    Hellanzb.queue.requeueFailed(self.factory.serverPoolName, self.currentSegment)
                     debug(str(self) + ' ' + self.currentSegment.nzbFile.showFilename + \
                           ' segment: ' + str(self.currentSegment.number) + \
                           ' Article is missing! Attempting to requeue on a different pool!')

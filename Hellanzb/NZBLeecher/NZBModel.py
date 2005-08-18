@@ -16,7 +16,8 @@ from Hellanzb.Daemon import handleNZBDone
 from Hellanzb.Log import *
 from Hellanzb.NZBLeecher.ArticleDecoder import assembleNZBFile, parseArticleData, \
     setRealFileName, tryFinishNZB
-from Hellanzb.Util import archiveName, getFileExtension, PriorityQueue, PoolsExhausted, TooMuchWares
+from Hellanzb.Util import archiveName, getFileExtension, EmptyForThisPool, PoolsExhausted, \
+    PriorityQueue, TooMuchWares
 from Queue import Empty
 
 __id__ = '$Id$'
@@ -391,19 +392,31 @@ class RetryQueue:
         # map of serverPoolNames to their list of valid retry queue names
         self.nameIndex = {}
 
+        # A list of all queue names
         self.allNotNames = []
 
     def addServerPool(self, serverPoolName):
+        """ Add an additional serverPool. This does not create any associated PriorityQueues, that
+        work is done by createQueues """
         self.serverPoolNames.append(serverPoolName)
 
     def removeServerPool(self, serverPoolName):
-        # probably won't ever need this
+        """ Remove a serverPool. FIXME: probably never needed, so not implemented """
         raise NotImplementedError()
 
-    def requeueMissing(self, serverPoolName, segment):
-        # determine where to put this from all it's failed server pools
+    def requeueFailed(self, serverPoolName, segment):
+        """ Requeue the segment (which failed to download on the specified serverPool) for later
+        retry by another serverPool
+
+        The segment is requed by adding it to the correct PriorityQueue -- dictated by
+        which serverPools have previously failed to download the specified segment. A
+        PoolsExhausted exception is thrown when all serverPools have failed to download
+        the segment """
+        # This serverPool has just failed the download
         segment.failedServerPools.append(serverPoolName)
         
+        # Figure out the correct queue by looking at the previously failed serverPool
+        # names
         notName = ''
         i = 0
         for poolName in self.serverPoolNames:
@@ -412,32 +425,109 @@ class RetryQueue:
                 continue
             notName += 'not' + str(i)
 
+        # All serverPools we know about failed to download this segment
         if notName == '':
             raise PoolsExhausted
-        ####debug('ADDING TO RETRY pool: ' + notName)
+
+        # Requeued for later
         self.poolQueues[notName].put((segment.priority, segment))
     
     def get(self, serverPoolName):
+        """ Return the next segment for the specified serverPool that is queued to be retried """
+        # Loop through all the valid priority queues for the specified serverPool
         valids = self.nameIndex[serverPoolName]
         for queueName in valids:
             queue = self.poolQueues[queueName]
+
+            # Found a segment waiting to be retried
             if len(queue):
-                ####debug('((((((((((((((((((((((((((((((((((((((((((((((((((' + queueName)
                 return queue.get_nowait()
+
         raise Empty()
 
+    def __len__(self):
+        length = 0
+        for queue in self.poolQueues.itervalues():
+            length += len(queue)
+        return length
+
     def createQueues(self):
-        """ """
+        """ Create the retry PriorityQueues for all known serverPools
+
+        This is a hairy way to do this. It's not likely to scale for more than probably
+        4-5 serverPools. However it is functionally ideal for a reasonable number of
+        serverPools
+
+        The idea is you want your downloaders to always be busy. Without the RetryQueue,
+        they would simply always pull the next available segment out of the main
+        NZBQueue. Once the NZBQueue was empty, all downloaders knew they were done
+
+        Now that we desire the ability to requeue a segment that failed on a particular
+        serverPool, the downloaders need to exclude the segments they've previously failed
+        to download, when pulling segments out of the NZBQueue
+
+        If we continue keeping all queued (and now requeued) segments in the same queue,
+        the potentially many downloaders could easily end up going through the entire
+        queue seeking a segment they haven't already tried. This is unacceptable when our
+        queues commonly hold over 60K items
+
+        The best way I can currently see to support the downloaders being able to quickly
+        lookup the 'actual' next segment they want to download is to have multiple queues,
+        indexed by what serverPool(s) have previously failed on those segments
+
+        If we have 3 serverPools (1, 2, and 3) we end up with a dict looking like:
+
+        not1     -> q
+        not2     -> q
+        not3     -> q
+        not1not2 -> q
+        not1not3 -> q
+        not2not3 -> q
+
+        I didn't quite figure out the exact equation to gather the number of Queues in
+        regard to the number of serverPools, but (if my math is right) it seems to grow
+        pretty quickly (quadratic?)
+
+        Every serverPool avoids certain queues. In the previous example, serverPool 1 only
+        needs to look at all the Queues that are not tagged as having already failed on 1
+        (not2, not3, and not2not3) -- only half of the queues
+
+        The numbers:
+
+        serverPools    totalQueues    onlyQueues
+
+        2              2              1
+        3              6              3
+        4              14             7
+        5              30             15
+        6              62             31
+        7              126            63
+
+        The RetryQueue.get() algorithim simply checks all queues for emptyness until it
+        finds one with items in it. The > 5 is worrysome. That means for 6 serverPools,
+        the worst case scenario (which could be very common in normal use) would be to
+        make 31 array len() calls. With a segment size of 340KB, downloading at 1360KB/s,
+        (and multiple connections) we could be doing those 31 len() calls on average of 4
+        times a second. And with multiple connections, this could easily spurt to near
+        your max connection count, per second (4, 10, even 30 connections?)
+
+        Luckily len() calls are as quick as can be and who the hell uses 6 different
+        usenet providers anyway? =]
+        """
+        # Go through all the serverPools and create the initial 'not1' 'not2'
+        # queues
+        # FIXME: could probably let the recursive function take care of this
         for i in range(len(self.serverPoolNames)):
             notName = 'not' + str(i + 1)
             self.poolQueues[notName] = PriorityQueue()
 
             self._recurseCreateQueues([i], i, len(self.serverPoolNames))
 
-        # Index every pool's list of valid retry queues they need to check
+        # Finished creating all the pools. Now index every pool's list of valid retry
+        # queues they need to check.  (using the above docstring, serverPool 1 would have
+        # a list of 'not2', 'not3', and 'not2not3' in its nameIndex
         i = 0
         for name in self.serverPoolNames:
-            ####info('CREATED: ' + name)
             i += 1
             
             valids = []
@@ -448,6 +538,8 @@ class RetryQueue:
             self.nameIndex[name] = valids
 
     def _recurseCreateQueues(self, currentList, currentIndex, totalCount):
+        """ Recurse through, creating the matrix of 'not1not2not3not4not5' etc and all its
+        variants. Avoid creating duplicates """
         # Build the original notName
         notName = ''
         for i in currentList:
@@ -578,12 +670,11 @@ class NZBQueue(PriorityQueue):
         self.nzbsLock.release()
 
     def serverAdd(self, serverPoolName):
-        """ Let the queue know about the specified server pool. The queue will maintain sub-queues
-        for each server pool. If a segment is missing from one server pool, hellanzb will
-        attempt to download it on a different server pool. FIXME: GROUP docs """
+        """ Add the specified server pool, for use by the RetryQueue """
         self.rQueue.addServerPool(serverPoolName)
 
     def initRetryQueue(self):
+        """ Initialize and enable use of the RetryQueue """
         self.retryQueueEnabled = True
         self.rQueue.createQueues()
 
@@ -600,15 +691,21 @@ class NZBQueue(PriorityQueue):
             try:
                 return self.rQueue.get(serverPoolName)
             except:
-                # fall through
+                # All retry queues for this serverPool are empty. fall through
                 pass
+
+        if not len(self) and len(self.rQueue):
+            # Catch the special case where both the main NZBQueue is empty, all the retry
+            # queues for the serverPool are empty, but there is still more left to
+            # download in the retry queue (scheduled for retry by other serverPools)
+            raise EmptyForThisPool()
             
         return PriorityQueue.get_nowait(self)
 
-    def requeueMissing(self, serverPoolName, segment):
+    def requeueFailed(self, serverPoolName, segment):
         """ Requeue a missing segment. This segment will be added to the specified serverPool's
         failedQueue, where other serverPools will find it and reattempt the download """
-        self.rQueue.requeueMissing(serverPoolName, segment)
+        self.rQueue.requeueFailed(serverPoolName, segment)
 
     def fileDone(self, nzbFile):
         """ Notify the queue a file is done. This is called after assembling a file into it's

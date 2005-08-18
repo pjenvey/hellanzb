@@ -25,6 +25,10 @@ class FatalError(Exception):
         self.args = [message]
         self.message = message
 
+class EmptyForThisPool(Empty):
+    """ The queue is empty in terms of our current serverPool, but there are still segments to
+    be downloaded for alternate download pools """
+    
 class PoolsExhausted(Exception):
     """ Attempts to download a segment on all known server pools failed """
     

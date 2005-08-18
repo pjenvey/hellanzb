@@ -50,6 +50,25 @@ def ensureDaemonDirs():
         raise FatalError('Hellanzb.QUEUE_LIST not defined in config file')
     elif os.path.isfile(Hellanzb.QUEUE_LIST) and not os.access(Hellanzb.QUEUE_LIST, os.W_OK):
         raise FatalError('hellanzb does not have write access to the Hellanzb.QUEUE_LIST file')
+
+def ensureDownloadTempDir():
+    """ This must be called just prior to starting the daemon, thus it's separated from
+    ensureDaemonDirs(). We don't want to touch/nuke the download temp dir until we know we
+    are the only queue daemon running (if we aren't, initXMLRPCServer will throw an
+    exception) """
+    # Clear out the old download temp dir (where encoded files are stored) and create a
+    # fresh one
+    Hellanzb.DOWNLOAD_TEMP_DIR = Hellanzb.TEMP_DIR + os.sep + 'download-tmp'
+    if os.path.exists(Hellanzb.DOWNLOAD_TEMP_DIR):
+        if not os.access(Hellanzb.DOWNLOAD_TEMP_DIR, os.W_OK):
+            dirName = Hellanzb.DOWNLOAD_TEMP_DIR
+            # del the var so Core.shutdown() does not attempt to rmtree() the dir
+            del Hellanzb.DOWNLOAD_TEMP_DIR
+            raise FatalError('Cannot continue: hellanzb needs write access to ' + dirName)
+        
+        rmtree(Hellanzb.DOWNLOAD_TEMP_DIR)
+        
+    os.makedirs(Hellanzb.DOWNLOAD_TEMP_DIR)
             
 def initDaemon():
     """ Start the daemon """
@@ -58,6 +77,7 @@ def initDaemon():
     try:
         ensureDaemonDirs()
         initXMLRPCServer()
+        ensureDownloadTempDir() # needs to be called AFTER initXMLRPCServer
     except FatalError, fe:
         error('Exiting', fe)
         from Hellanzb.Core import shutdownAndExit

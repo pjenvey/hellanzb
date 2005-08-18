@@ -46,8 +46,7 @@ def decode(segment):
     try:
         # downloaded articleData was written to disk by the downloader
         encodedData = open(Hellanzb.DOWNLOAD_TEMP_DIR + os.sep + segment.getTempFileName() + '_ENC')
-        # remove crlfs. FIXME: should avoid looping over the entire data set here. remove
-        # the CRLFs during a later loop
+        # remove crlfs. FIXME: might be quicker to do this during a later loop
         segment.articleData = [line[:-2] for line in encodedData.readlines()]
         encodedData.close()
 

@@ -821,7 +821,7 @@ class NZBLeecher(NNTPClient, TimeoutMixin):
         # got data -- reset the anti idle timeout
         self.resetTimeout()
 
-        if self._state[0] == self._stateBody:
+        if len(self._state) and self._state[0] == self._stateBody:
             # Write the data to disk as it's received
             return self.dataReceivedToFile(data)
 

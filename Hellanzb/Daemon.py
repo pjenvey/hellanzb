@@ -232,12 +232,7 @@ def parseNZB(nzb, notification = 'Downloading', quiet = False):
         info('Parsing: ' + os.path.basename(nzb.nzbFileName) + '...')
         if not Hellanzb.queue.parseNZB(nzb):
             for nsf in Hellanzb.nsfs:
-                if not len(nsf.activeClients):
-                    # FIXME: Probably shouldn't call client.fetchNext unless the client is
-                    # authorized/connected. Otherwise it's should call fetchNext on it's
-                    # own in a later reactor loop, and begin downloading since we just
-                    # filled the Queue. The fix for this goes in NZBLeecherFactory.
-                    nsf.fetchNextNZBSegment()
+                nsf.fetchNextNZBSegment()
 
     except FatalError, fe:
         error('Problem while parsing the NZB', fe)

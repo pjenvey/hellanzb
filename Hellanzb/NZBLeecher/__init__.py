@@ -21,7 +21,7 @@ from twisted.python import log
 from Hellanzb.Daemon import cancelCurrent, scanQueueDir
 from Hellanzb.Log import *
 from Hellanzb.Logging import LogOutputStream, NZBLeecherTicker
-from Hellanzb.Util import rtruncate, truncateToMultiLine
+from Hellanzb.Util import rtruncate, truncateToMultiLine, PoolsExhausted
 from Hellanzb.NZBLeecher.nntp import NNTPClient, extractCode
 from Hellanzb.NZBLeecher.ArticleDecoder import decode
 from Hellanzb.NZBLeecher.NZBModel import NZBQueue
@@ -63,62 +63,79 @@ def initNZBLeecher():
     
     startNZBLeecher()
 
+def setWithDefault(dict, key, default):
+    """ Return value for the specified key set via the config file. use the default when the
+    value is blank or doesn't exist """
+    value = dict.get(key, default)
+    if value != None and value != '':
+        return value
+    
+    return default
+
+def connectServer(serverName, serverDict, defaultAntiIdle, defaultIdleTimeout):
+    """ Establish connections to the specified server according to the server information dict
+    (constructed from the config file). Returns the number of connections that were attempted
+    to be made """
+    connectionCount = 0
+    hosts = serverDict['hosts']
+    connections = int(serverDict['connections'])
+    info('(' + serverName + ') ', appendLF = False)
+
+    for host in hosts:
+        antiIdle = int(setWithDefault(serverDict, 'antiIdle', defaultAntiIdle))
+        idleTimeout = int(setWithDefault(serverDict, 'idleTimeout', defaultIdleTimeout))
+
+        nsf = NZBLeecherFactory(serverDict['username'], serverDict['password'],
+                                idleTimeout, antiIdle, host,
+                                serverName)
+        Hellanzb.nsfs.append(nsf)
+
+        # FIXME: pass this to the factory constructor
+        split = host.split(':')
+        host = split[0]
+        if len(split) == 2:
+            port = int(split[1])
+        else:
+            port = 119
+        nsf.host, nsf.port = host, port
+
+        preWrappedNsf = nsf
+        nsf = HellaThrottlingFactory(nsf)
+
+        for connection in range(connections):
+            if serverDict.has_key('bindTo') and serverDict['bindTo'] != None and \
+                    serverDict['bindTo'] != '':
+                reactor.connectTCP(host, port, nsf,
+                                   bindAddress = serverDict['bindTo'])
+            else:
+                reactor.connectTCP(host, port, nsf)
+            connectionCount += 1
+        preWrappedNsf.setConnectionCount(connectionCount)
+
+    if connectionCount == 1:
+        info('Opening ' + str(connectionCount) + ' connection...')
+    else:
+        info('Opening ' + str(connectionCount) + ' connections...')
+
+    Hellanzb.queue.serverAdd(serverName)
+        
+    return connectionCount
+
 def startNZBLeecher():
     """ gogogo """
     defaultAntiIdle = int(4.5 * 60) # 4.5 minutes
     defaultIdleTimeout = 30
     
     totalCount = 0
-    for serverId, serverInfo in Hellanzb.SERVERS.iteritems():
-        connectionCount = 0
-        hosts = serverInfo['hosts']
-        connections = int(serverInfo['connections'])
-        info('(' + serverId + ') ', appendLF = False)
+    for serverId, serverDict in Hellanzb.SERVERS.iteritems():
+        totalCount += connectServer(serverId, serverDict, defaultAntiIdle, defaultIdleTimeout)
 
-        for host in hosts:
-            if serverInfo.has_key('antiIdle') and serverInfo['antiIdle'] != None and \
-                   serverInfo['antiIdle'] != '':
-                antiIdle = int(serverInfo['antiIdle'])
-            else:
-                antiIdle = defaultAntiIdle
-                
-            if serverInfo.has_key('idleTimeout') and serverInfo['idleTimeout'] != None and \
-                   serverInfo['idleTimeout'] != '':
-                idleTimeout = int(serverInfo['idleTimeout'])
-            else:
-                idleTimeout = defaultIdleTimeout
-
-            nsf = NZBLeecherFactory(serverInfo['username'], serverInfo['password'],
-                                                      idleTimeout, antiIdle, host)
-            Hellanzb.nsfs.append(nsf)
-
-            # FIXME: pass this to the factory constructor
-            split = host.split(':')
-            host = split[0]
-            if len(split) == 2:
-                port = int(split[1])
-            else:
-                port = 119
-            nsf.host, nsf.port = host, port
-
-            preWrappedNsf = nsf
-            nsf = HellaThrottlingFactory(nsf)
-
-            for connection in range(connections):
-                if serverInfo.has_key('bindTo') and serverInfo['bindTo'] != None and \
-                        serverInfo['bindTo'] != '':
-                    reactor.connectTCP(host, port, nsf,
-                                       bindAddress = serverInfo['bindTo'])
-                else:
-                    reactor.connectTCP(host, port, nsf)
-                connectionCount += 1
-            preWrappedNsf.setConnectionCount(connectionCount)
-
-        if connectionCount == 1:
-            info('Opening ' + str(connectionCount) + ' connection...')
-        else:
-            info('Opening ' + str(connectionCount) + ' connections...')
-        totalCount += connectionCount
+    if len(Hellanzb.SERVERS) > 1:
+        # Initialize the retry queue. it contains multiple sub-queues that work within the
+        # NZBQueue, for queueing segments that failed to download on particular server
+        # pools. Obviously there's no need for this unless we're using multiple server
+        # pools
+        Hellanzb.queue.initRetryQueue()
 
     # How large the scroll ticker should be
     Hellanzb.scroller.maxCount = totalCount
@@ -135,12 +152,14 @@ def startNZBLeecher():
 PHI = 1.6180339887498948 # (1 + math.sqrt(5)) / 2
 class NZBLeecherFactory(ReconnectingClientFactory):
 
-    def __init__(self, username, password, activeTimeout, antiIdleTimeout, hostname):
+    def __init__(self, username, password, activeTimeout, antiIdleTimeout, hostname,
+                 serverPoolName):
         self.username = username
         self.password = password
         self.antiIdleTimeout = antiIdleTimeout
         self.activeTimeout = activeTimeout
         self.hostname = hostname
+        self.serverPoolName = serverPoolName
 
         self.host = None
         self.port = None
@@ -211,7 +230,9 @@ class NZBLeecherFactory(ReconnectingClientFactory):
 
     def fetchNextNZBSegment(self):
         for p in self.clients:
-            reactor.callLater(0, p.fetchNextNZBSegment)
+            if p.isLoggedIn and not p.activated:
+                reactor.callLater(0, p.fetchNextNZBSegment)
+                
         Hellanzb.scroller.started = True
         Hellanzb.scroller.killedHistory = False
 
@@ -386,6 +407,11 @@ class NZBLeecher(NNTPClient, TimeoutMixin):
         """ """
         debug(str(self) + ' MODE READER successful')
         if self.setReaderAfterLogin or (self.username == None and self.password == None):
+            # Set isLoggedIn here, for the case that no authorization was required
+            # (username & pass == None). This would have already been set to True by
+            # authInfoSuccess otherwise
+            self.isLoggedIn = True
+            
             if Hellanzb.downloadPaused:
                 self.pauseReconnected = True
                 return
@@ -478,8 +504,14 @@ class NZBLeecher(NNTPClient, TimeoutMixin):
         if self.currentSegment is None:
 
             try:
-                priority, self.currentSegment = Hellanzb.queue.get_nowait()
+                priority, self.currentSegment = Hellanzb.queue.getSmart(self.factory.serverPoolName)
                 debug(str(self) + ' PULLED FROM QUEUE: ' + self.currentSegment.getDestination())
+                
+                if self.factory.serverPoolName in self.currentSegment.failedServerPools:
+                    pass
+                    # for all known server pools in the queue, if they are not in
+                    # failedServerPools, queue there. if can't queue throw a
+                    # PoolsExhausted. what do i do with this poolsexhausted?
 
                 # got a segment - set ourselves as active unless we're already set as so
                 self.isActive(True)
@@ -490,7 +522,7 @@ class NZBLeecher(NNTPClient, TimeoutMixin):
                         self.currentSegment.nzbFile.showFilenameIsTemp = True
                         
                     self.currentSegment.nzbFile.showFilename = self.currentSegment.nzbFile.getFilename()
-                    
+
             except Empty:
                 debug(str(self) + ' EMPTY QUEUE')
                 # all done
@@ -498,14 +530,37 @@ class NZBLeecher(NNTPClient, TimeoutMixin):
                 return
 
         # Change group
-        for i in xrange(len(self.currentSegment.nzbFile.groups)):
-            group = str(self.currentSegment.nzbFile.groups[i])
+        for group in self.currentSegment.nzbFile.groups:
 
             # NOTE: we could get away with activating only one of the groups instead of
             # all
             if group not in self.activeGroups and group not in self.failedGroups:
                 debug(str(self) + ' getting GROUP: ' + group)
                 self.fetchGroup(group)
+                return
+
+            # We only need to get the groups once during the lifetime of this
+            # NZBLeecher. Once we've ensured all groups have been attempted to be
+            # retrieved (the above block of code), check that we haven't failed finding
+            # all groups (if so, punt) here instead of getGroupFailed
+            elif self.allGroupsFailed(self.currentSegment.nzbFile.groups):
+                try:
+                    Hellanzb.queue.requeueMissing(self.factory.serverPoolName, self.currentSegment)
+                    debug(str(self) + ' All groups failed, requeueing to another pool!')
+                    self.currentSegment = None
+                    reactor.callLater(0, self.fetchNextNZBSegment)
+                
+                except PoolsExhausted:
+                    error('Unable to retrieve *any* groups for file (subject: ' + \
+                          self.currentSegment.nzbFile.subject + ')')
+                    msg = 'Groups:'
+                    for group in self.currentSegment.nzbFile.groups:
+                        msg += ' ' + group
+                    error(msg)
+                    error('Cancelling NZB download: ' + self.currentSegment.nzbFile.nzb.archiveName)
+
+                    cancelCurrent()
+                    
                 return
             
         # Don't call later here -- we could be disconnected and lose our currentSegment
@@ -546,8 +601,19 @@ class NZBLeecher(NNTPClient, TimeoutMixin):
         if code is not None:
             code, msg = code
             if code in (423, 430):
-                info(self.currentSegment.nzbFile.showFilename + ' segment: ' + \
-                     str(self.currentSegment.number) + ' Article is missing!')
+                try:
+                    Hellanzb.queue.requeueMissing(self.factory.serverPoolName, self.currentSegment)
+                    debug(str(self) + ' ' + self.currentSegment.nzbFile.showFilename + \
+                          ' segment: ' + str(self.currentSegment.number) + \
+                          ' Article is missing! Attempting to requeue on a different pool!')
+                    Hellanzb.scroller.removeClient(self.currentSegment)
+                    self.currentSegment = None
+                    reactor.callLater(0, self.fetchNextNZBSegment)
+                    return
+                
+                except PoolsExhausted:
+                    info(self.currentSegment.nzbFile.showFilename + ' segment: ' + \
+                         str(self.currentSegment.number) + ' Article is missing!')
             elif code == 400 and \
                     (msg.lower().find('idle timeout') > -1 or \
                      msg.lower().find('session timeout') > -1):
@@ -596,38 +662,26 @@ class NZBLeecher(NNTPClient, TimeoutMixin):
         self.failedGroups.append(group)
         self.gettingGroup = None
         #warn('GROUP command failed for group: ' + group)
-        debug('GROUP command failed for group: ' + group + ' result: ' + str(err))
+        debug(str(self) + ' GROUP command failed for group: ' + group + ' result: ' + str(err))
 
-        segmentHasActive = False
-        for group in self.activeGroups:
-            if group in self.currentSegment.nzbFile.groups:
-                segmentHasActive = True
+        # fetchNextNZBSegment will determine if this failed GROUP command was fatal (this
+        # was the only group available for this NZB file, so cancelCurrent()) or not a big
+        # deal (other groups were successfully retrieved for this segment and we can
+        # safely continue to fetchBody())
+        self.fetchNextNZBSegment()
 
-        if segmentHasActive:
-            # we should be able to get away with using the already active groups
-            self.fetchBody(str(self.currentSegment.messageId))
-        else:
-            failedForThisSegment = 0
-            for group in self.currentSegment.nzbFile.groups:
-                if group in self.failedGroups:
-                    failedForThisSegment += 1
-
-            # NOTE: could cancel just the particular file and continue, but what kind of
-            # NZB has different groups for different files?
-            if failedForThisSegment == len(self.currentSegment.nzbFile.groups):
-                error('Unable to retrieve *any* groups for file (subject: ' + \
-                    self.currentSegment.nzbFile.subject + ')')
-                msg = 'Groups:'
-                for group in self.currentSegment.nzbFile.groups:
-                    msg += ' ' + group
-                error(msg)
-                error('Cancelling NZB download: ' + self.currentSegment.nzbFile.nzb.archiveName)
-
-                cancelCurrent()
-
-            else:
-                # Try retrieving another group
-                self.fetchNextNZBSegment()
+    def allGroupsFailed(self, groups):
+        """ Determine if the all the specified groups were previously failed to have been
+        retrieved by this NZBLeecher """
+        failed = 0
+        for group in groups:
+            if group in self.failedGroups:
+                failed += 1
+    
+        if failed == len(groups):
+            return True
+    
+        return False
                 
     def _stateBody(self, line):
         """ The normal _stateBody converts the list of lines downloaded to a string, we want to
@@ -786,7 +840,7 @@ class NZBLeecher(NNTPClient, TimeoutMixin):
 
     def __str__(self):
         """ Return the name of this NZBLeecher instance """
-        return self.__class__.__name__ + '[' + str(self.id) + ']'
+        return self.factory.serverPoolName + '[' + str(self.id) + ']'
     
 """
 /*

@@ -14,7 +14,7 @@ from threading import Condition
 from traceback import print_stack
 from twisted.internet import protocol, utils
 from Hellanzb.Log import *
-from Queue import Queue
+from Queue import Empty, Queue
 from StringIO import StringIO
 
 __id__ = '$Id$'
@@ -25,6 +25,9 @@ class FatalError(Exception):
         self.args = [message]
         self.message = message
 
+class PoolsExhausted(Exception):
+    """ Attempts to download a segment on all known server pools failed """
+    
 class TooMuchWares(FatalError):
     """ Out of disk space """
 
@@ -313,26 +316,20 @@ class PriorityQueue(Queue):
         Queue.__init__(self)
         self.queue = []
 
-    def clear(self):
-        """ empty the queue """
-        self.mutex.acquire()
-        del self.queue
-        self.queue = []
-        if not hasattr(self, 'not_empty'):
-            # python 2.3
-            self.esema.acquire()
-        self.mutex.release()
-        
-    def clear(self):
-        """ empty the queue """
-        self.mutex.acquire()
-        del self.queue
-        self.queue = []
-        if not hasattr(self, 'not_empty'):
-            # python 2.3
-            self.esema.acquire()
-        self.mutex.release()
+    def __len__(self):
+        return len(self.queue)
 
+    def clear(self):
+        """ empty the queue """
+        if len(self.queue):
+            self.mutex.acquire()
+            del self.queue
+            self.queue = []
+            if not hasattr(self, 'not_empty'):
+                # python 2.3
+                self.esema.acquire()
+            self.mutex.release()
+        
     def _put(self, item):
         """ Assume Queue is backed by a list. Add the new item to the list, taking into account
             priority via heapq """

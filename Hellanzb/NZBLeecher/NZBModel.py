@@ -16,7 +16,8 @@ from Hellanzb.Daemon import handleNZBDone
 from Hellanzb.Log import *
 from Hellanzb.NZBLeecher.ArticleDecoder import assembleNZBFile, parseArticleData, \
     setRealFileName, tryFinishNZB
-from Hellanzb.Util import archiveName, getFileExtension, PriorityQueue, TooMuchWares
+from Hellanzb.Util import archiveName, getFileExtension, PriorityQueue, PoolsExhausted, TooMuchWares
+from Queue import Empty
 
 __id__ = '$Id$'
 
@@ -352,6 +353,9 @@ class NZBSegment:
         ## A copy of the priority level of this segment, as set in the NZBQueue
         self.priority = None
 
+        ## Any server pools that failed to download this file
+        self.failedServerPools = []
+
     def getDestination(self):
         """ Where this decoded segment will reside on the fs """
         return self.nzbFile.getDestination() + '.segment' + str(self.number).zfill(4)
@@ -372,6 +376,106 @@ class NZBSegment:
     #    return 'segment: ' + os.path.basename(self.getDestination()) + ' number: ' + \
     #           str(self.number) + ' subject: ' + self.nzbFile.subject
 
+class RetryQueue:
+    """ Maintains various PriorityQueues for requeued segments. Each PriorityQueue maintained
+    is keyed by a string describing what serverPools previously failed to download that
+    queue's segments """
+    def __init__(self):
+        # all the known pool names
+        self.serverPoolNames = []
+        
+        # dict to lookup the priority by name -- the name describes which serverPools
+        # should NOT look into that particular queue. Example: 'not1not2not4'
+        self.poolQueues = {}
+
+        # map of serverPoolNames to their list of valid retry queue names
+        self.nameIndex = {}
+
+        self.allNotNames = []
+
+    def addServerPool(self, serverPoolName):
+        self.serverPoolNames.append(serverPoolName)
+
+    def removeServerPool(self, serverPoolName):
+        # probably won't ever need this
+        raise NotImplementedError()
+
+    def requeueMissing(self, serverPoolName, segment):
+        # determine where to put this from all it's failed server pools
+        segment.failedServerPools.append(serverPoolName)
+        
+        notName = ''
+        i = 0
+        for poolName in self.serverPoolNames:
+            i += 1
+            if poolName not in segment.failedServerPools:
+                continue
+            notName += 'not' + str(i)
+
+        if notName == '':
+            raise PoolsExhausted
+        ####debug('ADDING TO RETRY pool: ' + notName)
+        self.poolQueues[notName].put((segment.priority, segment))
+    
+    def get(self, serverPoolName):
+        valids = self.nameIndex[serverPoolName]
+        for queueName in valids:
+            queue = self.poolQueues[queueName]
+            if len(queue):
+                ####debug('((((((((((((((((((((((((((((((((((((((((((((((((((' + queueName)
+                return queue.get_nowait()
+        raise Empty()
+
+    def createQueues(self):
+        """ """
+        for i in range(len(self.serverPoolNames)):
+            notName = 'not' + str(i + 1)
+            self.poolQueues[notName] = PriorityQueue()
+
+            self._recurseCreateQueues([i], i, len(self.serverPoolNames))
+
+        # Index every pool's list of valid retry queues they need to check
+        i = 0
+        for name in self.serverPoolNames:
+            ####info('CREATED: ' + name)
+            i += 1
+            
+            valids = []
+            for notName in self.poolQueues.keys():
+                if notName.find('not' + str(i)) > -1:
+                    continue
+                valids.append(notName)
+            self.nameIndex[name] = valids
+
+    def _recurseCreateQueues(self, currentList, currentIndex, totalCount):
+        # Build the original notName
+        notName = ''
+        for i in currentList:
+            notName += 'not' + str(i + 1)
+
+        if len(currentList) >= totalCount - 1:
+            # We've reached the end
+            return
+
+        for x in range(totalCount):
+            if x == currentIndex or x in currentList:
+                # We've already not'd x, skip it
+                continue
+
+            newList = currentList[:]
+            newList.append(x)
+            newList.sort()
+
+            if newList in self.allNotNames:
+                # this not name is equiv. to a not name we already generated. skip it
+                continue
+
+            self.allNotNames.append(newList)
+
+            newNotName = notName + 'not' + str(x + 1)
+            self.poolQueues[newNotName] = PriorityQueue()
+            self._recurseCreateQueues(newList, x, totalCount)
+
 class NZBQueue(PriorityQueue):
     """ priority fifo queue of segments to download. lower numbered segments are downloaded
     before higher ones """
@@ -389,14 +493,22 @@ class NZBQueue(PriorityQueue):
 
         self.nzbs = []
         self.nzbsLock = Lock()
-        
+
         self.totalQueuedBytes = 0
+
+        self.retryQueueEnabled = False
+        self.rQueue = RetryQueue()
 
         if fileName is not None:
             self.parseNZB(fileName)
 
     def cancel(self):
         self.postpone(cancel = True)
+
+    def clear(self):
+        PriorityQueue.clear(self)
+        for queue in self.failedQueues.itervalues():
+            queue.clear()
 
     def postpone(self, cancel = False):
         """ postpone the current download """
@@ -417,7 +529,7 @@ class NZBQueue(PriorityQueue):
         self.totalQueuedBytes = 0
 
     def _put(self, item):
-        """ """
+        """ Add a segment to the queue """
         priority, item = item
 
         # Support adding NZBFiles to the queue. Just adds all the NZBFile's NZBSegments
@@ -464,6 +576,39 @@ class NZBQueue(PriorityQueue):
             # NZB might have been canceled
             pass
         self.nzbsLock.release()
+
+    def serverAdd(self, serverPoolName):
+        """ Let the queue know about the specified server pool. The queue will maintain sub-queues
+        for each server pool. If a segment is missing from one server pool, hellanzb will
+        attempt to download it on a different server pool. FIXME: GROUP docs """
+        self.rQueue.addServerPool(serverPoolName)
+
+    def initRetryQueue(self):
+        self.retryQueueEnabled = True
+        self.rQueue.createQueues()
+
+    def serverRemove(self, serverPoolName):
+        """ Remove the specified server pool """
+        self.rQueue.removeServerPool(serverPoolName)
+            
+    def getSmart(self, serverPoolName):
+        """ Get the next available segment in the queue. The 'smart'ness first checks for segments
+        in the RetryQueue, otherwise it falls back to the main queue """
+        # Don't bother w/ retryQueue nonsense unless it's enabled (meaning there are
+        # multiple serverPools)
+        if self.retryQueueEnabled:
+            try:
+                return self.rQueue.get(serverPoolName)
+            except:
+                # fall through
+                pass
+            
+        return PriorityQueue.get_nowait(self)
+
+    def requeueMissing(self, serverPoolName, segment):
+        """ Requeue a missing segment. This segment will be added to the specified serverPool's
+        failedQueue, where other serverPools will find it and reattempt the download """
+        self.rQueue.requeueMissing(serverPoolName, segment)
 
     def fileDone(self, nzbFile):
         """ Notify the queue a file is done. This is called after assembling a file into it's
@@ -582,7 +727,7 @@ class NZBQueue(PriorityQueue):
 
         # Archive not complete
         return False
-        
+
 class NZBParser(ContentHandler):
     """ Parse an NZB 1.0 file into an NZBQueue
     http://www.newzbin.com/DTD/nzb/nzb-1.0.dtd """
@@ -655,7 +800,7 @@ class NZBParser(ContentHandler):
             self.fileNeedsDownload = None
                 
         elif name == 'group':
-            newsgroup = ''.join(self.chars)
+            newsgroup = self.parseUnicode(''.join(self.chars))
             self.file.groups.append(newsgroup)
                         
             self.chars = None

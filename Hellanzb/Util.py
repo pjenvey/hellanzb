@@ -25,7 +25,7 @@ class FatalError(Exception):
         self.args = [message]
         self.message = message
 
-class TooMuchWares(FatalError):
+class OutOfDiskSpace(Exception):
     """ Out of disk space """
 
 SPLIT_CMDLINE_ARGS_RE = re.compile(r'( |"[^"]*")')

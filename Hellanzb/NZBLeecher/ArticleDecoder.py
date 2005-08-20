@@ -12,7 +12,7 @@ from zlib import crc32
 from Hellanzb.Daemon import handleNZBDone, pauseCurrent
 from Hellanzb.Log import *
 from Hellanzb.Logging import prettyException
-from Hellanzb.Util import checkShutdown, touch, TooMuchWares
+from Hellanzb.Util import checkShutdown, touch, OutOfDiskSpace
 
 __id__ = '$Id$'
 
@@ -55,7 +55,7 @@ def decode(segment):
         
         decodeArticleData(segment)
         
-    except TooMuchWares:
+    except OutOfDiskSpace:
         # Ran out of disk space and download was paused! Easiest way out of this sticky
         # situation is to requeue the segment =[
         nuke(segment.getDestination())
@@ -77,7 +77,7 @@ def decode(segment):
         try:
             assembleNZBFile(segment.nzbFile)
             
-        except TooMuchWares:
+        except OutOfDiskSpace:
             # Delete the partially assembled file, it will be re-assembled later
             nuke(segment.nzbFile.getDestination())
             
@@ -287,7 +287,7 @@ def handleIOError(ioe):
         error('No space left on device!')
         pauseCurrent()
         growlNotify('Error', 'hellanzb Download Paused', 'No space left on device!', True)
-        raise TooMuchWares('LOL BURN SOME DVDS LOL')
+        raise OutOfDiskSpace('LOL BURN SOME DVDS LOL')
     else:
         raise
     

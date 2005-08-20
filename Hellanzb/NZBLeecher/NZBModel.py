@@ -16,7 +16,7 @@ from Hellanzb.Daemon import handleNZBDone
 from Hellanzb.Log import *
 from Hellanzb.NZBLeecher.ArticleDecoder import assembleNZBFile, parseArticleData, \
     setRealFileName, tryFinishNZB
-from Hellanzb.Util import archiveName, getFileExtension, PriorityQueue, TooMuchWares
+from Hellanzb.Util import archiveName, getFileExtension, PriorityQueue, OutOfDiskSpace
 
 __id__ = '$Id$'
 
@@ -546,7 +546,7 @@ class NZBQueue(PriorityQueue):
                 # called on occasion (might bite you in the ass one day)
                 try:
                     assembleNZBFile(nzbFile, autoFinish = False)
-                except TooMuchWares:
+                except OutOfDiskSpace:
                     self.nzbDone(nzb)
                     error('Cannot assemble ' + nzb.getFileName() + ': No space left on device! Exiting..')
                     shutdown(True)

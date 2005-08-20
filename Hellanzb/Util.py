@@ -579,6 +579,17 @@ def prettyEta(etaSeconds):
     seconds = etaSeconds - (hours * 60 * 60) - (minutes * 60)
     return '%.2d:%.2d:%.2d' % (hours, minutes, seconds)
 
+def prettySize(bytes):
+    """ format a byte count for pretty display """
+    bytes = float(bytes)
+    
+    if bytes < 1024:
+            return '<1KB'
+    elif bytes < (1024 * 1024):
+            return '%dKB' % (bytes / 1024)
+    else:
+            return '%.1fMB' % (bytes / 1024.0 / 1024.0)
+
 # NOTE: if you're cut & pasting -- the ascii is escaped (\") in one spot
 Hellanzb.CMHELLA = \
 """

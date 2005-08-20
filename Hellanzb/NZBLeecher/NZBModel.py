@@ -399,6 +399,11 @@ class RetryQueue:
         # A list of all queue names
         self.allNotNames = []
 
+    def clear(self):
+        """ Clear all the queues """
+        for queue in self.poolQueues.itervalues():
+            queue.clear()
+
     def addServerPool(self, serverPoolName):
         """ Add an additional serverPool. This does not create any associated PriorityQueues, that
         work is done by createQueues """
@@ -408,7 +413,7 @@ class RetryQueue:
         """ Remove a serverPool. FIXME: probably never needed, so not implemented """
         raise NotImplementedError()
 
-    def requeueFailed(self, serverPoolName, segment):
+    def requeue(self, serverPoolName, segment):
         """ Requeue the segment (which failed to download on the specified serverPool) for later
         retry by another serverPool
 
@@ -416,9 +421,6 @@ class RetryQueue:
         which serverPools have previously failed to download the specified segment. A
         PoolsExhausted exception is thrown when all serverPools have failed to download
         the segment """
-        # This serverPool has just failed the download
-        segment.failedServerPools.append(serverPoolName)
-        
         # Figure out the correct queue by looking at the previously failed serverPool
         # names
         notName = ''
@@ -563,7 +565,7 @@ class RetryQueue:
             newList.sort()
 
             if newList in self.allNotNames:
-                # this not name is equiv. to a not name we already generated. skip it
+                # this notName == an already generated notName, skip it
                 continue
 
             self.allNotNames.append(newList)
@@ -602,9 +604,9 @@ class NZBQueue(PriorityQueue):
         self.postpone(cancel = True)
 
     def clear(self):
+        if self.retryQueueEnabled:
+            self.rQueue.clear()
         PriorityQueue.clear(self)
-        for queue in self.failedQueues.itervalues():
-            queue.clear()
 
     def postpone(self, cancel = False):
         """ postpone the current download """
@@ -705,11 +707,26 @@ class NZBQueue(PriorityQueue):
             raise EmptyForThisPool()
             
         return PriorityQueue.get_nowait(self)
+    
+    def requeue(self, serverPoolName, segment):
+        """ Requeue the segment for download. This differs from requeueMissing as it's for
+        downloads that failed for reasons other than the file or group missing from the
+        server (such as a connection timeout) """
+        if self.retryQueueEnabled:
+            self.rQueue.requeue(serverPoolName, segment)
+        else:
+            self.put((segment.priority, segment))
 
-    def requeueFailed(self, serverPoolName, segment):
-        """ Requeue a missing segment. This segment will be added to the specified serverPool's
-        failedQueue, where other serverPools will find it and reattempt the download """
-        self.rQueue.requeueFailed(serverPoolName, segment)
+    def requeueMissing(self, serverPoolName, segment):
+        """ Requeue a missing segment. This segment will be added to the RetryQueue (if enabled),
+        where other serverPools will find it and reattempt the download """
+        # This serverPool has just failed the download
+        segment.failedServerPools.append(serverPoolName)
+
+        if self.retryQueueEnabled:
+            self.rQueue.requeue(serverPoolName, segment)
+        else:
+            raise PoolsExhausted
 
     def fileDone(self, nzbFile):
         """ Notify the queue a file is done. This is called after assembling a file into it's

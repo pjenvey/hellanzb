@@ -10,6 +10,7 @@ import Hellanzb, os, re, PostProcessor
 from sets import Set
 from shutil import copy, move, rmtree
 from twisted.internet import reactor
+from twisted.scripts.twistd import daemonize
 from Hellanzb.HellaXMLRPC import initXMLRPCServer, HellaXMLRPCServer
 from Hellanzb.Log import *
 from Hellanzb.Logging import prettyException
@@ -87,6 +88,9 @@ def initDaemon():
     reactor.callLater(0, growlNotify, 'Queue', 'hellanzb', 'Now monitoring queue..', False)
     reactor.callLater(0, resumePostProcessors)
     reactor.callLater(0, scanQueueDir, True)
+
+    if Hellanzb.DAEMONIZE:
+        daemonize()
     
     from Hellanzb.NZBLeecher import initNZBLeecher
     initNZBLeecher()
@@ -362,7 +366,8 @@ def postProcess(options, isQueueDaemon = False):
     dirName = os.path.realpath(options.postProcessDir)
     troll = Hellanzb.PostProcessor.PostProcessor(dirName, background = False,
                                                  rarPassword = rarPassword)
-    reactor.callLater(0, info, '\nStarting post processor')
+    reactor.callLater(0, info, '')
+    reactor.callLater(0, info, 'Starting post processor')
     reactor.callLater(0, reactor.callInThread, troll.run)
 
 def validNZB(nzbfilename):

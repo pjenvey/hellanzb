@@ -222,7 +222,10 @@ class NZBLeecherTicker:
             for i in range(self.maxCount + 1):
                 msg += '\n\r' + Hellanzb.ACODE.KILL_LINE
             msg += '\r\033[' + str(self.maxCount + 1) + 'A'
-            self.logger(msg)
+            
+            if not Hellanzb.DAEMONIZE:
+                self.logger(msg)
+                
             self.killedHistory = True
             self.started = False
         # segments should be empty at this point anyway
@@ -232,6 +235,9 @@ class NZBLeecherTicker:
     # here, anyway
     def updateLog(self, logNow = False):
         """ Log ticker """
+        if Hellanzb.DAEMONIZE:
+            return
+        
         # Delay the actual log work -- so we don't over-log (too much CPU work in the
         # async loop)
         if not logNow:
@@ -342,6 +348,9 @@ class NZBLeecherTicker:
 
 def stdinEchoOff():
     """ ECHO OFF standard input """
+    if Hellanzb.DAEMONIZE:
+        return
+    
     from Hellanzb.Log import debug
     try:
         fd = sys.stdin.fileno()
@@ -360,6 +369,9 @@ def stdinEchoOff():
     
 def stdinEchoOn():
     """ ECHO ON standard input """
+    if Hellanzb.DAEMONIZE:
+        return
+    
     from Hellanzb.Log import debug
     try:
         fd = sys.stdin.fileno()

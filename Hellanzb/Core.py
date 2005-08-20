@@ -216,7 +216,11 @@ def init(options = {}):
     Hellanzb.postProcessors = []
     Hellanzb.postProcessorLock = Lock()
 
+    # How many total NZB archives have been post processed
     Hellanzb.totalPostProcessed = 0
+
+    # Whether or not the queue daemon is running as a daemon process (forked)
+    Hellanzb.DAEMONIZE = False
 
     # How many times CTRL-C has been pressed
     Hellanzb.stopSignalCount = 0
@@ -300,6 +304,14 @@ def shutdownAndExit(returnCode = 0):
 
     sys.exit(returnCode)
 
+def marquee():
+    """ Print a simple header, for when starting the app """
+    info('')
+    msg = 'hellanzb v' + Hellanzb.version
+    if Hellanzb.DAEMONIZE:
+        msg += ' (daemonized)'
+    info(msg)
+
 USAGE = """
 hellanzb version %s
 """.lstrip() + cmHella().rstrip() + \
@@ -335,6 +347,8 @@ def parseArgs():
     parser.add_option('-d', '--debug-file', type='string', dest='debugLogFile',
                       help='specify the debug log file (turns on debugging output/overwrites the ' + \
                       'Hellanzb.DEBUG_MODE config file setting)')
+    parser.add_option('-D', '--daemon', action='store_true', dest='daemonize',
+                      help='run hellanzb as a daemon process (fork and exit)')
     #parser.add_option('-n', '--just-download-nzb', type='string', dest='justDownload',
     #                  help='download the specified nzb and exit the program (do not post process)')
     parser.add_option('-p', '--post-process-dir', type='string', dest='postProcessDir',
@@ -357,10 +371,16 @@ def processArgs(options, args):
     """ By default (no args) run the daemon. Otherwise we could be making an XML RPC call, or
     calling a PostProcessor on the specified dir then exiting """
     if not len(args) and not options.postProcessDir:
-        info('\nStarting queue daemon')
+
+        if options.daemonize:
+            # Run as a daemon process (fork)
+            Hellanzb.DAEMONIZE = True
+
+        marquee()
         initDaemon()
 
     elif options.postProcessDir and options.localPostProcess:
+        marquee()
         reactor.callLater(0, postProcess, options)
         reactor.run()
 

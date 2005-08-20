@@ -316,8 +316,8 @@ def smartHandler(remoteCall, result):
 def errHandler(remoteCall, failure):
     """ generic xml rpc client err back -- handle errors, and possibly spawn a post processor
     thread """
-    debug('errHandler, class: ' + str(failure.value.__class__) + ' args: ' + \
-          str(failure.value.args), failure)
+    #debug('errHandler, class: ' + str(failure.value.__class__) + ' args: ' + \
+    #      str(failure.value.args), failure)
 
     err = failure.value
     if isinstance(err, ConnectionRefusedError):
@@ -542,7 +542,7 @@ def initXMLRPCClient():
     r = RemoteCall('last', printQueueListAndExit)
     r.addRequiredArg('nzbid')
     r = RemoteCall('list', printQueueListAndExit)
-    r.addOptionalArg('showids')
+    r.addOptionalArg('excludeids')
     r = RemoteCall('maxrate', printResultAndExit)
     r.addOptionalArg('newrate')
     r = RemoteCall('move', printQueueListAndExit)

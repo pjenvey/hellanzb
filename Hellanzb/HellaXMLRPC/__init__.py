@@ -94,13 +94,13 @@ class HellaXMLRPCServer(XMLRPC):
 
     def xmlrpc_enqueue(self, nzbFilename):
         """ Add the specified NZB file to the end of the queue """
-        from Hellanzb.Daemon import enqueueNZBs, listQueue
+        from Hellanzb.Daemon import enqueueNZBs
         # FIXME: this should really check for a valid nzb. if it's not valid, raise a
         # Fault (like the xmlrpc_process does)
         enqueueNZBs(nzbFilename)
-        return listQueue()
+        return self.xmlrpc_status()
 
-    xmlrpc_enqueue.signature = [ ['list', 'string'] ]
+    xmlrpc_enqueue.signature = [ ['struct', 'string'] ]
 
     #def xmlrpc_enqueuedl(self, newzbinId):
     #    """ """
@@ -535,7 +535,7 @@ def initXMLRPCClient():
     r = RemoteCall('down', printQueueListAndExit)
     r.addRequiredArg('nzbid')
     r.addOptionalArg('shift')
-    r = RemoteCall('enqueue', printQueueListAndExit)
+    r = RemoteCall('enqueue', statusString)
     r.addRequiredArg('nzbfile')
     r = RemoteCall('force', statusString)
     r.addRequiredArg('nzbid')

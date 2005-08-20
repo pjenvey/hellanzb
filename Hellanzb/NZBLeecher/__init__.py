@@ -53,10 +53,7 @@ def initNZBLeecher():
     # this class handles updating statistics via the SCROLL level (the UI)
     Hellanzb.scroller = NZBLeecherTicker()
 
-    if hasattr(Hellanzb, 'MAX_RATE'):
-        Hellanzb.ht = HellaThrottler(int(Hellanzb.MAX_RATE) * 1024)
-    else:
-        Hellanzb.ht = HellaThrottler()
+    Hellanzb.ht = HellaThrottler(Hellanzb.MAX_RATE * 1024)
 
     # loop to scan the queue dir during download
     Hellanzb.downloadScannerID = None

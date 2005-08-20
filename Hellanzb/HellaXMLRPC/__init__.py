@@ -36,103 +36,152 @@ class HellaXMLRPCServer(XMLRPC):
         from Hellanzb.Elite import C
         return C.asciiArt()
 
+    xmlrpc_asciiart.signature = [ ['string'] ]
+
     def xmlrpc_aolsay(self):
         """ Return a random aolsay (from Da5id's aolsay.scr) """
         from Hellanzb.Elite import C
         return C.aolSay()
+
+    xmlrpc_aolsay.signature = [ ['string'] ]
         
     def xmlrpc_cancel(self):
         """ Cancel the current download and move the current NZB to Hellanzb.TEMP_DIR """
         from Hellanzb.Daemon import cancelCurrent
-        return cancelCurrent()
+        cancelCurrent()
+        return self.xmlrpc_status()
 
+    xmlrpc_cancel.signature = [ ['struct'] ]
+    
     def xmlrpc_clear(self, andCancel = False):
         """ Clear the current nzb queue. Specify True as the second argument to clear anything
         currently downloading as well (like the cancel call) """
         from Hellanzb.Daemon import clearCurrent
-        return clearCurrent(andCancel)
+        clearCurrent(andCancel)
+        return self.xmlrpc_status()
+
+    xmlrpc_clear.signature = [ ['struct'],
+                               ['struct', 'boolean'] ]
 
     def xmlrpc_continue(self):
         """ Continue downloading after being paused """
         from Hellanzb.Daemon import continueCurrent
-        return continueCurrent()
+        continueCurrent()
+        return self.xmlrpc_status()
+
+    xmlrpc_continue.signature = [ ['struct'] ]
 
     def xmlrpc_dequeue(self, nzbId):
         """ Remove the NZB with specified ID from the queue """
-        from Hellanzb.Daemon import dequeueNZBs
-        return dequeueNZBs(nzbId)
+        from Hellanzb.Daemon import dequeueNZBs, listQueue
+        dequeueNZBs(nzbId)
+        return listQueue()
+
+    xmlrpc_dequeue.signature = [ ['list', 'string'],
+                                 ['list', 'int'] ]
     
     def xmlrpc_down(self, nzbId, shift = 1):
         """ Move the NZB with the specified ID down in the queue. The optional second argument
         specifies the number of spaces to shift by (Default: 1) """
-        from Hellanzb.Daemon import moveDown
-        return moveDown(nzbId, shift)
+        from Hellanzb.Daemon import listQueue, moveDown
+        moveDown(nzbId, shift)
+        return listQueue()
+
+    xmlrpc_down.signature = [ ['list', 'string'],
+                              ['list', 'int'],
+                              ['list', 'string', 'string'],
+                              ['list', 'int', 'int'] ]
 
     def xmlrpc_enqueue(self, nzbFilename):
         """ Add the specified NZB file to the end of the queue """
-        from Hellanzb.Daemon import enqueueNZBs
-        reactor.callLater(0, enqueueNZBs, nzbFilename)
-        return True
+        from Hellanzb.Daemon import enqueueNZBs, listQueue
+        # FIXME: this should really check for a valid nzb. if it's not valid, raise a
+        # Fault (like the xmlrpc_process does)
+        enqueueNZBs(nzbFilename)
+        return listQueue()
+
+    xmlrpc_enqueue.signature = [ ['list', 'string'] ]
 
     #def xmlrpc_enqueuedl(self, newzbinId):
     #    """ """
-
-    def xmlrpc_last(self, nzbId):
-        """ Move the NZB with the specified ID to the end of the queue """
-        from Hellanzb.Daemon import lastNZB
-        return lastNZB(nzbId)
-
-    def xmlrpc_list(self, includeIds = False):
-        """ List the current queue. Specify True as the second argument to include the NZB ID in
-        the listing """
-        from Hellanzb.Daemon import listQueue
-        return listQueue(includeIds)
 
     def xmlrpc_force(self, nzbId):
         """ Force hellanzb to begin downloading the NZB with the specified ID immediately,
         interrupting the current download """
         from Hellanzb.Daemon import forceNZBId
-        reactor.callLater(0, forceNZBId, nzbId)
-        return True
+        forceNZBId(nzbId)
+        return self.xmlrpc_status()
 
+    xmlrpc_force.signature = [ ['struct', 'string'],
+                               ['struct', 'int'] ]
+
+    def xmlrpc_last(self, nzbId):
+        """ Move the NZB with the specified ID to the end of the queue """
+        from Hellanzb.Daemon import lastNZB, listQueue
+        lastNZB(nzbId)
+        return listQueue()
+
+    xmlrpc_last.signature = [ ['list', 'string'],
+                              ['list', 'int'] ]
+
+    def xmlrpc_list(self, excludeIds = False):
+        """ List the NZBs in the queue, along with their NZB IDs. Specify True as the second
+        argument to exclude the NZB ID in the listing """
+        from Hellanzb.Daemon import listQueue
+        return listQueue(not excludeIds)
+
+    xmlrpc_list.signature = [ ['list'],
+                              ['list', 'boolean'] ]
+    xmlrpc_list.help = xmlrpc_list.__doc__.rstrip() + \
+        '. Returns a list of structs (nzbid -> nzbName). Excluding the NZB IDs returns a list of nzbName strings'
+    
     def xmlrpc_maxrate(self, rate = None):
         """ Return the Hellanzb.MAX_RATE (maximum download rate) value. Specify a second argument
         to change the value -- a value of zero denotes no maximum rate """
+        from Hellanzb.Daemon import getRate, maxRate
         if rate == None:
-            if Hellanzb.ht.readLimit == None:
-                return str(None)
-            return str(Hellanzb.ht.readLimit / 1024)
-        
-        from Hellanzb.Daemon import maxRate
+            return getRate()
         return maxRate(rate)
+
+    xmlrpc_maxrate.signature = [ ['int'],
+                                 ['int', 'string'],
+                                 ['int', 'int'] ]
 
     def xmlrpc_move(self, nzbId, index):
         """ Move the NZB with the specified ID to the specified index in the queue """
-        from Hellanzb.Daemon import move
-        return move(nzbId, index)
+        from Hellanzb.Daemon import listQueue, move
+        move(nzbId, index)
+        return listQueue()
+
+    xmlrpc_move.signature = [ ['list', 'string', 'string'],
+                              ['list', 'int', 'int'] ]
     
-    def xmlrpc_next(self, nzbFilename):
+    def xmlrpc_next(self, nzbId):
         """ Move the NZB with the specified ID to the beginning of the queue """
-        from Hellanzb.Daemon import nextNZBId
-        reactor.callLater(0, nextNZBId, nzbFilename)
-        return True
+        from Hellanzb.Daemon import listQueue, nextNZBId
+        nextNZBId(nzbId)
+        return listQueue()
+
+    xmlrpc_next.signature = [ ['list', 'string'],
+                              ['list', 'int'] ]
 
     def xmlrpc_pause(self):
         """ Pause downloading """
         from Hellanzb.Daemon import pauseCurrent
-        return pauseCurrent()
+        pauseCurrent()
+        return self.xmlrpc_status()
+
+    xmlrpc_pause.signature = [ ['struct'] ]
 
     def xmlrpc_process(self, archiveDir, rarPassword = None):
         """ Post process the specified directory. The -p option is preferable -- it will do this
         for you, or use the current process if this XML-RPC call fails """
         # FIXME: merge this with Daemon.postProcess
         if not os.path.isdir(archiveDir):
-            error('Unable to process, not a directory: ' + archiveDir)
-            return False
+            raise Fault(9001, 'Unable to process, not a directory: ' + archiveDir)
 
-        if not os.access(archiveDir, os.R_OK):
-            error('Unable to process, no read access to directory: ' + archiveDir)
-            return False
+        if not os.access(archiveDir, os.R_OK) or not os.access(archiveDir, os.W_OK):
+            raise Fault(9001, 'Unable to process, no read/write access to directory: ' + archiveDir)
         
         dirName = os.path.dirname(archiveDir.rstrip(os.sep))
         # We are the queue daemon -- Symlink to the archiveDir. If we are ctrl-ced, we'll
@@ -145,8 +194,11 @@ class HellaXMLRPCServer(XMLRPC):
 
         troll = PostProcessor(archiveDir, rarPassword = rarPassword)
         troll.start()
-        return True
+        return self.xmlrpc_status()
 
+    xmlrpc_process.signature = [ ['struct', 'string'],
+                                 ['struct', 'string', 'string'] ]
+    
     def xmlrpc_shutdown(self):
         """ Shutdown hellanzb. Will quietly kill any post processing threads that may exist """
         # Shutdown the reactor/alert the ui
@@ -155,9 +207,12 @@ class HellaXMLRPCServer(XMLRPC):
         reactor.callLater(1, shutdown, True)
         
         return True
+
+    xmlrpc_shutdown.signature = [ ['boolean'] ]
         
-    def xmlrpc_status(self, aolsay = False):
+    def xmlrpc_status(self):
         """ Return hellanzb's current status text """
+        from Hellanzb.Daemon import listQueue
         s = {}
     
         totalSpeed = 0
@@ -192,15 +247,23 @@ class HellaXMLRPCServer(XMLRPC):
         Hellanzb.postProcessorLock.acquire()
         s['currently_processing'] = [archiveName(processor.dirName) for processor in Hellanzb.postProcessors]
         Hellanzb.postProcessorLock.release()
-        s['queued'] = [nzb.archiveName for nzb in Hellanzb.queued_nzbs]
+        s['queued'] = listQueue(prettyName = True)
 
         return s
+
+    xmlrpc_status.signature = [ ['struct'] ]
 
     def xmlrpc_up(self, nzbId, shift = 1):
         """ Move the NZB with the specified ID up in the queue. The optional second argument
         specifies the number of spaces to shift by (Default: 1) """
-        from Hellanzb.Daemon import moveUp
-        return moveUp(nzbId, shift)
+        from Hellanzb.Daemon import listQueue, moveUp
+        moveUp(nzbId, shift)
+        return listQueue()
+
+    xmlrpc_up.signature = [ ['list', 'string'],
+                            ['list', 'int'],
+                            ['list', 'string', 'string'],
+                            ['list', 'int', 'int'] ]
 
 def printResultAndExit(remoteCall, result):
     """ generic xml rpc client call back -- simply print the result as a string and exit """
@@ -209,19 +272,27 @@ def printResultAndExit(remoteCall, result):
     noLogFile(str(result))
     reactor.stop()
 
-def printListAndExit(remoteCall, result):
+def printQueueListAndExit(remoteCall, result):
+    """ Print a list of strings, or a list of dicts with the keys id and nzbName """
     if isinstance(result, list):
-        [noLogFile(line) for line in result]
-    elif isinstance(result, dict):
-        length = 6
-        [noLogFile(id + ' '*(length - len(id)) + name) for id, name in result.iteritems()]
+        for line in result:
+            if isinstance(line, dict):
+                length = 6
+                id = str(line['id'])
+                nzbName = line['nzbName']
+                
+                noLogFile(id + ' '*(length - len(id)) + nzbName)
+            else:
+                if isinstance(line, unicode):
+                    line = line.encode('utf-8')
+                noLogFile(str(line))
     else:
-        return printResultAndExit()
+        return printResultAndExit(remoteCall, result)
     reactor.stop()
 
 def resultMadeItBoolAndExit(remoteCall, result):
     """ generic xml rpc call back for a boolean result """
-    if type(result) == bool:
+    if isinstance(result, bool):
         if result:
             info('Successfully made remote call to hellanzb queue daemon')
         else:
@@ -230,6 +301,17 @@ def resultMadeItBoolAndExit(remoteCall, result):
     else:
         noLogFile(str(result))
         reactor.stop()
+
+def smartHandler(remoteCall, result):
+    """ Attempt to automatically figure out how to handle the xml rpc call result """
+    if isinstance(result, list):
+        return printQueueListAndExit(remoteCall, result)
+    elif isinstance(result, dict):
+        return statusString(remoteCall, result)
+    elif isinstance(result, bool):
+        return resultMadeItBoolAndExit(remoteCall, result)
+    else:
+        return printResultAndExit(remoteCall, result)
 
 def errHandler(remoteCall, failure):
     """ generic xml rpc client err back -- handle errors, and possibly spawn a post processor
@@ -271,6 +353,9 @@ def errHandler(remoteCall, failure):
         elif err.faultCode == 8002:
             error('Invalid arguments? for call: ' + remoteCall.funcName + ' (XMLRPC server: ' + \
                  Hellanzb.serverUrl + ') faultString: ' + err.faultString)
+        elif err.faultCode in (9001,):
+            # hellanzb error
+            error(str(err.faultString))
         else:
             error('Unexpected XMLRPC response: ' + str(err) + ' : ' + getStack(err))
 
@@ -341,12 +426,8 @@ class RemoteCall:
         """ callback from a failed xml rpc call """
         self.errbackFunc(self, failure)
 
-    def call(serverUrl, funcName, args):
-        """ lookup the specified function in our pool of known commands, and call it """
-        # FIXME:
-        pass 
-
     def callLater(serverUrl, funcName, args):
+        """ lookup the specified function in our pool of known commands, and callLater it """
         try:
             rc = RemoteCall.callIndex[funcName]
         except KeyError:
@@ -428,6 +509,7 @@ def initXMLRPCServer():
         return
         
     hxmlrpcs = HellaXMLRPCServer()
+    xmlrpc.addIntrospection(hxmlrpcs)
     
     SECURE = True
     try:
@@ -445,35 +527,35 @@ def initXMLRPCClient():
     # Aliases to these calls would be nice
     r = RemoteCall('aolsay', printResultAndExit, published = False)
     r = RemoteCall('asciiart', printResultAndExit, published = False)
-    r = RemoteCall('cancel', resultMadeItBoolAndExit)
-    r = RemoteCall('clear', resultMadeItBoolAndExit)
-    r = RemoteCall('continue', resultMadeItBoolAndExit)
-    r = RemoteCall('dequeue', resultMadeItBoolAndExit)
+    r = RemoteCall('cancel', statusString)
+    r = RemoteCall('clear', statusString)
+    r = RemoteCall('continue', statusString)
+    r = RemoteCall('dequeue', printQueueListAndExit)
     r.addRequiredArg('nzbid')
-    r = RemoteCall('down', resultMadeItBoolAndExit)
+    r = RemoteCall('down', printQueueListAndExit)
     r.addRequiredArg('nzbid')
     r.addOptionalArg('shift')
-    r = RemoteCall('enqueue', resultMadeItBoolAndExit)
+    r = RemoteCall('enqueue', printQueueListAndExit)
     r.addRequiredArg('nzbfile')
-    r = RemoteCall('force', resultMadeItBoolAndExit)
+    r = RemoteCall('force', statusString)
     r.addRequiredArg('nzbid')
-    r = RemoteCall('last', resultMadeItBoolAndExit)
+    r = RemoteCall('last', printQueueListAndExit)
     r.addRequiredArg('nzbid')
-    r = RemoteCall('list', printListAndExit)
+    r = RemoteCall('list', printQueueListAndExit)
     r.addOptionalArg('showids')
-    r = RemoteCall('maxrate', resultMadeItBoolAndExit)
+    r = RemoteCall('maxrate', printResultAndExit)
     r.addOptionalArg('newrate')
-    r = RemoteCall('move', resultMadeItBoolAndExit)
+    r = RemoteCall('move', printQueueListAndExit)
     r.addRequiredArg('nzbid')
     r.addRequiredArg('index')
-    r = RemoteCall('next', resultMadeItBoolAndExit)
+    r = RemoteCall('next', printQueueListAndExit)
     r.addRequiredArg('nzbid')
-    r = RemoteCall('pause', resultMadeItBoolAndExit)
-    r = RemoteCall('process', resultMadeItBoolAndExit)
+    r = RemoteCall('pause', statusString)
+    r = RemoteCall('process', statusString)
     r.addRequiredArg('archivedir')
     r = RemoteCall('shutdown', resultMadeItBoolAndExit)
     r = RemoteCall('status', statusString)
-    r = RemoteCall('up', resultMadeItBoolAndExit)
+    r = RemoteCall('up', printQueueListAndExit)
     r.addRequiredArg('nzbid')
     r.addOptionalArg('shift')
 
@@ -535,6 +617,7 @@ def statusString(remoteCall, result):
     queuedNZBs = s['queued']
     queuedMB = s['queued_mb']
     eta = s['eta']
+    maxrate = s['maxrate']
 
     if isPaused:
         totalSpeed = 'Paused'
@@ -551,7 +634,7 @@ def statusString(remoteCall, result):
 
     downloading += statusFromList(currentNZBs, len(downloading))
     processing += statusFromList(processingNZBs, len(processing))
-    queued += statusFromList(queuedNZBs, len(queued))
+    queued += statusQueueList(queuedNZBs, len(queued))
 
     # FIXME: show if any archives failed during processing?
     #f = failedProcessing
@@ -561,15 +644,21 @@ def statusString(remoteCall, result):
     # FIXME: optionally don't show ascii
     # hellanzb version %s
 
-    firstLine = """%s  up %s  """
-    firstLine = firstLine % (now,
-                             uptime)
+    one = """%s  up %s  """
+    one = one % (now, uptime)
     two =  """downloaded %i nzbs, %i files, %i segments""" % (totalNZBs, totalFiles,
                                                               totalSegments)
-    three = '\n' + ' '*len(firstLine) + """(%i MB)\n""" % \
+    threePrefix = '\n'
+    if maxrate > 0:
+        part = 'max rate ' + str(maxrate) + 'KB/s'
+        threePrefix += part + ' '*(len(one) - len(part))
+    else:
+        threePrefix += ' '*len(one)
+        
+    three = threePrefix + """(%i MB)\n""" % \
         (totalMb)
     
-    msg = firstLine + two + three
+    msg = one + two + three
     msg += cmHella(version)
     msg += \
 """
@@ -606,22 +695,33 @@ def secondsToUptime(seconds):
     msg += '%.2i:%.2i' % (hours, minutes)
     return msg
 
-def statusFromList(alist, indent):
+def statusFromList(alist, indent, func = None):
     """ generate a status message from the list of objects, using the specified function for
     formatting """
+    if func == None:
+        func = lambda item : item
     status = ''
     if len(alist):
         i = 0
         for item in alist:
             if i:
                 status += ' '*indent
-            status += item
+            status += func(item)
             if i < len(alist) - 1:
                 status += '\n'
             i += 1
     else:
         status += 'None'
     return status
+
+def statusQueueList(queueList, indent):
+    """ statusFromList tailored for the queueList. Also shows the included nzbId """
+    def clean(item):
+        if isinstance(item, unicode):
+            item = item.encode('latin-1')
+        return item
+    func = lambda item : '(' + str(item['id']) + ') ' + clean(item['nzbName'])
+    return statusFromList(queueList, indent, func)
 
 """
 /*

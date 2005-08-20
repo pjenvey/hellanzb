@@ -614,6 +614,7 @@ def nextNZBId(nzbId):
     Hellanzb.queued_nzbs.insert(0, foundNZB)
 
     writeQueueToDisk(Hellanzb.queued_nzbs)
+    return True
 
 def lastNZB(nzbId):
     try:
@@ -665,50 +666,61 @@ def moveNZB(nzbId, index):
 
     writeQueueToDisk(Hellanzb.queued_nzbs)
     return True
+
+def getRate():
+    """ Return the current MAX_RATE value """
+    return Hellanzb.ht.readLimit / 1024
     
 def maxRate(rate):
-    """ Switch the MAX RATE setting """
-    if rate == 'None':
+    """ Change the MAX_RATE value. Return the new value """
+    if rate == 'None' or rate == None:
         rate = 0
     else:
         try:
             rate = int(rate)
         except:
-            return False
+            return getRate()
+
+    if rate < 0:
+        rate = 0
         
     info('Resetting MAX_RATE to: ' + str(rate) + 'KB/s')
-    if rate == 0:
-        rate = None
-    else:
-        rate = rate * 1024
+    
+    rate = rate * 1024
         
     restartCheckRead = False
-    if rate == None:
-        if Hellanzb.ht.unthrottleReadsID != None:
+    if rate == 0:
+        if Hellanzb.ht.unthrottleReadsID != None and \
+                not Hellanzb.ht.unthrottleReadsID.cancelled and \
+                not Hellanzb.ht.unthrottleReadsID.called:
             Hellanzb.ht.unthrottleReadsID.cancel()
-        if Hellanzb.ht.checkReadBandwidthID != None:
+
+        if Hellanzb.ht.checkReadBandwidthID != None and \
+            not Hellanzb.ht.checkReadBandwidthID.cancelled:
             Hellanzb.ht.checkReadBandwidthID.cancel()
         Hellanzb.ht.unthrottleReads()
-    elif Hellanzb.ht.readLimit == None and rate > None:
+    elif Hellanzb.ht.readLimit == 0 and rate > 0:
         restartCheckRead = True
         
     Hellanzb.ht.readLimit = rate
+
     if restartCheckRead:
         Hellanzb.ht.readThisSecond = 0 # nobody's been resetting this value
         reactor.callLater(1, Hellanzb.ht.checkReadBandwidth)
-    return True
+    return getRate()
 
-def listQueue(includeIds = False):
+def listQueue(includeIds = True, prettyName = False):
     """ Return a listing of the current queue """
-    # FIXME: returning an xml struct would be nice, but that (python dict) loses the queue
-    # order
     members = []
     for nzb in Hellanzb.queued_nzbs:
-        member = os.path.basename(nzb.nzbFileName)
         if includeIds:
-            length = 6
-            id = str(nzb.id)
-            member = id + ' '*(length - len(id)) + member
+            name = os.path.basename(nzb.nzbFileName)
+            if prettyName:
+                name = archiveName(name)
+            member = {'id': nzb.id,
+                      'nzbName': name}
+        else:
+            member = os.path.basename(nzb.nzbFileName)
         members.append(member)
     return members
 

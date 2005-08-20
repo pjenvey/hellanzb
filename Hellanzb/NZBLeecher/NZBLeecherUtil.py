@@ -101,7 +101,7 @@ class HellaThrottlingFactory(WrappingFactory):
 
     protocol = ThrottlingProtocol
 
-    def __init__(self, wrappedFactory, maxConnectionCount=sys.maxint, readLimit=None, writeLimit=None):
+    def __init__(self, wrappedFactory, maxConnectionCount=sys.maxint):
         WrappingFactory.__init__(self, wrappedFactory)
         self.connectionCount = 0
         self.maxConnectionCount = maxConnectionCount
@@ -125,9 +125,9 @@ class HellaThrottlingFactory(WrappingFactory):
 
     def buildProtocol(self, addr):
         if self.ht.connectionCount == 0:
-            if self.ht.readLimit is not None:
+            if self.ht.readLimit:
                 self.ht.checkReadBandwidth()
-            if self.ht.writeLimit is not None:
+            if self.ht.writeLimit:
                 self.ht.checkWriteBandwidth()
 
         if self.connectionCount < self.maxConnectionCount:

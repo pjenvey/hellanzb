@@ -107,6 +107,11 @@ def loadConfig(fileName):
             types = getattr(Hellanzb, varName)
             lowerTypes = [ext.lower() for ext in types]
             setattr(Hellanzb, varName, lowerTypes)
+
+        if not hasattr(Hellanzb, 'MAX_RATE') or Hellanzb.MAX_RATE == None:
+            Hellanzb.MAX_RATE = 0
+        else:
+            Hellanzb.MAX_RATE = int(Hellanzb.MAX_RATE)
             
         debug('Found config file in directory: ' + os.path.dirname(fileName))
         return True

@@ -94,11 +94,10 @@ class NewzbinDownloader:
         debug('NewzbinDownloader: got filename: ' + self.nzbFilename)
         
     def download(self):
-        """ Download the NZB. Return a deferred """
+        """ Start the NZB download process """
         debug('NewzbinDownloader: Downloading from www.newzbin.com..')
         if not NewzbinDownloader.canDownload():
             debug('NewzbinDownloader: download: No www.newzbin.com login information')
-            # FIXME: raise here instead?
             return
         
         httpc = StoreCookieHTTPClientFactory('http://www.newzbin.com/account/login/',

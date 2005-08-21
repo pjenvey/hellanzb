@@ -24,7 +24,9 @@ from Hellanzb.Util import archiveName, cmHella, dupeName, flattenDoc, prettyEta,
 __id__ = '$Id$'
 
 class HellaXMLRPCServer(XMLRPC):
-    """ the hellanzb xml rpc server """
+    """ the hellanzb xml rpc server: NOTE -- All suspect strings destined for XML should be
+    converted to unicode, or there could be XML parsing errors! listQueue and
+    xmlrpc_status unicode's these potentially bad strings already. """
     
     def getChild(self, path, request):
         """ This object generates 404s (Default resource.Resource getChild) with HTTP auth turned
@@ -190,10 +192,11 @@ class HellaXMLRPCServer(XMLRPC):
         for you, or use the current process if this XML-RPC call fails """
         # FIXME: merge this with Daemon.postProcess
         if not os.path.isdir(archiveDir):
-            raise Fault(9001, 'Unable to process, not a directory: ' + archiveDir)
+            raise Fault(9001, 'Unable to process, not a directory: ' + unicode(archiveDir, 'latin-1'))
 
         if not os.access(archiveDir, os.R_OK) or not os.access(archiveDir, os.W_OK):
-            raise Fault(9001, 'Unable to process, no read/write access to directory: ' + archiveDir)
+            raise Fault(9001, 'Unable to process, no read/write access to directory: ' + \
+                        unicode(archiveDir, 'latin-1'))
         
         dirName = os.path.dirname(archiveDir.rstrip(os.sep))
         # We are the queue daemon -- Symlink to the archiveDir. If we are ctrl-ced, we'll
@@ -255,11 +258,13 @@ class HellaXMLRPCServer(XMLRPC):
         s['total_dl_segments'] = Hellanzb.totalSegmentsDownloaded
         s['total_dl_mb'] = Hellanzb.totalBytesDownloaded / 1024 / 1024
         s['version'] = Hellanzb.version
-        s['currently_downloading'] = [nzb.archiveName for nzb in Hellanzb.queue.currentNZBs()]
+        s['currently_downloading'] = [unicode(nzb.archiveName, 'latin-1') for nzb in \
+                                      Hellanzb.queue.currentNZBs()]
         Hellanzb.postProcessorLock.acquire()
-        s['currently_processing'] = [archiveName(processor.dirName) for processor in Hellanzb.postProcessors]
+        s['currently_processing'] = [unicode(archiveName(processor.dirName), 'latin-1') \
+                                     for processor in Hellanzb.postProcessors]
         Hellanzb.postProcessorLock.release()
-        s['queued'] = listQueue(prettyName = True)
+        s['queued'] = listQueue()
 
         return s
 
@@ -293,7 +298,7 @@ def printQueueListAndExit(remoteCall, result):
                 id = str(line['id'])
                 nzbName = line['nzbName']
                 
-                noLogFile(id + ' '*(length - len(id)) + nzbName)
+                noLogFile('(' + id + ')' + ' '*(length - len(id)) + nzbName)
             else:
                 if isinstance(line, unicode):
                     line = line.encode('utf-8')

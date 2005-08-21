@@ -714,14 +714,15 @@ def maxRate(rate):
         reactor.callLater(1, Hellanzb.ht.checkReadBandwidth)
     return getRate()
 
-def listQueue(includeIds = True, prettyName = False):
-    """ Return a listing of the current queue """
+def listQueue(includeIds = True, toUnicode = True):
+    """ Return a listing of the current queue. By default this function will convert all
+    strings to unicode, as it's only used right now for the return of XMLRPC calls """
     members = []
     for nzb in Hellanzb.queued_nzbs:
         if includeIds:
-            name = os.path.basename(nzb.nzbFileName)
-            if prettyName:
-                name = archiveName(name)
+            name = archiveName(os.path.basename(nzb.nzbFileName))
+            if toUnicode:
+                name = unicode(name, 'latin-1')
             member = {'id': nzb.id,
                       'nzbName': name}
         else:

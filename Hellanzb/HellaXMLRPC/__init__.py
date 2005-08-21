@@ -102,6 +102,18 @@ class HellaXMLRPCServer(XMLRPC):
 
     xmlrpc_enqueue.signature = [ ['struct', 'string'] ]
 
+    def xmlrpc_enqueuenewzbin(self, nzbId):
+        """ Download the NZB with the specified NZB ID from www.newzbin.com, and enqueue it """
+        from Hellanzb.NewzbinDownloader import NewzbinDownloader
+        if not NewzbinDownloader.canDownload():
+            raise Fault(9001, 'Unable to enqueue NZB, www.newzbin.com login info was not supplied in the conf file')
+        newzdl = NewzbinDownloader(str(nzbId))
+        newzdl.download()
+        return self.xmlrpc_status()
+
+    xmlrpc_enqueuenewzbin.signature = [ ['struct', 'string'] ]
+    xmlrpc_enqueuenewzbin.signature = [ ['struct', 'int'] ]
+
     #def xmlrpc_enqueuedl(self, newzbinId):
     #    """ """
 
@@ -537,6 +549,8 @@ def initXMLRPCClient():
     r.addOptionalArg('shift')
     r = RemoteCall('enqueue', statusString)
     r.addRequiredArg('nzbfile')
+    r = RemoteCall('enqueuenewzbin', statusString)
+    r.addRequiredArg('nzbid')
     r = RemoteCall('force', statusString)
     r.addRequiredArg('nzbid')
     r = RemoteCall('last', printQueueListAndExit)

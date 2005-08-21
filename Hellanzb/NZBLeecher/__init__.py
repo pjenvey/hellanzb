@@ -13,7 +13,7 @@ import os, re, time, Hellanzb
 from sets import Set
 from shutil import move
 from twisted.internet import reactor
-from twisted.internet.error import ConnectionRefusedError, DNSLookupError
+from twisted.internet.error import ConnectionRefusedError, DNSLookupError, TimeoutError, UserError
 from twisted.internet.protocol import ReconnectingClientFactory
 from twisted.protocols.basic import LineReceiver
 from twisted.protocols.policies import TimeoutMixin, ThrottlingFactory
@@ -200,7 +200,6 @@ class NZBLeecherFactory(ReconnectingClientFactory):
         # Overwrite ReconnectClientFactory so reconnecting happens after a connection
         # timeout (TimeoutError)
         # FIXME: twisted should provide a toggle for this. submit a patch
-        from twisted.internet.error import TimeoutError, UserError
         if self.continueTrying:
             self.connector = connector
             if not reason.check(UserError) or reason.check(TimeoutError):

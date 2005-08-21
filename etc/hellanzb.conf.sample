@@ -123,6 +123,11 @@ Hellanzb.XMLRPC_PORT = 8760
 Hellanzb.XMLRPC_PASSWORD = 'changeme'
 
 
+# Username/Password to http://www.newzbin.com for automatic NZB downloading
+Hellanzb.NEWZBIN_USERNAME = None
+Hellanzb.NEWZBIN_PASSWORD = None
+
+
 # Automatically rollover both log files when they reach LOG_FILE_MAX_BYTES size
 Hellanzb.LOG_FILE_MAX_BYTES = 0
 

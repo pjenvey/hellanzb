@@ -689,6 +689,7 @@ class NZBLeecher(NNTPClient, TimeoutMixin):
         self.factory.sessionReadBytes += lineLen
         if self.currentSegment != None:
             self.currentSegment.nzbFile.totalReadBytes += lineLen
+            self.currentSegment.nzbFile.nzb.totalReadBytes += lineLen
 
     def updateStats(self, now):
         if self.currentSegment == None or self.currentSegment.nzbFile.downloadStartTime == None:

@@ -247,6 +247,13 @@ class HellaXMLRPCServer(XMLRPC):
             s['eta'] = 0
         else:
             s['eta'] = int((Hellanzb.queue.totalQueuedBytes / 1024) / totalSpeed)
+
+        s['percent_complete'] = 0
+        currentNZBs = Hellanzb.queue.currentNZBs()
+        if len(currentNZBs):
+            currentNZB = currentNZBs[0]
+            s['percent_complete'] = int((float(currentNZB.totalReadBytes + currentNZB.totalSkippedBytes) / \
+                                         float(currentNZB.totalBytes)) * 100)
             
         if Hellanzb.ht.readLimit == None or Hellanzb.ht.readLimit == 0:
             s['maxrate'] = 0
@@ -259,7 +266,7 @@ class HellaXMLRPCServer(XMLRPC):
         s['total_dl_mb'] = Hellanzb.totalBytesDownloaded / 1024 / 1024
         s['version'] = Hellanzb.version
         s['currently_downloading'] = [unicode(nzb.archiveName, 'latin-1') for nzb in \
-                                      Hellanzb.queue.currentNZBs()]
+                                      currentNZBs]
         Hellanzb.postProcessorLock.acquire()
         s['currently_processing'] = [unicode(archiveName(processor.dirName), 'latin-1') \
                                      for processor in Hellanzb.postProcessors]
@@ -637,6 +644,7 @@ def statusString(remoteCall, result):
     queuedMB = s['queued_mb']
     eta = s['eta']
     maxrate = s['maxrate']
+    percentComplete = s['percent_complete']
 
     if isPaused:
         totalSpeed = 'Paused'
@@ -686,8 +694,9 @@ def statusString(remoteCall, result):
     if len(currentNZBs):
         msg += \
 """    
-%s%s, %s MB queued, ETA: %s""" % (downloadingSpacer, totalSpeed, queuedMB, prettyEta(eta))
-        
+%s%s, %s MB queued, ETA: %s (%i%%)""" % (downloadingSpacer, totalSpeed, queuedMB, prettyEta(eta),
+                                       percentComplete)
+
     msg += \
 """
 
@@ -696,6 +705,8 @@ def statusString(remoteCall, result):
     """.rstrip() % (processing, queued)
 
     if isinstance(msg, unicode):
+        # FIXME: I'm pretty sure 'latin-1' did not fix a particular problem here, causing
+        # me to use utf-8. I didn't document the cause. Is utf-8 totally necessary here?
         msg = msg.encode('utf-8')
     noLogFile(str(msg))
     
@@ -714,11 +725,17 @@ def secondsToUptime(seconds):
     msg += '%.2i:%.2i' % (hours, minutes)
     return msg
 
+def clean(item):
+    # FIXME: this should go in Util, there are similar functions elsewhere
+    if isinstance(item, unicode):
+        item = item.encode('latin-1')
+    return item
+    
 def statusFromList(alist, indent, func = None):
     """ generate a status message from the list of objects, using the specified function for
     formatting """
     if func == None:
-        func = lambda item : item
+        func = lambda item : clean(item)
     status = ''
     if len(alist):
         i = 0
@@ -735,10 +752,6 @@ def statusFromList(alist, indent, func = None):
 
 def statusQueueList(queueList, indent):
     """ statusFromList tailored for the queueList. Also shows the included nzbId """
-    def clean(item):
-        if isinstance(item, unicode):
-            item = item.encode('latin-1')
-        return item
     func = lambda item : '(' + str(item['id']) + ') ' + clean(item['nzbName'])
     return statusFromList(queueList, indent, func)
 

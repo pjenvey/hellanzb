@@ -146,6 +146,14 @@ class NZB:
         self.canceled = False
         self.canceledLock = Lock()
 
+        ## Total bytes this NZB represents
+        self.totalBytes = 0
+        
+        ## How many bytes were skipped for downloading
+        self.totalSkippedBytes = 0
+        ## How many bytes have been downloaded for this NZB
+        self.totalReadBytes = 0
+        
         ## Whether or not we should redownload NZBFile and NZBSegment files on disk that are 0 bytes in
         ## size
         self.overwriteZeroByteFiles = True
@@ -338,6 +346,7 @@ class NZBSegment:
         self.nzbFile.nzbSegments.append(self)
         self.nzbFile.todoNzbSegments.add(self)
         self.nzbFile.totalBytes += self.bytes
+        self.nzbFile.nzb.totalBytes += self.bytes
 
         ## To-be a file object. Downloaded article data will be written to this file
         ## immediately as it's received from the other end
@@ -531,6 +540,7 @@ class NZBQueue(PriorityQueue):
         # Tally what was skipped for correct percentages in the UI
         for nzbSegment in onDiskSegments:
             nzbSegment.nzbFile.totalSkippedBytes += nzbSegment.bytes
+            nzbSegment.nzbFile.nzb.totalSkippedBytes += nzbSegment.bytes
 
         # The needWorkFiles will tell us what nzbFiles are missing from the
         # FS. segmentsNeedDownload will further tell us what files need to be
@@ -651,6 +661,7 @@ class NZBParser(ContentHandler):
             else:
                 # done adding all child segments to this NZBFile. make note that none of
                 # them need to be downloaded
+                self.file.nzb.totalSkippedBytes += self.file.totalBytes
                 self.file.todoNzbSegments.clear()
 
                 # FIXME: (GC) can we del self.nzbfile here???

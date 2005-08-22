@@ -163,8 +163,8 @@ class HellaXMLRPCServer(XMLRPC):
 
     def xmlrpc_move(self, nzbId, index):
         """ Move the NZB with the specified ID to the specified index in the queue """
-        from Hellanzb.Daemon import listQueue, move
-        move(nzbId, index)
+        from Hellanzb.Daemon import listQueue, moveNZB
+        moveNZB(nzbId, index)
         return listQueue()
 
     xmlrpc_move.signature = [ ['list', 'string', 'string'],

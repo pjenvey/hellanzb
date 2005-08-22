@@ -1,0 +1,11 @@
+<% @queue.each do |item| -%>
+  <div id="nzb_<%= item["id"] %>" class="dragitem">
+    <h4 class="handle"><%= item['nzbName'] %></h4>
+  </div>
+<% end -%>
+
+<%= sortable_element "nzb",
+    :url => {:action=>'update_order'},
+    :tag => 'div',
+    :handle => 'handle',
+    :containment => ['nzb'] %>

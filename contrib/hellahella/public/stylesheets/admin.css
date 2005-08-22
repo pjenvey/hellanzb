@@ -1,0 +1,76 @@
+#banner {
+  background: #ecc;
+  color: #822;
+}
+
+#columns {
+  background: #411;
+}
+
+#side {
+  background: #411;
+}
+
+#side a {
+  color: #fdd;
+}
+
+#side a:hover {
+  background: #411;
+}
+
+/* order shipping screen */
+
+.olheader {
+  font: bold large sans-serif;
+  color: #411;
+  margin-bottom: 2ex;
+}
+
+.olnamebox, .olitembox {
+  padding-bottom: 3ex;
+  padding-right: 3em;
+  border-top: 1px dotted #411;
+}
+
+.olname {
+  font-weight: bold;
+}
+
+.oladdress {
+  font-size: smaller;
+  white-space: pre;
+}
+
+.olitemqty {
+  font-size: smaller;
+  font-weight: bold;
+}
+
+.olitemqty:after {
+  content: " x ";
+}
+
+.olitemtitle {
+  font-weight: bold;
+}
+
+.ListTitle {
+  	 color:       #244;
+	 font-weight: bold;
+  	 font-size:   larger;
+}
+
+.ListActions {
+ 	font-size:    x-small;
+        text-align:   right;
+	padding-left: 1em;
+}
+
+.ListLine0 {
+        background: #e0f8f8;
+}
+
+.ListLine1 {
+        background: #f8e0f8;
+}

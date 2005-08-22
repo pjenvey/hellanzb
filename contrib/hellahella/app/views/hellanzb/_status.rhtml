@@ -1,0 +1,17 @@
+<div class="title">hellanzb stats</div>
+
+<% if @errors -%>
+<%= @errors %>
+<% else -%>
+<div class="label">Downloading</div> <br />
+<div class="label" style="font-weight: normal;"><%= @status["currently_downloading"].first.slice(0, 26) %>...</div><br />
+<div class="label">Download Rate</div> <div class="value"><%= sprintf("%0.2f", @status["rate"]) %> kps</div><br />
+<div class="label">Complete</div> <div class="value"><%= @status["percent_complete"] %>%</div><br />
+<div class="label">Max Rate</div> <div class="value"><%= @status["maxrate"] %> kps</div><br />
+<div class="label">Queued MB's</div> <div class="value"><%= @status["queued_mb"] %></div><br />
+<div class="label">Queued NZB's</div> <div class="value"><%= @status["queued"].length %></div><br />
+<div class="label">Uptime</div> <div class="value"><%= @status["uptime"] %></div><br />
+<% if @status["is_paused"] -%>
+[ PAUSED ]
+<% end -%>
+<% end -%>

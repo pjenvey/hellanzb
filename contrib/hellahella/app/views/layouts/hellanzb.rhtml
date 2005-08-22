@@ -1,0 +1,37 @@
+<html>
+  <head>
+    <title>hellahella</title>
+    <%= stylesheet_link_tag "scaffold", "depot", "admin", :media => "all" %>
+    <%= javascript_include_tag "prototype", "effects", "dragdrop", "controls" %>
+  </head>
+  <body>
+    <div id="banner">
+      <%= @page_title || "hella hella" %>
+    </div>
+    <div id="columns">
+      <div id="side">
+	<% if session[:user_id] -%>    
+	<div id="hellastatus">
+	  <div class="title">hellanzb stats</div>
+	  <%= periodically_call_remote(:url => {:controller => "hellanzb", :action => "status"},
+	                                   :frequency => 4, :update => 'hellastatus') %>
+	</div>
+  
+	<hr/>
+
+	<%= link_to("Log out",    :controller => "login",
+                                  :action => "logout") %>
+
+        <% end -%>
+      </div>
+
+      <div id="main">
+        <% if flash[:notice] -%>
+          <div id="notice"><%= flash[:notice] %></div>
+        <% end -%>
+
+	<%= @content_for_layout %>
+      </div>
+    </div>
+  </body>
+</html>

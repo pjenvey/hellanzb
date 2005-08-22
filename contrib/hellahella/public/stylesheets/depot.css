@@ -1,0 +1,171 @@
+#banner {
+  background: #9c9;
+  padding-top: 10px;
+  padding-bottom: 10px;
+  border-bottom: 2px solid;
+  font: small-caps 40px/40px "Times New Roman", serif;
+  color: #282;
+  text-align: center;
+}
+
+#banner img {
+  float: left;
+}
+
+#columns {
+  background: #141;
+}
+
+#main {
+  margin-left: 13em;
+  padding-top: 4ex;
+  padding-left: 2em;
+  background: white;
+}
+
+#hellastatus {
+  color: white;
+}
+
+#hellastatus div.label {
+  font: 11px/11px "Arial", sans-serif;
+  font-weight: bold;
+  float: left;
+  margin: 0;
+  padding: 0;
+}
+
+#hellastatus div.value {
+  font: 11px/11px "Arial", sans-serif;
+  margin: 0 0 0 8em;
+  padding: 0;
+}
+
+#hellastatus div.title {
+  font: 13px "Arial", sans-serif;
+  font-weight: bold;
+  border-bottom: 1px solid;
+  margin-bottom: 4px;
+}
+
+#side {
+  float: left;
+  padding-top: 1em;
+  padding-left: 1em;
+  padding-bottom: 1em;
+  width: 12em;
+  background: #141;
+}
+
+#notice {
+  border: 2px solid red;
+  padding: 1em;
+  margin-bottom: 2em;
+  background-color: #f0f0f0;
+  font: bold smaller sans-serif;
+}
+
+#nzb {
+  border: 2px solid black;
+  padding: 0.5em;
+  width: 33em;
+}
+
+a {
+  text-decoration: none;
+  font: smaller sans-serif;
+}
+
+a.addtocart {
+  padding-left: 1em;
+  padding-right: 1em;
+  color: #141;
+  background: #cec;
+  font-weight: bold;
+}
+
+a.addtocart:hover {
+  color: #000;
+  background: #eec;
+}
+
+#side a {
+  color: #ada;
+  font: smaller sans-serif;
+}
+
+#side a:hover {
+  color: #fff;
+}
+
+/**** styles for the catalog ***/
+
+/* === Use the Holly Hack to fix layout bugs in IE on Windows === */
+
+/* Hide from IE-mac \*/
+* html .catalogentry { height: 1%; }
+/* End hide from IE-mac */
+
+.catalogentry {
+  padding: 1ex 0ex;
+}
+
+.catalogentry img {
+  float: left;
+  margin-right: 2em;
+}
+
+.catalogentry h3 {
+  font: larger bold;
+  color: #282;
+  margin-top: 0ex;
+  margin-bottom: 0.5ex;
+}
+
+.catalogentry p {
+  font: smaller sans-serif;
+  margin-bottom: .5ex;
+}
+
+.catalogprice {
+  padding-right: 4em;
+}
+
+/* Shoppng cart screen */
+
+.carttitle {
+  background: #282;
+  color: #dfd;
+  font: bold smaller sans-serif;
+  text-align: center;
+}
+
+.carttitle TD {
+  padding-top: 0px;
+  padding-bottom: 0px;
+}
+
+#cartmenu {
+  float: right;
+  border-left: 1px dotted #282;
+}
+
+#totalcell {
+  font-weight: bold;
+  border-top: 1px solid #282;
+  border-bottom: 2px solid #282;
+  text-align: right;
+}
+
+.separator {
+  border-bottom: 1px dotted #282;
+  clear: both;
+}
+
+.handle {
+  cursor: move;
+  font-size: 130%;
+  font-weight: normal;
+  padding-left: 6px;
+  margin: 0.2em 0 0.2em 0;
+}

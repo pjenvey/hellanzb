@@ -12,15 +12,17 @@
       <div id="side">
 	<% if session[:user_id] -%>    
 	<div id="hellastatus">
-	  <div class="title">hellanzb stats</div>
+	  <%= render_component :controller => "hellanzb", :action => "status" %>
 	  <%= periodically_call_remote(:url => {:controller => "hellanzb", :action => "status"},
 	                                   :frequency => 4, :update => 'hellastatus') %>
 	</div>
   
-	<hr/>
+  <hr/>
+    <%= link_to_remote "Toggle Downloading", 
+          :url => {:controller => "hellanzb", :action => 'toggle_download'} %>
+  <hr/>
 
-	<%= link_to("Log out",    :controller => "login",
-                                  :action => "logout") %>
+	  <%= link_to("Log out", :controller => "login", :action => "logout") %>
 
         <% end -%>
       </div>
@@ -30,7 +32,7 @@
           <div id="notice"><%= flash[:notice] %></div>
         <% end -%>
 
-	<%= @content_for_layout %>
+	      <%= @content_for_layout %>
       </div>
     </div>
   </body>

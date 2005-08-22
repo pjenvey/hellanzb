@@ -25,6 +25,15 @@ class HellanzbController < ApplicationController
     render :partial => "queue_items", :locals => { :queue => @queue }
   end
   
+  def toggle_download
+    @status = server.call("status")
+    if @status["is_paused"]
+      server.call('continue')
+    else
+      server.call('pause')
+    end
+  end
+  
   private
   def load_queue
     @queue = server.call('list')

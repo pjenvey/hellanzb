@@ -1,15 +1,14 @@
 class HellanzbController < ApplicationController
   before_filter :authorize, :defaults
   before_filter :load_queue, :except => :status
+  before_filter :load_status, :except => :update_order
   
   require 'xmlrpc/client'
   
   def index
-    @status = server.call("status")
   end
   
   def status
-    @status = server.call("status")
     render :partial => "status", :locals => { :status => @status }
   end
   
@@ -26,7 +25,6 @@ class HellanzbController < ApplicationController
   end
   
   def toggle_download
-    @status = server.call("status")
     if @status["is_paused"]
       server.call('continue')
     else
@@ -38,7 +36,9 @@ class HellanzbController < ApplicationController
   def load_queue
     @queue = server.call('list')
   end
-  
+  def load_status
+    @status = server.call("status")
+  end
   def server()
     @server ||= XMLRPC::Client.new(@hnzb_server, "/", @hnzb_port, nil, nil, "hellanzb", @hnzb_password)
   end

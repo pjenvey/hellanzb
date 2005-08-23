@@ -10,4 +10,10 @@ class HellanzbController < ApplicationController
   def queue
   end
   
+  def bandwidth
+    if request.post?
+      server.call('maxrate', params[:maxrate]) && load_status
+    end
+  end
+  
 end

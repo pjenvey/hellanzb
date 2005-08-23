@@ -13,18 +13,19 @@
 }
 
 #columns {
-  background: #141;
+  background: transparent;
 }
 
 #main {
   margin-left: 13em;
-  padding-top: 4ex;
-  padding-left: 2em;
+  padding-top: 1ex;
+  padding-left: 0em;
   background: white;
 }
 
 #hellastatus {
   color: white;
+  width: 12em;
 }
 
 #hellastatus div.label {
@@ -45,6 +46,8 @@
   font: 13px "Arial", sans-serif;
   font-weight: bold;
   border-bottom: 1px solid;
+  margin: 0;
+  padding: 0;
   margin-bottom: 4px;
 }
 
@@ -53,8 +56,11 @@
   padding-top: 1em;
   padding-left: 1em;
   padding-bottom: 1em;
+  padding-right: 1em;
   width: 12em;
   background: #141;
+  color: #ccc;
+  font: smaller sans-serif;
 }
 
 #notice {

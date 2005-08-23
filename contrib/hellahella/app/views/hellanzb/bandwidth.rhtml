@@ -1,0 +1,7 @@
+<h1>Bandwidth Settings</h1>
+
+<%= form_tag %>
+  <p>Set Max Rate to: <%= text_field_tag "maxrate", @status["maxrate"] %> kps</p>
+  
+  <%= submit_tag %>
+<%= end_form_tag %>

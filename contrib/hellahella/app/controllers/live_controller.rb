@@ -15,10 +15,7 @@ class LiveController < ApplicationController
       end
       index += 1
     end
-    load_queue
-    @message = "Queue updated"
-    render :partial => "queue_items", 
-           :locals => { :queue => @queue, :message => @message }
+    @message = "Queue updated @ " + Time.now.to_s
   end
 
   def toggle_download

@@ -16,7 +16,13 @@
 	  <%= periodically_call_remote(:url => {:controller => "live", :action => "status"},
 	                                   :frequency => 4, :update => 'hellastatus') %>
 	</div>
-  
+
+	<hr/>
+
+  <%= link_to_unless_current("Status", :controller => "hellanzb", :action => "index") %><br />
+  <%= link_to_unless_current("Queue", :controller => "hellanzb", :action => "queue") %><br />
+  <%= link_to_unless_current("Bandwidth", :controller => "hellanzb", :action => "bandwidth") %><br />
+
   <hr/>
 
 	  <%= link_to("Log out", :controller => "login", :action => "logout") %>

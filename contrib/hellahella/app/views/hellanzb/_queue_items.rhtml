@@ -4,9 +4,6 @@
   </div>
 <% end -%>
 
-<% if @message -%>
-  <%= @message %>
-<% end -%>
 <%= sortable_element "nzb",
     :url => {:controller => 'live', :action=>'update_order'},
     :tag => 'div',

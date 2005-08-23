@@ -1,0 +1,2 @@
+module LiveHelper
+end

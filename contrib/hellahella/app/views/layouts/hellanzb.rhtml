@@ -1,7 +1,7 @@
 <html>
   <head>
     <title>hellahella</title>
-    <%= stylesheet_link_tag "scaffold", "depot", "admin", :media => "all" %>
+    <%= stylesheet_link_tag "hellahella", :media => "all" %>
     <%= javascript_include_tag "prototype", "effects", "dragdrop", "controls" %>
   </head>
   <body>
@@ -12,14 +12,11 @@
       <div id="side">
 	<% if session[:user_id] -%>    
 	<div id="hellastatus">
-	  <%= render_component :controller => "hellanzb", :action => "status" %>
-	  <%= periodically_call_remote(:url => {:controller => "hellanzb", :action => "status"},
+	  <%= render_component :controller => "live", :action => "status" %>
+	  <%= periodically_call_remote(:url => {:controller => "live", :action => "status"},
 	                                   :frequency => 4, :update => 'hellastatus') %>
 	</div>
   
-  <hr/>
-    <%= link_to_remote "Toggle Downloading", 
-          :url => {:controller => "hellanzb", :action => 'toggle_download'} %>
   <hr/>
 
 	  <%= link_to("Log out", :controller => "login", :action => "logout") %>

@@ -76,19 +76,6 @@ a {
   font: smaller sans-serif;
 }
 
-a.addtocart {
-  padding-left: 1em;
-  padding-right: 1em;
-  color: #141;
-  background: #cec;
-  font-weight: bold;
-}
-
-a.addtocart:hover {
-  color: #000;
-  background: #eec;
-}
-
 #side a {
   color: #ada;
   font: smaller sans-serif;
@@ -98,69 +85,6 @@ a.addtocart:hover {
   color: #fff;
 }
 
-/**** styles for the catalog ***/
-
-/* === Use the Holly Hack to fix layout bugs in IE on Windows === */
-
-/* Hide from IE-mac \*/
-* html .catalogentry { height: 1%; }
-/* End hide from IE-mac */
-
-.catalogentry {
-  padding: 1ex 0ex;
-}
-
-.catalogentry img {
-  float: left;
-  margin-right: 2em;
-}
-
-.catalogentry h3 {
-  font: larger bold;
-  color: #282;
-  margin-top: 0ex;
-  margin-bottom: 0.5ex;
-}
-
-.catalogentry p {
-  font: smaller sans-serif;
-  margin-bottom: .5ex;
-}
-
-.catalogprice {
-  padding-right: 4em;
-}
-
-/* Shoppng cart screen */
-
-.carttitle {
-  background: #282;
-  color: #dfd;
-  font: bold smaller sans-serif;
-  text-align: center;
-}
-
-.carttitle TD {
-  padding-top: 0px;
-  padding-bottom: 0px;
-}
-
-#cartmenu {
-  float: right;
-  border-left: 1px dotted #282;
-}
-
-#totalcell {
-  font-weight: bold;
-  border-top: 1px solid #282;
-  border-bottom: 2px solid #282;
-  text-align: right;
-}
-
-.separator {
-  border-bottom: 1px dotted #282;
-  clear: both;
-}
 
 .handle {
   cursor: move;

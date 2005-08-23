@@ -2,6 +2,8 @@
 # Likewise will all the methods added be available for all controllers.
 class ApplicationController < ActionController::Base
   
+  require 'xmlrpc/client'
+  
   private
   def authorize
     unless session[:user_id]
@@ -17,5 +19,17 @@ class ApplicationController < ActionController::Base
     @hnzb_server = '192.168.2.2'
     @hnzb_password = 'changeme'
     @hnzb_port = 8760
+  end
+
+  def load_queue
+    @queue = server.call('list')
+  end
+  
+  def load_status
+    @status = server.call("status")
+  end
+  
+  def server()
+    @server ||= XMLRPC::Client.new(@hnzb_server, "/", @hnzb_port, nil, nil, "hellanzb", @hnzb_password)
   end
 end

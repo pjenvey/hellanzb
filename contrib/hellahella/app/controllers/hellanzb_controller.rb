@@ -21,7 +21,9 @@ class HellanzbController < ApplicationController
       index += 1
     end
     load_queue
-    render :partial => "queue_items", :locals => { :queue => @queue }
+    @message = "Queue updated"
+    render :partial => "queue_items", 
+           :locals => { :queue => @queue, :message => "Queue updated" }
   end
   
   def toggle_download

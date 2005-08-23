@@ -8,7 +8,7 @@
   <%= @message %>
 <% end -%>
 <%= sortable_element "nzb",
-    :url => {:action=>'update_order'},
+    :url => {:controller => 'live', :action=>'update_order'},
     :tag => 'div',
     :handle => 'handle',
     :containment => ['nzb'] %>

@@ -231,6 +231,10 @@ class NZBLeecherFactory(ReconnectingClientFactory):
 
     def fetchNextNZBSegment(self):
         """ Begin or continue downloading on all of this factory's clients """
+        if Hellanzb.downloadPaused:
+            # 'continue' is responsible for re-triggerering all clients in this case
+            return
+        
         for p in self.clients:
             if p.isLoggedIn and not p.activated:
                 reactor.callLater(0, p.fetchNextNZBSegment)

@@ -437,7 +437,9 @@ class NZBLeecher(NNTPClient, TimeoutMixin):
                 # segment, unless they're already busy or we're paused or we were just
                 # cancelled
                 if not Hellanzb.downloadPaused and not self.currentSegment.nzbFile.nzb.canceled:
-                    self.factory.fetchNextNZBSegment()
+                    for nsf in Hellanzb.nsfs:
+                        if nsf.serverPoolName not in self.currentSegment.failedServerPools:
+                            nsf.fetchNextNZBSegment()
 
             else:
                 debug(str(self) + ' DID NOT requeue existing segment: ' + self.currentSegment.getDestination())

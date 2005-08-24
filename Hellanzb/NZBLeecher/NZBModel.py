@@ -417,7 +417,7 @@ class RetryQueue:
         """ Requeue the segment (which failed to download on the specified serverPool) for later
         retry by another serverPool
 
-        The segment is requed by adding it to the correct PriorityQueue -- dictated by
+        The segment is requeued by adding it to the correct PriorityQueue -- dictated by
         which serverPools have previously failed to download the specified segment. A
         PoolsExhausted exception is thrown when all serverPools have failed to download
         the segment """
@@ -492,7 +492,7 @@ class RetryQueue:
 
         I didn't quite figure out the exact equation to gather the number of Queues in
         regard to the number of serverPools, but (if my math is right) it seems to grow
-        pretty quickly (quadratic?)
+        pretty quickly (is quadratic)
 
         Every serverPool avoids certain queues. In the previous example, serverPool 1 only
         needs to look at all the Queues that are not tagged as having already failed on 1
@@ -604,12 +604,13 @@ class NZBQueue(PriorityQueue):
         self.postpone(cancel = True)
 
     def clear(self):
+        """ Clear the queue of all its contents"""
         if self.retryQueueEnabled:
             self.rQueue.clear()
         PriorityQueue.clear(self)
 
     def postpone(self, cancel = False):
-        """ postpone the current download """
+        """ Postpone the current download """
         self.clear()
 
         self.nzbsLock.acquire()
@@ -653,20 +654,20 @@ class NZBQueue(PriorityQueue):
             self.totalQueuedBytes += nzbFile.totalBytes
 
     def currentNZBs(self):
-        """ return a copy of the list of nzbs currently being downloaded """
+        """ Return a copy of the list of nzbs currently being downloaded """
         self.nzbsLock.acquire()
         nzbs = self.nzbs[:]
         self.nzbsLock.release()
         return nzbs
 
     def nzbAdd(self, nzb):
-        """ denote this nzb as currently being downloaded """
+        """ Denote this nzb as currently being downloaded """
         self.nzbsLock.acquire()
         self.nzbs.append(nzb)
         self.nzbsLock.release()
         
     def nzbDone(self, nzb):
-        """ nzb finished """
+        """ NZB finished """
         self.nzbsLock.acquire()
         try:
             self.nzbs.remove(nzb)
@@ -700,11 +701,11 @@ class NZBQueue(PriorityQueue):
                 # All retry queues for this serverPool are empty. fall through
                 pass
 
-        if not len(self) and len(self.rQueue):
-            # Catch the special case where both the main NZBQueue is empty, all the retry
-            # queues for the serverPool are empty, but there is still more left to
-            # download in the retry queue (scheduled for retry by other serverPools)
-            raise EmptyForThisPool()
+            if not len(self) and len(self.rQueue):
+                # Catch the special case where both the main NZBQueue is empty, all the retry
+                # queues for the serverPool are empty, but there is still more left to
+                # download in the retry queue (scheduled for retry by other serverPools)
+                raise EmptyForThisPool()
             
         return PriorityQueue.get_nowait(self)
     
@@ -738,7 +739,7 @@ class NZBQueue(PriorityQueue):
         self.nzbFilesLock.release()
 
     def segmentDone(self, nzbSegment):
-        """ simply decrement the queued byte count, unless the segment is part of a postponed
+        """ Simply decrement the queued byte count, unless the segment is part of a postponed
         download """
         self.nzbsLock.acquire()
         if nzbSegment.nzbFile.nzb in self.nzbs:

@@ -6,7 +6,7 @@ the twisted reactor loop, except for initialization functions
 (c) Copyright 2005 Ben Bangert, Philip Jenvey
 [See end of file]
 """
-import Hellanzb, os, re, PostProcessor
+import os, re, time, Hellanzb, PostProcessor
 from sets import Set
 from shutil import copy, move, rmtree
 from twisted.internet import reactor
@@ -112,7 +112,6 @@ def resumePostProcessors():
 
 def scanQueueDir(firstRun = False, justScan = False):
     """ Find new/resume old NZB download sessions """
-    import time
     t = time.time()
 
     from Hellanzb.NZBLeecher.NZBModel import NZB
@@ -240,6 +239,45 @@ def writeQueueToDisk(queue):
         f.write(os.path.basename(nzb.nzbFileName) + '\n')
     f.close()
     
+def beginDownload():
+    """ Initialize the download. Notify the downloaders to begin their work, etc """
+    # BEGIN
+    now = time.time()
+    Hellanzb.totalReadBytes = 0
+    Hellanzb.totalStartTime = now
+    
+    # The scroll level will flood the console with constantly updating
+    # statistics -- the logging system can interrupt this scroll
+    # temporarily (after scrollBegin)
+    scrollBegin()
+
+    # Scan the queue dir intermittently during downloading
+    Hellanzb.downloadScannerID = reactor.callLater(5, scanQueueDir, False, True)
+    
+    for nsf in Hellanzb.nsfs:
+        nsf.beginDownload()
+                
+    Hellanzb.scroller.started = True
+    Hellanzb.scroller.killedHistory = False
+
+def endDownload():
+    """ Finished downloading """
+    dur = time.time() - Hellanzb.totalStartTime
+    speed = Hellanzb.totalReadBytes / 1024.0 / dur
+    leeched = prettySize(Hellanzb.totalReadBytes)
+    info('Transferred %s in %.1fs at %.1fKB/s' % (leeched, dur, speed))
+    
+    Hellanzb.totalReadBytes = 0
+    Hellanzb.totalStartTime = None
+    Hellanzb.totalSpeed = 0
+    Hellanzb.scroller.currentLog = None
+
+    scrollEnd()
+
+    Hellanzb.downloadScannerID.cancel()
+    Hellanzb.totalArchivesDownloaded += 1
+    # END
+        
 def parseNZB(nzb, notification = 'Downloading', quiet = False):
     """ Parse the NZB file into the Queue. Unless the NZB file is deemed already fully
     processed at the end of parseNZB, tell the factory to start downloading it """
@@ -255,13 +293,7 @@ def parseNZB(nzb, notification = 'Downloading', quiet = False):
         
         info('Parsing: ' + os.path.basename(nzb.nzbFileName) + '...')
         if not Hellanzb.queue.parseNZB(nzb):
-            for nsf in Hellanzb.nsfs:
-                if not len(nsf.activeClients):
-                    # FIXME: Probably shouldn't call client.fetchNext unless the client is
-                    # authorized/connected. Otherwise it's should call fetchNext on it's
-                    # own in a later reactor loop, and begin downloading since we just
-                    # filled the Queue. The fix for this goes in NZBLeecherFactory.
-                    nsf.fetchNextNZBSegment()
+            beginDownload()
 
     except FatalError, fe:
         error('Problem while parsing the NZB', fe)
@@ -414,7 +446,14 @@ def cancelCurrent():
         clients = nsf.activeClients.copy()
         for client in clients:
             client.transport.loseConnection()
-            client.isActive(False)
+            
+            # NOTE: WEIRD: after pool-coop branch, I have to force this to prevent
+            # fetchNextNZBSegment from re-calling the fetch loop (it gets called
+            # twice. the parseNZB->beginDownload->fetchNext call is made before the client
+            # gets to call connectionLost). or has this problem always existed??? See r403
+            client.isLoggedIn = False
+            
+            client.deactivate()
             
     reactor.callLater(0, scanQueueDir)
         

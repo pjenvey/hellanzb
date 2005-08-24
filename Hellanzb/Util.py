@@ -14,7 +14,7 @@ from threading import Condition
 from traceback import print_stack
 from twisted.internet import protocol, utils
 from Hellanzb.Log import *
-from Queue import Queue
+from Queue import Empty, Queue
 from StringIO import StringIO
 
 __id__ = '$Id$'
@@ -25,9 +25,16 @@ class FatalError(Exception):
         self.args = [message]
         self.message = message
 
+class EmptyForThisPool(Empty):
+    """ The queue is empty in terms of our current serverPool, but there are still segments to
+    be downloaded for alternate download pools """
+    
 class OutOfDiskSpace(Exception):
     """ Out of disk space """
 
+class PoolsExhausted(Exception):
+    """ Attempts to download a segment on all known server pools failed """
+    
 SPLIT_CMDLINE_ARGS_RE = re.compile(r'( |"[^"]*")')
 class Topen(protocol.ProcessProtocol):
     """ Ptyopen (popen + extra hellanzb stuff)-like class for Twisted. Runs a sub process
@@ -313,26 +320,20 @@ class PriorityQueue(Queue):
         Queue.__init__(self)
         self.queue = []
 
-    def clear(self):
-        """ empty the queue """
-        self.mutex.acquire()
-        del self.queue
-        self.queue = []
-        if not hasattr(self, 'not_empty'):
-            # python 2.3
-            self.esema.acquire()
-        self.mutex.release()
-        
-    def clear(self):
-        """ empty the queue """
-        self.mutex.acquire()
-        del self.queue
-        self.queue = []
-        if not hasattr(self, 'not_empty'):
-            # python 2.3
-            self.esema.acquire()
-        self.mutex.release()
+    def __len__(self):
+        return len(self.queue)
 
+    def clear(self):
+        """ empty the queue """
+        if len(self.queue):
+            self.mutex.acquire()
+            del self.queue
+            self.queue = []
+            if not hasattr(self, 'not_empty'):
+                # python 2.3
+                self.esema.acquire()
+            self.mutex.release()
+        
     def _put(self, item):
         """ Assume Queue is backed by a list. Add the new item to the list, taking into account
             priority via heapq """
@@ -577,6 +578,17 @@ def prettyEta(etaSeconds):
     minutes = int((etaSeconds - (hours * 60 * 60)) / 60)
     seconds = etaSeconds - (hours * 60 * 60) - (minutes * 60)
     return '%.2d:%.2d:%.2d' % (hours, minutes, seconds)
+
+def prettySize(bytes):
+    """ format a byte count for pretty display """
+    bytes = float(bytes)
+    
+    if bytes < 1024:
+            return '<1KB'
+    elif bytes < (1024 * 1024):
+            return '%dKB' % (bytes / 1024)
+    else:
+            return '%.1fMB' % (bytes / 1024.0 / 1024.0)
 
 # NOTE: if you're cut & pasting -- the ascii is escaped (\") in one spot
 Hellanzb.CMHELLA = \

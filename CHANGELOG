@@ -25,6 +25,11 @@ NZBLeecher:
 o Optimized the downloader. Using approximately 2-4% less CPU on an Athlon
   2600+, FreeBSD 4.10
 
+o Added automatic failover -- multiple server pools (defineServer lines) will
+  now automatically requeue articles totally missing from their respective
+  servers for redownloading on other server pools (Thanks very much
+  Rubberneck!)
+
 PostProcessor:
 
 o No longer using /bin/file for identifying rars. Running /bin/file via twisted

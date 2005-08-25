@@ -406,8 +406,17 @@ def yDecode(dataList):
 
     data = ''.join(buffer)
     
-    # unescape NUL, TAB, LF, CR, ' ', ., =
-    for i in (0, 9, 10, 13, 32, 46, 61):
+    # unescape NUL, TAB, LF, CR, 'ESC', ' ', ., =
+    # NOTE: The yencode standard dictates these characters as 'critical' and are required
+    # to be escaped, EXCEPT for the ESCAPE CHAR. It is included here because it has been
+    # seen to be escaped by some yencoders. The standard also says that ydecoders should
+    # be able to handle decoding ANY character being escaped. I have noticed some
+    # yencoders take it upon themselves to escape the ESCAPE CHAR, so we handle it. FIXME:
+    # We obviously aren't 'correct' in we only handle unescaping characters we know about
+    # (this is faster). This will be as good as it gets for the python yDecoder, the next
+    # step in fixing this & optimizing the ydecoder is switching to a C implementation
+    # -pjenvey
+    for i in (0, 9, 10, 13, 27, 32, 46, 61):
         j = '=%c' % (i + 64)
         data = data.replace(j, chr(i))
         

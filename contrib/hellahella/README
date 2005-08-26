@@ -1,0 +1,46 @@
+hellahella                                                                  README
+
+
+          ;;;;            .  .
+     ... :liil ...........:..:      ,._    ,._      ...................
+     :   l$$$:  _.,._       _..,,._ "$$$b. "$$$b.   `_..,,._        :::
+     :   $$$$.d$$$$$$L   .d$$$$$$$$L $$$$:  $$$$: .d$$$$$$$$$;      :::
+     :  :$$$$P`  T$$$$: :$$$$`  7$$F:$$$$  :$$$$ :$$$$: `$$$$ __  _  |_
+     :  l$$$F   :$$$$$  8$$$l"""""` l$$$l  l$$$l l$$$l   $$$L | ) /_ |_)
+     :  $$$$:   l$$$$$L `4$$$bcmang;ACID$::$$$88:`4$$$bmm$$$$;.     ...
+     :    ```      ```""              ```    ```    .    ```.     ..:::..
+     :..............................................:     V 0 . 7  `:::`
+                                                                     `
+
+                 Rails based Web Interface for hellanzb
+--------------------------------------------------------------------------------
+
+INSTALLING:
+--------------------------------------------------
+o Install Rails, for instructions on this, see http://download.rubyonrails.com/
+   - or -
+   A) Install Ruby 1.8.2
+   B) Download/Install Ruby Gems (http://rubyforge.org/frs/?group_id=126)
+   C) gem install rails --include-dependencies
+   
+  
+CONFIGURING
+--------------------------------------------------
+o Edit app/controllers/application.rb
+   A) Set the default variables as appropriate
+
+
+RUNNING
+--------------------------------------------------
+o Run "ruby script/server"
+  Navigate to "http://YOURMACHINE:3000/" and login
+  Enjoy!
+
+
+DESIGN
+--------------------------------------------------
+The CSS files that style the site were shamelessly copied from the Depot application in the Agile Development for Rails book. Please, if someone out there with actual design skillz has some time, make it look HELLA and send me the updated files. I'll be happy to plaster a link/credit somewhere on the page. :)
+
+hellahella -
+http://www.hellanzb.com/
+KnowledgeTap Development Group

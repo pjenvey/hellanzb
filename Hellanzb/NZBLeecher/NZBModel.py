@@ -442,7 +442,7 @@ class RetryQueue:
 
         # All serverPools we know about failed to download this segment
         if notName == '':
-            raise PoolsExhausted
+            raise PoolsExhausted()
 
         # Requeued for later
         self.poolQueues[notName].put((segment.priority, segment))
@@ -722,7 +722,9 @@ class NZBQueue(PriorityQueue):
         """ Requeue the segment for download. This differs from requeueMissing as it's for
         downloads that failed for reasons other than the file or group missing from the
         server (such as a connection timeout) """
-        if self.retryQueueEnabled:
+        # This segment only needs to go back into the retry queue if the retry queue is
+        # enabled AND the segment was previously requeueMissing()'d
+        if self.retryQueueEnabled and len(segment.failedServerPools):
             self.rQueue.requeue(serverPoolName, segment)
         else:
             self.put((segment.priority, segment))
@@ -736,7 +738,7 @@ class NZBQueue(PriorityQueue):
         if self.retryQueueEnabled:
             self.rQueue.requeue(serverPoolName, segment)
         else:
-            raise PoolsExhausted
+            raise PoolsExhausted()
 
     def fileDone(self, nzbFile):
         """ Notify the queue a file is done. This is called after assembling a file into it's

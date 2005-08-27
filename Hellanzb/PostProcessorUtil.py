@@ -769,15 +769,35 @@ def parseParNeedsBlocksOutput(archive, output):
     return damagedAndRequired, allMissing, neededBlocks, isPar1Archive
 
 SPLIT_RE = re.compile(r'.*\.\d{3,4}$')
+SPLIT_TS_RE = re.compile(r'.*\.\d{3,4}\.ts$', re.I)
 def findSplitFiles(dirName):
+    """ Find files split into chunks. This currently supports the following formats:
+
+    Files ending with 3-4 digits, e.g.:
+
+    ArchiveA.avi.001                ArchiveB.mpg.0001
+    ArchiveA.avi.002                ArchiveB.mpg.0002
+    ArchiveA.avi.003
+
+    Files with 3-4 digits preceding the .ts extension, e.g.:
+
+    hello.001.TS                hi.0001.ts
+    hello.002.TS                hi.0002.ts
+                                hi.0003.ts
+    """
     toAssemble = {}
 
     # Find anything matching the split file re
     for file in os.listdir(dirName):
-        if not SPLIT_RE.match(file):
-            continue
-        else:
+        if SPLIT_RE.match(file):
             key = file[:file.rfind('.')]
+            
+        elif SPLIT_TS_RE.match(file):
+            noExt = file[:-3]
+            key = noExt[:noExt.rfind('.')] + '.ts'
+            
+        else:
+            continue
 
         if toAssemble.has_key(key):
             parts = toAssemble[key]
@@ -802,10 +822,15 @@ def findSplitFiles(dirName):
     return toAssemble
     
 def assembleSplitFiles(dirName, toAssemble):
+    """ Assemble files previously found to be split in the common split formats. This could be
+    a lengthy process, so this function will abort the attempt when a shutdown occurs """
     # Finally assemble the main file from the parts. Cancel the assembly and delete the
     # main file if we are CTRL-Ced
     for key, parts in toAssemble.iteritems():
-        info(archiveName(dirName) + ': Assembling split file from parts: ' + key + '.*..')
+        if key[-3:].lower() == '.ts':
+            info(archiveName(dirName) + ': Assembling split TS file from parts: ' + key[:-3] + '.*.ts..')
+        else:
+            info(archiveName(dirName) + ': Assembling split file from parts: ' + key + '.*..')
         
         assembledFile = open(dirName + os.sep + key, 'w')
         

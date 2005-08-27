@@ -36,6 +36,11 @@ o No longer using /bin/file for identifying rars. Running /bin/file via twisted
   seems to have triggered a twisted bug where it wouldn't allow the /bin/file
   process to exit cleanly (on some if not all platforms)
 
+o Added assembly support for split .ts files, recognizes patterns such as:
+    hello.001.TS                hi.0001.ts
+    hello.002.TS                hi.0002.ts
+                                hi.0003.ts
+
 ArticleDecoder:
 
 o Optimized the YDecoder. Benchmarks show it using approximately 6-8% less CPU

@@ -227,6 +227,13 @@ def init(options = {}):
     # When the first CTRL-C was pressed
     Hellanzb.firstSignal = None
 
+    # Whether or not the C yenc module is installed
+    try:
+        import _yenc
+        Hellanzb.HAVE_C_YENC = True
+    except ImportError:
+        Hellanzb.HAVE_C_YENC = False
+
     assertHasARar()
     assertIsExe('file')
 
@@ -308,8 +315,25 @@ def marquee():
     """ Print a simple header, for when starting the app """
     info('')
     msg = 'hellanzb v' + Hellanzb.version
+
+    options = []
     if Hellanzb.DAEMONIZE:
-        msg += ' (daemonized)'
+        options.append('daemonized')
+    if Hellanzb.HAVE_C_YENC:
+        options.append('C yenc module')
+
+    optionLen = len(options)
+    if optionLen:
+        msg += ' ('
+
+        i = 0
+        for option in options:
+            msg += option
+            i += 1
+            if i < optionLen:
+                msg += ', '
+        msg += ')'
+        
     info(msg)
 
 USAGE = """

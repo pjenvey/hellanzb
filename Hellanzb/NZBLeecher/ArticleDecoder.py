@@ -13,6 +13,7 @@ from Hellanzb.Daemon import handleNZBDone, pauseCurrent
 from Hellanzb.Log import *
 from Hellanzb.Logging import prettyException
 from Hellanzb.Util import checkShutdown, touch, OutOfDiskSpace
+if Hellanzb.HAVE_C_YENC: import _yenc
 
 __id__ = '$Id$'
 
@@ -314,10 +315,22 @@ def decodeSegmentToFile(segment, encodingType = YENCODE):
     decodedLines = []
 
     if encodingType == YENCODE:
-        decoded = yDecode(segment.articleData)
+        if Hellanzb.HAVE_C_YENC:
+            decoded, crc, cruft = yDecode(segment.articleData)
+            crc = '%08X' % ((crc ^ -1) & 2**32L - 1)
+            
+            # CRC check
+            passedCRC = crc == segment.yCrc
+            if not passedCRC:
+                message = segment.nzbFile.showFilename + ' segment ' + str(segment.number) + \
+                    ': CRC mismatch ' + crc + ' != ' + segment.yCrc
+                error(message)
+            
+        else:
+            decoded = yDecode(segment.articleData)
 
-        # CRC check
-        passedCRC = yDecodeCRCCheck(segment, decoded)
+            # CRC check
+            passedCRC = yDecodeCRCCheck(segment, decoded)
 
         # Write the decoded segment to disk
         size = len(decoded)
@@ -405,6 +418,9 @@ def yDecode(dataList):
        buffer.append(line)
 
     data = ''.join(buffer)
+
+    if Hellanzb.HAVE_C_YENC:
+        return _yenc.decode_string(data)
     
     # unescape NUL, TAB, LF, CR, 'ESC', ' ', ., =
     # NOTE: The yencode standard dictates these characters as 'critical' and are required

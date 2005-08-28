@@ -10,13 +10,13 @@ people might want it so here it is -pjenvey
 [See end of file]
 """
 import os
-from random import randint
 from shutil import move
 from twisted.internet import reactor
 from twisted.internet.error import ConnectionRefusedError, DNSLookupError, TimeoutError
 from twisted.web.client import HTTPClientFactory, HTTPDownloader
 from urllib import splitattr, splitvalue
 from Hellanzb.Log import *
+from Hellanzb.Util import tempFilename
 
 __id__ = '$Id$'
 
@@ -63,12 +63,12 @@ class NewzbinDownloader:
     AGENT = 'hellanzb/' + Hellanzb.version
     HEADERS = { 'Content-Type': 'application/x-www-form-urlencoded'}
     GET_NZB_URL = 'http://www.newzbin.com/browse/post/____ID____/msgids/msgidlist_post____ID____.nzb'
-    TEMP_FILENAME_PREFIX = Hellanzb.TEMP_DIR + os.sep + 'hellanzb-newzbin-download'
+    TEMP_FILENAME_PREFIX = 'hellanzb-newzbin-download'
     
     def __init__(self, msgId):
         self.msgId = msgId
         self.cookies = {}
-        self.tempFilename = self.TEMP_FILENAME_PREFIX + str(randint(10000000, 99999999)) + '.nzb'
+        self.tempFilename = Hellanzb.TEMP_DIR + os.sep + tempFilename(self.TEMP_FILENAME_PREFIX) + '.nzb'
 
     def gotCookies(self, cookies):
         """ The downloader will feeds cookies via this function """
@@ -87,6 +87,10 @@ class NewzbinDownloader:
             if key.lower() == 'content-disposition':
                 found = key
                 break
+
+        if found == None:
+            debug('NewzbinDownloader: gotHeaders: Unable to determine filename! ' + 
+                  'No content-disposition returned')
 
         type, attrs = splitattr(headers[found][0])
         key, val = splitvalue(attrs[0].strip())
@@ -142,6 +146,11 @@ class NewzbinDownloader:
     def handleEnqueueNZB(self, page):
         """ Add the new NZB to the queue"""
         debug('NewzbinDownloader: handleEnqueueNZB')
+
+        if self.nzbFilename == None:
+            debug('NewzbinDownloader: handleEnqueueNZB: no nzbFilename found, aborting!')
+            os.remove(self.tempFilename)
+            return
 
         move(self.tempFilename, Hellanzb.QUEUE_DIR + os.sep + self.nzbFilename)
 

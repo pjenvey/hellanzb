@@ -8,6 +8,10 @@ o Added the -D option to run the hellanzb queue daemon as an actual unix daemon
 o Changed most of the RPC calls to return the output of a list or status
   call
 
+o Added the enqueuenewzbin RPC call, downloads the NZB with the specified NZB ID
+  from www.newzin.com, as long as you've included your newzbin login information
+  in hellanzb.conf
+
 o Changed the RPC list call to show NZB ids by default
 
 o RPC status call now shows queued MB, ETA, NZB ids and the value of

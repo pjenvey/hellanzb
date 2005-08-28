@@ -601,10 +601,15 @@ def tryFinishNZB(nzb):
             del nzbFile.todoNzbSegments
             del nzbFile.nzb
         del nzb.nzbFileElements
+        
+        nzbId = nzb.id
+        rarPassword = nzb.rarPassword
         del nzb
+        
         gc.collect()
 
-        reactor.callFromThread(handleNZBDone, nzbFileName)
+        reactor.callFromThread(handleNZBDone, nzbFileName, nzbId,
+                               **{'rarPassword': rarPassword })
         
     finish = time.time() - start
     debug('tryFinishNZB (' + str(done) + ') took: ' + str(finish) + ' seconds')

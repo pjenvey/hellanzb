@@ -106,7 +106,8 @@ def resumePostProcessors():
         if os.path.isfile(archiveDir + os.sep + '.hellanzb_rar_password'):
             rarPassword = ''.join(open(archiveDir + os.sep + '.hellanzb_rar_password').readlines())
 
-        troll = PostProcessor.PostProcessor(archiveDir, rarPassword = rarPassword)
+        troll = PostProcessor.PostProcessor(archiveDir, IDPool.getNextId(),
+                                            rarPassword = rarPassword)
         info('Resuming post processor: ' + archiveName(archive))
         troll.start()
 
@@ -351,7 +352,7 @@ def findAndLoadPostponedDir(nzb):
         fixNZBFileName(nzb)
         return False
 
-def handleNZBDone(nzbfilename):
+def handleNZBDone(nzbfilename, nzbId, rarPassword = None):
     """ Hand-off from the downloader -- make a dir for the NZB with its contents, then post
     process it in a separate thread"""
     # Make our new directory, minus the .nzb
@@ -371,7 +372,7 @@ def handleNZBDone(nzbfilename):
 
     # Finally unarchive/process the directory in another thread, and continue
     # nzbing
-    troll = PostProcessor.PostProcessor(newdir)
+    troll = PostProcessor.PostProcessor(newdir, nzbId, rarPassword = rarPassword)
 
     # Give NZBLeecher some time (another reactor loop) to killHistory() & scrollEnd()
     # without any logging interference from PostProcessor
@@ -396,8 +397,8 @@ def postProcess(options, isQueueDaemon = False):
 
     # UNIX: realpath
     dirName = os.path.realpath(options.postProcessDir)
-    troll = Hellanzb.PostProcessor.PostProcessor(dirName, background = False,
-                                                 rarPassword = rarPassword)
+    troll = Hellanzb.PostProcessor.PostProcessor(dirName, IDPool.getNextId(),
+                                                 background = False, rarPassword = rarPassword)
     reactor.callLater(0, info, '')
     reactor.callLater(0, info, 'Starting post processor')
     reactor.callLater(0, reactor.callInThread, troll.run)
@@ -593,6 +594,23 @@ def dequeueNZBs(nzbIdOrIds):
         Hellanzb.queued_nzbs.remove(nzb)
         
     return not error
+
+def enqueueNZBStr(nzbFilename, nzbStr):
+    """ Write the specified NZB file (in string format) to disk and enqueue it """
+    tempLocation = Hellanzb.TEMP_DIR + os.sep + nzbFilename
+    if os.path.exists(tempLocation):
+        if not os.access(tempLocation, os.W_OK):
+            error('Unable to write NZB to temp location: ' + tempLocation)
+            return
+        
+        rmtree(tempLocation)
+
+    f = open(tempLocation, 'w')
+    f.writelines(nzbStr)
+    f.close()
+
+    enqueueNZBs(tempLocation)
+    os.remove(tempLocation)
     
 def enqueueNZBs(nzbFileOrFiles, next = False, writeQueue = True):
     """ add one or a list of nzb files to the end of the queue """
@@ -693,9 +711,6 @@ def moveNZB(nzbId, index):
         debug('Invalid INDEX: ' + str(index))
         return False
 
-    # FIXME: Validate index
-    # if index 
-    
     foundNZB = None
     for nzb in Hellanzb.queued_nzbs:
         if nzb.id == nzbId:
@@ -705,8 +720,7 @@ def moveNZB(nzbId, index):
         return True
     
     Hellanzb.queued_nzbs.remove(foundNZB)
-    # FIXME: index or index + 1
-    Hellanzb.queued_nzbs.insert(index, foundNZB)
+    Hellanzb.queued_nzbs.insert(index - 1, foundNZB)
 
     writeQueueToDisk(Hellanzb.queued_nzbs)
     return True
@@ -753,22 +767,52 @@ def maxRate(rate):
         reactor.callLater(1, Hellanzb.ht.checkReadBandwidth)
     return getRate()
 
-def listQueue(includeIds = True, toUnicode = True):
+def listQueue(includeIds = True, convertToUnicode = True):
     """ Return a listing of the current queue. By default this function will convert all
     strings to unicode, as it's only used right now for the return of XMLRPC calls """
     members = []
     for nzb in Hellanzb.queued_nzbs:
         if includeIds:
             name = archiveName(os.path.basename(nzb.nzbFileName))
-            if toUnicode:
-                name = unicode(name, 'latin-1')
+            rarPassword = nzb.rarPassword
+            
+            if convertToUnicode:
+                name = toUnicode(name)
+                rarPassword = toUnicode(rarPassword)
+                
             member = {'id': nzb.id,
                       'nzbName': name}
+            
+            if rarPassword != None:
+                member['rarPassword'] = rarPassword
         else:
             member = os.path.basename(nzb.nzbFileName)
         members.append(member)
     return members
 
+def setRarPassword(nzbId, rarPassword):
+    """ Set the rarPassword on the specified NZB or NZB archive """
+    try:
+        nzbId = int(nzbId)
+    except:
+        debug('Invalid ID: ' + str(nzbId))
+        return False
+    
+    # Find the nzbId in the queued list, processing list, or currently downloading nzb
+    found = None
+    for collection in (Hellanzb.queue.currentNZBs(), Hellanzb.postProcessors,
+                       Hellanzb.queued_nzbs):
+        for nzbOrArchive in collection:
+            if nzbOrArchive.id == nzbId:
+                found = nzbOrArchive
+                break
+
+    if found:
+        found.rarPassword = rarPassword
+        return True
+    
+    return False
+        
 def forceNZBId(nzbId):
     """ Interrupt the current download, if necessary, to start the specified nzb in the queue
     """

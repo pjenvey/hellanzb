@@ -7,6 +7,7 @@ HellaXMLRPC - The hellanzb XML RPC server and client
 """
 import os, sys, textwrap, time, Hellanzb
 from datetime import datetime
+from logging import getLevelName
 from time import strftime
 from twisted.internet import reactor
 from twisted.internet.error import CannotListenError, ConnectionRefusedError, DNSLookupError
@@ -19,7 +20,8 @@ from Hellanzb.HellaXMLRPC.HtPasswdAuth import HtPasswdWrapper
 from Hellanzb.Logging import LogOutputStream
 from Hellanzb.Log import *
 from Hellanzb.PostProcessor import PostProcessor
-from Hellanzb.Util import archiveName, cmHella, dupeName, flattenDoc, prettyEta, truncateToMultiLine
+from Hellanzb.Util import archiveName, cmHella, dupeName, flattenDoc, prettyEta, toUnicode, \
+    truncateToMultiLine, IDPool
 
 __id__ = '$Id$'
 
@@ -32,6 +34,16 @@ class HellaXMLRPCServer(XMLRPC):
         """ This object generates 404s (Default resource.Resource getChild) with HTTP auth turned
         on, so this was needed. not exactly sure why """
         return self
+
+    def makeNZBStruct(self, id, name, rarPass):
+        """ Create a map (to be an XMLRPC struct) containing NZB meta data (nzb id, name, and
+        optionally rarPassword if one exists. Convert potentially Evil(tm) strings to
+        unicode """
+        d = {'id': id,
+             'nzbName': toUnicode(name)}
+        if rarPass != None:
+            d['rarPassword'] = toUnicode(rarPass)
+        return d
 
     def xmlrpc_asciiart(self):
         """ Return a random ascii art """
@@ -94,15 +106,21 @@ class HellaXMLRPCServer(XMLRPC):
                               ['list', 'string', 'string'],
                               ['list', 'int', 'int'] ]
 
-    def xmlrpc_enqueue(self, nzbFilename):
+    def xmlrpc_enqueue(self, nzbFilename, nzbData = None):
         """ Add the specified NZB file to the end of the queue """
-        from Hellanzb.Daemon import enqueueNZBs
-        # FIXME: this should really check for a valid nzb. if it's not valid, raise a
-        # Fault (like the xmlrpc_process does)
-        enqueueNZBs(nzbFilename)
+        from Hellanzb.Daemon import enqueueNZBs, enqueueNZBStr
+        if nzbData == None:
+            # FIXME: this should really check for a valid nzb. if it's not valid, raise a
+            # Fault (like the xmlrpc_process does)
+            enqueueNZBs(nzbFilename)
+            
+        else:
+            enqueueNZBStr(nzbFilename, nzbData)
+            
         return self.xmlrpc_status()
 
-    xmlrpc_enqueue.signature = [ ['struct', 'string'] ]
+    xmlrpc_enqueue.signature = [ ['struct', 'string'],
+                                 ['struct', 'string', 'string'] ]
 
     def xmlrpc_enqueuenewzbin(self, nzbId):
         """ Download the NZB with the specified NZB ID from www.newzbin.com, and enqueue it """
@@ -115,9 +133,6 @@ class HellaXMLRPCServer(XMLRPC):
 
     xmlrpc_enqueuenewzbin.signature = [ ['struct', 'string'] ]
     xmlrpc_enqueuenewzbin.signature = [ ['struct', 'int'] ]
-
-    #def xmlrpc_enqueuedl(self, newzbinId):
-    #    """ """
 
     def xmlrpc_force(self, nzbId):
         """ Force hellanzb to begin downloading the NZB with the specified ID immediately,
@@ -192,11 +207,11 @@ class HellaXMLRPCServer(XMLRPC):
         for you, or use the current process if this XML-RPC call fails """
         # FIXME: merge this with Daemon.postProcess
         if not os.path.isdir(archiveDir):
-            raise Fault(9001, 'Unable to process, not a directory: ' + unicode(archiveDir, 'latin-1'))
+            raise Fault(9001, 'Unable to process, not a directory: ' + toUnicode(archiveDir))
 
         if not os.access(archiveDir, os.R_OK) or not os.access(archiveDir, os.W_OK):
             raise Fault(9001, 'Unable to process, no read/write access to directory: ' + \
-                        unicode(archiveDir, 'latin-1'))
+                        toUnicode(archiveDir))
         
         dirName = os.path.dirname(archiveDir.rstrip(os.sep))
         # We are the queue daemon -- Symlink to the archiveDir. If we are ctrl-ced, we'll
@@ -207,12 +222,21 @@ class HellaXMLRPCServer(XMLRPC):
             os.symlink(archiveDir, destDir)
             archiveDir = destDir
 
-        troll = PostProcessor(archiveDir, rarPassword = rarPassword)
+        troll = PostProcessor(archiveDir, IDPool.getNextId(), rarPassword = rarPassword)
         troll.start()
         return self.xmlrpc_status()
 
     xmlrpc_process.signature = [ ['struct', 'string'],
                                  ['struct', 'string', 'string'] ]
+
+    def xmlrpc_setrarpass(self, nzbId, rarPassword):
+        """ Set the rarPassword for the specified NZB archive """
+        from Hellanzb.Daemon import setRarPassword
+        setRarPassword(nzbId, rarPassword)
+        return self.xmlrpc_status()
+
+    xmlrpc_setrarpass.signature = [ ['struct', 'int', 'string'],
+                                        ['struct', 'string', 'string'] ]
     
     def xmlrpc_shutdown(self):
         """ Shutdown hellanzb. Will quietly kill any post processing threads that may exist """
@@ -265,14 +289,19 @@ class HellaXMLRPCServer(XMLRPC):
         s['total_dl_segments'] = Hellanzb.totalSegmentsDownloaded
         s['total_dl_mb'] = Hellanzb.totalBytesDownloaded / 1024 / 1024
         s['version'] = Hellanzb.version
-        s['currently_downloading'] = [unicode(nzb.archiveName, 'latin-1') for nzb in \
-                                      currentNZBs]
+
+        s['currently_downloading'] = [self.makeNZBStruct(nzb.id, nzb.archiveName, nzb.rarPassword) for \
+                                      nzb in currentNZBs]
+
         Hellanzb.postProcessorLock.acquire()
-        s['currently_processing'] = [unicode(archiveName(processor.dirName), 'latin-1') \
-                                     for processor in Hellanzb.postProcessors]
+        s['currently_processing'] = [self.makeNZBStruct(processor.id, archiveName(processor.dirName),
+                                                        processor.rarPassword) for processor in \
+                                     Hellanzb.postProcessors]
+
         Hellanzb.postProcessorLock.release()
         s['queued'] = listQueue()
-
+        s['log_entries'] = [{getLevelName(entry[0]): toUnicode(entry[1])} for entry in Hellanzb.recentLogs]
+        
         return s
 
     xmlrpc_status.signature = [ ['struct'] ]
@@ -390,6 +419,7 @@ def errHandler(remoteCall, failure):
     reactor.stop()
 
 class RemoteCallArg:
+    """ RPC arguments. Either required, or optional """
     REQUIRED, OPTIONAL = range(2)
 
     def __init__(self, name, type):
@@ -580,6 +610,9 @@ def initXMLRPCClient():
     r = RemoteCall('process', statusString)
     r.addRequiredArg('archivedir')
     r = RemoteCall('shutdown', resultMadeItBoolAndExit)
+    r = RemoteCall('setrarpass', statusString)
+    r.addRequiredArg('nzbid')
+    r.addRequiredArg('pass')
     r = RemoteCall('status', statusString)
     r = RemoteCall('up', printQueueListAndExit)
     r.addRequiredArg('nzbid')
@@ -645,6 +678,7 @@ def statusString(remoteCall, result):
     eta = s['eta']
     maxrate = s['maxrate']
     percentComplete = s['percent_complete']
+    logEntries = s['log_entries'][-6:]
 
     if isPaused:
         totalSpeed = 'Paused'
@@ -661,7 +695,7 @@ def statusString(remoteCall, result):
 
     downloading += statusFromList(currentNZBs, len(downloading))
     processing += statusFromList(processingNZBs, len(processing))
-    queued += statusQueueList(queuedNZBs, len(queued))
+    queued += statusFromList(queuedNZBs, len(queued))
 
     # FIXME: show if any archives failed during processing?
     #f = failedProcessing
@@ -687,6 +721,17 @@ def statusString(remoteCall, result):
     
     msg = one + two + three
     msg += cmHella(version)
+
+    for entry in logEntries:
+        log = entry.values()[0]
+        if log.strip() == '':
+            continue
+
+        # maintain 80 character max width for all log messages
+        lines = log.split('\n')
+        for line in lines:
+            msg += truncateToMultiLine(line.rstrip(), length = 80) + '\n'
+        
     msg += \
 """
 %s""" % (downloading)
@@ -725,35 +770,27 @@ def secondsToUptime(seconds):
     msg += '%.2i:%.2i' % (hours, minutes)
     return msg
 
-def clean(item):
-    # FIXME: this should go in Util, there are similar functions elsewhere
-    if isinstance(item, unicode):
-        item = item.encode('latin-1')
-    return item
-    
 def statusFromList(alist, indent, func = None):
     """ generate a status message from the list of objects, using the specified function for
     formatting """
     if func == None:
-        func = lambda item : clean(item)
+        func = lambda item : '(' + str(item['id']) + ') ' + item['nzbName']
+        
     status = ''
     if len(alist):
         i = 0
         for item in alist:
             if i:
                 status += ' '*indent
+
             status += func(item)
+            
             if i < len(alist) - 1:
                 status += '\n'
             i += 1
     else:
         status += 'None'
     return status
-
-def statusQueueList(queueList, indent):
-    """ statusFromList tailored for the queueList. Also shows the included nzbId """
-    func = lambda item : '(' + str(item['id']) + ') ' + clean(item['nzbName'])
-    return statusFromList(queueList, indent, func)
 
 """
 /*

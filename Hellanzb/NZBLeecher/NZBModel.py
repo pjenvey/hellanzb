@@ -16,8 +16,8 @@ from Hellanzb.Daemon import handleNZBDone
 from Hellanzb.Log import *
 from Hellanzb.NZBLeecher.ArticleDecoder import assembleNZBFile, parseArticleData, \
     setRealFileName, tryFinishNZB
-from Hellanzb.Util import archiveName, getFileExtension, EmptyForThisPool, PoolsExhausted, \
-    PriorityQueue, OutOfDiskSpace
+from Hellanzb.Util import archiveName, getFileExtension, IDPool, EmptyForThisPool, \
+    PoolsExhausted, PriorityQueue, OutOfDiskSpace
 from Queue import Empty
 
 __id__ = '$Id$'
@@ -129,7 +129,6 @@ def segmentsNeedDownload(segmentList, overwriteZeroByteSegments = False):
 
 class NZB:
     """ Representation of an nzb file -- the root <nzb> tag """
-    nextId = 0
     
     def __init__(self, nzbFileName):
         ## NZB file general information
@@ -137,7 +136,7 @@ class NZB:
         self.archiveName = archiveName(self.nzbFileName) # pretty name
         self.nzbFileElements = []
         
-        self.id = self.getNextId()
+        self.id = IDPool.getNextId()
 
         # Where the nzb files will be downloaded
         self.destDir = Hellanzb.WORKING_DIR
@@ -155,17 +154,14 @@ class NZB:
         self.totalSkippedBytes = 0
         ## How many bytes have been downloaded for this NZB
         self.totalReadBytes = 0
+
+        # To be passed to the PostProcessor
+        self.rarPassword = None
         
         ## Whether or not we should redownload NZBFile and NZBSegment files on disk that are 0 bytes in
         ## size
         self.overwriteZeroByteFiles = True
         
-    def getNextId(self):
-        """ Return a new unique identifier """
-        id = NZB.nextId
-        NZB.nextId += 1
-        return id
-
     def isCanceled(self):
         """ Whether or not this NZB was cancelled """
         self.canceledLock.acquire()
@@ -834,11 +830,16 @@ class NZBQueue(PriorityQueue):
                 del nzbFile.todoNzbSegments
                 del nzbFile.nzb
             del nzb.nzbFileElements
+            
             # FIXME: put the above dels in NZB.__del__ (that's where collect can go if needed too)
+            nzbId = nzb.id
+            rarPassword = nzb.rarPassword
             del nzb
+            
             gc.collect()
 
-            reactor.callLater(0, handleNZBDone, nzbFileName)
+            reactor.callLater(0, handleNZBDone, nzbFileName, nzbId, **{'rarPassword': rarPassword })
+
             # True == the archive is complete
             return True
 

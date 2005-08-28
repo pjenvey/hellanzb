@@ -2,7 +2,7 @@
 
 <div class="label">Downloading</div> <br />
 <% if @status["currently_downloading"].length > 0 -%>
-<div class="label" style="font-weight: normal;"><%= @status["currently_downloading"].first.slice(0, 24) %>...</div><br />
+<div class="label" style="font-weight: normal;"><%= @status["currently_downloading"].first["nzbName"].slice(0, 24) %>...</div><br />
 <% else -%>
 <div class="label" style="font-weight: normal;">----</div><br />
 <% end -%>

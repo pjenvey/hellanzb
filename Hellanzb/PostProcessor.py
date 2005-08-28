@@ -32,7 +32,7 @@ class PostProcessor(Thread):
     msgId = None
     nzbFile = None
 
-    def __init__(self, dirName, background = True, rarPassword = None, parentDir = None):
+    def __init__(self, dirName, id, background = True, rarPassword = None, parentDir = None):
         """ Ensure sanity of this instance before starting """
         # abort if we lack required binaries
         assertIsExe('par2')
@@ -40,6 +40,9 @@ class PostProcessor(Thread):
          # DirName is a hack printing out the correct directory name when running nested
          # post processors on sub directories
         self.dirName = DirName(dirName)
+
+        # unique identifier
+        self.id = id
 
         # Whether or not this thread is the only thing happening in the app (-p mode)
         self.background = background
@@ -426,10 +429,10 @@ class PostProcessor(Thread):
             
             if os.path.isdir(pathjoin(self.dirName, file)):
                 if not self.isSubDir:
-                    troll = PostProcessor(pathjoin(self.dirName, file),
+                    troll = PostProcessor(pathjoin(self.dirName, file), id = self.id,
                                           parentDir = self.dirName)
                 else:
-                    troll = PostProcessor(pathjoin(self.dirName, file),
+                    troll = PostProcessor(pathjoin(self.dirName, file), id = self.id,
                                           parentDir = self.parentDir)
                 troll.run()
                 trolled += 1

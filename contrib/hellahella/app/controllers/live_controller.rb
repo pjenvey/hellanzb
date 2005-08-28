@@ -11,7 +11,7 @@ class LiveController < ApplicationController
     index = 0
     params[:nzb].each do |nzbId|
       if nzbId != @queue[index]["id"].to_s
-        server.call('move', nzbId, index)
+        server.call('move', nzbId, index + 1)
       end
       index += 1
     end

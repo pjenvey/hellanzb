@@ -9,6 +9,7 @@ import os, popen2, pty, re, signal, string, thread, threading, time, Hellanzb
 from distutils import spawn
 from heapq import heappop, heappush
 from os.path import normpath
+from random import randint
 from shutil import move
 from threading import Condition
 from traceback import print_stack
@@ -34,6 +35,18 @@ class OutOfDiskSpace(Exception):
 
 class PoolsExhausted(Exception):
     """ Attempts to download a segment on all known server pools failed """
+    
+class IDPool:
+    """ Returns a unique identifier, used for keying NZBs and their archives """
+    
+    nextId = 0
+    
+    def getNextId():
+        """ Return a new unique identifier """
+        id = IDPool.nextId
+        IDPool.nextId += 1
+        return id
+    getNextId = staticmethod(getNextId)
     
 SPLIT_CMDLINE_ARGS_RE = re.compile(r'( |"[^"]*")')
 class Topen(protocol.ProcessProtocol):
@@ -578,6 +591,16 @@ def prettyEta(etaSeconds):
     minutes = int((etaSeconds - (hours * 60 * 60)) / 60)
     seconds = etaSeconds - (hours * 60 * 60) - (minutes * 60)
     return '%.2d:%.2d:%.2d' % (hours, minutes, seconds)
+
+def toUnicode(str):
+    """ Convert the specified string to a unicode string """
+    if str == None:
+        return str
+    return unicode(str, 'latin-1')
+
+def tempFilename(prefix = 'hellanzb-tmp'):
+    """ Return a temp filename, prefixed with 'hellanzb-tmp' """
+    return prefix + str(randint(10000000, 99999999)) + '.nzb'
 
 def prettySize(bytes):
     """ format a byte count for pretty display """

@@ -12,7 +12,7 @@ Log - The basic log API functions, only -- to discourage polluting namespaces, e
 (c) Copyright 2005 Philip Jenvey
 [See end of file]
 """
-import Hellanzb, time
+import logging, time, Hellanzb
 from socket import AF_INET, SOCK_DGRAM, socket, error as socket_error
 from threading import Lock
 from traceback import print_exc
@@ -26,6 +26,8 @@ __id__ = '$Id$'
 
 def warn(message):
     """ Log a message at the warning level """
+    Hellanzb.recentLogs.append(logging.WARN, message)
+    
     Hellanzb.logger.warn(message + '\n')
 
 def error(message, exception = None):
@@ -33,10 +35,15 @@ def error(message, exception = None):
     prettyEx = prettyException(exception)
     if prettyEx != '':
         message += ': ' + prettyEx
+        
+    Hellanzb.recentLogs.append(logging.ERROR, message)
+    
     Hellanzb.logger.error(message + '\n')
 
 def info(message, appendLF = True):
     """ Log a message at the info level """
+    Hellanzb.recentLogs.append(logging.INFO, message)
+    
     if appendLF:
         message += '\n'
     Hellanzb.logger.info(message)
@@ -56,6 +63,8 @@ def scroll(message):
 
 def logShutdown(message):
     """ log messages ocurring just before shutdown, handled specially """
+    Hellanzb.recentLogs.append(logging.WARN, message)
+    
     Hellanzb.logger.log(ScrollableHandler.SHUTDOWN, message)
 
 def logFile(message, exception = None):
@@ -67,6 +76,8 @@ def logFile(message, exception = None):
 
 def noLogFile(message, appendLF = True):
     """ Send a message to stdout, avoiding both log files"""
+    Hellanzb.recentLogs.append(logging.INFO, message)
+    
     if appendLF:
         message += '\n'
     Hellanzb.logger.log(ScrollableHandler.NOLOGFILE, message)

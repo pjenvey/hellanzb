@@ -109,6 +109,26 @@ class ScrollableHandler(StreamHandlerNoLF):
         else:
             reactor.callFromThread(Hellanzb.scroller.scrollHeader, msg)
 
+class RecentLogEntries:
+    """ A FIFO queue that maintains the specified size by popping off the least recently added
+    item """
+    def __init__(self, size):
+        self.size = size
+        self.logEntries = []
+
+    def append(self, level, logEntry):
+        if len(self.logEntries) >= self.size:
+            self.logEntries.pop(0)
+            
+        self.logEntries.append((level, logEntry))
+
+    def __iter__(self):
+        entriesLen = len(self.logEntries)
+        i = 0
+        while i < entriesLen:
+            yield self.logEntries[i]
+            i += 1
+
 class LogOutputStream:
     """ Provides somewhat of a file-like interface (supporting only the typical writing
     functions) to the specified logging function """
@@ -451,6 +471,8 @@ def initLogging():
 
     # map of ascii colors. for the kids
     Hellanzb.ACODE = ASCIICodes()
+
+    Hellanzb.recentLogs = RecentLogEntries(15)
 
 def initLogFile(logFile = None, debugLogFile = None):
     """ Initialize the log file. This has to be done after the config is loaded """

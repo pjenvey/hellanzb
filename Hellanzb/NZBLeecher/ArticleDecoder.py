@@ -123,7 +123,7 @@ def yInt(object, message = None):
     try:
         return int(object)
     except ValueError:
-        if messsage != None:
+        if message != None:
             error(message)
         return None
 

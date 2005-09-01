@@ -24,6 +24,15 @@
   <%= link_to_unless_current("Bandwidth", :controller => "hellanzb", :action => "bandwidth") %><br />
 
   <hr/>
+  <%= form_remote_tag :url => {:controller => "live", :action => "enqueue_nzb"},
+      :complete => evaluate_remote_response,
+      :html => {:id=>"enqueue_form"} %> 
+    <p>newzbin ID: <%= text_field_tag "newzbinid", nil, :size => 8  %> </p>
+    <%= submit_tag "Q ID" %>
+    <%= end_form_tag %>
+  <div id="enqueue"></div>
+  
+  <hr/>
 
 	  <%= link_to("Log out", :controller => "login", :action => "logout") %>
 

@@ -82,8 +82,12 @@ a {
   font: smaller sans-serif;
 }
 
-#side a {
+#side a, #side p {
   color: #ada;
+  font: smaller sans-serif;
+}
+
+#side input {
   font: smaller sans-serif;
 }
 

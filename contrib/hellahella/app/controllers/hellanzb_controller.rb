@@ -15,5 +15,4 @@ class HellanzbController < ApplicationController
       server.call('maxrate', params[:maxrate]) && load_status
     end
   end
-  
 end

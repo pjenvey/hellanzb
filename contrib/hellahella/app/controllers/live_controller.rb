@@ -26,4 +26,12 @@ class LiveController < ApplicationController
     end
   end
 
+  def enqueue_nzb
+    if params[:newzbinid] =~ /^[0-9]{4,10}$/
+      server.call('enqueuenewzbin', params[:newzbinid])
+      render :partial => "enqueue_success"
+    else
+      render :partial => "enqueue_failure"
+    end
+  end
 end

@@ -230,9 +230,9 @@ class NZBLeecherFactory(ReconnectingClientFactory):
         if Hellanzb.downloadPaused:
             # 'continue' is responsible for re-triggerering all clients in this case
             return
-        
+
         for p in self.clients:
-            if p.isLoggedIn and not p.activated:
+            if p.isLoggedIn and not p.activated and p.idle:
                 reactor.callLater(0, p.fetchNextNZBSegment)
 
     def beginDownload(self):
@@ -325,6 +325,9 @@ class NZBLeecher(NNTPClient, TimeoutMixin):
 
         # whether or not this NZBLeecher is the in the fetchNextNZBSegment download loop
         self.activated = False
+
+        # the connection is idle when it receives Empty()
+        self.idle = False
 
         # Whether or not this client was created when hellanzb downloading was paused
         self.pauseReconnected = False
@@ -515,6 +518,8 @@ class NZBLeecher(NNTPClient, TimeoutMixin):
 
     def deactivate(self, justThisDownloadPool = False):
         """ Deactivate this client """
+        self.idle = True
+
         if self.activated:
             debug(str(self) + ' DEACTIVATING')
             self.activated = False
@@ -531,9 +536,6 @@ class NZBLeecher(NNTPClient, TimeoutMixin):
 
             try:
                 priority, self.currentSegment = Hellanzb.queue.getSmart(self.factory.serverPoolName)
-                self.currentSegment.encodedData = open(Hellanzb.DOWNLOAD_TEMP_DIR + os.sep + \
-                                                       self.currentSegment.getTempFileName() + '_ENC',
-                                                       'w')
                 self.currentSegment.encodedData = open(Hellanzb.DOWNLOAD_TEMP_DIR + os.sep + \
                                                        self.currentSegment.getTempFileName() + '_ENC',
                                                        'w')
@@ -580,7 +582,7 @@ class NZBLeecher(NNTPClient, TimeoutMixin):
                     Hellanzb.queue.requeueMissing(self.factory.serverPoolName, self.currentSegment)
                     debug(str(self) + ' All groups failed, requeueing to another pool!')
                     self.currentSegment = None
-                    reactor.callLater(0, self.fetchNextNZBSegment)
+                    self.fetchNextNZBSegment()
                 
                 except PoolsExhausted:
                     error('Unable to retrieve *any* groups for file (subject: ' + \
@@ -820,7 +822,8 @@ class NZBLeecher(NNTPClient, TimeoutMixin):
         # got data -- reset the anti idle timeout
         self.resetTimeout()
 
-        if len(self._state) and self._state[0] == self._stateBody:
+        stateLen = len(self._state)
+        if stateLen and self._state[stateLen - 1] == self._stateBody:
             # Write the data to disk as it's received
             return self.dataReceivedToFile(data)
 

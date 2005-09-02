@@ -26,7 +26,11 @@ class ApplicationController < ActionController::Base
   end
   
   def load_status
-    @status = server.call("status")
+    session[:status] ||= {:time => Time.now, :status => server.call("status")}
+    if Time.now > session[:status][:time]
+      session[:status] = {:time => Time.at(Time.now+6), :status => server.call("status")}
+    end
+    @status = session[:status][:status]
   end
   
   def server()

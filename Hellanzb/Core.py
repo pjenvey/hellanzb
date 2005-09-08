@@ -258,7 +258,7 @@ def init(options = {}):
     for option, attr in { 'rpcServer': 'XMLRPC_SERVER',
                           'rpcPassword': 'XMLRPC_PASSWORD',
                           'rpcPort': 'XMLRPC_PORT' }.iteritems():
-        if hasattr(options, option):
+        if hasattr(options, option) and getattr(options, option) != None:
             setattr(Hellanzb, attr, getattr(options, option))
 
     if not hasattr(Hellanzb, 'GROWL_NOTIFY'):

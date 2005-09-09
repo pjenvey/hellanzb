@@ -29,12 +29,15 @@ class FatalError(Exception):
 class EmptyForThisPool(Empty):
     """ The queue is empty in terms of our current serverPool, but there are still segments to
     be downloaded for alternate download pools """
+    pass
     
 class OutOfDiskSpace(Exception):
     """ Out of disk space """
+    pass
 
 class PoolsExhausted(Exception):
     """ Attempts to download a segment on all known server pools failed """
+    pass
     
 class IDPool:
     """ Returns a unique identifier, used for keying NZBs and their archives """
@@ -141,16 +144,16 @@ class Topen(protocol.ProcessProtocol):
         # The reactor could have fallen asleep on us in -Lp mode! Why? I'm not sure, but
         # it dies after the first par2 process (Topen call) =[
         reactor.wakeUp()
-        # seems to actually run the process in this current thread. the process
-        # ignores signals sent to the main thread
-        reactor.spawnProcess(self, self.args[0], args = self.args, env = os.environ,
-                             usePTY = 1)
 
-        # seems to run the process in the main thread. they will die when the main
-        # thread receives a CTRL-C. Used for -Lp mode. reactor.spawnProcess does
-        # strange things in -Lp mode =[ (like it seems to cause the reactor to stall
-        # itself)
-        #reactor.callFromThread(reactor.spawnProcess, self, self.args[0], self.args, os.environ)
+        # Have the main, twisted thread, run the process. If we trigger spawnProcess from
+        # a separate thread (which PostProcessor/Topens are always used from) instead, bad
+        # things can occur (on Linux 2.6.x we can end up with defunct processes -- Trac
+        # ticket #33). Running any twisted call from a non twisted thread is asking for
+        # trouble. We also MUST usePTY, otherwise the processes receive signals (in
+        # particular, SIGINT, rendering our first CTRL-C ignoring code useless, as it ends
+        # up killing our sub processes)
+        reactor.callFromThread(reactor.spawnProcess, self, self.args[0], self.args, os.environ,
+                               usePTY = 1)
 
         self.finished.wait()
         self.finished.release()

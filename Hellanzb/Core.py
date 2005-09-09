@@ -100,6 +100,8 @@ def loadConfig(fileName):
         Hellanzb.DEBUG_MODE_ENABLED = False
         if hasattr(Hellanzb, 'DEBUG_MODE') and Hellanzb.DEBUG_MODE != None and \
                 Hellanzb.DEBUG_MODE != False:
+            # Set this ASAP for sane logging. FIXME: You could possibly lose some debug
+            # output during initialization if you're using the -d option
             Hellanzb.DEBUG_MODE_ENABLED = True
 
         # ensure the types are lower case
@@ -242,7 +244,7 @@ def init(options = {}):
 
     outlineRequiredDirs() # before the config file is loaded
         
-    if hasattr(options, 'configFile'):
+    if hasattr(options, 'configFile') and options.configFile != None:
         findAndLoadConfig(options.configFile)
     else:
         findAndLoadConfig()
@@ -250,7 +252,7 @@ def init(options = {}):
     for attr in ('logFile', 'debugLogFile'):
         # this is really: logFile = None
         setattr(sys.modules[__name__], attr, None)
-        if hasattr(options, attr):
+        if hasattr(options, attr) and getattr(options, attr) != None:
             setattr(sys.modules[__name__], attr, getattr(options, attr))
     Hellanzb.Logging.initLogFile(logFile = logFile, debugLogFile = debugLogFile)
 
@@ -268,7 +270,8 @@ def init(options = {}):
         errors = []
         for attr in ('GROWL_SERVER', 'GROWL_PASSWORD'):
             if not hasattr(Hellanzb, attr):
-                errors.append('Required option not defined in config file: Hellanzb.' + attr)
+                err = 'Hellanzb.GROWL_NOTIFY enabled. Required option not defined in config file: Hellanzb.'
+                errors.append(err + attr)
         if len(errors):
             [error(err) for err in errors]
             sys.exit(1)

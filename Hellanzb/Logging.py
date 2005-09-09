@@ -495,6 +495,9 @@ def initLogFile(logFile = None, debugLogFile = None):
         Hellanzb.LOG_FILE = os.path.abspath(logFile)
     if debugLogFile != None:
         Hellanzb.DEBUG_MODE = os.path.abspath(debugLogFile)
+        
+        # Set this, maybe again, incase the -d option was specified
+        Hellanzb.DEBUG_MODE_ENABLED = True
 
     if Hellanzb.LOG_FILE:
         fileHdlr = RotatingFileHandlerNoLF(Hellanzb.LOG_FILE, maxBytes = maxBytes,

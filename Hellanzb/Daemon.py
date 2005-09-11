@@ -149,11 +149,11 @@ def scanQueueDir(firstRun = False, justScan = False):
     e = time.time() - t
     if justScan:
         # Done scanning -- don't bother loading a new NZB
-        debug('scanQueueDir (justScan = True) TOOK: ' + str(e))
+        debug('Ziplick scanQueueDir (justScan): ' + Hellanzb.QUEUE_DIR + ' TOOK: ' + str(e))
         Hellanzb.downloadScannerID = reactor.callLater(7, scanQueueDir, False, True)
         return
     else:
-        debug('Ziplick scanQueueDir scanned queue dir')
+        debug('Ziplick scanQueueDir: ' + Hellanzb.QUEUE_DIR)
 
     if not current_nzbs:
         if not Hellanzb.queued_nzbs or Hellanzb.downloadPaused:

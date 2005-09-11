@@ -154,7 +154,7 @@ def parseArticleData(segment, justExtractFilename = False):
 
         # After stripping the articleData, we should find a yencode header, uuencode
         # header, or a uuencode part header (an empty line)
-        if line.startswith('=ybegin'):
+        if not withinData and line.startswith('=ybegin'):
             # See if we can parse the =ybegin line
             ybegin = ySplit(line)
             
@@ -169,7 +169,7 @@ def parseArticleData(segment, justExtractFilename = False):
                     
             encodingType = YENCODE
 
-        elif line.startswith('=ypart'):
+        elif not withinData and line.startswith('=ypart'):
             # ybegin doesn't ensure a ypart on the next line
             withinData = True
 
@@ -178,8 +178,8 @@ def parseArticleData(segment, justExtractFilename = False):
                 segment.yBegin = yInt(ypart['begin'])
             if 'end' in ypart:
                 segment.yEnd = yInt(ypart['end'])
-            
-        elif line.startswith('=yend'):
+
+        elif withinData and line.startswith('=yend'):
             yend = ySplit(line)
             if 'size' in yend:
                 segment.ySize = yInt(yend['size'])
@@ -188,7 +188,7 @@ def parseArticleData(segment, justExtractFilename = False):
             elif 'crc32' in yend and yend.get('part', '1') == '1':
                 segment.yCrc = '0' * (8 - len(yend['crc32'])) + yend['crc32'].upper()
 
-        elif line.startswith('begin '):
+        elif not withinData and line.startswith('begin '):
             filename = line.rstrip().split(' ', 2)[2]
             if not filename:
                 # FIXME: show filename information
@@ -351,12 +351,13 @@ def decodeSegmentToFile(segment, encodingType = YENCODE):
         debug('YDecoded articleData to file: ' + segment.getDestination())
 
     elif encodingType == UUENCODE:
+        decodedLines = []
         try:
             decodedLines = UUDecode(segment.articleData)
         except binascii.Error, msg:
-            error('Decode failed in file: %s (part number: %d) error: %s' % \
+            error('UUDecode failed in file: %s (part number: %d) error: %s' % \
                   (segment.getDestination(), segment.number, msg))
-            debug('Decode failed in file: %s (part number: %d) error: %s' % \
+            debug('UUDecode failed in file: %s (part number: %d) error: %s' % \
                   (segment.getDestination(), segment.number, prettyException(msg)))
 
         # Write the decoded segment to disk
@@ -551,9 +552,11 @@ def assembleNZBFile(nzbFile, autoFinish = True):
         del nzbSegment.nzbFile
         del nzbSegment
     del nzbFile.nzbSegments
-    if GCDelay.shouldGC():
-        debug('(GCDELAYED) GCING')
-        gc.collect()
+    
+    # FIXME: remove this. I don't think it's necessary
+    #if GCDelay.shouldGC():
+    #    debug('(GCDELAYED) GCING')
+    #    gc.collect()
 
     if autoFinish and not canceled:
         # After assembling a file, check the contents of the filesystem to determine if we're done 

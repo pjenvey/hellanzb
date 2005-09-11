@@ -206,10 +206,10 @@ class NZBLeecherFactory(ReconnectingClientFactory):
         Hellanzb.scroller.size += 1
         return p
 
-    def clientConnectionFailed(self, connector, reason):
+    def clientConnectionFailed(self, connector, reason, caller = 'clientConnectionFailed'):
         """ Handle failed connection attempts """
-        debug('clientConnectionFailed: ' + str(connector) + ' reason: ' + str(reason) + '  ' + \
-              'class: ' + str(reason.value.__class__) + ' args: ' + str(reason.value.args), reason)
+        #debug(caller + ': ' + str(connector) + ' reason: ' + str(reason) + '  ' + \
+        #      'class: ' + str(reason.value.__class__) + ' args: ' + str(reason.value.args), reason)
         if isinstance(reason.value, DNSLookupError):
             error('DNS lookup failed for hostname: ' + connector.getDestination().host)
         elif isinstance(reason.value, ConnectionRefusedError):
@@ -217,13 +217,16 @@ class NZBLeecherFactory(ReconnectingClientFactory):
             #error('Connection refused, hostname: ' + connector.getDestination().host)
             pass
             
-        # Overwrite ReconnectClientFactory so reconnecting happens after a connection
-        # timeout (TimeoutError)
-        # FIXME: twisted should provide a toggle for this. submit a patch
+        # Overwrite twisted 1.3 ReconnectClientFactory so reconnecting happens after a
+        # connection timeout (TimeoutError). Apparently twisted 2.0 no longer prevents
+        # this
         if self.continueTrying:
             self.connector = connector
-            if not reason.check(UserError) or reason.check(TimeoutError):
-                self.retry()
+            self.retry()
+
+    def clientConnectionLost(self, connector, reason):
+        """ Handle lost connections """
+        self.clientConnectionFailed(connector, reason, caller = 'clientConnectionLost')
 
     def fetchNextNZBSegment(self):
         """ Begin or continue downloading on all of this factory's clients """
@@ -429,16 +432,6 @@ class NZBLeecher(NNTPClient, TimeoutMixin):
                 # Only requeue the segment if its archive hasn't been previously postponed
                 debug(str(self) + ' requeueing segment: ' + self.currentSegment.getDestination())
                 Hellanzb.queue.requeue(self.factory.serverPoolName, self.currentSegment)
-
-                # There's a funny case where other clients received Empty from the queue,
-                # then afterwards we lost the connection (say the connection timed
-                # out). So fire off the other ones to immediately handle the just requeued
-                # segment, unless they're already busy or we're paused or we were just
-                # cancelled
-                if not Hellanzb.downloadPaused and not self.currentSegment.nzbFile.nzb.canceled:
-                    for nsf in Hellanzb.nsfs:
-                        if nsf.serverPoolName not in self.currentSegment.failedServerPools:
-                            nsf.fetchNextNZBSegment()
 
             else:
                 debug(str(self) + ' DID NOT requeue existing segment: ' + self.currentSegment.getDestination())

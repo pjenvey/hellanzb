@@ -50,8 +50,13 @@ o Added assembly support for split .ts files, recognizes patterns such as:
 
 ArticleDecoder:
 
-o Optimized the YDecoder. Benchmarks show it using approximately 6-8% less CPU
+o Optimized the yDecoder. Benchmarks show it using approximately 6-8% less CPU
   on an Athlon XP 2600+, FreeBSD 4.10
+
+o Added support for optionally yDecoding via the yenc python module (wraps a
+  yDecoder written in C). This provides better performance than the stock
+  yDecoder. Requires yenc-0.3, available from:
+  http://www.hellanzb.com/hellanzb-content/yenc-0.3.tar.gz
 
 
 v0.6:

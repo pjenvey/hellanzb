@@ -725,6 +725,12 @@ class NZBQueue(PriorityQueue):
         else:
             self.put((segment.priority, segment))
 
+        # There's a funny case where other NZBLeechers in the calling NZBLeecher's factory
+        # received Empty from the queue, then afterwards the connection is lost (say the
+        # connection timed out), causing the requeue. Find and reactivate them because
+        # they now have work to do
+        self.nudgeIdleNZBLeechers(segment)
+
     def requeueMissing(self, serverPoolName, segment):
         """ Requeue a missing segment. This segment will be added to the RetryQueue (if enabled),
         where other serverPools will find it and reattempt the download """
@@ -733,8 +739,20 @@ class NZBQueue(PriorityQueue):
 
         if self.retryQueueEnabled:
             self.rQueue.requeue(serverPoolName, segment)
+
+            # We might have just requeued a segment onto an idle server pool. Reactivate
+            # any idle connections pertaining to this segment
+            self.nudgeIdleNZBLeechers(segment)
         else:
             raise PoolsExhausted()
+
+    def nudgeIdleNZBLeechers(requeuedSegment):
+        """ Activate any idle NZBLeechers that might need to download the specified requeued
+        segment """
+        if not Hellanzb.downloadPaused and not requeuedSegment.nzbFile.nzb.canceled:
+            for nsf in Hellanzb.nsfs:
+                if nsf.serverPoolName not in requeuedSegment.failedServerPools:
+                    nsf.fetchNextNZBSegment()
 
     def fileDone(self, nzbFile):
         """ Notify the queue a file is done. This is called after assembling a file into it's

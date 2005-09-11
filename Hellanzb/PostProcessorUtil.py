@@ -163,8 +163,8 @@ def isRar(fileName):
     if firstFourBytes == RAR_HEADER:
         return True
 
-    # NOTE We could check for part001 or ending in 001, r01 or something similar if we
-    # don't want to use file(1)
+    # NOTE: We should probably check for part001 or ending in 001, r01 etc. Otherwise we
+    # could possibly miss damaged rar files that are named this way
     return False
 
 def isPar(fileName):
@@ -355,6 +355,7 @@ def processRars(dirName, rarPassword):
                                                                               rarTxt, e))
     processComplete(dirName, 'rar',
                     lambda file : os.path.isfile(file) and isRar(file))
+
 """
 ## From unrarsrc-3.4.3
 
@@ -833,7 +834,8 @@ def assembleSplitFiles(dirName, toAssemble):
             info(archiveName(dirName) + ': Assembling split file from parts: ' + key + '.*..')
         
         assembledFile = open(dirName + os.sep + key, 'w')
-        
+
+        parts.sort()
         for file in parts:
             partFile = open(dirName + os.sep + file)
             for line in partFile:

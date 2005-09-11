@@ -366,6 +366,10 @@ class NZBSegment:
         ## Any server pools that failed to download this file
         self.failedServerPools = []
 
+        # This flag is set when we want to trash the NZB and prevent the leechers from
+        # trying to requeue it
+        self.dontRequeue = False
+
     def getDestination(self):
         """ Where this decoded segment will reside on the fs """
         return self.nzbFile.getDestination() + '.segment' + str(self.number).zfill(4)
@@ -779,7 +783,7 @@ class NZBQueue(PriorityQueue):
         # No XML namespaces here
         parser.setFeature(feature_namespaces, 0)
         parser.setFeature(feature_external_ges, 0)
-        
+
         # Create the handler
         fileName = nzb.nzbFileName
         self.nzbAdd(nzb)

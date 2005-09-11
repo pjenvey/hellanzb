@@ -304,6 +304,44 @@ def parseNZB(nzb, notification = 'Downloading', quiet = False):
         move(nzb.nzbFileName, Hellanzb.TEMP_DIR + os.sep)
         reactor.callLater(5, scanQueueDir)
 
+def ensureSafePostponedLoad(nzbFileName):
+    """ Force doesn't immediately abort the download of the forced out NZB -- it lets the
+     NZBLeechers currently working on them finish. We need to be careful of forced NZBs
+     that are so small, that they finish downloading before these 'slower' NZBLeechers are
+     even done with the previous, forced out NZB. The parseNZB function could end up
+     colliding with the leechers, while pareseNZB looks for segments on disk/to be skipped
+     """
+    # Look for any NZBLeechers downloading files for the specified unpostponed NZB. They
+    # are most likely left over from a force call, using a very small NZB.
+    shouldCancel = False
+    cancelledClients = []
+    for nsf in Hellanzb.nsfs:
+        for nzbl in nsf.clients:
+            if nzbl.currentSegment != None and os.path.basename(nzbl.currentSegment.nzbFile.nzb.nzbFileName) == \
+                    os.path.basename(nzbFileName):
+                # the easiest way to prevent weird things from happening (such as the
+                # parser getting confused about what needs to be downloaded/skipped) is to
+                # just pull the trigger on those slow NZBLeechers connections --
+                # disconnect them and ensure the segments they were trying to download
+                # aren't requeued
+                debug('Aborting/Disconnecting %s to ensure safe postponed NZB load' % str(nzbl))
+                shouldCancel = True
+                nzbl.currentSegment.dontRequeue = True
+                cancelledClients.append(nzbl)
+
+                # Can't recall the details of why we should manually loseConnection(), do
+                # isLoggedIn and also deactivate() below -- but this is was
+                # cancelCurrent() does
+                nzbl.transport.loseConnection()
+                nzbl.isLoggedIn = False
+
+    if shouldCancel:
+        # Also reset the state of the queue if we had to do any cleanup
+        Hellanzb.queue.cancel()
+
+        for nzbl in cancelledClients:
+            nzbl.deactivate()
+        
 def findAndLoadPostponedDir(nzb):
     """ move a postponed working directory for the specified nzb, if one is found, to the
     WORKING_DIR """
@@ -344,6 +382,8 @@ def findAndLoadPostponedDir(nzb):
             Hellanzb.queue.postponedNzbFiles.remove(nzbFile)
         Hellanzb.queue.nzbFilesLock.release()
 
+        ensureSafePostponedLoad(nzb.nzbFileName)
+        
         info('Loaded postponed directory: ' + archiveName(nzbfilename))
 
         fixNZBFileName(nzb)

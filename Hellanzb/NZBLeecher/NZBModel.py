@@ -746,7 +746,7 @@ class NZBQueue(PriorityQueue):
         else:
             raise PoolsExhausted()
 
-    def nudgeIdleNZBLeechers(requeuedSegment):
+    def nudgeIdleNZBLeechers(self, requeuedSegment):
         """ Activate any idle NZBLeechers that might need to download the specified requeued
         segment """
         if not Hellanzb.downloadPaused and not requeuedSegment.nzbFile.nzb.canceled:

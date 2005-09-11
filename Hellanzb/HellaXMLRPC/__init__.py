@@ -610,7 +610,7 @@ def initXMLRPCClient():
     r = RemoteCall('process', statusString)
     r.addRequiredArg('archivedir')
     r = RemoteCall('shutdown', resultMadeItBoolAndExit)
-    r = RemoteCall('setrarpass', statusString)
+    r = RemoteCall('setrarpass', statusString, published = False)
     r.addRequiredArg('nzbid')
     r.addRequiredArg('pass')
     r = RemoteCall('status', statusString)

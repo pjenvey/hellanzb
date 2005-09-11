@@ -12,7 +12,9 @@ class HellanzbController < ApplicationController
   
   def bandwidth
     if request.post?
-      server.call('maxrate', params[:maxrate]) && load_status
+      server.call('maxrate', params[:maxrate])
+      session[:status] = nil
+      load_status
     end
   end
 end

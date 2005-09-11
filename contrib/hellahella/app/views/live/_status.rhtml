@@ -10,6 +10,7 @@
 <div class="label">Complete</div> <div class="value"><%= @status["percent_complete"] %>%</div><br />
 <div class="label">Max Rate</div> <div class="value"><%= @status["maxrate"] %> kps</div><br />
 <div class="label">Queued MB's</div> <div class="value"><%= @status["queued_mb"] %></div><br />
+<div class="label">ETA</div> <div class="value"><%= eta @status["eta"] %></div><br />
 <div class="label">Queued NZB's</div> <div class="value"><%= @status["queued"].length %></div><br />
 <div class="label">Uptime</div> <div class="value"><%= @status["uptime"] %></div><br />
 <% if @status["currently_processing"].length > 0 -%>

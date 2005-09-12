@@ -94,10 +94,9 @@ class HtPasswdWrapper(Resource):
         m.update(password)
         
         authenticated = username == self.user and self.passwordDigest == m.digest()
-        if authenticated:
-            debug('Successful HTTP Basic auth, user: ' + self.user)
-        else:
+        if not authenticated:
             debug('Failed HTTP Basic auth, user: ' + self.user)
+            
         return authenticated
 
     def unauthorized(self):

@@ -68,7 +68,7 @@ Hellanzb.PROCESSED_SUBDIR = 'processed'
 # Remove the PROCESSED_SUBDIR if the archive was successfully post processed. 
 # Warning: The normal Hellanzb.LOG_FILE should be enabled with this option --
 # for a record of what hellanzb deletes
-Hellanzb.DELETE_PROCESSED = False
+Hellanzb.DELETE_PROCESSED = True
 
 
 # Supported music types (case insensitive) and optionally their decompression

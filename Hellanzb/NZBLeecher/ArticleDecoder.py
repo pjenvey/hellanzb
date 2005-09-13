@@ -317,14 +317,21 @@ def decodeSegmentToFile(segment, encodingType = YENCODE):
     if encodingType == YENCODE:
         if Hellanzb.HAVE_C_YENC:
             decoded, crc, cruft = yDecode(segment.articleData)
-            crc = '%08X' % ((crc ^ -1) & 2**32L - 1)
             
-            # CRC check
-            passedCRC = crc == segment.yCrc
-            if not passedCRC:
-                message = segment.nzbFile.showFilename + ' segment ' + str(segment.number) + \
-                    ': CRC mismatch ' + crc + ' != ' + segment.yCrc
-                error(message)
+            # CRC check. FIXME: use yDecodeCRCCheck for this!
+            if segment.yCrc == None:
+                passedCRC = False
+                # FIXME: I've seen CRC errors at the end of archive cause logNow = True to
+                # print I think after handleNZBDone appends a newline (looks like crap)
+                error(segment.nzbFile.showFilename + ' segment: ' + str(segment.number) + \
+                      ' does not have a valid CRC/yend line!')
+            else:
+                crc = '%08X' % ((crc ^ -1) & 2**32L - 1)
+                passedCRC = crc == segment.yCrc
+                if not passedCRC:
+                    message = segment.nzbFile.showFilename + ' segment ' + str(segment.number) + \
+                        ': CRC mismatch ' + crc + ' != ' + segment.yCrc
+                    error(message)
             
         else:
             decoded = yDecode(segment.articleData)

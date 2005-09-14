@@ -13,11 +13,10 @@ long_description \
                  The goal being to make getting files from Usenet as hands-free as possible. Once fully \
                  installed, all that's required is moving an nzb file to the queue directory. The rest: \
                  downloading, par-checking, un-raring, etc. is done automatically by hellanzb.
-homepage         http://www.hellanzb.com
+homepage         http://www.hellanzb.com/
 platforms        darwin
 
-master_sites     http://www.hellanzb.com/distfiles/
-distname         hellanzb-${version}
+master_sites     ${homepage}/distfiles/
 checksums        ____MD5_CHECKSUM____
 
 depends_run  bin:par2:par2 \

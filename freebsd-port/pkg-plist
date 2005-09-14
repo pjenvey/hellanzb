@@ -1,5 +1,7 @@
 bin/hellanzb.py
+@unexec if cmp -s %D/etc/hellanzb.conf.sample %D/etc/hellanzb.conf; then rm -f %D/etc/hellanzb.conf; fi
 etc/hellanzb.conf.sample
+@exec if [ ! -f %D/etc/hellanzb.conf ] ; then cp -p %D/%F %B/hellanzb.conf; fi
 %%PYTHON_SITELIBDIR%%/Hellanzb/Core.py
 %%PYTHON_SITELIBDIR%%/Hellanzb/Core.pyc
 %%PYTHON_SITELIBDIR%%/Hellanzb/Core.pyo

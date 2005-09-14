@@ -32,7 +32,7 @@ RUN_DEPENDS+=	mac:${PORTSDIR}/audio/mac
 .endif
 
 # more fully-featured rar needs at least 5.3
-.if ${OSVERSION} >= 503000
+.if ${ARCH} == "i386" && ${OSVERSION} >= 503000
 RUN_DEPENDS+=	rar:${PORTSDIR}/archivers/rar
 .else
 RUN_DEPENDS+=	unrar:${PORTSDIR}/archivers/unrar
@@ -44,9 +44,9 @@ PORTDOCS=	CHANGELOG CREDITS README LICENSE
 
 post-install:
 
-	@if [ ! -f ${LOCALBASE}/etc/hellanzb.conf ]; then \
+	@if [ ! -f ${PREFIX}/etc/hellanzb.conf ]; then \
 		${ECHO} "Installing default configuration file."; \
-		${INSTALL_DATA} ${WRKSRC}/etc/hellanzb.conf.sample ${LOCALBASE}/etc/hellanzb.conf; \
+		${INSTALL_DATA} ${WRKSRC}/etc/hellanzb.conf.sample ${PREFIX}/etc/hellanzb.conf; \
 	fi
 
 .ifndef(NOPORTDOCS)

@@ -418,13 +418,6 @@ class NZBLeecher(NNTPClient, TimeoutMixin):
             if (self.currentSegment.priority, self.currentSegment) in Hellanzb.scroller.segments:
                 Hellanzb.scroller.removeClient(self.currentSegment)
 
-            if self.currentSegment.encodedData != None:
-                # Close the file handle if it's still open
-                try:
-                    self.currentSegment.encodedData.close()
-                finally:
-                    pass
-
             # twisted doesn't reconnect our same client connections, we have to pitch
             # stuff back into the queue that hasn't finished before the connectionLost
             # occurred
@@ -437,7 +430,7 @@ class NZBLeecher(NNTPClient, TimeoutMixin):
             else:
                 debug(str(self) + ' DID NOT requeue existing segment: ' + self.currentSegment.getDestination())
             
-            self.currentSegment = None
+            self.resetCurrentSegment(removeEncFile = True)
         
         # Continue being quiet about things if we're shutting down
         if not Hellanzb.SHUTDOWN:
@@ -575,7 +568,7 @@ class NZBLeecher(NNTPClient, TimeoutMixin):
                 try:
                     Hellanzb.queue.requeueMissing(self.factory.serverPoolName, self.currentSegment)
                     debug(str(self) + ' All groups failed, requeueing to another pool!')
-                    self.currentSegment = None
+                    self.resetCurrentSegment(removeEncFile = True)
                     self.fetchNextNZBSegment()
                 
                 except PoolsExhausted:
@@ -587,8 +580,10 @@ class NZBLeecher(NNTPClient, TimeoutMixin):
                     error(msg)
                     error('Cancelling NZB download: ' + self.currentSegment.nzbFile.nzb.archiveName)
 
+                    # cancelCurrent will deactivate, kill the connections (and
+                    # connectionLost will take care of closing file handles etc)
                     cancelCurrent()
-                    
+
                 return
             
         # Don't call later here -- we could be disconnected and lose our currentSegment
@@ -611,12 +606,12 @@ class NZBLeecher(NNTPClient, TimeoutMixin):
 
         NNTPClient.fetchBody(self, '<' + index + '>')
 
-    def gotBody(self, body):
+    def gotBody(self, notUsed):
         """ Queue the article body for decoding and continue fetching the next article """
         debug(str(self) + ' got BODY: ' + ' <' + self.currentSegment.messageId + '> ' + \
               self.currentSegment.getDestination())
 
-        self.processBodyAndContinue(body)
+        self.finishedSegmentDownload()
 
     def getBodyFailed(self, err):
         """ Handle a failure of the BODY command. Ensure the failed segment gets a 0 byte file
@@ -637,7 +632,7 @@ class NZBLeecher(NNTPClient, TimeoutMixin):
                           ' segment: ' + str(self.currentSegment.number) + \
                           ' Article is missing! Attempting to requeue on a different pool!')
                     Hellanzb.scroller.removeClient(self.currentSegment)
-                    self.currentSegment = None
+                    self.resetCurrentSegment(removeEncFile = True)
                     reactor.callLater(0, self.fetchNextNZBSegment)
                     return
                 
@@ -660,17 +655,17 @@ class NZBLeecher(NNTPClient, TimeoutMixin):
                 self.transport.loseConnection()
                 return
                 
-        self.processBodyAndContinue('')
+        self.finishedSegmentDownload()
 
-    def processBodyAndContinue(self, articleData):
-        """ Defer decoding of the specified articleData of the currentSegment, reset our state and
+    def finishedSegmentDownload(self):
+        """ Defer decoding of the encodedData of the specified currentSegment, reset our state and
         continue fetching the next queued segment """
         Hellanzb.scroller.removeClient(self.currentSegment)
 
-        self.currentSegment.articleData = articleData
-        self.deferSegmentDecode(self.currentSegment)
-
-        self.currentSegment = None
+        segment = self.currentSegment
+        self.resetCurrentSegment()
+        
+        self.deferSegmentDecode(segment)
 
         Hellanzb.totalSegmentsDownloaded += 1
         reactor.callLater(0, self.fetchNextNZBSegment)
@@ -885,7 +880,8 @@ class NZBLeecher(NNTPClient, TimeoutMixin):
             code = extractCode(line)
             if code is None or (not (200 <= code[0] < 400) and code[0] != 100): # An error!
                 try:
-                    self.currentSegment.encodedData.close()
+                    # getBodyFailed or finishedSegmentDownload will close it
+                    ##self.currentSegment.encodedData.close()
                     self._error[0](line)
                 # FIXME: why is this exception thrown? it was previously breaking
                 # connections -- this is now caught to avoid the completely breaking of
@@ -937,7 +933,10 @@ class NZBLeecher(NNTPClient, TimeoutMixin):
             if firstTwoWhitespace == self.delimiter and \
                     stripped[-len(self.RSTRIPPED_END):] == self.RSTRIPPED_END:
                 # found EOF, done
-                self.currentSegment.encodedData.close()
+                
+                # finishedSegmentDownload will close it
+                ##self.currentSegment.encodedData.close()
+                
                 self.gotResponseCode = False
                 self.lastChunk = ''
                 self.gotBody(self._endState())
@@ -961,6 +960,27 @@ class NZBLeecher(NNTPClient, TimeoutMixin):
             # TimeoutMixin assumes we're done (timed out) after timeoutConnection. Since we're
             # still connected, manually reset the timeout
             self.setTimeout(self.antiIdleTimeout)
+
+    def resetCurrentSegment(self, removeEncFile = False):
+        """ Reset the currentSegment to None. close the encodedData file handle if necessary """
+        if self.currentSegment == None:
+            return
+        
+        if self.currentSegment.encodedData != None:
+            # Close the file handle if it's still open
+            try:
+                self.currentSegment.encodedData.close()
+            except Exception, e:
+                pass
+
+            if removeEncFile:
+                try:
+                    os.remove(Hellanzb.DOWNLOAD_TEMP_DIR + os.sep + \
+                              self.currentSegment.getTempFileName() + '_ENC')
+                except Exception, e:
+                    pass
+
+        self.currentSegment = None
 
     def __str__(self):
         """ Return the name of this NZBLeecher instance """

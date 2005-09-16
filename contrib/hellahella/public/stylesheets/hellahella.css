@@ -95,6 +95,23 @@ a {
   color: #fff;
 }
 
+div#wastebin {
+  width:180px;
+  height:180px;
+  float: right;
+}
+
+div.wastebin-inactive {
+  widht: 180px;
+  height: 180px;
+  background: url(/images/trash.gif) 0px 0px no-repeat;
+}
+
+div.wastebin-active {
+  width:180px;
+  height:180px;
+  background: transparent url(/images/trash.gif) 180px 0px no-repeat;
+}
 
 .handle {
   cursor: move;

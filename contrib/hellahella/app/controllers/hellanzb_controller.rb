@@ -9,7 +9,14 @@ class HellanzbController < ApplicationController
   
   def queue
   end
-  
+
+  def dequeue
+    nzb_id = params[:id].split("_")[1]
+    server.call('dequeue', nzb_id)
+    load_queue
+    render :partial => "queue_items"
+  end
+    
   def bandwidth
     if request.post?
       server.call('maxrate', params[:maxrate])

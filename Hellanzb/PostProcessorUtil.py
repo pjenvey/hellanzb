@@ -828,14 +828,17 @@ def assembleSplitFiles(dirName, toAssemble):
     # Finally assemble the main file from the parts. Cancel the assembly and delete the
     # main file if we are CTRL-Ced
     for key, parts in toAssemble.iteritems():
+        parts.sort()
+
         if key[-3:].lower() == '.ts':
-            info(archiveName(dirName) + ': Assembling split TS file from parts: ' + key[:-3] + '.*.ts..')
+            msg = archiveName(dirName) + ': Assembling split TS file from parts: ' + key[:-3] + '.*.ts..' 
         else:
-            info(archiveName(dirName) + ': Assembling split file from parts: ' + key + '.*..')
+            msg = archiveName(dirName) + ': Assembling split file from parts: ' + key + '.*..'
+        info(msg)
+        debug(msg + ' ' + str(parts))
         
         assembledFile = open(dirName + os.sep + key, 'w')
 
-        parts.sort()
         for file in parts:
             partFile = open(dirName + os.sep + file)
             for line in partFile:
@@ -875,7 +878,7 @@ def processComplete(dirName, processStateName, moveFileFilterFunction):
                            [dirName + os.sep + file for file in os.listdir(dirName)]):
             moveToProcessed(file)
 
-    # And make a note of the completition
+    # And make a note of the completion
     touch(dirName + os.sep + Hellanzb.PROCESSED_SUBDIR + os.sep + '.' + processStateName + '_done')
 
 def isFreshState(dirName, stateName):

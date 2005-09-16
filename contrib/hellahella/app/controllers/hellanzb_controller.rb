@@ -17,4 +17,14 @@ class HellanzbController < ApplicationController
       load_status
     end
   end
+  
+  def enqueue_bookmarklet
+    @id = params[:url].split('/')[-1]
+    server.call('enqueuenewzbin', @id)
+    redirect_to(params[:url])
+  end
+  
+  def bookmarklet
+      @mylink = "%s%s:%s" % [request.protocol,request.host,request.port]
+  end
 end

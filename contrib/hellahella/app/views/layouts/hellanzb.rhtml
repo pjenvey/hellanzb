@@ -22,6 +22,7 @@
   <%= link_to_unless_current("Status", :controller => "hellanzb", :action => "index") %><br />
   <%= link_to_unless_current("Queue", :controller => "hellanzb", :action => "queue") %><br />
   <%= link_to_unless_current("Bandwidth", :controller => "hellanzb", :action => "bandwidth") %><br />
+  <%= link_to_unless_current("Bookmarklets", :controller => "hellanzb", :action => "bookmarklet") %><br />
 
   <hr/>
   <%= form_remote_tag :url => {:controller => "live", :action => "enqueue_nzb"},

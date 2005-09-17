@@ -102,7 +102,7 @@ div#wastebin {
 }
 
 div.wastebin-inactive {
-  widht: 180px;
+  width: 180px;
   height: 180px;
   background: url(/images/trash.gif) 0px 0px no-repeat;
 }

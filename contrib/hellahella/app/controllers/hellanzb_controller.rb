@@ -13,10 +13,18 @@ class HellanzbController < ApplicationController
   def dequeue
     nzb_id = params[:id].split("_")[1]
     server.call('dequeue', nzb_id)
-    load_queue
-    render :partial => "queue_items"
   end
-    
+  
+  def update_order
+    index = 0
+    params[:nzb].each do |nzbId|
+      if nzbId != @queue[index]["id"].to_s
+        server.call('move', nzbId, index + 1)
+      end
+      index += 1
+    end
+  end
+  
   def bandwidth
     if request.post?
       server.call('maxrate', params[:maxrate])

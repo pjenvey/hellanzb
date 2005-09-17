@@ -16,7 +16,7 @@
 
 
 <%= sortable_element "nzb",
-    :url => {:controller => 'live', :action=>'update_order'},
+    :url => {:action=>'update_order'},
     :tag => 'div',
     :constraint => false,
     :handle => 'handle',
@@ -25,7 +25,6 @@
     :containment => ['nzb', 'wastebin'] %>
 
 <%= drop_receiving_element "wastebin",
-        :update => "nzb",
         :url => {:action => "dequeue" },
         :accept => "nzbitems", :hoverclass => "wastebin-active",
         :before => "Element.hide(element)",

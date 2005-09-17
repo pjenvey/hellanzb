@@ -22,15 +22,19 @@ class ApplicationController < ActionController::Base
   end
 
   def load_queue
-    @queue = server.call('list')
+    session[:cache] ||= {:time => Time.now, :queuelist => server.call('list')}
+    if Time.now > session[:cache][:time]
+      session[:cache].merge!({:time => Time.at(Time.now+6), :queuelist => server.call('list')})
+    end
+    @queue = session[:cache][:queuelist]
   end
   
   def load_status
-    session[:status] ||= {:time => Time.now, :status => server.call("status")}
-    if Time.now > session[:status][:time]
-      session[:status] = {:time => Time.at(Time.now+6), :status => server.call("status")}
+    session[:cache] ||= {:time => Time.now, :status => server.call("status")}
+    if Time.now > session[:cache][:time]
+      session[:cache].merge!({:time => Time.at(Time.now+6), :status => server.call("status")})
     end
-    @status = session[:status][:status]
+    @status = session[:cache][:status]
   end
   
   def server()

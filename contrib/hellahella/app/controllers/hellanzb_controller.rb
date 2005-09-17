@@ -1,6 +1,6 @@
 class HellanzbController < ApplicationController
   before_filter :authorize, :defaults
-  before_filter :load_queue, :except => :index
+  before_filter :load_queue, :except => :dequeue
   before_filter :load_status, :except => :queue
   
   def index
@@ -13,6 +13,10 @@ class HellanzbController < ApplicationController
   def dequeue
     nzb_id = params[:id].split("_")[1]
     server.call('dequeue', nzb_id)
+  end
+
+  def queuelist
+    render :partial => "queue_list"
   end
   
   def update_order

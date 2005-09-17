@@ -10,7 +10,7 @@
     </div>
     <div id="columns">
       <div id="side">
-	<% if session[:user_id] -%>    
+	<% if session[:user_id] -%>
 	<div id="hellastatus">
 	  <%= render_component :controller => "live", :action => "status" %>
 	  <%= periodically_call_remote(:url => {:controller => "live", :action => "status"},

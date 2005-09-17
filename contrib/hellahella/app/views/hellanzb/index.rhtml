@@ -1,4 +1,16 @@
 <%= @status["version"] %>
+
+<h2>Current Queue List</h2>
+
+<div style="margin: 0; padding: 0;" id="queuelist">
+<%= render_component :action => "queuelist" %>
+</div>
+
+<%= periodically_call_remote(:url => {:action => "queuelist"}, :frequency => 4, :update => 'queuelist') %>
+                
+<p>&nbsp;</p>
+
+<h3>ASCII of the refresh</h3>
 <pre><code>
 <%= @asciiart %>
 </code></pre>

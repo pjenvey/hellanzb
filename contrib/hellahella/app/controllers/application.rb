@@ -30,7 +30,7 @@ class ApplicationController < ActionController::Base
   
   def load_status
     session[:cache] ||= {:time => Time.now}
-    session[:cache][:state] ||= server.call("status")
+    session[:cache][:status] ||= server.call("status")
     get_status_queue
     @status = session[:cache][:status]
   end

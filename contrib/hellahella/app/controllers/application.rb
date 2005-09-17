@@ -22,20 +22,17 @@ class ApplicationController < ActionController::Base
   end
 
   def load_queue
-    session[:cache] ||= {:time => Time.now}
-    session[:cache][:queuelist] ||= server.call('list')
     get_status_queue
     @queue = session[:cache][:queuelist]
   end
   
   def load_status
-    session[:cache] ||= {:time => Time.now}
-    session[:cache][:status] ||= server.call("status")
     get_status_queue
     @status = session[:cache][:status]
   end
   
   def get_status_queue
+    session[:cache] ||= {:time => Time.now}
     if Time.now > session[:cache][:time]
       session[:cache].merge!({:status => server.call("status"),
                               :queuelist => server.call('list'),

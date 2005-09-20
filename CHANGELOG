@@ -1,3 +1,11 @@
+v0.8:
+
+NZBLeecher:
+
+o Fixed a bug causing the downloader to break and the scroller to scroll
+  excessive lines, after a certain situation where hellanzb was paused twice
+
+
 v0.7:
 
 Daemon:

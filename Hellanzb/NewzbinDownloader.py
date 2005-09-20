@@ -74,11 +74,11 @@ class NewzbinDownloader:
         """ The downloader will feeds cookies via this function """
         # Grab the cookies for the PHPSESSID
         self.cookies = cookies
-        debug('NewzbinDownloader: gotCookies: ' + str(self.cookies))
+        debug(str(self) + ' gotCookies: ' + str(self.cookies))
 
     def gotHeaders(self, headers):
         """ The downloader will feeds headers via this function """
-        debug('NewzbinDownloader: gotHeaders')
+        debug(str(self) + ' gotHeaders')
         # Grab the file name of the NZB via content-disposition header
         keys = headers.keys()
 
@@ -89,19 +89,19 @@ class NewzbinDownloader:
                 break
 
         if found == None:
-            debug('NewzbinDownloader: gotHeaders: Unable to determine filename! ' + 
-                  'No content-disposition returned')
+            debug(str(self) + ' gotHeaders: Unable to determine filename! ' + 
+                  'No content-disposition returned' + str(headers))
 
         type, attrs = splitattr(headers[found][0])
         key, val = splitvalue(attrs[0].strip())
         self.nzbFilename = val
-        debug('NewzbinDownloader: got filename: ' + self.nzbFilename)
+        debug(str(self) + ' got filename: ' + self.nzbFilename)
         
     def download(self):
         """ Start the NZB download process """
-        debug('NewzbinDownloader: Downloading from www.newzbin.com..')
+        debug(str(self) + ' Downloading from www.newzbin.com..')
         if not NewzbinDownloader.canDownload():
-            debug('NewzbinDownloader: download: No www.newzbin.com login information')
+            debug(str(self) + ' download: No www.newzbin.com login information')
             return
         
         httpc = StoreCookieHTTPClientFactory('http://www.newzbin.com/account/login/',
@@ -113,9 +113,9 @@ class NewzbinDownloader:
 
     def handleNewzbinLogin(self, page):
         """ Login to newzbin """
-        debug('NewzbinDownloader: handleNewzbinLogin')
+        debug(str(self) + ' handleNewzbinLogin')
         if not self.cookies.has_key('PHPSESSID'):
-            debug('NewzbinDownloader: handleNewzbinLogin: There was a problem, no PHPSESSID provided')
+            debug(str(self) + ' handleNewzbinLogin: There was a problem, no PHPSESSID provided')
             return
 
         postdata = 'username=' + Hellanzb.NEWZBIN_USERNAME
@@ -132,7 +132,7 @@ class NewzbinDownloader:
     
     def handleNZBDownloadFromNewzbin(self, page):
         """ Download the NZB after successful login """
-        debug('NewzbinDownloader: handleNZBDownloadFromNewzbin')
+        debug(str(self) + ' handleNZBDownloadFromNewzbin')
                          
         httpd = StoreHeadersHTTPDownloader(self.GET_NZB_URL.replace('____ID____', self.msgId),
                                            self.tempFilename, headerListener = self,
@@ -145,10 +145,10 @@ class NewzbinDownloader:
     
     def handleEnqueueNZB(self, page):
         """ Add the new NZB to the queue"""
-        debug('NewzbinDownloader: handleEnqueueNZB')
+        debug(str(self) + ' handleEnqueueNZB')
 
         if self.nzbFilename == None:
-            debug('NewzbinDownloader: handleEnqueueNZB: no nzbFilename found, aborting!')
+            debug(str(self) + ' handleEnqueueNZB: no nzbFilename found, aborting!')
             os.remove(self.tempFilename)
             return
 
@@ -163,6 +163,9 @@ class NewzbinDownloader:
             error('Unable to connect to www.newzbin.com: DNS lookup failed')
         else:
             error('Unable to download from www.newzbin.com: ' + str(reason))
+
+    def __str__(self):
+        return 'NewzbinDownloader(%s):' % str(self.msgId)
 
     def canDownload():
         """ Whether or not the conf file supplied www.newzbin.com login info """

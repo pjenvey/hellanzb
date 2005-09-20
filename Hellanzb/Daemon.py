@@ -529,6 +529,7 @@ def continueCurrent():
             # tell them to begin downloading
             if client.pauseReconnected:
                 debug(str(client) + ' pauseReconnect')
+                client.pauseReconnected = False
                 reactor.callLater(0, client.fetchNextNZBSegment)
             else:
                 # Otherwise this was a short pause, the connection hasn't been lost, and

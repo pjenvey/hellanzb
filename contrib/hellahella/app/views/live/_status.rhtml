@@ -24,3 +24,15 @@
 <% if @status["is_paused"] -%>
 [ PAUSED ]
 <% end -%>
+
+<hr/><p/>
+
+<%= form_remote_tag :url => {:controller => "live", :action => "toggle_download"},
+    :complete => evaluate_remote_response,
+    :html => {:id => "toggle_download_form"} %>
+  <% if @status["is_paused"] -%>
+    <%= submit_tag "Continue Download" %>
+  <% else -%>
+    <%= submit_tag "Pause Download" %>  
+  <% end -%>
+<%= end_form_tag %>

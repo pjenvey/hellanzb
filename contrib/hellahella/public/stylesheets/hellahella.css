@@ -1,10 +1,10 @@
 #banner {
-  background: #9c9;
-  padding-top: 10px;
-  padding-bottom: 10px;
-  border-bottom: 2px solid;
+  background: url(/images/hellahella.jpg) center no-repeat;
+  padding-top: 40px;
+  padding-bottom: 40px;
+  border-bottom: 0px solid;
   font: small-caps 40px/40px "Times New Roman", serif;
-  color: #282;
+  color: #fff;
   text-align: center;
 }
 
@@ -19,12 +19,12 @@
 #main {
   margin-left: 13em;
   padding-top: 1ex;
-  padding-left: 0em;
-  background: white;
+  padding-left: 1em;
+  background: #F5C60D ;
 }
 
 #hellastatus {
-  color: white;
+  color: yellow;
   width: 12em;
 }
 
@@ -57,9 +57,9 @@
   padding-left: 1em;
   padding-bottom: 1em;
   padding-right: 1em;
-  width: 12em;
-  background: #141;
-  color: #ccc;
+  width: 13em;
+  background: #000;
+  color: red;
   font: smaller sans-serif;
 }
 
@@ -72,9 +72,9 @@
 }
 
 #nzb {
-  border: 1px solid black;
+  border: 1px solid white;
   padding: 0.5em;
-  width: 33em;
+  width: 30em;
 }
 
 a {
@@ -83,7 +83,7 @@ a {
 }
 
 #side a, #side p {
-  color: #ada;
+  color: yellow;
   font: smaller sans-serif;
 }
 
@@ -92,7 +92,7 @@ a {
 }
 
 #side a:hover {
-  color: #fff;
+  color: yellow;
 }
 
 div#wastebin {

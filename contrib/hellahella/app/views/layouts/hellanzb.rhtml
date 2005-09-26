@@ -6,11 +6,11 @@
   </head>
   <body>
     <div id="banner">
-      <%= @page_title || "hella hella" %>
+  
     </div>
+    <% if session[:user_id] -%>
     <div id="columns">
       <div id="side">
-	<% if session[:user_id] -%>
 	<div id="hellastatus">
 	  <%= render_component :controller => "live", :action => "status" %>
 	  <%= periodically_call_remote(:url => {:controller => "live", :action => "status"},

@@ -499,7 +499,12 @@ def assembleNZBFile(nzbFile, autoFinish = True):
     # FIXME: don't overwrite existing files???
     file = open(nzbFile.getDestination(), 'wb')
     segmentFiles = []
-    for nzbSegment in nzbFile.nzbSegments:
+
+    # Sort the segments incase they were out of order in the NZB file
+    toAssembleSegments = nzbFile.nzbSegments[:]
+    toAssembleSegments.sort(lambda x, y : cmp(x.number, y.number))
+    
+    for nzbSegment in toAssembleSegments:
         segmentFiles.append(nzbSegment.getDestination())
 
         decodedSegmentFile = open(nzbSegment.getDestination(), 'rb')
@@ -550,7 +555,7 @@ def assembleNZBFile(nzbFile, autoFinish = True):
     reactor.callFromThread(fileDone)
     
     debug('Assembled file: ' + nzbFile.getDestination() + ' from segment files: ' + \
-          str([ nzbSegment.getDestination() for nzbSegment in nzbFile.nzbSegments ]))
+          str([nzbSegment.getDestination() for nzbSegment in toAssembleSegments]))
     
     canceled = handleCanceled(nzbFile)
 

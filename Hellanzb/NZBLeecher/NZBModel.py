@@ -965,7 +965,7 @@ class NZBParser(ContentHandler):
 
             messageId = self.parseUnicode(''.join(self.chars))
             nzbs = NZBSegment(self.bytes, self.number, messageId, self.file)
-            if self.segmentCount == 1:
+            if self.number == 1:
                 self.file.firstSegment = nzbs
 
             if self.fileNeedsDownload:

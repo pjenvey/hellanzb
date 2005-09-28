@@ -70,6 +70,9 @@ Hellanzb.PROCESSED_SUBDIR = 'processed'
 # for a record of what hellanzb deletes
 Hellanzb.DELETE_PROCESSED = True
 
+# Skip unraring during post processing
+#Hellanzb.SKIP_UNRAR = False
+
 
 # Supported music types (case insensitive) and optionally their decompression
 # executables

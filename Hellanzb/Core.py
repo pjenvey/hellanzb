@@ -114,6 +114,9 @@ def loadConfig(fileName):
             Hellanzb.MAX_RATE = 0
         else:
             Hellanzb.MAX_RATE = int(Hellanzb.MAX_RATE)
+
+        if not hasattr(Hellanzb, 'SKIP_UNRAR') or Hellanzb.SKIP_UNRAR == None:
+            Hellanzb.SKIP_UNRAR = False
             
         debug('Found config file in directory: ' + os.path.dirname(fileName))
         return True

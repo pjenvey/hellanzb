@@ -408,7 +408,7 @@ class PostProcessor(Thread):
                 assembleSplitFiles(self.dirName, needAssembly)
                 processPars(self.dirName, None)
         
-        if dirHasRars(self.dirName):
+        if not Hellanzb.SKIP_UNRAR and dirHasRars(self.dirName):
             checkShutdown()
             processRars(self.dirName, self.rarPassword)
 

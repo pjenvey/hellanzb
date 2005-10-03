@@ -550,15 +550,8 @@ def continueCurrent():
 def clearCurrent(andCancel):
     """ clear the queue -- optionally clear what's currently being downloaded (cancel it) """
     info('Clearing queue')
-    Hellanzb.queued_nzbs = []
-    writeQueueToDisk(Hellanzb.queued_nzbs)
-    for file in os.listdir(Hellanzb.QUEUE_DIR):
-        file = Hellanzb.QUEUE_DIR + os.sep + file
-        if os.path.isfile(file):
-            os.remove(file)
-        elif os.path.isdir(file):
-            rmtree(file)
-
+    dequeueNZBs([nzb.id for nzb in Hellanzb.queued_nzbs], quiet = True)
+    
     if andCancel:
         cancelCurrent()
 
@@ -607,7 +600,7 @@ def moveDown(nzbId, shift = 1):
     """ move the specified nzb down in the queue """
     return moveUp(nzbId, shift, moveDown = True)
 
-def dequeueNZBs(nzbIdOrIds):
+def dequeueNZBs(nzbIdOrIds, quiet = False):
     """ remove nzbs from the queue """
     if type(nzbIdOrIds) != list:
         newNzbIds = [ nzbIdOrIds ]
@@ -630,10 +623,12 @@ def dequeueNZBs(nzbIdOrIds):
             if nzb.id == nzbId:
                 found.append(nzb)
     for nzb in found:
-        info('Dequeueing: ' + nzb.archiveName)
+        if not quiet:
+            info('Dequeueing: ' + nzb.archiveName)
         move(nzb.nzbFileName, Hellanzb.TEMP_DIR + os.sep + os.path.basename(nzb.nzbFileName))
         Hellanzb.queued_nzbs.remove(nzb)
         
+    writeQueueToDisk(Hellanzb.queued_nzbs)
     return not error
 
 def enqueueNZBStr(nzbFilename, nzbStr):

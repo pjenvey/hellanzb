@@ -400,13 +400,6 @@ def getFileExtension(fileName):
     if len(fileName) > 1 and fileName.find('.') > -1:
         return string.lower(os.path.splitext(fileName)[1][1:])
 
-# FIXME: replace with path.split()[-1]?
-def stringEndsWith(string, match):
-    matchLen = len(match)
-    if len(string) >= matchLen and string[-matchLen:] == match:
-        return True
-    return False
-
 def touch(fileName):
     """ Set the access/modified times of this file to the current time. Create the file if
     it does not exist """

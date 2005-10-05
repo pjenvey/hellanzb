@@ -203,7 +203,7 @@ def isPar1(fileName):
 
 def isDuplicate(fileName):
     """ Determine if the specified file is a duplicate """
-    if stringEndsWith(fileName, '_duplicate') or re.match(r'.*_duplicate\d{0,4}', fileName):
+    if fileName.endswith('_duplicate') or re.match(r'.*_duplicate\d{0,4}', fileName):
         return True
     return False
 
@@ -303,14 +303,13 @@ def decompressMusicFile(fileName, musicType, archive = None):
 
 def dotRarFirstCmp(x, y):
     """ Sort .rars first """
-    if stringEndsWith(x.lower(), '.rar') and \
-        stringEndsWith(y.lower(), '.rar'):
+    if x.lower().endswith('.rar') and y.lower().endswith('.rar'):
         return cmp(x, y)
     
-    if stringEndsWith(x.lower(), '.rar'):
+    if x.lower().endswith('.rar'):
         return -1
         
-    if stringEndsWith(y.lower(), '.rar'):
+    if y.lower().endswith('.rar'):
         return 1
 
     return cmp(x, y)
@@ -333,7 +332,7 @@ def processRars(dirName, rarPassword):
         
         if absPath not in processedRars and not os.path.isdir(absPath) and \
                 isRar(absPath) and not isDuplicate(absPath) and \
-                not stringEndsWith(absPath, '.1') and not stringEndsWith(absPath, '_broken'):
+                not absPath.endswith('.1') and not absPath.endswith('_broken'):
             # Found the first rar. this is always the first rar to start extracting with,
             # unless there is a .rar file. However, rar seems to be smart enough to look
             # for a .rar file if we specify this incorrect first file anyway
@@ -711,14 +710,14 @@ def parseParNeedsBlocksOutput(archive, output):
         line = line.rstrip()
             
         index = line.find('Target:')
-        if index > -1 and stringEndsWith(line, 'missing.') or damagedRE.search(line):
+        if index > -1 and line.endswith('missing.') or damagedRE.search(line):
             # Strip any preceeding curses junk
             line = line[index:]
 
             # Extract the filename
             line = line[len('Target: "'):]
 
-            if stringEndsWith(line, 'missing.'):
+            if line.endswith('missing.'):
                 file = line[:-len('" - missing.')]
                 # FIXME: Could queue up these messages for later processing (return them
                 # in this function)
@@ -746,7 +745,7 @@ def parseParNeedsBlocksOutput(archive, output):
                     extraSpam.append(errMsg)
 
         elif line[0:len('You need ')] == 'You need ' and \
-            stringEndsWith(line, ' to be able to repair.'):
+            line.endswith(' to be able to repair.'):
             line = line[len('You need '):]
             
             if line.find(' more recovery files ') > -1:

@@ -11,7 +11,7 @@ Can do local builds with -lt
 """
 import optparse, os, re, setup, sys
 from build_util import *
-from Hellanzb.Util import assertIsExe, stringEndsWith
+from Hellanzb.Util import assertIsExe
 
 __id__ = '$Id$'
 
@@ -43,7 +43,7 @@ try:
     versionLine = re.sub(r'^.*\ \'', r'', versionLine)
     version = re.sub(r'\'', r'', versionLine)
 
-    if stringEndsWith(version, '-trunk'):
+    if version.endswith('-trunk'):
         if not options.trunk:
             # Bump the version to a stable number
             version = version[0:-len('-trunk'):]

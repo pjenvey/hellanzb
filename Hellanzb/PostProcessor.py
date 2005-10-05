@@ -376,7 +376,7 @@ class PostProcessor(Thread):
         for file in files:
             absoluteFile = self.dirName + os.sep + file
             if os.path.isfile(absoluteFile):
-                if stringEndsWith(file, '_broken'):
+                if file.endswith('_broken'):
                     # Keep track of the broken files
                     self.brokenFiles.append(absoluteFile)
                     

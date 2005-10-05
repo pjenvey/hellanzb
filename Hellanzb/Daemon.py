@@ -23,7 +23,7 @@ def ensureDaemonDirs():
     create them """
     badPermDirs = []
     for arg in dir(Hellanzb):
-        if stringEndsWith(arg, "_DIR") and arg == arg.upper():
+        if arg.endswith("_DIR") and arg == arg.upper():
             exec 'dirName = Hellanzb.' + arg
             if dirName == None:
                 raise FatalError('Required directory not defined in config file: Hellanzb.' + arg)

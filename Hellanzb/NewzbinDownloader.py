@@ -10,11 +10,11 @@ people might want it so here it is -pjenvey
 [See end of file]
 """
 import os
-from shutil import move
 from twisted.internet import reactor
 from twisted.internet.error import ConnectionRefusedError, DNSLookupError, TimeoutError
 from twisted.web.client import HTTPClientFactory, HTTPDownloader
 from urllib import splitattr, splitvalue
+from Hellanzb.Daemon import enqueueNZBs
 from Hellanzb.Log import *
 from Hellanzb.Util import tempFilename
 
@@ -68,7 +68,12 @@ class NewzbinDownloader:
     def __init__(self, msgId):
         self.msgId = msgId
         self.cookies = {}
+
+        # Write the downloaded NZB here temporarily
         self.tempFilename = Hellanzb.TEMP_DIR + os.sep + tempFilename(self.TEMP_FILENAME_PREFIX) + '.nzb'
+
+        # The real NZB filename determined from HTTP headers
+        self.nzbFilename = None
 
     def gotCookies(self, cookies):
         """ The downloader will feeds cookies via this function """
@@ -91,6 +96,7 @@ class NewzbinDownloader:
         if found == None:
             debug(str(self) + ' gotHeaders: Unable to determine filename! ' + 
                   'No content-disposition returned' + str(headers))
+            return
 
         type, attrs = splitattr(headers[found][0])
         key, val = splitvalue(attrs[0].strip())
@@ -152,9 +158,14 @@ class NewzbinDownloader:
             os.remove(self.tempFilename)
             return
 
-        move(self.tempFilename, Hellanzb.QUEUE_DIR + os.sep + self.nzbFilename)
+        dest = os.path.dirname(self.tempFilename) + os.sep + self.nzbFilename
+        os.rename(self.tempFilename, dest)
+        
+        enqueueNZBs(dest)
 
     def errBack(self, reason):
+        # FIXME:
+        # os.remove(self.tempFilename)
         if reason.check(TimeoutError):
             error('Unable to connect to www.newzbin.com: Connection timed out')
         elif reason.check(ConnectionRefusedError):

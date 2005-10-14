@@ -928,9 +928,9 @@ class NZBLeecher(NNTPClient, TimeoutMixin):
             # rstripped some whitespace. since there is trailing whitespace, check for the
             # EOF string
             stripped = test[:index]
-            firstTwoWhitespace = test[index:index + 2]
+            firstTwoRstripped = test[index:index + 2]
         
-            if firstTwoWhitespace == self.delimiter and \
+            if firstTwoRstripped == self.delimiter and \
                     stripped[-len(self.RSTRIPPED_END):] == self.RSTRIPPED_END:
                 # found EOF, done
                 
@@ -940,11 +940,12 @@ class NZBLeecher(NNTPClient, TimeoutMixin):
                 self.gotResponseCode = False
                 self.lastChunk = ''
                 self.gotBody(self._endState())
+
+                return
                 
-        else:
-            # didn't strip anything, or didn't find the EOF.  save the last small chunk
-            # for later comparison
-            self.lastChunk = data[-(len(self.delimiter) - 1):]
+        # didn't strip anything, or didn't find the EOF.  save the last small chunk for
+        # later comparison
+        self.lastChunk = data[-(len(self.delimiter) - 1):]
 
     def timeoutConnection(self):
         """ Called when the connection times out -- i.e. when we've been idle longer than the

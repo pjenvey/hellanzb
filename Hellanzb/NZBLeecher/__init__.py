@@ -945,7 +945,7 @@ class NZBLeecher(NNTPClient, TimeoutMixin):
                 
         # didn't strip anything, or didn't find the EOF.  save the last small chunk for
         # later comparison
-        self.lastChunk = data[-(len(self.delimiter) - 1):]
+        self.lastChunk = test[-(len(RSTRIPPED_END) + len(self.delimiter) - 1):]
 
     def timeoutConnection(self):
         """ Called when the connection times out -- i.e. when we've been idle longer than the

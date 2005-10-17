@@ -768,12 +768,12 @@ def parseParNeedsBlocksOutput(archive, output):
             
     return damagedAndRequired, allMissing, neededBlocks, isPar1Archive
 
-SPLIT_RE = re.compile(r'.*\.\d{3,4}$')
+SPLIT_RE = re.compile(r'.*\.\d{2,4}$')
 SPLIT_TS_RE = re.compile(r'.*\.\d{3,4}\.ts$', re.I)
 def findSplitFiles(dirName):
     """ Find files split into chunks. This currently supports the following formats:
 
-    Files ending with 3-4 digits, e.g.:
+    Files ending with 2-4 digits, e.g.:
 
     ArchiveA.avi.001                ArchiveB.mpg.0001
     ArchiveA.avi.002                ArchiveB.mpg.0002

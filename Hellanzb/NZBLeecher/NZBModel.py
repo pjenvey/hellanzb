@@ -430,19 +430,18 @@ class RetryQueue:
         which serverPools have previously failed to download the specified segment. A
         PoolsExhausted exception is thrown when all serverPools have failed to download
         the segment """
+        # All serverPools we know about failed to download this segment
+        if len(segment.failedServerPools) == len(self.serverPoolNames):
+            raise PoolsExhausted()
+
         # Figure out the correct queue by looking at the previously failed serverPool
         # names
         notName = ''
         i = 0
         for poolName in self.serverPoolNames:
             i += 1
-            if poolName not in segment.failedServerPools:
-                continue
-            notName += 'not' + str(i)
-
-        # All serverPools we know about failed to download this segment
-        if notName == '':
-            raise PoolsExhausted()
+            if poolName in segment.failedServerPools:
+                notName += 'not' + str(i)
 
         # Requeued for later
         self.poolQueues[notName].put((segment.priority, segment))
@@ -739,6 +738,7 @@ class NZBQueue(PriorityQueue):
         """ Requeue a missing segment. This segment will be added to the RetryQueue (if enabled),
         where other serverPools will find it and reattempt the download """
         # This serverPool has just failed the download
+        assert(serverPoolName not in segment.failedServerPools)
         segment.failedServerPools.append(serverPoolName)
 
         if self.retryQueueEnabled:

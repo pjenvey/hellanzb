@@ -376,9 +376,9 @@ def unrar(dirName, fileName, rarPassword = None, pathToExtract = None):
     if rarPassword != None:
         # Specify the password during the listing, in the case that the data AND headers
         # are passworded
-        listCmd = Hellanzb.UNRAR_CMD + ' l -y "-p' + rarPassword + '" "' + fileName + '"'
+        listCmd = '%s l -y "-p%s" -- "%s"' % (Hellanzb.UNRAR_CMD, rarPassword, fileName)
     else:
-        listCmd = Hellanzb.UNRAR_CMD + ' l -y -p-' + ' "' + fileName + '"'
+        listCmd = '%s l -y -p- -- "%s"' % (Hellanzb.UNRAR_CMD, fileName)
     t = Topen(listCmd)
     output, listReturnCode = t.readlinesAndWait()
 
@@ -428,10 +428,9 @@ def unrar(dirName, fileName, rarPassword = None, pathToExtract = None):
                          ' -p on the archive directory with the -P option to specify a password')
 
     if isPassworded:
-        cmd = Hellanzb.UNRAR_CMD + ' x -y "-p' + rarPassword + '" "' + fileName + '" "' + \
-            pathToExtract + '"'
+        cmd = '%s x -y "-p%s" -- "%s" "%s"' % (Hellanzb.UNRAR_CMD, rarPassword, fileName, pathToExtract)
     else:
-        cmd = Hellanzb.UNRAR_CMD + ' x -y -p-' + ' "' + fileName + '" "' + pathToExtract + '"'
+        cmd = '%s x -y -p- -- "%s" "%s"' % (Hellanzb.UNRAR_CMD, fileName, pathToExtract)
     
     info(archiveName(dirName) + ': Unraring ' + os.path.basename(fileName) + '..')
     t = Topen(cmd)
@@ -593,7 +592,7 @@ def processPars(dirName, needAssembly = None):
     groupCount = len(parGroups)
     if groupCount > 1:
         parTxt += 's'
-    info(archiveName(dirName) + ': Finished par verifiy (%i %s, took: %.1fs)' % (groupCount,
+    info(archiveName(dirName) + ': Finished par verify (%i %s, took: %.1fs)' % (groupCount,
                                                                               parTxt, e))
     
     processComplete(dirName, 'par', lambda file : isPar(file) or \
@@ -639,9 +638,9 @@ def par2(dirName, parFiles, wildcard, needAssembly = None):
     if needAssembly == None:
         needAssembly = {}
         
-    repairCmd = 'par2 r'
+    repairCmd = 'par2 r --'
     for parFile in parFiles:
-        repairCmd += ' "' + dirName + parFile + '"'
+        repairCmd += ' "%s%s"' % (dirName, parFile)
         
     t = Topen(repairCmd)
     output, returnCode = t.readlinesAndWait()

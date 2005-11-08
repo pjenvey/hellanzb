@@ -139,7 +139,8 @@ class HellaThrottlingFactory(WrappingFactory):
             return None
 
     def cancelScheduled(self, scheduled):
-        if scheduled is not None and not schedule.cancelled:
+        if scheduled is not None and not scheduled.cancelled and \
+                not scheduled.called:
             scheduled.cancel()
 
     def unregisterProtocol(self, p):
@@ -150,9 +151,7 @@ class HellaThrottlingFactory(WrappingFactory):
         if self.ht.connectionCount == 0:
             for name in ('unthrottleReadsID', 'checkReadBandwidthID',
                          'unthrottleWritesID', 'checkWriteBandwidthID'):
-                scheduled = getattr(self.ht, name)
-                if scheduled is not None and not scheduled.cancelled:
-                    scheduled.cancel()
+                self.cancelScheduled(getattr(self.ht, name))
 
 """
 /*

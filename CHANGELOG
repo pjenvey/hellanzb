@@ -1,12 +1,31 @@
 v0.8:
 
+Daemon:
+
+o Fixed a nasty bug with the 'clear' RPC call -- it was deleting all files in
+  the QUEUE_DIR (not just queued .nzb files). This bug prevented hellanzb from
+  working nicely with shared QUEUE_DIRs (such as your web browser's download
+  dir. This technique was even recommended in hellanzb's OS X install
+  document), in fact, it could cause unwanted data loss. The potential evilness
+  of this bug has warranted an early 0.8 release (thanks yak)
+
 NZBLeecher:
 
-o Fixed a bug causing the downloader to break and the scroller to scroll
+o Fixed a couple nasty bugs in the new downloader code (submitted by
+  bobmckenzie, thanks!)
+
+o Fixed "not1not2" KeyError exception in the multiple server pool automatic
+  failover code (submitted by bobmckenzie, thanks again!)
+
+o Fixed a bug causing the downloader to stop and the scroller to scroll
   excessive lines, after a certain situation where hellanzb was paused twice
 
 o Correctly handling NZB files with out of order segments, previously this
   could cause corruption (thanks spinez)
+
+o Fixed a bug causing the downloader to stop (at the end of an archive) after
+  pausing/continuing with bandwidth throttling enabled (MAX_RATE set to
+  a non zero value)
 
 
 v0.7:

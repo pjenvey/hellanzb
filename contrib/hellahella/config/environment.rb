@@ -84,4 +84,4 @@ Controllers = Dependencies::LoadingModule.root(
 )
 
 # Include your app's configuration here:
-ActionController::CgiRequest::DEFAULT_SESSION_OPTIONS.update(:prefix => 'hella.')
+ActionController::CgiRequest::DEFAULT_SESSION_OPTIONS.update(:prefix => 'hella.', :session_expires => 2.years.from_now)

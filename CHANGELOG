@@ -9,6 +9,8 @@ o Fixed a nasty bug with the 'clear' RPC call -- it was deleting all files in
   document), in fact, it could cause unwanted data loss. The potential evilness
   of this bug has warranted an early 0.8 release (thanks yak)
 
+o Quicker and more robust newzbin.com downloads (enqueuenewzbin call)
+
 NZBLeecher:
 
 o Fixed a couple nasty bugs in the new downloader code (submitted by

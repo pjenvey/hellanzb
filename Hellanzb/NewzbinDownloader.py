@@ -9,7 +9,7 @@ people might want it so here it is -pjenvey
 (c) Copyright 2005 Philip Jenvey
 [See end of file]
 """
-import os
+import os, time
 from twisted.internet import reactor
 from twisted.internet.error import ConnectionRefusedError, DNSLookupError, TimeoutError
 from twisted.web.client import HTTPClientFactory, HTTPDownloader
@@ -39,10 +39,10 @@ class StoreCookieHTTPClientFactory(HTTPClientFactory):
         cookies = {}
         for cookie in cookieHeader:
             cookparts = cookie.split(';')
-            cook = cookparts[0]
-            cook.lstrip()
-            k, v = cook.split('=', 1)
-            cookies[k.lstrip()] = v.lstrip()
+            for cookpart in cookparts:
+                cookpart.lstrip()
+                k, v = cookpart.split('=', 1)
+                cookies[k.lstrip()] = v.lstrip()
 
         return cookies
 
@@ -56,7 +56,7 @@ class StoreHeadersHTTPDownloader(HTTPDownloader):
         self.headerListener.gotHeaders(headers)
         HTTPDownloader.gotHeaders(self, headers)
 
-class NewzbinDownloader:
+class NewzbinDownloader(object):
     """ Download the NZB file with the specified msgid from www.newzbin.com, by instantiating
     this class and calling download() """
 
@@ -64,10 +64,11 @@ class NewzbinDownloader:
     HEADERS = { 'Content-Type': 'application/x-www-form-urlencoded'}
     GET_NZB_URL = 'http://www.newzbin.com/browse/post/____ID____/msgids/msgidlist_post____ID____.nzb'
     TEMP_FILENAME_PREFIX = 'hellanzb-newzbin-download'
+
+    cookies = None
     
     def __init__(self, msgId):
         self.msgId = msgId
-        self.cookies = {}
 
         # Write the downloaded NZB here temporarily
         self.tempFilename = Hellanzb.TEMP_DIR + os.sep + tempFilename(self.TEMP_FILENAME_PREFIX) + '.nzb'
@@ -78,8 +79,8 @@ class NewzbinDownloader:
     def gotCookies(self, cookies):
         """ The downloader will feeds cookies via this function """
         # Grab the cookies for the PHPSESSID
-        self.cookies = cookies
-        debug(str(self) + ' gotCookies: ' + str(self.cookies))
+        NewzbinDownloader.cookies = cookies
+        debug(str(self) + ' gotCookies: ' + str(NewzbinDownloader.cookies))
 
     def gotHeaders(self, headers):
         """ The downloader will feeds headers via this function """
@@ -101,7 +102,27 @@ class NewzbinDownloader:
         type, attrs = splitattr(headers[found][0])
         key, val = splitvalue(attrs[0].strip())
         self.nzbFilename = val
-        debug(str(self) + ' got filename: ' + self.nzbFilename)
+
+    def haveValidSession(self):
+        if NewzbinDownloader.cookies == None:
+            return False
+
+        if NewzbinDownloader.cookies.has_key('PHPSESSID') and \
+                NewzbinDownloader.cookies.has_key('expires'):
+            expireTime = NewzbinDownloader.cookies['expires']
+            
+            try:
+                # Sun, 08-Aug-2004 08:57:42 GMT
+                expireTime = time.strptime(expireTime, '%a, %d-%b-%Y %H:%M:%S %Z')
+            except ValueError:
+                # Sun, 08 Aug 2004 08:57:42 GMT (ARGH)
+                expireTime = time.strptime(expireTime, '%a, %d %b %Y %H:%M:%S %Z')
+
+            if time.gmtime() <= expireTime:
+                # Hasn't expired yet
+                return True
+            
+        return False
         
     def download(self):
         """ Start the NZB download process """
@@ -109,18 +130,24 @@ class NewzbinDownloader:
         if not NewzbinDownloader.canDownload():
             debug(str(self) + ' download: No www.newzbin.com login information')
             return
-        
-        httpc = StoreCookieHTTPClientFactory('http://www.newzbin.com/account/login/',
-                                             cookieListener = self, agent = self.AGENT)
-        httpc.deferred.addCallback(self.handleNewzbinLogin)
-        httpc.deferred.addErrback(self.errBack)
 
-        reactor.connectTCP('www.newzbin.com', 80, httpc)
+        if self.haveValidSession():
+            # We have a good session (logged in). Proceed to getting the NZB
+            debug(str(self) + ' have a valid newzbin session, downloading..')
+            self.handleNZBDownloadFromNewzbin(None)
+        else:
+            # We have no session or it has expired (not logged in). Login to newzbin
+            httpc = StoreCookieHTTPClientFactory('http://www.newzbin.com/account/login/',
+                                                 cookieListener = self, agent = self.AGENT)
+            httpc.deferred.addCallback(self.handleNewzbinLogin)
+            httpc.deferred.addErrback(self.errBack)
+
+            reactor.connectTCP('www.newzbin.com', 80, httpc)
 
     def handleNewzbinLogin(self, page):
         """ Login to newzbin """
         debug(str(self) + ' handleNewzbinLogin')
-        if not self.cookies.has_key('PHPSESSID'):
+        if not NewzbinDownloader.cookies.has_key('PHPSESSID'):
             debug(str(self) + ' handleNewzbinLogin: There was a problem, no PHPSESSID provided')
             return
 
@@ -130,7 +157,7 @@ class NewzbinDownloader:
         httpc = HTTPClientFactory('http://www.newzbin.com/account/login/', method = 'POST',
                                   headers = self.HEADERS, postdata = postdata,
                                   agent = self.AGENT)
-        httpc.cookies = {'PHPSESSID' : self.cookies['PHPSESSID']}
+        httpc.cookies = {'PHPSESSID' : NewzbinDownloader.cookies['PHPSESSID']}
         httpc.deferred.addCallback(self.handleNZBDownloadFromNewzbin)
         httpc.deferred.addErrback(self.errBack)
 
@@ -143,7 +170,7 @@ class NewzbinDownloader:
         httpd = StoreHeadersHTTPDownloader(self.GET_NZB_URL.replace('____ID____', self.msgId),
                                            self.tempFilename, headerListener = self,
                                            agent = self.AGENT)
-        httpd.cookies = {'PHPSESSID' : self.cookies['PHPSESSID']}
+        httpd.cookies = {'PHPSESSID' : NewzbinDownloader.cookies['PHPSESSID']}
         httpd.deferred.addCallback(self.handleEnqueueNZB)
         httpd.deferred.addErrback(self.errBack)
 

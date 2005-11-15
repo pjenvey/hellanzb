@@ -289,6 +289,7 @@ class NZBLeecher(NNTPClient, TimeoutMixin):
     line_mode = 1
     __buffer = ''
     delimiter = '\r\n'
+    EOF = delimiter + '.' + delimiter
     paused = False
 
     # This value exists in twisted and doesn't do much (except call lineLimitExceeded
@@ -899,53 +900,16 @@ class NZBLeecher(NNTPClient, TimeoutMixin):
         # write data to disk
         self.currentSegment.encodedData.write(data)
 
-        # check for the EOF string in the last certain bytes of the received data
-        # (possibly across two different received chunks)
-        test = self.lastChunk + data
+        # save last len(self.EOF) of current article in lastChunk
+        if len(data) >= len(self.EOF):
+            self.lastChunk = data[-len(self.EOF):]
+        else:
+            self.lastChunk = self.lastChunk[-(len(self.EOF) - len(data)):] + data
 
-        # NOTE: we manually rstrip here because it's the fastest failsafe way of finding
-        # the EOF string. These downloaded chunks will not have trailing whitespace
-        # probably max 95% of the time, and when they do they're likely to have few
-        # trailing whitespace characters (so the while loop will iterate once, or maybe
-        # just a few times). The alternative is rfind()ing the entire EOF string -- rfind
-        # is implemented in C but would end up searching the entire string that 95% of the
-        # time
-        
-        # rstrip the test data. determine if that stripped off data only begins with
-        # '\r\n' and the stripped data ends with '\r\n.'
-        length = len(test)
-        index = length - 1
-        while index >= 0:
-            if test[index].isspace():
-                index -= 1
-                continue
-
-            # we just passed the end
-            index += 1
-            break
-
-        if index != length:
-            # rstripped some whitespace. since there is trailing whitespace, check for the
-            # EOF string
-            stripped = test[:index]
-            firstTwoRstripped = test[index:index + 2]
-        
-            if firstTwoRstripped == self.delimiter and \
-                    stripped[-len(self.RSTRIPPED_END):] == self.RSTRIPPED_END:
-                # found EOF, done
-                
-                # finishedSegmentDownload will close it
-                ##self.currentSegment.encodedData.close()
-                
-                self.gotResponseCode = False
-                self.lastChunk = ''
-                self.gotBody(self._endState())
-
-                return
-                
-        # didn't strip anything, or didn't find the EOF.  save the last small chunk for
-        # later comparison
-        self.lastChunk = test[-(len(self.RSTRIPPED_END) + len(self.delimiter) - 1):]
+        if self.lastChunk == self.EOF:
+            self.gotResponseCode = False
+            self.lastChunk = ''
+            self.gotBody(self._endState())
 
     def timeoutConnection(self):
         """ Called when the connection times out -- i.e. when we've been idle longer than the

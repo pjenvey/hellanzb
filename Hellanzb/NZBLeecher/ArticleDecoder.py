@@ -420,7 +420,7 @@ def yDecode(dataList):
     for line in dataList:
        if index <= 5 and (line[:7] == '=ybegin' or line[:6] == '=ypart'):
            continue
-       elif not line or line[:5] == '=yend':
+       elif not line or line[:5] == '=yend' or line == '.':
            break
 
        buffer.append(line)
@@ -471,7 +471,7 @@ def UUDecode(dataList):
 
         if index <= 5 and (not line or line[:6] == 'begin '):
             continue
-        elif not line or line[:3] == 'end':
+        elif not line or line[:3] == 'end' or line == '.':
             break
 
         # From pyNewsleecher. Which ripped it from python's uu module (with maybe extra

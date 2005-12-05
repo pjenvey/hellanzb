@@ -106,14 +106,18 @@ def handleCanceled(segmentOrFile):
     return False
         
 def stripArticleData(articleData):
-    """ Rip off leading/trailing whitespace from the articleData list """
+    """ Rip off leading/trailing whitespace (and EOM char) from the articleData list """
     try:
-        # Only rip off the first leading whitespace
+        # Rip off the leading whitespace
         while articleData[0] == '':
             articleData.pop(0)
 
-        # Trailing
+        # and trailing
         while articleData[-1] == '':
+            articleData.pop(-1)
+
+        # Remove the EOM char
+        if articleData[-1] == '..' or articleData[-1] == '.':
             articleData.pop(-1)
     except IndexError:
         pass
@@ -151,10 +155,6 @@ def parseArticleData(segment, justExtractFilename = False):
             if line[:2] == '..':
                 line = line[1:]
                 segment.articleData[index] = line
-
-            # Remove EOM
-            if line == '.':
-                continue
 
         # After stripping the articleData, we should find a yencode header, uuencode
         # header, or a uuencode part header (an empty line)
@@ -200,9 +200,6 @@ def parseArticleData(segment, justExtractFilename = False):
             setRealFileName(segment, filename)
             encodingType = UUENCODE
             withinData = True
-
-        elif line == '':
-            continue
 
         elif not withinData and encodingType == YENCODE:
             # Found ybegin, but no ypart. withinData should have started on the previous
@@ -424,7 +421,7 @@ def yDecode(dataList):
     for line in dataList:
        if index <= 5 and (line[:7] == '=ybegin' or line[:6] == '=ypart'):
            continue
-       elif not line or line[:5] == '=yend':
+       elif line[:5] == '=yend':
            break
 
        buffer.append(line)
@@ -473,9 +470,9 @@ def UUDecode(dataList):
     for line in dataList:
         index += 1
 
-        if index <= 5 and (not line or line[:6] == 'begin '):
+        if index <= 5 and line[:6] == 'begin ':
             continue
-        elif not line or line[:3] == 'end':
+        elif line[:3] == 'end':
             break
 
         # From pyNewsleecher. Which ripped it from python's uu module (with maybe extra

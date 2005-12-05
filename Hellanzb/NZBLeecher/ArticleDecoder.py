@@ -152,6 +152,10 @@ def parseArticleData(segment, justExtractFilename = False):
                 line = line[1:]
                 segment.articleData[index] = line
 
+            # Remove EOM
+            if line == '.':
+                continue
+
         # After stripping the articleData, we should find a yencode header, uuencode
         # header, or a uuencode part header (an empty line)
         if not withinData and line.startswith('=ybegin'):
@@ -420,7 +424,7 @@ def yDecode(dataList):
     for line in dataList:
        if index <= 5 and (line[:7] == '=ybegin' or line[:6] == '=ypart'):
            continue
-       elif not line or line[:5] == '=yend' or line == '.':
+       elif not line or line[:5] == '=yend':
            break
 
        buffer.append(line)

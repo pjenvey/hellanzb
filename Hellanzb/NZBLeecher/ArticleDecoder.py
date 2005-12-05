@@ -475,7 +475,7 @@ def UUDecode(dataList):
 
         if index <= 5 and (not line or line[:6] == 'begin '):
             continue
-        elif not line or line[:3] == 'end' or line == '.':
+        elif not line or line[:3] == 'end':
             break
 
         # From pyNewsleecher. Which ripped it from python's uu module (with maybe extra

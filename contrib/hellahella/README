@@ -32,7 +32,7 @@ o Edit app/controllers/application.rb
 
 RUNNING
 --------------------------------------------------
-o Run "ruby script/server"
+o Run "ruby script/server -e production"
   Navigate to "http://YOURMACHINE:3000/" and login
   Enjoy!
 

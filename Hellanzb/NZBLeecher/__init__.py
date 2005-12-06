@@ -575,6 +575,20 @@ class NZBLeecher(NNTPClient, TimeoutMixin):
                 except PoolsExhausted:
                     error('Unable to retrieve *any* groups for file (subject: ' + \
                           self.currentSegment.nzbFile.subject + ')')
+
+                    from Hellanzb.Util import Ptyopen2
+                    t = Ptyopen2('netstat -n | grep %i' % self.factory.port)
+                    output, returnCode = t.readlinesAndWait()
+                    debug('BEGIN Output of netstat')
+                    error('netstat -n')
+                    stripped = []
+                    for line in output:
+                        if line.find(str(self.factory.port)) > -1:
+                            stripped.append(line)
+                    
+                    debug('\n\n' + '\n'.join(stripped))
+                    debug('END Output of netstat')
+                        
                     msg = 'Groups:'
                     for group in self.currentSegment.nzbFile.groups:
                         msg += ' ' + group

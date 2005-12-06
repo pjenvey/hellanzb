@@ -13,6 +13,10 @@ o Quicker and more robust newzbin.com downloads (enqueuenewzbin call)
 
 NZBLeecher:
 
+o Added duplicate file detection/handling. Previously, NZB files containing
+  duplicate files could cause the downloader to stop (at the end of an archive)
+  under certain situations
+
 o Fixed a couple nasty bugs in the new downloader code (submitted by
   bobmckenzie, thanks!)
 

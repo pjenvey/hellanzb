@@ -436,6 +436,9 @@ class PostProcessor(Thread):
                                           parentDir = self.parentDir)
                 troll.run()
                 trolled += 1
+
+        # FIXME: only clean dupe files if we successfully par checked the archive
+        cleanDupeFiles(self.dirName)
                 
         self.finishedPostProcess()
 

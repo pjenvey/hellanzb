@@ -347,7 +347,7 @@ def processRars(dirName, rarPassword):
             unrared += 1
 
     e = time.time() - start
-    rarTxt = 'rar'
+    rarTxt = 'rar group'
     if unrared > 1:
         rarTxt += 's'
     info(archiveName(dirName) + ': Finished unraring (%i %s, took: %.1fs)' % (unrared,
@@ -860,6 +860,13 @@ def assembleSplitFiles(dirName, toAssemble):
 
         for part in parts:
             moveToProcessed(dirName + os.sep + part)
+
+def cleanDupeFiles(dirName):
+    """ Remove any files marked as duplicates """
+    # FIXME: do we want to get rid of all dupes?
+    for file in os.listdir(dirName):
+        if DUPE_SUFFIX_RE.match(file):
+            moveToProcessed(dirName + os.sep + file)
 
 def moveToProcessed(file):
     """ Move files to the processed dir """

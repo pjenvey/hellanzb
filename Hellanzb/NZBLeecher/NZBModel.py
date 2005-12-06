@@ -16,16 +16,14 @@ from Hellanzb.Daemon import handleNZBDone
 from Hellanzb.Log import *
 from Hellanzb.NZBLeecher.ArticleDecoder import assembleNZBFile, parseArticleData, \
     setRealFileName, tryFinishNZB
-from Hellanzb.Util import archiveName, getFileExtension, IDPool, EmptyForThisPool, \
-    PoolsExhausted, PriorityQueue, OutOfDiskSpace
+from Hellanzb.Util import archiveName, getFileExtension, nextDupeName, IDPool, \
+    EmptyForThisPool, PoolsExhausted, PriorityQueue, OutOfDiskSpace
 from Queue import Empty
 
 __id__ = '$Id$'
 
 def validWorkingFile(file, overwriteZeroByteFiles = False):
-    """ Determine if the specified file is a valid WORKING_DIR file that will be checked
-    against the NZB file currently being parsed (i.e. a valid working dir file will not be
-    overwritten by the ArticleDecoder """
+    """ Determine if the specified file path is a valid, existing file in the WORKING_DIR """
     if not os.path.isfile(file):
         return False
 
@@ -118,7 +116,8 @@ def segmentsNeedDownload(segmentList, overwriteZeroByteSegments = False):
                 # we found a subject match, that means we have the real name on the
                 # filesystem. In the case where this happens, and we are segment #1,
                 # we've figured out the real filename (hopefully!)
-                setRealFileName(segment, foundFileName)
+                setRealFileName(segment.nzbFile, foundFileName,
+                            settingSegmentNumber = segment.number)
                 
             onDiskSegments.append(segment)
         #else:
@@ -238,6 +237,8 @@ class NZBFile:
         # NOTE: maybe just change nzbFile.filename via the reactor (callFromThread), and
         # remove the lock entirely?
 
+        self.forcedChangedFilename = False
+
     def getDestination(self):
         """ Return the full pathname of where this NZBFile should be written to on disk """
         return self.nzb.destDir + os.sep + self.getFilename()
@@ -270,27 +271,21 @@ class NZBFile:
             self.tempFilename = self.getTempFileName()
             return self.tempFilename
 
-    def needsDownload(self, workingDirListing = None):
+    def needsDownload(self, workingDirListing, eschewMap):
         """ Whether or not this NZBFile needs to be downloaded (isn't on the file system). You may
         specify the optional workingDirListing so this function does not need to prune
         this directory listing every time it is called (i.e. prune directory
         names). workingDirListing should be a list of only filenames (basename, not
         including dirname) of files lying in Hellanzb.WORKING_DIR """
         start = time.time()
-        # We need to ensure that we're not in the process of renaming from a temp file
-        # name, so we have to lock.
-        # FIXME: probably no longer True in any cases. These locks can probably be removed
-    
-        if workingDirListing == None:
-            workingDirListing = []
-            for file in os.listdir(Hellanzb.WORKING_DIR):
-                if not validWorkingFile(Hellanzb.WORKING_DIR + os.sep + file,
-                                        self.nzb.overwriteZeroByteFiles):
-                    continue
-                
-                workingDirListing.append(file)
-    
+        # FIXME: do i need to use validWorkingFile here??
+        info('uh:' + str(eschewMap))
+        
         if os.path.isfile(self.getDestination()):
+            # FIXME?: This version of needsDownload is always called from the
+            # NZBParser. files shouldn't have real self.filenames at that point. So this
+            # block of code should only be handling matching of temporary files on disk. I
+            # need to verify that's the case, and make a note of it for clarity sake
             end = time.time() - start
             debug('needsDownload took: ' + str(end))
             return False
@@ -299,12 +294,92 @@ class NZBFile:
             # We only know about the temp filename. In that case, fall back to matching
             # filenames in our subject line
             for file in workingDirListing:
-                
+
+                """
                 # Whole file match
                 if self.subject.find(file) > -1:
                     end = time.time() - start
                     debug('needsDownload took: ' + str(end))
                     return False
+                    """
+                # Whole file match
+                if self.subject.find(file) > -1:
+                    info('MATCH %s' % file)
+                    needsDl = False
+
+                    if file in eschewMap:
+                        dupeFiles = eschewMap[file]
+                        
+                        info('IN ESCHEWNAMES: ' + file + ' d:' + str(dupeFiles))
+                        shiftedAllDupeNames = True
+                        dupeFileNewName = file
+                        for dupeFile in dupeFiles:
+                            #dupeFileNewName = dupeName(dupeFileNewName, checkOnDisk = False) # don't check on disk obviously. we just want the next iteration of the next dupeName. so even though we don't check on disk, we want an actual dupeName. dupeName should return a actual dupeName. nextDupeName (or nextSafeDupeName) should check on disk?
+                            # this needs nextDupeName called here (which doesn't check on disk). just returns the next dupeName in the sequence
+                            dupeFileNewName = nextDupeName(dupeFileNewName, checkOnDisk = False)
+                            
+
+                            """
+                            if os.path.isfile(dupeFileNewName):
+                                dupeFile.filename = os.path.basename(dupeFileNewName)
+                                eschewMap[file].append(
+
+                            else:
+                                shiftedAllDupeNames = False
+                                """
+                            info('CHECKING DNAME: ' + dupeFileNewName)
+                            if not os.path.isfile(Hellanzb.WORKING_DIR + os.sep + dupeFileNewName):
+                                info('NOT IN PATH: ' + dupeFileNewName)
+                                info('Duplicate file, renaming: %s to %s' % (file, dupeFileNewName))
+
+                                #setRealFileName(dupeFile, dupeFileNewName, forceChange = True)
+                                dupeFile.filename = os.path.basename(dupeFileNewName)
+                                os.rename(Hellanzb.WORKING_DIR + os.sep + file,
+                                          Hellanzb.WORKING_DIR + os.sep + dupeFileNewName)
+                                shiftedAllDupeNames = False
+                                break
+
+                        if not shiftedAllDupeNames:
+                            info("NEEDSDL!" + str(self.number))
+                            needsDl = True
+
+                            """
+                        if os.path.isfile(dupeFilename):
+                            # rename the old one (not really necessary?)
+                            eschewMap.append(dupeFilename)
+                        else:
+                            needsDl = True
+                            # set original match filename to dupeFilename if it
+                            # exists. otherwise, needsDownload = True
+                            """
+                    
+                    # If this on disk filename was already matched to another file (in
+                    # eschewMap), we need to rename our file's filename to the next
+                    # available dupeNam
+                    """
+                    dupeFilename = file
+                    while dupeFilename in eschewMap:
+                        from Hellanzb.Util import dupeName
+                        dupeFilename = dupeName(dupeFilename)
+                        
+                    if dupeFilename != file:
+                        info('GOT: ' + dupeFilename)
+                        setRealFileName(self, dupeFilename, forceChange = True)
+                        needsDl = True
+                        """
+                        
+                    # Could do the setRealFileName here -- but let's just let it find it
+                    # as normal
+                    #setRealFileName(file, dupeFilename, forceChange = True)
+                    if file not in eschewMap:
+                        eschewMap[file] = []
+                        #eschewMap.append(dupeFilename)
+                        #eschewMap.append(file)
+                    eschewMap[file].append(self)
+                        
+                    end = time.time() - start
+                    debug('needsDownload took: ' + str(end))
+                    return needsDl
     
         end = time.time() - start
         debug('needsDownload took: ' + str(end))
@@ -602,6 +677,9 @@ class NZBQueue(PriorityQueue):
 
         self.totalQueuedBytes = 0
 
+        # Segments curently on disk
+        self.onDiskSegments = {}
+
         self.retryQueueEnabled = False
         self.rQueue = RetryQueue()
 
@@ -767,6 +845,10 @@ class NZBQueue(PriorityQueue):
             self.nzbFiles.remove(nzbFile)
         self.nzbFilesLock.release()
 
+        for nzbSegment in nzbFile.nzbSegments:
+            if self.onDiskSegments.has_key(nzbSegment.getDestination()):
+                self.onDiskSegments.pop(nzbSegment.getDestination())
+
     def segmentDone(self, nzbSegment):
         """ Simply decrement the queued byte count, unless the segment is part of a postponed
         download """
@@ -774,6 +856,16 @@ class NZBQueue(PriorityQueue):
         if nzbSegment.nzbFile.nzb in self.nzbs:
             self.totalQueuedBytes -= nzbSegment.bytes
         self.nzbsLock.release()
+
+        self.onDiskSegments[nzbSegment.getDestination()] = nzbSegment
+
+    def isBeingDownloadedFile(self, segmentFilename):
+        """ Whether or not the file on disk is currently in the middle of being
+        downloaded/assembled. Return the NZBSegment representing the segment specified by
+        the filename """
+        segmentFilename = segmentFilename
+        if self.onDiskSegments.has_key(segmentFilename):
+            return self.onDiskSegments[segmentFilename]
 
     def parseNZB(self, nzb):
         """ Initialize the queue from the specified nzb file """
@@ -904,6 +996,7 @@ class NZBParser(ContentHandler):
         self.fileCount = 0
         self.segmentCount = 0
 
+        # Current listing of existing files in the WORKING_DIR
         self.workingDirListing = []
         for file in os.listdir(Hellanzb.WORKING_DIR):
             if not validWorkingFile(Hellanzb.WORKING_DIR + os.sep + file,
@@ -912,14 +1005,32 @@ class NZBParser(ContentHandler):
 
             self.workingDirListing.append(file)
 
+            """
+        # Keep track of all fully assembled files on disk. This is for dupe file checking
+        self.onDiskFiles = []
+        """
+        # Map of all fully assembled real file names on disk (key) to a list of those real
+        # file names' NZBFiles (value). There may be multiple NZBFiles representing
+        # dupes. Those dupe filanames are not included in the real file names (keys)
+        self.onDiskFiles = {}
+
     def startElement(self, name, attrs):
         if name == 'file':
             subject = self.parseUnicode(attrs.get('subject'))
             poster = self.parseUnicode(attrs.get('poster'))
 
             self.file = NZBFile(subject, attrs.get('date'), poster, self.nzb)
-            self.fileNeedsDownload = self.file.needsDownload(workingDirListing = self.workingDirListing)
+            
+            self.fileNeedsDownload = \
+              self.file.needsDownload(workingDirListing = self.workingDirListing,
+                                      eschewMap = self.onDiskFiles)
+              
             if not self.fileNeedsDownload:
+                # Keep track of on disk files that are named with their realFilename
+                # (file.filename) -- for dupe checking
+                if self.file.filename is not None:
+                    self.onDiskFiles.append(self.file.filename)
+                    
                 debug('SKIPPING FILE: ' + self.file.getTempFileName() + ' subject: ' + \
                       self.file.subject)
 

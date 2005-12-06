@@ -863,7 +863,6 @@ def assembleSplitFiles(dirName, toAssemble):
 
 def cleanDupeFiles(dirName):
     """ Remove any files marked as duplicates """
-    # FIXME: do we want to get rid of all dupes?
     for file in os.listdir(dirName):
         if DUPE_SUFFIX_RE.match(file):
             moveToProcessed(dirName + os.sep + file)

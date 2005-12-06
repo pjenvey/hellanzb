@@ -126,6 +126,51 @@ def segmentsNeedDownload(segmentList, overwriteZeroByteSegments = False):
 
     return needDlFiles, needDlSegments, onDiskSegments
 
+def handleNeedsDownloadDupeNZBFile(file, eschewMap):
+    """ Handle duplicate file detection while parsing the NZB -- determine if we may actually
+     need to download the current NZBFile, if we determine the on disk file belongs to a
+     previously detected on disk NZBFile (now a dupe) """
+    needsDl = False
+
+    # Dupe detection: If we've already matched this filename on disk, this
+    # file is a dupe
+    if file in eschewMap:
+        dupeFiles = eschewMap[file]
+
+        # Shift all of the previously found dupe NZBFiles filenames across
+        # the dupeName sequence
+        shiftedAllDupeNames = True
+        dupeFileNewName = file
+        for dupeFile in dupeFiles:
+            # Grab the next dupeName in the sequence (don't check on disk)
+            dupeFileNewName = nextDupeName(dupeFileNewName, checkOnDisk = False)
+
+            # If the dupeFile's new, shifted dupeFile name exists on disk,
+            # that means the current NZBFile (self) is now the owner of
+            # the file we just matched to it on disk. In that case, this
+            # NZBFile is already downloaded (needsDl continues to be
+            # False)
+
+            if not os.path.isfile(Hellanzb.WORKING_DIR + os.sep + dupeFileNewName):
+                # Otherwise we haven't downloaded the current
+                # NZBFile(self) yet. The current filename we're dealing
+                # with is owned by a previous dupeName -- immediately get
+                # it out of the way
+                info('Duplicate file, renaming: %s to %s' % (file, dupeFileNewName))
+                dupeFile.filename = os.path.basename(dupeFileNewName)
+                os.rename(Hellanzb.WORKING_DIR + os.sep + file,
+                          Hellanzb.WORKING_DIR + os.sep + dupeFileNewName)
+                shiftedAllDupeNames = False
+                break
+
+        # Weren't able to find all dupeFiles new shifted dupeName on
+        # disk. That means we haven't downloaded the current NZBFile
+        # (self) yet
+        if not shiftedAllDupeNames:
+            needsDl = True
+
+    return needsDl
+
 class NZB:
     """ Representation of an nzb file -- the root <nzb> tag """
     
@@ -278,14 +323,9 @@ class NZBFile:
         names). workingDirListing should be a list of only filenames (basename, not
         including dirname) of files lying in Hellanzb.WORKING_DIR """
         start = time.time()
-        # FIXME: do i need to use validWorkingFile here??
-        info('uh:' + str(eschewMap))
         
         if os.path.isfile(self.getDestination()):
-            # FIXME?: This version of needsDownload is always called from the
-            # NZBParser. files shouldn't have real self.filenames at that point. So this
-            # block of code should only be handling matching of temporary files on disk. I
-            # need to verify that's the case, and make a note of it for clarity sake
+            # This block only handles matching temporary file names
             end = time.time() - start
             debug('needsDownload took: ' + str(end))
             return False
@@ -295,86 +335,17 @@ class NZBFile:
             # filenames in our subject line
             for file in workingDirListing:
 
-                """
                 # Whole file match
                 if self.subject.find(file) > -1:
-                    end = time.time() - start
-                    debug('needsDownload took: ' + str(end))
-                    return False
-                    """
-                # Whole file match
-                if self.subject.find(file) > -1:
-                    info('MATCH %s' % file)
-                    needsDl = False
 
-                    if file in eschewMap:
-                        dupeFiles = eschewMap[file]
-                        
-                        info('IN ESCHEWNAMES: ' + file + ' d:' + str(dupeFiles))
-                        shiftedAllDupeNames = True
-                        dupeFileNewName = file
-                        for dupeFile in dupeFiles:
-                            #dupeFileNewName = dupeName(dupeFileNewName, checkOnDisk = False) # don't check on disk obviously. we just want the next iteration of the next dupeName. so even though we don't check on disk, we want an actual dupeName. dupeName should return a actual dupeName. nextDupeName (or nextSafeDupeName) should check on disk?
-                            # this needs nextDupeName called here (which doesn't check on disk). just returns the next dupeName in the sequence
-                            dupeFileNewName = nextDupeName(dupeFileNewName, checkOnDisk = False)
-                            
-
-                            """
-                            if os.path.isfile(dupeFileNewName):
-                                dupeFile.filename = os.path.basename(dupeFileNewName)
-                                eschewMap[file].append(
-
-                            else:
-                                shiftedAllDupeNames = False
-                                """
-                            info('CHECKING DNAME: ' + dupeFileNewName)
-                            if not os.path.isfile(Hellanzb.WORKING_DIR + os.sep + dupeFileNewName):
-                                info('NOT IN PATH: ' + dupeFileNewName)
-                                info('Duplicate file, renaming: %s to %s' % (file, dupeFileNewName))
-
-                                #setRealFileName(dupeFile, dupeFileNewName, forceChange = True)
-                                dupeFile.filename = os.path.basename(dupeFileNewName)
-                                os.rename(Hellanzb.WORKING_DIR + os.sep + file,
-                                          Hellanzb.WORKING_DIR + os.sep + dupeFileNewName)
-                                shiftedAllDupeNames = False
-                                break
-
-                        if not shiftedAllDupeNames:
-                            info("NEEDSDL!" + str(self.number))
-                            needsDl = True
-
-                            """
-                        if os.path.isfile(dupeFilename):
-                            # rename the old one (not really necessary?)
-                            eschewMap.append(dupeFilename)
-                        else:
-                            needsDl = True
-                            # set original match filename to dupeFilename if it
-                            # exists. otherwise, needsDownload = True
-                            """
+                    # duplicate file detection -- we may actually need to download this
+                    # NZBFile, if this function determines the on disk file belongs to a
+                    # previously detected on disk NZBFile (now a dupe)
+                    needsDl = handleNeedsDownloadDupeNZBFile(file, eschewMap)
                     
-                    # If this on disk filename was already matched to another file (in
-                    # eschewMap), we need to rename our file's filename to the next
-                    # available dupeNam
-                    """
-                    dupeFilename = file
-                    while dupeFilename in eschewMap:
-                        from Hellanzb.Util import dupeName
-                        dupeFilename = dupeName(dupeFilename)
-                        
-                    if dupeFilename != file:
-                        info('GOT: ' + dupeFilename)
-                        setRealFileName(self, dupeFilename, forceChange = True)
-                        needsDl = True
-                        """
-                        
-                    # Could do the setRealFileName here -- but let's just let it find it
-                    # as normal
-                    #setRealFileName(file, dupeFilename, forceChange = True)
+                    # Avoid clashing with this file in the future
                     if file not in eschewMap:
                         eschewMap[file] = []
-                        #eschewMap.append(dupeFilename)
-                        #eschewMap.append(file)
                     eschewMap[file].append(self)
                         
                     end = time.time() - start
@@ -1005,10 +976,6 @@ class NZBParser(ContentHandler):
 
             self.workingDirListing.append(file)
 
-            """
-        # Keep track of all fully assembled files on disk. This is for dupe file checking
-        self.onDiskFiles = []
-        """
         # Map of all fully assembled real file names on disk (key) to a list of those real
         # file names' NZBFiles (value). There may be multiple NZBFiles representing
         # dupes. Those dupe filanames are not included in the real file names (keys)

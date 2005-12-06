@@ -399,7 +399,10 @@ class PostProcessor(Thread):
         # Find any files that need to assembled (e.g. file.avi.001, file.avi.002)
         needAssembly = findSplitFiles(self.dirName)
         
+        foundPars = False
         if dirHasPars(self.dirName):
+            foundPars = True
+            
             checkShutdown()
             try:
                 processPars(self.dirName, needAssembly)
@@ -437,8 +440,8 @@ class PostProcessor(Thread):
                 troll.run()
                 trolled += 1
 
-        # FIXME: only clean dupe files if we successfully par checked the archive
-        cleanDupeFiles(self.dirName)
+        if foundPars:
+            cleanDupeFiles(self.dirName)
                 
         self.finishedPostProcess()
 

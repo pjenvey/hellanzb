@@ -17,7 +17,8 @@ from Hellanzb.Log import *
 from Hellanzb.NZBLeecher.ArticleDecoder import assembleNZBFile, parseArticleData, \
     setRealFileName, tryFinishNZB
 from Hellanzb.Util import archiveName, getFileExtension, nextDupeName, IDPool, \
-    EmptyForThisPool, PoolsExhausted, PriorityQueue, OutOfDiskSpace
+    EmptyForThisPool, PoolsExhausted, PriorityQueue, OutOfDiskSpace, DUPE_SUFFIX, \
+    DUPE_SUFFIX_RE
 from Queue import Empty
 
 __id__ = '$Id$'
@@ -120,16 +121,25 @@ def segmentsNeedDownload(segmentList, overwriteZeroByteSegments = False):
                             settingSegmentNumber = segment.number)
                 
             onDiskSegments.append(segment)
+
+            # This segment was matched. Remove it from the list to avoid matching it again
+            # later (dupes)
+            segmentFileNames.remove(foundFileName)
+
         #else:
         #    debug('SKIPPING SEGMENT: ' + segment.getTempFileName() + ' subject: ' + \
         #          segment.nzbFile.subject)
 
     return needDlFiles, needDlSegments, onDiskSegments
 
-def handleNeedsDownloadDupeNZBFile(file, eschewMap):
-    """ Handle duplicate file detection while parsing the NZB -- determine if we may actually
-     need to download the current NZBFile, if we determine the on disk file belongs to a
-     previously detected on disk NZBFile (now a dupe) """
+"""
+def handleNeedsDownloadDupeNZBFile(nzbFile, file, workingDirListing, eschewMap):
+    #Handle duplicate file detection while parsing the NZB -- determine if we may actually
+    #need to download the current NZBFile, if we determine the on disk file belongs to a
+    #previously detected on disk NZBFile (now a dupe)
+    if getFileExtension(file) == 'nfo':
+        return True
+
     needsDl = False
 
     # Dupe detection: If we've already matched this filename on disk, this
@@ -160,6 +170,10 @@ def handleNeedsDownloadDupeNZBFile(file, eschewMap):
                 dupeFile.filename = os.path.basename(dupeFileNewName)
                 os.rename(Hellanzb.WORKING_DIR + os.sep + file,
                           Hellanzb.WORKING_DIR + os.sep + dupeFileNewName)
+
+                workingDirListing.remove(file)
+                workingDirListing.append(dupeFileNewName)
+
                 shiftedAllDupeNames = False
                 break
 
@@ -169,7 +183,14 @@ def handleNeedsDownloadDupeNZBFile(file, eschewMap):
         if not shiftedAllDupeNames:
             needsDl = True
 
+    else:
+        eschewMap[file] = []
+
+    # Avoid clashing with this file in the future
+    eschewMap[file].append(nzbFile)
+
     return needsDl
+"""
 
 class NZB:
     """ Representation of an nzb file -- the root <nzb> tag """
@@ -316,7 +337,7 @@ class NZBFile:
             self.tempFilename = self.getTempFileName()
             return self.tempFilename
 
-    def needsDownload(self, workingDirListing, eschewMap):
+    def needsDownload(self, workingDirListing, workingDirDupeMap, eschewMap):
         """ Whether or not this NZBFile needs to be downloaded (isn't on the file system). You may
         specify the optional workingDirListing so this function does not need to prune
         this directory listing every time it is called (i.e. prune directory
@@ -333,24 +354,62 @@ class NZBFile:
         elif self.filename == None:
             # We only know about the temp filename. In that case, fall back to matching
             # filenames in our subject line
+
+            # First, check if this is one of the dupe files on disk
+            for file in workingDirDupeMap:
+                if self.subject.find(file) > -1:
+
+                    info('OK..' + str(workingDirDupeMap[file]))
+                    for dupeEntry in workingDirDupeMap[file]:
+                        i = -1
+                        notRenamed = None
+                        if dupeEntry[1] is None:
+                            i += 1
+                            info('FOUND AT %i ' %i)
+                            dupeEntry[1] = self
+
+                            dupeFilename = nextDupeName(file, checkOnDisk = False,
+                                                        minIteration = dupeEntry[0] + 1)
+                            info('SETTING MY NAME TO %s' % dupeFilename)
+                            self.filename = dupeFilename
+                            if os.path.isfile(Hellanzb.WORKING_DIR + os.sep + dupeFilename):
+                                info('FALSE %s' % dupeFilename)
+                                return False
+                            
+                            info('>TRUE %s' % dupeFilename)
+                            return True
+                        
+                        elif dupeEntry[0] == -1:
+                            notRenamed = dupeEntry[1]
+
+                    if notRenamed is not None and notRenamed.filename is None:
+                        # FIXME: this basically needs eschewNames of all known NZB files I
+                        # believe. ARG! (NOT SURE)
+                        rename = nextDupeName(Hellanzb.WORKING_DIR + os.sep + file)
+                        info('RENAMING NUMBER ZERO! %s ORIG NAME %s' % (rename, notRenamed.filename))
+                        setRealFileName(notRenamed, os.path.basename(rename),
+                                        forceChange = True)
+                        info(str(os.listdir(Hellanzb.WORKING_DIR)))
+                    info('>>TRUE %i' % self.number)
+                    return True
+                            
             for file in workingDirListing:
 
                 # Whole file match
                 if self.subject.find(file) > -1:
 
+                    """
                     # duplicate file detection -- we may actually need to download this
                     # NZBFile, if this function determines the on disk file belongs to a
                     # previously detected on disk NZBFile (now a dupe)
-                    needsDl = handleNeedsDownloadDupeNZBFile(file, eschewMap)
-                    
-                    # Avoid clashing with this file in the future
-                    if file not in eschewMap:
-                        eschewMap[file] = []
-                    eschewMap[file].append(self)
-                        
+                    needsDl = handleNeedsDownloadDupeNZBFile(self, file,
+                                                             workingDirListing, eschewMap)
+                                                             """
+
                     end = time.time() - start
                     debug('needsDownload took: ' + str(end))
-                    return needsDl
+                    #return needsDl
+                    return False
     
         end = time.time() - start
         debug('needsDownload took: ' + str(end))
@@ -945,6 +1004,7 @@ class NZBQueue(PriorityQueue):
         # Archive not complete
         return False
 
+DUPE_SEGMENT_RE = re.compile('.*%s\d{1,4}.segment\d{4}$' % DUPE_SUFFIX)
 class NZBParser(ContentHandler):
     """ Parse an NZB 1.0 file into an NZBQueue
     http://www.newzbin.com/DTD/nzb/nzb-1.0.dtd """
@@ -969,13 +1029,55 @@ class NZBParser(ContentHandler):
 
         # Current listing of existing files in the WORKING_DIR
         self.workingDirListing = []
-        for file in os.listdir(Hellanzb.WORKING_DIR):
+        self.workingDirDupeMap = {}
+        files = os.listdir(Hellanzb.WORKING_DIR)
+        files.sort()
+        dupeIteration = -1
+        for file in files:
+
+            if DUPE_SEGMENT_RE.match(file):
+                # Sorry duplicate file segments, handling dupes is a pain enough as it is
+                # without segments coming into the mix
+                os.remove(Hellanzb.WORKING_DIR + os.sep + file)
+                continue
+
+            match = DUPE_SUFFIX_RE.match(file)
+            if match:
+                strippedFilename = match.group(1)
+                dupeNum = int(match.group(2))
+
+                dupeIteration += 1
+
+                if not self.workingDirDupeMap.has_key(strippedFilename):
+                    # This will be a list of tuples, with indicies:
+                    # [0] The dupe number (X of hellanzb_dupeX)
+                    # [1] The associated dupe's NZBFile (or None if not yet found)
+                    self.workingDirDupeMap[strippedFilename] = [[-1, None]]
+
+                dupesForFile = self.workingDirDupeMap[strippedFilename]
+                # FIXME: Should I be plucking the dupe filenames out of the
+                # workingDirListing??  (continue would do this)
+                #self.workingDirDupeMap[strippedFilename].append((i, None))
+                if len(dupesForFile) > 1:
+                    prevDupeEntry = dupesForFile[-2]
+                    
+                    if prevDupeEntry[0] != dupeNum - 1:
+                        i = prevDupeEntry[0]
+                        while i < dupeNum - 1:
+                            i += 1
+                            dupesForFile.insert(-1, [i, None])
+                        
+                #self.workingDirDupeMap[strippedFilename].insert(-1, (i, None))
+                dupesForFile.insert(-1, [dupeNum, None])
+                continue
+            
             if not validWorkingFile(Hellanzb.WORKING_DIR + os.sep + file,
                                     self.nzb.overwriteZeroByteFiles):
                 continue
 
             self.workingDirListing.append(file)
-
+        info(str(self.workingDirDupeMap))
+        
         # Map of all fully assembled real file names on disk (key) to a list of those real
         # file names' NZBFiles (value). There may be multiple NZBFiles representing
         # dupes. Those dupe filanames are not included in the real file names (keys)
@@ -990,14 +1092,10 @@ class NZBParser(ContentHandler):
             
             self.fileNeedsDownload = \
               self.file.needsDownload(workingDirListing = self.workingDirListing,
+                                      workingDirDupeMap = self.workingDirDupeMap,
                                       eschewMap = self.onDiskFiles)
               
             if not self.fileNeedsDownload:
-                # Keep track of on disk files that are named with their realFilename
-                # (file.filename) -- for dupe checking
-                if self.file.filename is not None:
-                    self.onDiskFiles.append(self.file.filename)
-                    
                 debug('SKIPPING FILE: ' + self.file.getTempFileName() + ' subject: ' + \
                       self.file.subject)
 

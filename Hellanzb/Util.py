@@ -512,7 +512,7 @@ def hellaRename(filename):
         move(filename, renamedDir + str(i))
 
 DUPE_SUFFIX = '_hellanzb_dupe'
-DUPE_SUFFIX_RE = re.compile('(.*)' + DUPE_SUFFIX + '(\d{1,4})')
+DUPE_SUFFIX_RE = re.compile('(.*)' + DUPE_SUFFIX + '(\d{1,4})$')
 def _nextDupeName(filename):
     """ Return the next dupeName in the dupeName sequence """
     i = -1

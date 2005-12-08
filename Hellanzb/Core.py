@@ -209,7 +209,6 @@ def init(options = {}):
         Hellanzb.HAVE_C_YENC = False
 
     assertHasARar()
-    assertIsExe('file')
 
     # Twisted will replace this with its own signal handler when initialized
     signal.signal(signal.SIGINT, signalHandler)

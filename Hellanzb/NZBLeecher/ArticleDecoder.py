@@ -345,8 +345,8 @@ def writeLines(dest, lines):
     return size
 
 def knownRealNZBFilenames():
-    """ Return a list of all known real filenames for every file in the currently downloading
-    NZB """
+    """ Return a list of all known real filenames for every NZBFile in the currently
+    downloading NZB """
     filenames = []
     for nzb in Hellanzb.queue.nzbs:
         for nzbFile in nzb.nzbFileElements:
@@ -359,10 +359,14 @@ def handleDupeNZBSegment(segment):
     """
     dest = segment.getDestination()
     if os.path.exists(dest):
-        info('DEST' + dest)
+        # We have lazily found a duplicate segment (a .segmentXXXX already on disk that we
+        # were about to write to). Determine the new, duplicate filename, that either the
+        # on disk file or the segment ABOUT to be written to disk will be renamed to. We
+        # must avoid renaming it a filename already on disk (nextDupeName will check on
+        # disk for us) OR to an already reserved filename that may not already be on disk
+        # (represnted by eschewNames)
         parentFilename = dest[:-12] # remove .segmentXXXX
-        segmentNumStr = dest[-12:]
-        info('Segeschew %s' % str(knownRealNZBFilenames()))
+        segmentNumStr = dest[-12:] # .segmentXXXX
         dupeNZBFileName = nextDupeName(parentFilename, eschewNames = knownRealNZBFilenames())
 
         beingDownloadedNZBSegment = Hellanzb.queue.isBeingDownloadedFile(dest)
@@ -372,39 +376,22 @@ def handleDupeNZBSegment(segment):
               os.path.basename(dupeNZBFileName)))
         
         if beingDownloadedNZBSegment is not None:
-            info('BEING DOWNLOADED')
-            # We have a duplicate segment that's in the middle of being downloaded --
-            # determine it's new, duplicate filename. We must avoid renaming it a filename
-            # already on disk (nextDupeName will check on disk for us) OR to an already
-            # reserved filename that may not already be on disk (eschewNames)
-            ##parentFilename = dest[:-12] # remove .segmentXXXX
-            ##dupeNZBFileName = nextDupeName(parentFilename, eschewNames = knownRealNZBFilenames())
+            debug('handleDupeNZBSegment: handling dupe: %s' % os.path.basename(dest))
             
-
             # Maintain the correct order when renaming -- the earliest (as they appear in
             # the NZB) clashing NZBFile gets renamed
             if beingDownloadedNZBSegment.nzbFile.number < segment.nzbFile.number:
-                info('LESS THAN %i %i' % (beingDownloadedNZBSegment.nzbFile.number, segment.nzbFile.number))
                 renameFile = beingDownloadedNZBSegment.nzbFile
             else:
-                info('GREATER THAN %i %i' % (beingDownloadedNZBSegment.nzbFile.number, segment.nzbFile.number))
                 renameFile = segment.nzbFile
 
             setRealFileName(renameFile, os.path.basename(dupeNZBFileName), forceChange = True)
         else:
-            info('NOT BEING DOWNLOADED' + dupeNZBFileName + segmentNumStr)
             # NOTE: Probably nothing should trigger this, except maybe .par .segment0001
-            # files (when smartpar is added). Would anything else?
-            ###os.rename(dest, nextDupeName(dest, eschewNames = knownRealNZBFilenames()))
-            
-            #for nzbFile in segment.nzbFile.nzb.nzbFileElements:
-            #    if nzbFile.subject.find(
-
-            # There WAS another use for this section -- renaming files that haven't been
-            # downloaded yet(after resuming after a CTRL-C, and say that file hadn't even
-            # been encountered as being in isBeingDownloaded yet. rare but could
-            # happen!). Those troublesome cases could cause problems -- so
-            # NZBFile.needsDownload actually handles renaming those kinds of files
+            # files (when smartpar is added). CAUTION: Other cases that might trigger this
+            # block should no longer happen!
+            debug('handleDupeNZBSegment: handling dupe (not beingDownloadedNZBSegment!?): %s' % \
+                  os.path.basename(dest))
             os.rename(dest, dupeNZBFileName + segmentNumStr)
 
 def handleDupeNZBFile(dest):
@@ -416,11 +403,12 @@ def handleDupeNZBFile(dest):
     if os.path.exists(dest) and getFileExtension(dest) != 'nfo':
         # Set a new dupeName -- avoid setting a dupeName that is on disk or in the
         # eschewNames (like above in handleDupeNZBSegment)
-        info('Fileeschew %s' % str(knownRealNZBFilenames()))
         dupeNZBFileName = dupeName(dest, eschewNames = knownRealNZBFilenames())
         
-        info('Duplicate file, renaming: %s to %s' % \
-             (os.path.basename(dest), os.path.basename(dupeNZBFileName)))
+        info('Duplicate file, renaming: %s to %s' % (os.path.basename(dest),
+                                                     os.path.basename(dupeNZBFileName)))
+        debug('handleDupeNZBFile: renaming: %s to %s' % (os.path.basename(dest),
+                                                        os.path.basename(dupeNZBFileName)))
 
         os.rename(dest, dupeNZBFileName)
             

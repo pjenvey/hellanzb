@@ -19,15 +19,15 @@ class ParExtractor(ContentHandler):
     those pars to a new NZB file """
     # FIXME: finish, write attrs, write a attr to the NZB tag saying 'hellanzb_extra_pars_only=True'
     # use XMLGenerator? http://www.xml.com/pub/a/2003/03/12/py-xml.html
-    def __init__(self, destNzbFile, knownParSubjects):
-        self.knownParSubjects = destNzbFile, knownParSubjects
-        self.outFile = open(destNzbFile, 'w')
+    def __init__(self, destNZBFile, knownParSubjects):
+        self.destNZBFile, self.knownParSubjects = destNZBFile, knownParSubjects
+        self.outFile = open(destNZBFile, 'w')
 
         self.pad = ' '*8
         self.indent = -1
         self.skip = False
         
-    def parse(nzbFile, destNzbFile, knownParSubjects):
+    def parse(nzbFile, destNZBFile, knownParSubjects):
         """ Parse the NZB -- extract the pars into a new file """
         # Create a parser
         parser = make_parser()
@@ -35,7 +35,7 @@ class ParExtractor(ContentHandler):
         # No XML namespaces here
         parser.setFeature(feature_namespaces, 0)
         parser.setFeature(feature_external_ges, 0)
-        pe = ParExtractor(destNzbFile, knownParSubjects)
+        pe = ParExtractor(destNZBFile, knownParSubjects)
         
         # Tell the parser to use it
         parser.setContentHandler(pe)

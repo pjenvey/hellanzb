@@ -282,7 +282,7 @@ class NZBFile:
         this NZBFile needs to be downloaded """
         isDupe = False
         # Search the dupes on disk for a match
-        for file in workingDirDupeMap:
+        for file in workingDirDupeMap.iterkeys():
             if self.subject.find(file) > -1:
                 isDupe = True
 
@@ -336,7 +336,7 @@ class NZBFile:
                 # Didn't find a match on disk. Needs to be downloaded
                 return isDupe, True
             
-        return isDupe, dupeNeedsDl
+        return isDupe, None
 
     def needsDownload(self, workingDirListing, workingDirDupeMap):
         """ Whether or not this NZBFile needs to be downloaded (isn't on the file system). You may
@@ -345,20 +345,20 @@ class NZBFile:
         names). workingDirListing should be a list of only filenames (basename, not
         including dirname) of files lying in Hellanzb.WORKING_DIR """
         start = time.time()
-        
+
         if os.path.isfile(self.getDestination()):
             # This block only handles matching temporary file names
             end = time.time() - start
             debug('needsDownload took: ' + str(end))
             return False
-    
+
         elif self.filename == None:
 
             # First, check if this is one of the dupe files on disk
             isDupe, dupeNeedsDl = self.handleDupeNeedsDownload(workingDirDupeMap)
             if isDupe:
                 return dupeNeedsDl
-                            
+
             # We only know about the temp filename. In that case, fall back to matching
             # filenames in our subject line
             for file in workingDirListing:
@@ -1000,7 +1000,7 @@ class NZBParser(ContentHandler):
 
             # Add an entry to the self.workingDirDupeMap if this file looks like a
             # duplicate, and also skip adding it to self.workingDirListing (dupes are
-            # handled specially so we don't care for it there)
+            # handled specially so we don't care for them there)
             if self.handleDupeNZBFiles(file):
                 continue
             
@@ -1074,9 +1074,6 @@ class NZBParser(ContentHandler):
 
             dupesForFile = self.workingDirDupeMap[strippedFilename]
             
-            # FIXME: Should I be plucking the dupe filenames out of the
-            # workingDirListing? (continuing does this)
-            #if len(dupesForFile) > 1:
             if not newDupeMapping:
                 # There are previous entries in our mapping (besides -1). Ensure any
                 # missing indicies are filled in

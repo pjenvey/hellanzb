@@ -354,10 +354,10 @@ def knownRealNZBFilenames():
                 filenames.append(nzb.destDir + os.sep + nzbFile.filename)
     return filenames
 
-def handleDupeNZBSegment(segment):
+def handleDupeNZBSegment(nzbSegment):
     """ Handle a duplicate NZBSegment file on disk (prior to writing a new one), if one exists
     """
-    dest = segment.getDestination()
+    dest = nzbSegment.getDestination()
     if os.path.exists(dest):
         # We have lazily found a duplicate segment (a .segmentXXXX already on disk that we
         # were about to write to). Determine the new, duplicate filename, that either the
@@ -380,10 +380,10 @@ def handleDupeNZBSegment(segment):
             
             # Maintain the correct order when renaming -- the earliest (as they appear in
             # the NZB) clashing NZBFile gets renamed
-            if beingDownloadedNZBSegment.nzbFile.number < segment.nzbFile.number:
+            if beingDownloadedNZBSegment.nzbFile.number < nzbSegment.nzbFile.number:
                 renameFile = beingDownloadedNZBSegment.nzbFile
             else:
-                renameFile = segment.nzbFile
+                renameFile = nzbSegment.nzbFile
 
             setRealFileName(renameFile, os.path.basename(dupeNZBFileName), forceChange = True)
         else:
@@ -394,9 +394,10 @@ def handleDupeNZBSegment(segment):
                   os.path.basename(dest))
             os.rename(dest, dupeNZBFileName + segmentNumStr)
 
-def handleDupeNZBFile(dest):
+def handleDupeNZBFile(nzbFile):
     """ Handle a duplicate NZBFile file on disk (prior to writing a new one), if one exists
     """
+    dest = nzbFile.getDestination()
     # Ignore .nfo files -- newzbin.com dumps the .nfo file to the end of every nzb (if one
     # exists) -- so it's commonly a dupe. If it's already been downloaded (is an actual
     # fully assembled NZBFile on disk, not an NZBSegment), just overwrite it
@@ -612,7 +613,7 @@ def assembleNZBFile(nzbFile, autoFinish = True):
     # FIXME: does someone has to pad the file if we have broken pieces?
 
     # don't overwrite existing files -- instead rename them to 'file_dupeX' if they exist
-    handleDupeNZBFile(nzbFile.getDestination())
+    handleDupeNZBFile(nzbFile)
         
     file = open(nzbFile.getDestination(), 'wb')
     segmentFiles = []

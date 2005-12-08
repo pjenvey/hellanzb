@@ -7,7 +7,7 @@ Util - hellanzb misc functions
 """
 import os, popen2, pty, re, signal, string, thread, threading, time, Hellanzb
 from distutils import spawn
-from heapq import heappop, heappush
+from heapq import heapify, heappop, heappush
 from os.path import normpath
 from random import randint
 from shutil import move
@@ -360,6 +360,15 @@ class PriorityQueue(Queue):
             via heapq """
         return heappop(self.queue)
 
+    def dequeueItems(self, items):
+        """ Explicitly dequeue the specified items. Yes, this queue supports random access """
+        for item in items:
+            try:
+                self.queue.remove(item)
+            except Exception:
+                pass
+
+        heapify(self.queue)
 
 def getLocalClassName(klass):
     """ Get the local name (no package/module information) of the specified class instance """
@@ -609,6 +618,13 @@ def prettySize(bytes):
     else:
             return '%.1fMB' % (bytes / 1024.0 / 1024.0)
 
+def nuke(filename):
+    """ Delete the specified file on disk, ignoring any exceptions """
+    try:
+        os.remove(filename)
+    except Exception, e:
+        pass
+    
 # NOTE: if you're cut & pasting -- the ascii is escaped (\") in one spot
 Hellanzb.CMHELLA = \
 """

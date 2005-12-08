@@ -23,6 +23,7 @@ from Hellanzb.Log import *
 from Hellanzb.Logging import LogOutputStream, NZBLeecherTicker
 from Hellanzb.Util import prettySize, rtruncate, truncateToMultiLine, EmptyForThisPool, PoolsExhausted
 from Hellanzb.NZBLeecher.nntp import NNTPClient, extractCode
+#from Hellanzb.NZBLeecher.ArticleDecoder import decode, setRealFileName, stripArticleData, ySplit
 from Hellanzb.NZBLeecher.ArticleDecoder import decode
 from Hellanzb.NZBLeecher.NZBModel import NZBQueue
 from Hellanzb.NZBLeecher.NZBLeecherUtil import HellaThrottler, HellaThrottlingFactory
@@ -664,7 +665,18 @@ class NZBLeecher(NNTPClient, TimeoutMixin):
 
         segment = self.currentSegment
         self.resetCurrentSegment()
-        
+
+        # Check first segments for extra pars to be skipped over. If we just downloaded
+        # the only segment piece composing the entire file, don't bother attempting the
+        # skip
+        if segment.number == 1 and len(segment.nzbFile.nzbSegments) > 1:
+            #self.handleParSuspect(segment)
+            from Hellanzb.SmartPar import dequeueIfExtraPar
+            dequeueIfExtraPar(segment)
+            """
+        else:
+            self.deferSegmentDecode(segment)
+            """
         self.deferSegmentDecode(segment)
 
         Hellanzb.totalSegmentsDownloaded += 1
@@ -673,7 +685,43 @@ class NZBLeecher(NNTPClient, TimeoutMixin):
     def deferSegmentDecode(self, segment):
         """ Decode the specified segment in a separate thread """
         reactor.callInThread(decode, segment)
+
+        """
+    def handleParSuspect(self, segment):
+        """ """
+        from Hellanzb.SmartPar import dequeueIfExtraPar
+        dequeueIfExtraPar(segment)
+        """
+        """
+        # FIXME: also - resume code needs to skip, when we find an isPar segment #1 on disk
+        from Hellanzb.PostProcessorUtil import isPar, isPar1, isPar2
+        # FIXME
+        PAR2_VOL_RE = re.compile(r'(.*)\.vol(\d*)\+(\d*)\.par2', re.I)
+        if isPar(segment.nzbFile.filename):
+            segment.nzbFile.isParFile = True
         
+            if isPar2(segment.nzbFile.filename) and not PAR2_VOL_RE.match(segment.nzbFile.filename):
+                # not a .vol????.par2. Download it
+                return
+            elif isPar1(segment.nzbFile.filename) and segment.nzbFile.filename.lower().endswith('.p00'):
+                # first par1 should be .p00
+                return
+
+            segment.nzbFile.isExtraParFile = True
+
+            # Extra par2 -- remove it from the queue
+            desc = 'par2'
+            if isPar1(segment.nzbFile.filename):
+                desc = 'par1'
+                
+            size = segment.nzbFile.totalBytes / 1024 / 1024
+            info('Skipping %s: %s (%d MB)' % (desc, segment.nzbFile.filename, size))
+            Hellanzb.queue.dequeueSegments(segment.nzbFile.nzbSegments)
+            segment.nzbFile.isSkippedPar = True
+
+        """
+        #self.deferSegmentDecode(segment)
+
     def gotGroup(self, group):
         group = group[3]
         self.activeGroups.append(group)

@@ -12,7 +12,7 @@ from zlib import crc32
 from Hellanzb.Daemon import handleNZBDone, pauseCurrent
 from Hellanzb.Log import *
 from Hellanzb.Logging import prettyException
-from Hellanzb.Util import checkShutdown, touch, OutOfDiskSpace
+from Hellanzb.Util import checkShutdown, nuke, touch, OutOfDiskSpace
 if Hellanzb.HAVE_C_YENC: import _yenc
 
 __id__ = '$Id$'
@@ -45,15 +45,9 @@ def decode(segment):
     instance as having been decoded, then assemble all the segments together if all their
     decoded segment filenames exist """
     try:
-        # downloaded articleData was written to disk by the downloader
-        encodedData = open(Hellanzb.DOWNLOAD_TEMP_DIR + os.sep + segment.getTempFileName() + '_ENC')
-        # remove crlfs. FIXME: might be quicker to do this during a later loop
-        segment.articleData = [line[:-2] for line in encodedData.readlines()]
-        encodedData.close()
+        if segment.articleData == None:
+            segment.loadArticleDataFromDisk()
 
-        # Delete the copy on disk ASAP
-        nuke(Hellanzb.DOWNLOAD_TEMP_DIR + os.sep + segment.getTempFileName() + '_ENC')
-        
         decodeArticleData(segment)
         
     except OutOfDiskSpace:
@@ -67,14 +61,15 @@ def decode(segment):
         error(segment.nzbFile.showFilename + ' segment: ' + str(segment.number) + \
               ' a problem occurred during decoding', e)
 
-    segment.nzbFile.todoNzbSegments.remove(segment) # FIXME: lock????
-    Hellanzb.queue.segmentDone(segment)
+    if segment in segment.nzbFile.todoNzbSegments:
+        segment.nzbFile.todoNzbSegments.remove(segment) # FIXME: lock????
+    Hellanzb.queue.segmentDone(segment) # FIXME: combine this with the above call. par skipping might cause a keyerror in the previous statement. probably need to always check for existance than remove
     debug('Decoded segment: ' + segment.getDestination())
 
     if handleCanceled(segment):
         return
 
-    if segment.nzbFile.isAllSegmentsDecoded():
+    if segment.nzbFile.isAllSegmentsDecoded() and not segment.nzbFile.isSkippedPar:
         try:
             assembleNZBFile(segment.nzbFile)
             
@@ -86,12 +81,6 @@ def decode(segment):
             # checkShutdown() throws this, let the thread die
             pass
         
-def nuke(f):
-    try:
-        os.remove(f)
-    except Exception, e:
-        pass
-    
 def handleCanceled(segmentOrFile):
     """ if a file has been canceled, delete it """
     from Hellanzb.NZBLeecher.NZBModel import NZBSegment

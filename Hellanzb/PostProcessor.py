@@ -32,7 +32,8 @@ class PostProcessor(Thread):
     msgId = None
     nzbFile = None
 
-    def __init__(self, dirName, id, background = True, rarPassword = None, parentDir = None):
+    def __init__(self, dirName, id, background = True, rarPassword = None, parentDir = None,
+                 hasMorePars = False):
         """ Ensure sanity of this instance before starting """
         # abort if we lack required binaries
         assertIsExe('par2')
@@ -50,6 +51,10 @@ class PostProcessor(Thread):
         # If we're a background Post Processor, our MO is to move dirName to DEST_DIR when
         # finished (successfully or not)
         self.movedDestDir = False
+
+        # Whether all par data for the NZB has not been downloaded. If this is True,
+        # and par fails needing more data, we can trigger a download of extra par dat
+        self.hasMorePars = hasMorePars
         
         self.decompressionThreadPool = []
         self.decompressorLock = RLock()
@@ -402,11 +407,20 @@ class PostProcessor(Thread):
         if dirHasPars(self.dirName):
             checkShutdown()
             try:
-                processPars(self.dirName, needAssembly)
+                processPars(self.dirName, self.hasMorePars, needAssembly)
             except ParExpectsUnsplitFiles:
                 info(archiveName(self.dirName) + ': This archive requires assembly before running par2')
                 assembleSplitFiles(self.dirName, needAssembly)
                 processPars(self.dirName, None)
+                
+            except NeedMorePars, nmp:
+                # Must download more pars. Move the archive to the postponed dir. Queue
+                # next or force the extra_pars NZB dir
+                os.rename(self.dirName, Hellanzb.POSTPONED_DIR + os.sep + os.path.basename(self.dirName))
+                
+                pass
+
+        cleanUpSkippedPars(self.dirName)
         
         if not Hellanzb.SKIP_UNRAR and dirHasRars(self.dirName):
             checkShutdown()

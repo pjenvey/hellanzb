@@ -252,7 +252,11 @@ def beginDownload():
     # temporarily (after scrollBegin)
     scrollBegin()
 
-    # Scan the queue dir intermittently during downloading
+    # Scan the queue dir intermittently during downloading. Reset the scanner delayed call
+    # if it's already going
+    if Hellanzb.downloadScannerID != None and not Hellanzb.downloadScannerID.cancelled and \
+            not Hellanzb.downloadScannerID.called:
+        Hellanzb.downloadScannerID.cancel()
     Hellanzb.downloadScannerID = reactor.callLater(5, scanQueueDir, False, True)
     
     for nsf in Hellanzb.nsfs:

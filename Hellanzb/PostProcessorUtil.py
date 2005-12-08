@@ -127,6 +127,16 @@ class ParExpectsUnsplitFiles(Exception):
     """
     pass
 
+class NeedMorePars(Exception):
+    """ The PostProcessor throws this exception when an archive has more par chunks available
+    to download, and the par2 identified the archive as needing the specified size of par
+    chunks to repair """
+    def __init__(self, size):
+        self.args = [size]
+        
+        # How many more blocks (par2) or par files (par1) are needed
+        self.size = size
+
 def dirHasRars(dirName):
     """ Determine if the specified directory contains rar files """
     for file in os.listdir(dirName):
@@ -560,7 +570,7 @@ def flattenPar1Name(file):
     # Removing the file extension reveals the group
     return file[:-len(getFileExtension(file))] + '*'
 
-def processPars(dirName, needAssembly = None):
+def processPars(dirName, hasMorePars, needAssembly = None):
     """ Verify (and repair) the integrity of the files in the specified directory via par2
     (which supports both par1 and par2 files). If files need repair and there are not
     enough recovery blocks, raise a fatal exception. Each different grouping of pars will
@@ -582,11 +592,11 @@ def processPars(dirName, needAssembly = None):
     for wildcard in parGroupOrder:
         parFiles = parGroups[wildcard]
         
-        par2(dirName, parFiles, wildcard, needAssembly)
+        par2(dirName, parFiles, wildcard, needAssembly, hasMorePars)
         
         # Successful par2, move them out of the way
         for parFile in parFiles:
-            moveToProcessed(dirName + parFile)
+            moveToProcessed(dirName + os.sep + parFile)
 
     e = time.time() - start
     parTxt = 'par group'
@@ -632,7 +642,7 @@ typedef enum Result
 
 } Result;
 """
-def par2(dirName, parFiles, wildcard, needAssembly = None):
+def par2(dirName, parFiles, wildcard, needAssembly = None, hasMorePars = False):
     """ Verify (and repair) the integrity of the files in the specified directory via par2. If
     files need repair and there are not enough recovery blocks, raise a fatal exception """
     info(archiveName(dirName) + ': Verifying via par group: ' + wildcard + '..')
@@ -659,6 +669,22 @@ def par2(dirName, parFiles, wildcard, needAssembly = None):
         # Verified
         return
 
+    elif returnCode == 2 and hasMorePars:
+        # Damaged data, more par data is needed that hasn't been downloaded yet
+        damagedAndRequired, allMissing, neededBlocks, isPar1Archive = \
+            parseParNeedsBlocksOutput(archiveName(dirName), output)
+        
+        needType = 'blocks'
+        if isPar1Archive:
+            needType = 'files (par1)'
+            
+        #growlNotify('Error', archiveName(dirName) + '\nNeed ' + neededBlocks + \
+        #            ' more recovery ' + needType, True)
+        info(archiveName(dirName) + ': Failed par verify, requires ' + neededBlocks + \
+             ' more recovery ' + needType)
+        
+        raise NeedMorePars(neededBlocks)
+        
     elif returnCode == 2:
         # Repair required and impossible
 
@@ -767,6 +793,14 @@ def parseParNeedsBlocksOutput(archive, output):
             error(lastMsg)
             
     return damagedAndRequired, allMissing, neededBlocks, isPar1Archive
+
+FIRST_SEGMENT_SUFFIX = '.segment0001'
+def cleanUpSkippedPars(dirName):
+    """ The downloader may leave .segment0001 par files around, from par data it skipped
+    downloading. Delete these orphaned segments """
+    for file in os.listdir(dirName):
+        if file.endswith(FIRST_SEGMENT_SUFFIX) and isPar(file[:-len(FIRST_SEGMENT_SUFFIX)]):
+            moveToProcessed(dirName + os.sep + file)
 
 SPLIT_RE = re.compile(r'.*\.\d{3,4}$')
 SPLIT_TS_RE = re.compile(r'.*\.\d{3,4}\.ts$', re.I)

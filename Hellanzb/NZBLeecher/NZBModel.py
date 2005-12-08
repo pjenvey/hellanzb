@@ -16,7 +16,7 @@ from Hellanzb.Daemon import handleNZBDone
 from Hellanzb.Log import *
 from Hellanzb.NZBLeecher.ArticleDecoder import assembleNZBFile, parseArticleData, \
     setRealFileName, tryFinishNZB
-from Hellanzb.Util import archiveName, getFileExtension, IDPool, EmptyForThisPool, \
+from Hellanzb.Util import archiveName, getFileExtension, nuke, IDPool, EmptyForThisPool, \
     PoolsExhausted, PriorityQueue, OutOfDiskSpace
 from Queue import Empty
 
@@ -119,6 +119,9 @@ def segmentsNeedDownload(segmentList, overwriteZeroByteSegments = False):
                 # filesystem. In the case where this happens, and we are segment #1,
                 # we've figured out the real filename (hopefully!)
                 setRealFileName(segment, foundFileName)
+
+                # FIXME: if isPar skip etc yadda yadda. unless we're a full extra par
+                # nzb. can tell that from the name of the nzb, hellanzb-extra-par
                 
             onDiskSegments.append(segment)
         #else:
@@ -237,6 +240,10 @@ class NZBFile:
         # downloader doesnt lock).
         # NOTE: maybe just change nzbFile.filename via the reactor (callFromThread), and
         # remove the lock entirely?
+
+        self.isParFile = False
+        self.isExtraParFile = False
+        self.isSkippedPar = False
 
     def getDestination(self):
         """ Return the full pathname of where this NZBFile should be written to on disk """
@@ -385,6 +392,19 @@ class NZBSegment:
         if self.nzbFile.filename == None and self.nzbFile.tempFilename == None:
             raise FatalError('Could not getFilenameFromArticleData, file:' + str(self.nzbFile) +
                              ' segment: ' + str(self))
+
+    def loadArticleDataFromDisk(self, removeFromDisk = True):
+        """ Load the previously downloaded article BODY from disk, as a list to the .articleData
+        variable """
+        # downloaded articleData was written to disk by the downloader
+        encodedData = open(Hellanzb.DOWNLOAD_TEMP_DIR + os.sep + self.getTempFileName() + '_ENC')
+        # remove crlfs. FIXME: might be quicker to do this during a later loop
+        self.articleData = [line[:-2] for line in encodedData.readlines()]
+        encodedData.close()
+
+        if removeFromDisk:
+            # Delete the copy on disk ASAP
+            nuke(Hellanzb.DOWNLOAD_TEMP_DIR + os.sep + self.getTempFileName() + '_ENC')
 
     #def __repr__(self):
     #    return 'segment: ' + os.path.basename(self.getDestination()) + ' number: ' + \
@@ -662,6 +682,18 @@ class NZBQueue(PriorityQueue):
         for nzbFile in files:
             self.totalQueuedBytes += nzbFile.totalBytes
 
+    def dequeueSegments(self, nzbSegments):
+        """ Explicitly dequeue the specified nzb segments """
+        self.dequeueItems([(nzbSegment.priority, nzbSegment) for nzbSegment in nzbSegments])
+        
+        for nzbSegment in nzbSegments:
+            self.segmentDone(nzbSegment)
+            self.fileDone(nzbSegment.nzbFile)
+            
+            if nzbSegment in nzbSegment.nzbFile.todoNzbSegments:
+                #FIXME: jacks up assembly code
+                nzbSegment.nzbFile.todoNzbSegments.remove(nzbSegment) # FIXME: lock????
+
     def currentNZBs(self):
         """ Return a copy of the list of nzbs currently being downloaded """
         self.nzbsLock.acquire()
@@ -767,12 +799,16 @@ class NZBQueue(PriorityQueue):
             self.nzbFiles.remove(nzbFile)
         self.nzbFilesLock.release()
 
-    def segmentDone(self, nzbSegment):
+    def segmentDone(self, nzbSegments):
         """ Simply decrement the queued byte count, unless the segment is part of a postponed
         download """
+        if not isinstance(nzbSegments, list):
+            nzbSegments = [nzbSegments]
+            
         self.nzbsLock.acquire()
-        if nzbSegment.nzbFile.nzb in self.nzbs:
-            self.totalQueuedBytes -= nzbSegment.bytes
+        for nzbSegment in nzbSegments:
+            if nzbSegment.nzbFile.nzb in self.nzbs:
+                self.totalQueuedBytes -= nzbSegment.bytes
         self.nzbsLock.release()
 
     def parseNZB(self, nzb):
@@ -973,7 +1009,9 @@ class NZBParser(ContentHandler):
                 # segmentCount to the priority. lame afterthought -- after realizing
                 # heapqs aren't ordered. NZB_CONTENT_P must now be large enough so that it
                 # won't ever clash with EXTRA_PAR2_P + i
-                nzbs.priority = NZBQueue.NZB_CONTENT_P + self.segmentCount
+                nzbs.priority = NZBQueue.NZB_CONTENT_P
+                if nzbs.number != 1:
+                    nzbs.priority += self.segmentCount
                 self.needWorkSegments.append(nzbs)
 
             self.chars = None

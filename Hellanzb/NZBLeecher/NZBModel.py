@@ -243,32 +243,48 @@ class NZBFile:
         return self.nzb.destDir + os.sep + self.getFilename()
 
     def getFilename(self):
-        """ Return the file name of where this NZBFile will lie on the filesystem (not including
-        dirname). The filename information is grabbed from the first segment's articleData
+        """ Return the filename of where this NZBFile will reside on the filesystem, within the
+        WORKING_DIR (not a full path)
+
+        The filename information is grabbed from the first segment's articleData
         (uuencode's fault -- yencode includes the filename in every segment's
-        articleData). In the case where a segment needs to know it's filename, and that
+        articleData). In the case where we need this file's filename filename, and that
         first segment doesn't have articleData (hasn't been downloaded yet), a temp
-        filename will be returned. Downloading segments out of order can easily occur in
-        app like hellanzb that downloads the segments in parallel, thus the need for
+        filename will be returned
+
+        Downloading segments out of order often occurs in hellanzb, thus the need for
         temporary file names """
-        try:
-            # FIXME: try = slow. just simply check if tempFilename exists after
-            # getFilenamefromArticleData. does exactly the same thing w/ no try. should probably
-            # looked at the 2nd revised version of this and make sure it's still as functional as
-            # the original
-            if self.filename != None:
-                return self.filename
-            elif self.tempFilename != None and self.firstSegment.articleData == None:
-                return self.tempFilename
-            else:
-                # FIXME: i should only have to call this once after i get article
-                # data. that is if it fails, it should set the real filename to the
-                # incorrect tempfilename
+        if self.filename is not None:
+            # We've determined the real filename (or the last filename we're ever going to
+            # get)
+            return self.filename
+        
+        elif self.firstSegment is not None and self.firstSegment.articleData is not None:
+            # No real filename yet, but we should be able to determine it from the first
+            # segment's article data
+            try:
+                # getFilenameFromArticleData will either set our self.filename when
+                # successful, or raise a FatalError
                 self.firstSegment.getFilenameFromArticleData()
-                return self.tempFilename
-        except AttributeError:
-            self.tempFilename = self.getTempFileName()
+            except Exception, e:
+                debug('getFilename: Unable to getFilenameFromArticleData: file number: %i: %s' % \
+                      (self.number, str(e)))
+                # We only check the first segment for a real filename (FIXME: looking at
+                # any yDecode segment for the real filename would be nice). We had trouble
+                # finding it there -- force this file to use the temp filename throughout
+                # its lifetime
+                self.filename = self.getTempFileName()
+                
+            return self.filename
+
+        elif self.tempFilename is not None:
+            # We can't get the real filename yet -- use the already cached tempFilename
+            # for now (NOTE: caching this is really unnecessary)
             return self.tempFilename
+
+        # We can't get the real filename yet, cache the temp filename and use it for now
+        self.tempFilename = self.getTempFileName()
+        return self.tempFilename
 
     def needsDownload(self, workingDirListing = None):
         """ Whether or not this NZBFile needs to be downloaded (isn't on the file system). You may

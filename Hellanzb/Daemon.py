@@ -668,7 +668,7 @@ def enqueueNZBs(nzbFileOrFiles, next = False, writeQueue = True):
             for n in Hellanzb.queued_nzbs:
                 if os.path.normpath(n.nzbFileName) == os.path.normpath(nzbFile):
                     found = True
-                    error('Cannot add nzb file to queue: ' + os.path.basename(nzbFile) + \
+                    error('Unable to add nzb file to queue: ' + os.path.basename(nzbFile) + \
                           ' it already exists!')
             if found:
                 continue

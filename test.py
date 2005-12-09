@@ -22,11 +22,12 @@ if __name__ == '__main__':
     #unittest.TextTestRunner().run(suite())
     try:
         init()
-        from Hellanzb.test.PriorityQueueTestCase import *
-        from Hellanzb.test.NZBLeecherTestCase import *
+        #from Hellanzb.test.PriorityQueueTestCase import *
+        #from Hellanzb.test.NZBLeecherTestCase import *
+        from Hellanzb.test.DupeNameTestCase import *
         s = unittest.TestSuite()
         #s = suite()
-        s.addTest(unittest.makeSuite(PriorityQueueTestCase, 'test'))
+        s.addTest(unittest.makeSuite(DupeNameTestCase, 'test'))
         #s.addTest(unittest.makeSuite(NZBLeecherTestCase, 'test'))
         #result = []
         #s.run(result)

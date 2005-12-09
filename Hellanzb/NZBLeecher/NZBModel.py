@@ -1001,7 +1001,7 @@ class NZBParser(ContentHandler):
             # Add an entry to the self.workingDirDupeMap if this file looks like a
             # duplicate, and also skip adding it to self.workingDirListing (dupes are
             # handled specially so we don't care for them there)
-            if self.handleDupeNZBFiles(file):
+            if self.handleDupeOnDisk(file):
                 continue
             
             if not validWorkingFile(Hellanzb.WORKING_DIR + os.sep + file,
@@ -1010,11 +1010,13 @@ class NZBParser(ContentHandler):
 
             self.workingDirListing.append(file)
 
-    def handleDupeNZBFiles(self, filename):
+    def handleDupeOnDisk(self, filename):
         """ Determine if the specified filename on disk (in the WORKING_DIR) is a duplicate
-        file. Duplicate file information is stored in the workingDirDupeMap, in the format:
+        file. Simply returns False if that's not the case, otherwise it returns True and
+        takes account of the dupe
 
-        Given the duplicate files on disk:
+        Duplicate file information is stored in the workingDirDupeMap, in the format
+        (Given the following duplicate files on disk):
 
         file.rar
         file.rar.hellanzb_dupe0
@@ -1031,26 +1033,26 @@ class NZBParser(ContentHandler):
                             }
 
 
-        This represents a mapping of the original file (file.rar) to a list containing
-        each duplicate file's number and it's associated NZBFile object. At this point
-        (just prior to parsing of the NZB), the NZBFile object associated with the on disk
-        duplicate file in the sequence of duplicates is not known (this will be filled in
-        later by NZBFile.needsDownload). This function leaves that empty spot for the
-        NZBFile as None
+        This represents a mapping of the original file (file.rar) to a list containing each
+        duplicate file's number and its associated NZBFile object. At this point (just
+        prior to parsing of the NZB) the NZBFile object associated with the dupe is not
+        known, so this functions leaves it as None. This will be filled in later by
+        NZBFile.needsDownload
 
-        The duplicate with index -1 is special -- it represents the original
+        The duplicate with index -1 is special -- it represents the origin:
         'file.rar'. This ordering correlates to how these duplicates were originally
-        written to disk, and the order they'll be encountered in the NZB
+        written to disk, and the order they'll be encountered in the NZB (hence the origin
+        appearing last)
 
-        This represents the full RANGE of files that we know of that SHOULD be on
-        disk. The file 'file.rar.hellanzb_dupe1' is missing from disk, but given the fact
-        that 'file.rar.hellanzb_dupe2' exists means it WILL be there at some point
+        This represents the full RANGE of files that SHOULD be on disk (that we currently
+        know about). The file 'file.rar.hellanzb_dupe1' is missing from disk, but given
+        the fact that 'file.rar.hellanzb_dupe2' exists means it WILL be there at some
+        point
 
-        Encountering a file listing like this is pretty rare but it could happen under the
-        right situations. The point is to avoid even these rare situations as they could
-        lead to inconsistent state of the NZB archive, and ultimately ugly hellanzb
-        lockups
-        """
+        Encountering a file listing like this (missing the dupe_1) is going to be a rare
+        occurence but it could happen under the right situations. The point is to avoid
+        even these rare situations as they could lead to inconsistent state of the NZB
+        archive (and ultimately ugly hellanzb lockups) """
         match = DUPE_SUFFIX_RE.match(filename)
         if not match:
             # Not a dupe

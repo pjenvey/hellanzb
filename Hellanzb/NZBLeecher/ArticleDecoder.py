@@ -372,7 +372,7 @@ def handleDupeNZBSegment(nzbSegment):
         beingDownloadedNZBSegment = Hellanzb.queue.isBeingDownloadedFile(dest)
 
         info('Duplicate segment (%s), renaming parent file: %s to %s' % \
-             (os.path.basename(dest), os.path.basename(parentFilename),
+             (segmentNumStr, os.path.basename(parentFilename),
               os.path.basename(dupeNZBFileName)))
         
         if beingDownloadedNZBSegment is not None:

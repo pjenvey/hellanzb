@@ -290,28 +290,28 @@ class NZBFile:
                 for dupeEntry in workingDirDupeMap[file]:
                     # Ok, *sigh* we're a dupe. Find the first unidentified index in the
                     # dupeEntry (dupeEntry[1] is None)
-                    i = -1
                     origin = None
                     if dupeEntry[1] is None:
-                        i += 1
                         dupeEntry[1] = self
 
                         # Set our filename now, since we know it, for sanity sake
-                        dupeFilename = nextDupeName(file, checkOnDisk = False,
+                        dupeFilename = nextDupeName(Hellanzb.WORKING_DIR + os.sep + file,
+                                                    checkOnDisk = False,
                                                     minIteration = dupeEntry[0] + 1)
-                        self.filename = dupeFilename
+                        self.filename = os.path.basename(dupeFilename)
                         debug('handleDupeNeedsDownload: marking fileNum: %i as dupeFilename' \
-                              ' %s (dupeMap index: %i)' % (self.number, dupeFilename, i))
+                              ' %s (dupeEntry index: %i)' % (self.number, self.filename,
+                                                             dupeEntry[0]))
 
                         # Now that we have the correct filename we can determine if this
                         # dupe needs to be downloaded
-                        if os.path.isfile(Hellanzb.WORKING_DIR + os.sep + dupeFilename):
+                        if os.path.isfile(dupeFilename):
                             debug('handleDupeNeedsDownload: dupeName: %s needsDownload: False' \
-                                  % dupeFilename)
+                                  % self.filename)
                             return isDupe, False
                         
                         debug('handleDupeNeedsDownload: dupeName: %s needsDownload: True' \
-                              % dupeFilename)
+                              % self.filename)
                         return isDupe, True
 
                     # Keep track of the origin -- we need to handle it specially (rename

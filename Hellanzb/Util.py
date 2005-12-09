@@ -550,7 +550,7 @@ def dupeName(filename, checkOnDisk = True, eschewNames = [], minIteration = 0):
     dupeName('/test/file', eschewNames = ('/test/file_hellanzb_dupe1')) would return:
     '/test/file_hellanzb_dupe2'
     """
-    if not os.path.exists(filename) and minIteration == 0 and \
+    if (not checkOnDisk or not os.path.exists(filename)) and minIteration == 0 and \
             filename not in eschewNames:
         return filename
     

@@ -37,6 +37,10 @@ class DupeNameTestCase(HellanzbTestCase):
         self.assertEqual(dupeName(testFile), testFile1)
         self.assertEqual(dupeName(testFile, eschewNames = (testFile1)), testFile2)
 
+        # checkOnDisk = False, minIteration = 0 should do nothing
+        self.assertEqual(dupeName(testFile, checkOnDisk = False, minIteration = 0),
+                         testFile)
+
     def testNextDupeName(self):
         """ Test the nextDupeName functionality. """ + nextDupeName.__doc__
         testFile = self.tempDir + os.sep + 'file'
@@ -54,6 +58,10 @@ class DupeNameTestCase(HellanzbTestCase):
         self.assertEqual(nextDupeName(testFile, checkOnDisk = False), testFile0)
         self.assertEqual(nextDupeName(testFile, checkOnDisk = False,
                                       eschewNames = (testFile0)), testFile1)
+
+        # checkOnDisk = False, minIteration = 0 should do nothing
+        self.assertEqual(nextDupeName(testFile, checkOnDisk = False, minIteration = 0),
+                         testFile)
         
 """
 /*

@@ -12,8 +12,8 @@ from zlib import crc32
 from Hellanzb.Daemon import handleNZBDone, pauseCurrent
 from Hellanzb.Log import *
 from Hellanzb.Logging import prettyException
-from Hellanzb.Util import checkShutdown, dupeName, getFileExtension, nextDupeName, touch, \
-    OutOfDiskSpace
+from Hellanzb.NZBLeecher.DupeHandler import handleDupeNZBFile, handleDupeNZBSegment
+from Hellanzb.Util import checkShutdown, touch, OutOfDiskSpace
 if Hellanzb.HAVE_C_YENC: import _yenc
 
 __id__ = '$Id$'
@@ -344,75 +344,6 @@ def writeLines(dest, lines):
     out.close()
 
     return size
-
-def knownRealNZBFilenames():
-    """ Return a list of all known real filenames for every NZBFile in the currently
-    downloading NZB """
-    filenames = []
-    for nzb in Hellanzb.queue.nzbs:
-        for nzbFile in nzb.nzbFileElements:
-            if nzbFile.filename != None:
-                filenames.append(nzb.destDir + os.sep + nzbFile.filename)
-    return filenames
-
-def handleDupeNZBSegment(nzbSegment):
-    """ Handle a duplicate NZBSegment file on disk (prior to writing a new one), if one exists
-    """
-    dest = nzbSegment.getDestination()
-    if os.path.exists(dest):
-        # We have lazily found a duplicate segment (a .segmentXXXX already on disk that we
-        # were about to write to). Determine the new, duplicate filename, that either the
-        # on disk file or the segment ABOUT to be written to disk will be renamed to. We
-        # must avoid renaming it a filename already on disk (nextDupeName will check on
-        # disk for us) OR to an already reserved filename that may not already be on disk
-        # (represnted by eschewNames)
-        parentFilename = dest[:-12] # remove .segmentXXXX
-        segmentNumStr = dest[-12:] # .segmentXXXX
-        dupeNZBFileName = nextDupeName(parentFilename, eschewNames = knownRealNZBFilenames())
-
-        beingDownloadedNZBSegment = Hellanzb.queue.isBeingDownloadedFile(dest)
-
-        info('Duplicate segment (%s), renaming parent file: %s to %s' % \
-             (segmentNumStr, os.path.basename(parentFilename),
-              os.path.basename(dupeNZBFileName)))
-        
-        if beingDownloadedNZBSegment is not None:
-            debug('handleDupeNZBSegment: handling dupe: %s' % os.path.basename(dest))
-            
-            # Maintain the correct order when renaming -- the earliest (as they appear in
-            # the NZB) clashing NZBFile gets renamed
-            if beingDownloadedNZBSegment.nzbFile.number < nzbSegment.nzbFile.number:
-                renameFile = beingDownloadedNZBSegment.nzbFile
-            else:
-                renameFile = nzbSegment.nzbFile
-
-            setRealFileName(renameFile, os.path.basename(dupeNZBFileName), forceChange = True)
-        else:
-            # NOTE: Probably nothing should trigger this, except maybe .par .segment0001
-            # files (when smartpar is added). CAUTION: Other cases that might trigger this
-            # block should no longer happen!
-            debug('handleDupeNZBSegment: handling dupe (not beingDownloadedNZBSegment!?): %s' % \
-                  os.path.basename(dest))
-            os.rename(dest, dupeNZBFileName + segmentNumStr)
-
-def handleDupeNZBFile(nzbFile):
-    """ Handle a duplicate NZBFile file on disk (prior to writing a new one), if one exists
-    """
-    dest = nzbFile.getDestination()
-    # Ignore .nfo files -- newzbin.com dumps the .nfo file to the end of every nzb (if one
-    # exists) -- so it's commonly a dupe. If it's already been downloaded (is an actual
-    # fully assembled NZBFile on disk, not an NZBSegment), just overwrite it
-    if os.path.exists(dest) and getFileExtension(dest) != 'nfo':
-        # Set a new dupeName -- avoid setting a dupeName that is on disk or in the
-        # eschewNames (like above in handleDupeNZBSegment)
-        dupeNZBFileName = dupeName(dest, eschewNames = knownRealNZBFilenames())
-        
-        info('Duplicate file, renaming: %s to %s' % (os.path.basename(dest),
-                                                     os.path.basename(dupeNZBFileName)))
-        debug('handleDupeNZBFile: renaming: %s to %s' % (os.path.basename(dest),
-                                                        os.path.basename(dupeNZBFileName)))
-
-        os.rename(dest, dupeNZBFileName)
             
 def decodeSegmentToFile(segment, encodingType = YENCODE):
     """ Decode the clean data (clean as in it's headers (mime and yenc/uudecode) have been

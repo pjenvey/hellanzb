@@ -662,6 +662,24 @@ def prettyEta(etaSeconds):
     seconds = etaSeconds - (hours * 60 * 60) - (minutes * 60)
     return '%.2d:%.2d:%.2d' % (hours, minutes, seconds)
 
+def prettyElapsed(seconds):
+    """ Return a pretty string representing the elapsed time in hours, minutes, seconds """
+    def shiftTo(seconds, shiftToSeconds, shiftToLabel):
+        """ Return a pretty string, shifting seconds to the specified unit of measure """
+        prettyStr = '%i%s' % ((seconds / shiftToSeconds), shiftToLabel)
+        mod = seconds % shiftToSeconds
+        if mod != 0:
+            prettyStr += ' %s' % prettyElapsed(mod)
+        return prettyStr
+    
+    seconds = int(seconds)
+    if seconds < 60:
+        return '%is' % seconds
+    elif seconds < 60 * 60:
+        return shiftTo(seconds, 60, 'm')
+    else:
+        return shiftTo(seconds, 60 * 60, 'h')
+
 def toUnicode(str):
     """ Convert the specified string to a unicode string """
     if str == None:

@@ -263,10 +263,10 @@ def beginDownload():
 
 def endDownload():
     """ Finished downloading """
-    dur = time.time() - Hellanzb.totalStartTime
-    speed = Hellanzb.totalReadBytes / 1024.0 / dur
+    elapsed = time.time() - Hellanzb.totalStartTime
+    speed = Hellanzb.totalReadBytes / 1024.0 / elapsed
     leeched = prettySize(Hellanzb.totalReadBytes)
-    info('Transferred %s in %.1fs at %.1fKB/s' % (leeched, dur, speed))
+    info('Transferred %s in %s at %.1fKB/s' % (leeched, prettyElapsed(elapsed), speed))
     
     Hellanzb.totalReadBytes = 0
     Hellanzb.totalStartTime = None

@@ -1,14 +1,17 @@
 #!/usr/bin/env python
 """
 
-DupeHandler - Functions for handling duplicate files in NZBs
+DupeHandler - Functions for handling duplicate files in NZBs. Some NZBs contain multiple
+files with the exact same filename (due to a mistake during creation of the archive itself
+or the archive's NZB)
 
 Dupe files encountered during the download process (either in NZBFile or NZBSegment form)
 will be renamed
 
 Duplicate files detected on disk during parsing of the NZB will be correctly matched up to
-their representation in the NZB (and the according NZBModel objects). Then we can safely
-determine which dupes actually need to be downloaded
+their representation in the NZB xml (that is, the according NZBModel objects). This can be
+a tricky process, but necessary to safely determine which dupes actually need to be
+downloaded
 
 (c) Copyright 2005 Philip Jenvey
 [See end of file]

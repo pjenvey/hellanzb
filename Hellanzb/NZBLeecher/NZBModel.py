@@ -276,10 +276,12 @@ class NZBFile:
             except Exception, e:
                 debug('getFilename: Unable to getFilenameFromArticleData: file number: %i: %s' % \
                       (self.number, str(e)))
+                
+            if self.filename is None:
                 # We only check the first segment for a real filename (FIXME: looking at
-                # any yDecode segment for the real filename would be nice). We had trouble
-                # finding it there -- force this file to use the temp filename throughout
-                # its lifetime
+                # any yDecode segment for the real filename would be nice). If we had
+                # trouble finding it there -- force this file to use the temp filename
+                # throughout its lifetime
                 self.filename = self.getTempFileName()
                 
             return self.filename

@@ -266,27 +266,38 @@ def setRealFileName(nzbFile, filename, forceChange = False, settingSegmentNumber
     renameFilenames = {}
 
     if switchedReal:
+        # Get the original segment filenames via getDestination()
         renameSegments = [(nzbSegment, nzbSegment.getDestination()) for nzbSegment in
                            nzbFile.nzbSegments if nzbSegment not in
                            nzbSegment.nzbFile.todoNzbSegments]
-                          
+
+    # Change the filename
     nzbFile.filename = filename
-                          
+
     if switchedReal:
+        # Now get the new filenames via getDestination()
         for (renameSegment, oldName) in renameSegments:
-            renameFilenames[os.path.basename(oldName)] = os.path.basename(renameSegment.getDestination())
+            renameFilenames[os.path.basename(oldName)] = \
+                os.path.basename(renameSegment.getDestination())
     else:
+        # Otherwise we just have to handle temp filenames
         for nzbSegment in nzbFile.nzbSegments:
-            renameFilenames[nzbSegment.getTempFileName()] = os.path.basename(nzbSegment.getDestination())
+            renameFilenames[nzbSegment.getTempFileName()] = \
+                os.path.basename(nzbSegment.getDestination())
                           
     # FIXME: remove locking
 
-    from Hellanzb import WORKING_DIR
-    for file in os.listdir(WORKING_DIR):
+    # Rename all segments
+    for file in os.listdir(Hellanzb.WORKING_DIR):
         if file in renameFilenames:
-            newDest = renameFilenames.get(file)
-            shutil.move(WORKING_DIR + os.sep + file,
-                        WORKING_DIR + os.sep + newDest)
+            orig = Hellanzb.WORKING_DIR + os.sep + file
+            new = Hellanzb.WORKING_DIR + os.sep + renameFilenames.get(file)
+            shutil.move(orig, new)
+
+            # Keep the onDiskSegments map in sync
+            if Hellanzb.queue.onDiskSegments.has_key(orig):
+                Hellanzb.queue.onDiskSegments[new] = \
+                    Hellanzb.queue.onDiskSegments.pop(orig)
 
     nzbFile.tempFileNameLock.release()
 

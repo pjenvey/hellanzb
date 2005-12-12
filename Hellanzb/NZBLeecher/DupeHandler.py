@@ -54,7 +54,8 @@ def handleDupeNZBSegment(nzbSegment):
               os.path.basename(dupeNZBFileName)))
         
         if beingDownloadedNZBSegment is not None:
-            debug('handleDupeNZBSegment: handling dupe: %s' % os.path.basename(dest))
+            debug('handleDupeNZBSegment: handling dupe: %s renaming to: %s' % \
+                  (os.path.basename(dest), os.path.basename(dupeNZBFileName)))
             
             # Maintain the correct order when renaming -- the earliest (as they appear in
             # the NZB) clashing NZBFile gets renamed
@@ -69,8 +70,9 @@ def handleDupeNZBSegment(nzbSegment):
             # NOTE: Probably nothing should trigger this, except maybe .par .segment0001
             # files (when smartpar is added). CAUTION: Other cases that might trigger this
             # block should no longer happen!
-            debug('handleDupeNZBSegment: handling dupe (not beingDownloadedNZBSegment!?): %s' % \
-                  os.path.basename(dest))
+            debug('handleDupeNZBSegment: handling dupe (not ' + \
+                  'beingDownloadedNZBSegment!?): %s renaming to: %s' % \
+                  (os.path.basename(dest), os.path.basename(dupeNZBFileName)))
             os.rename(dest, dupeNZBFileName + segmentNumStr)
 
 def handleDupeNZBFile(nzbFile):
@@ -118,7 +120,7 @@ def handleDupeOnDisk(filename, workingDirDupeMap):
     This represents a mapping of the original file (file.rar) to a list containing each
     duplicate file's number and its associated NZBFile object. At this point (just prior
     to parsing of the NZB) the NZBFile object associated with the dupe is not known, so
-    this functions leaves it as None. This will be filled in later by
+    this function leaves it as None. This will be filled in later by
     handleDupeNZBFileNeedsDownload (called from NZBFile.needsDownload)
 
     The duplicate with index -1 is special -- it represents the origin: 'file.rar'. This
@@ -184,11 +186,12 @@ def handleDupeNZBFileNeedsDownload(nzbFile, workingDirDupeMap):
             isDupe = True
 
             debug('handleDupeNeedsDownload: handling dupe: %s' % file)
+            # *sigh* we're a dupe. Find the first unidentified index in the dupeEntry
+            # (dupeEntry[1] is None)
             for dupeEntry in workingDirDupeMap[file]:
-                # Ok, *sigh* we're a dupe. Find the first unidentified index in the
-                # dupeEntry (dupeEntry[1] is None)
                 origin = None
                 if dupeEntry[1] is None:
+                    # Found an entry -- this is for our specified nzbFile
                     dupeEntry[1] = nzbFile
 
                     # Set our filename now, since we know it, for sanity sake
@@ -216,19 +219,6 @@ def handleDupeNZBFileNeedsDownload(nzbFile, workingDirDupeMap):
                 # there are currently on disk
                 elif dupeEntry[0] == -1:
                     origin = dupeEntry[1]
-
-            if origin is not None and origin.filename is None:
-                # That special case -- there are more duplicates in the NZB than there are
-                # currently on disk (we looped through all dupeEntries and could not find
-                # a match to this NZBFile on disk). Rename the origin immediately. This
-                # needs to be done because if the origin's has segments on disk (it's not
-                # yet the fully assembled file), these will cause massive trouble later
-                # with ArticleDecoder.handleDupeNZBSegment
-                renamedOrigin = nextDupeName(Hellanzb.WORKING_DIR + os.sep + file)
-                ArticleDecoder.setRealFileName(origin, os.path.basename(renamedOrigin),
-                                               forceChange = True)
-                debug('handleDupeNeedsDownload: renamed origin from: %s to: %s' \
-                      % (file, renamedOrigin))
 
             # Didn't find a match on disk. Needs to be downloaded
             return isDupe, True

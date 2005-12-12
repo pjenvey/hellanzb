@@ -111,16 +111,25 @@ def segmentsNeedDownload(segmentList, overwriteZeroByteSegments = False):
             needDlSegments.append(segment)
             needDlFiles.add(segment.nzbFile)
         else:
-            if segment.number == 1 and foundFileName.find('hellanzb-tmp-') != 0:
+            if foundFileName.find('hellanzb-tmp-') != 0 and \
+                    segment.nzbFile.filename is None:
                 # HACK: filename is None. so we only have the temporary name in
-                # memory. since we didnt see the temporary name on the filesystem, but
-                # we found a subject match, that means we have the real name on the
-                # filesystem. In the case where this happens, and we are segment #1,
-                # we've figured out the real filename (hopefully!)
+                # memory. since we didnt see the temporary name on the filesystem, but we
+                # found a subject match, that means we have the real name on the
+                # filesystem. In the case where this happens we've figured out the real
+                # filename (hopefully!). Set it if it hasn't already been set
                 setRealFileName(segment.nzbFile, foundFileName,
                             settingSegmentNumber = segment.number)
                 
             onDiskSegments.append(segment)
+            
+            # We only call segmentDone here to update the queue's onDiskSegments. The call
+            # shouldn't actually be decrementing the queue's totalQueuedBytes at this
+            # point. We call this so isBeingDownloaded (called from handleDupeNZBSegment)
+            # can identify orphaned segments on disk that technically aren't being
+            # downloaded, but need to be identified as so, so their parent NZBFile can be
+            # renamed
+            Hellanzb.queue.segmentDone(segment)
 
             # This segment was matched. Remove it from the list to avoid matching it again
             # later (dupes)
@@ -636,9 +645,13 @@ class NZBQueue(PriorityQueue):
 
     def clear(self):
         """ Clear the queue of all its contents"""
-        if self.retryQueueEnabled:
+        if self.retryQueueEnabled is not None:
             self.rQueue.clear()
         PriorityQueue.clear(self)
+
+        self.nzbs = []
+        
+        self.onDiskSegments.clear()
 
     def postpone(self, cancel = False):
         """ Postpone the current download """
@@ -650,8 +663,6 @@ class NZBQueue(PriorityQueue):
         if not cancel:
             self.postponedNzbFiles.union_update(self.nzbFiles)
         self.nzbFiles.clear()
-
-        self.nzbs = []
         
         self.nzbFilesLock.release()
         self.nzbsLock.release()
@@ -798,7 +809,7 @@ class NZBQueue(PriorityQueue):
         """ Simply decrement the queued byte count, unless the segment is part of a postponed
         download """
         self.nzbsLock.acquire()
-        if nzbSegment.nzbFile.nzb in self.nzbs:
+        if nzbSegment.nzbFile.nzb in self.nzbs and self.totalQueuedBytes > 0:
             self.totalQueuedBytes -= nzbSegment.bytes
         self.nzbsLock.release()
 
@@ -905,6 +916,8 @@ class NZBQueue(PriorityQueue):
         for nzbSegment in needDlSegments:
             self.put((nzbSegment.priority, nzbSegment))
 
+        # NOTE: This doesn't take into account the orphaned on disk segments. The block
+        # below handles decrementing the total queued byte count to the correct value
         self.calculateTotalQueuedBytes()
 
         # Finally, figure out what on disk segments are part of partially downloaded

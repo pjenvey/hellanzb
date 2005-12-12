@@ -309,6 +309,7 @@ def marquee():
         msg += ')'
         
     info(msg)
+    debug(msg)
 
 USAGE = """
 hellanzb version %s

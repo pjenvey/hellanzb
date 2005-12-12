@@ -120,6 +120,11 @@ def stripArticleData(articleData):
         # Remove the EOM char
         if articleData[-1] == '..' or articleData[-1] == '.':
             articleData.pop(-1)
+            
+            # and trailing again
+            while articleData[-1] == '':
+                articleData.pop(-1)
+            
     except IndexError:
         pass
 
@@ -144,7 +149,6 @@ def parseArticleData(segment, justExtractFilename = False):
     # First, clean it
     stripArticleData(segment.articleData)
 
-    cleanData = []
     encodingType = UNKNOWN
     withinData = False
     index = -1
@@ -214,6 +218,20 @@ def parseArticleData(segment, justExtractFilename = False):
                 line = line[1:]
                 segment.articleData[index] = line
 
+        elif not withinData and segment.number == 1:
+            # Assume segment #1 has a valid header -- continue until we find it. I've seen
+            # some UUEncoded archives start like this:
+            #
+            # 222 423850423 <PLSmfijf.803495116$Es4.92395@feung.shui.beek.dk> body
+            # BSD.ARCHIVE HERE IT IS
+            # begin 644 bsd-archive.part45.rar
+            # MJ"D+D:J6@1L'J0[O;JXTO/V`HR]4JO:/Q\J$M79S9("@]^]MFIGW/\`VJJC_
+            #
+            # (and of course, only segment #1 actually contains a filename). The UUDecode
+            # function will also quietly ignore the first couple of lines if they are
+            # garbage (can't decode)
+            continue
+
         elif not withinData:
             # Assume this is a subsequent uuencode segment
             withinData = True
@@ -224,7 +242,6 @@ def parseArticleData(segment, justExtractFilename = False):
         return
 
     decodeSegmentToFile(segment, encodingType)
-    del cleanData
     del segment.articleData
     segment.articleData = '' # We often check it for == None
 decodeArticleData=parseArticleData
@@ -233,6 +250,7 @@ def setRealFileName(nzbFile, filename, forceChange = False, settingSegmentNumber
     """ Set the actual filename of the segment's parent nzbFile. If the filename wasn't
     already previously set, set the actual filename atomically and also atomically rename
     known temporary files belonging to that nzbFile to use the new real filename """
+    # FIXME: remove locking
     switchedReal = False
     if nzbFile.filename is not None and nzbFile.filename != filename:
         # This NZBFile already had a real filename set, and now something has triggered it
@@ -266,7 +284,7 @@ def setRealFileName(nzbFile, filename, forceChange = False, settingSegmentNumber
     renameFilenames = {}
 
     if switchedReal:
-        # Get the original segment filenames via getDestination()
+        # Get the original segment filenames via getDestination() (before we change it)
         renameSegments = [(nzbSegment, nzbSegment.getDestination()) for nzbSegment in
                            nzbFile.nzbSegments if nzbSegment not in
                            nzbSegment.nzbFile.todoNzbSegments]
@@ -279,14 +297,13 @@ def setRealFileName(nzbFile, filename, forceChange = False, settingSegmentNumber
         for (renameSegment, oldName) in renameSegments:
             renameFilenames[os.path.basename(oldName)] = \
                 os.path.basename(renameSegment.getDestination())
-    else:
-        # Otherwise we just have to handle temp filenames
-        for nzbSegment in nzbFile.nzbSegments:
-            renameFilenames[nzbSegment.getTempFileName()] = \
-                os.path.basename(nzbSegment.getDestination())
-                          
-    # FIXME: remove locking
 
+    # We also need a mapping of temp filenames to the new filename, incase we just found
+    # the real file name (filename is None or filename was previously set to a temp name)
+    for nzbSegment in nzbFile.nzbSegments:
+        renameFilenames[nzbSegment.getTempFileName()] = \
+            os.path.basename(nzbSegment.getDestination())
+                          
     # Rename all segments
     for file in os.listdir(Hellanzb.WORKING_DIR):
         if file in renameFilenames:
@@ -524,14 +541,25 @@ def UUDecode(dataList):
     """ UUDecode the specified list of data, returning results as a list """
     buffer = []
 
+    # All whitespace and EOMs (.) should be stripped from the end at this point. Now,
+    # strip the uuencode 'end' string and or whitespace (including grave accents) until we
+    # have nothing but uuencoded data and its headers
+    if dataList[-1][:3] == 'end':
+        dataList.pop(-1)
+    while dataList[-1] == '' or dataList[-1] == '`':
+        dataList.pop(-1)
+
+    # Any line before this index should precede with 'M'
+    notMLines = len(dataList) - 1
+
     index = -1
     for line in dataList:
         index += 1
 
-        if index <= 5 and line[:6] == 'begin ':
+        if (index <= 5 and line[:6] == 'begin ') or \
+                (index < notMLines and line[:1] != 'M'):
+            notMLines -= 1
             continue
-        elif line[:3] == 'end':
-            break
 
         # From pyNewsleecher. Which ripped it from python's uu module (with maybe extra
         # overhead stripped out)

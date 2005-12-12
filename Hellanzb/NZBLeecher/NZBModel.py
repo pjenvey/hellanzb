@@ -310,12 +310,8 @@ class NZBFile:
         this directory listing every time it is called (i.e. prune directory
         names). workingDirListing should be a list of only filenames (basename, not
         including dirname) of files lying in Hellanzb.WORKING_DIR """
-        start = time.time()
-
         if os.path.isfile(self.getDestination()):
             # This block only handles matching temporary file names
-            end = time.time() - start
-            debug('needsDownload took: ' + str(end))
             return False
 
         elif self.filename == None:
@@ -331,12 +327,8 @@ class NZBFile:
 
                 # Whole file match
                 if self.subject.find(file) > -1:
-                    end = time.time() - start
-                    debug('needsDownload took: ' + str(end))
                     return False
     
-        end = time.time() - start
-        debug('needsDownload took: ' + str(end))
         return True
 
     def getTempFileName(self):
@@ -878,7 +870,7 @@ class NZBQueue(PriorityQueue):
             if nzbFile not in needDlFiles:
                 # Don't automatically 'finish' the NZB, we'll take care of that in this
                 # function if necessary
-                info(nzbFile.getFilename() + ': assembling -- all segments were on disk')
+                info(nzbFile.getFilename() + ': Assembling -- all segments were on disk')
                 
                 # NOTE: this function is destructive to the passed in nzbFile! And is only
                 # called on occasion (might bite you in the ass one day)
@@ -895,7 +887,7 @@ class NZBQueue(PriorityQueue):
             # nudge GC
             nzbFileName = nzb.nzbFileName
             self.nzbDone(nzb)
-            info(nzb.archiveName + ': assembled archive!')
+            info(nzb.archiveName + ': Assembled archive!')
             for nzbFile in nzb.nzbFileElements:
                 del nzbFile.todoNzbSegments
                 del nzbFile.nzb

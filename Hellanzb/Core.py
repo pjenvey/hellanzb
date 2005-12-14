@@ -220,6 +220,8 @@ def init(options = {}):
     else:
         findAndLoadConfig()
 
+    # FIXME: these blocks below, and some code in loadConfig should all be pulled out into
+    # a post-loadConfig normalizeConfig function
     for attr in ('logFile', 'debugLogFile'):
         # this is really: logFile = None
         setattr(sys.modules[__name__], attr, None)

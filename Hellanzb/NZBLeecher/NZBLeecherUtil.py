@@ -1,10 +1,10 @@
 """
-NZBLeecherUtil - Misc. code for NZBLeecher
+NZBLeecherUtil - Misc. code for NZBLeecher and its related modules
 
 (c) Copyright 2005 Philip Jenvey
 [See end of file]
 """
-import sys, Hellanzb
+import os, stat, sys, Hellanzb
 from twisted.internet import reactor
 from twisted.python import log
 from twisted.protocols.policies import ThrottlingProtocol, WrappingFactory
@@ -152,6 +152,14 @@ class HellaThrottlingFactory(WrappingFactory):
             for name in ('unthrottleReadsID', 'checkReadBandwidthID',
                          'unthrottleWritesID', 'checkWriteBandwidthID'):
                 self.cancelScheduled(getattr(self.ht, name))
+
+def validWorkingFile(file, overwriteZeroByteFiles = False):
+    """ Determine if the specified file path is a valid, existing file in the WORKING_DIR """
+    # Overwrite (return True) 0 byte segment files if specified
+    if os.path.exists(file) and \
+            (os.stat(file)[stat.ST_SIZE] != 0 or not overwriteZeroByteFiles):
+        return True
+    return False
 
 """
 /*

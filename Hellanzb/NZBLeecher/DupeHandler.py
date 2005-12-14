@@ -16,9 +16,10 @@ downloaded
 (c) Copyright 2005 Philip Jenvey
 [See end of file]
 """
-import os, Hellanzb, ArticleDecoder
+import os, ArticleDecoder, Hellanzb
 from Hellanzb.Log import *
 from Hellanzb.Util import dupeName, getFileExtension, nextDupeName, DUPE_SUFFIX_RE
+from Hellanzb.NZBLeecher.NZBLeecherUtil import validWorkingFile
 
 __id__ = '$Id$'
 
@@ -36,7 +37,8 @@ def handleDupeNZBSegment(nzbSegment):
     """ Handle a duplicate NZBSegment file on disk (prior to writing a new one), if one exists
     """
     dest = nzbSegment.getDestination()
-    if os.path.exists(dest):
+    if validWorkingFile(dest, overwriteZeroByteFiles = \
+                        nzbSegment.nzbFile.nzb.overwriteZeroByteFiles):
         # We have lazily found a duplicate segment (a .segmentXXXX already on disk that we
         # were about to write to). Determine the new, duplicate filename, that either the
         # on disk file or the segment ABOUT to be written to disk will be renamed to. We
@@ -82,7 +84,9 @@ def handleDupeNZBFile(nzbFile):
     # Ignore .nfo files -- newzbin.com dumps the .nfo file to the end of every nzb (if one
     # exists) -- so it's commonly a dupe. If it's already been downloaded (is an actual
     # fully assembled NZBFile on disk, not an NZBSegment), just overwrite it
-    if os.path.exists(dest) and getFileExtension(dest) != 'nfo':
+    if validWorkingFile(dest, overwriteZeroByteFiles = 
+                        nzbFile.nzb.overwriteZeroByteFiles) and \
+                        getFileExtension(dest) != 'nfo':
         # Set a new dupeName -- avoid setting a dupeName that is on disk or in the
         # eschewNames (like above in handleDupeNZBSegment)
         dupeNZBFileName = dupeName(dest, eschewNames = knownRealNZBFilenames())

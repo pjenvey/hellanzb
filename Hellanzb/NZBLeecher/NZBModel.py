@@ -5,7 +5,7 @@ NZBModel - Representations of the NZB file format in memory
 (c) Copyright 2005 Philip Jenvey
 [See end of file]
 """
-import gc, os, re, stat, time, Hellanzb
+import gc, os, re, time, Hellanzb
 from sets import Set
 from threading import Lock, RLock
 from twisted.internet import reactor
@@ -14,30 +14,15 @@ from xml.sax.handler import ContentHandler, feature_external_ges, feature_namesp
 from Hellanzb.Core import shutdown
 from Hellanzb.Daemon import handleNZBDone
 from Hellanzb.Log import *
+from Hellanzb.Util import archiveName, getFileExtension, IDPool, EmptyForThisPool, \
+    PoolsExhausted, PriorityQueue, OutOfDiskSpace, DUPE_SUFFIX
 from Hellanzb.NZBLeecher.ArticleDecoder import assembleNZBFile, parseArticleData, \
     setRealFileName, tryFinishNZB
 from Hellanzb.NZBLeecher.DupeHandler import handleDupeNZBFileNeedsDownload, handleDupeOnDisk
-from Hellanzb.Util import archiveName, getFileExtension, IDPool, EmptyForThisPool, \
-    PoolsExhausted, PriorityQueue, OutOfDiskSpace, DUPE_SUFFIX
+from Hellanzb.NZBLeecher.NZBLeecherUtil import validWorkingFile
 from Queue import Empty
 
 __id__ = '$Id$'
-
-def validWorkingFile(file, overwriteZeroByteFiles = False):
-    """ Determine if the specified file path is a valid, existing file in the WORKING_DIR """
-    if not os.path.isfile(file):
-        return False
-
-    # Overwrite 0 byte segment files if specified
-    if 0 == os.stat(file)[stat.ST_SIZE] and overwriteZeroByteFiles:
-        #debug('Will overwrite 0 byte segment file: ' + file)
-        # FIXME: store these 0 byte files in a list, when we encounter a segment file
-        # that matches one of these, we will tell the user we're overwriting the 0
-        # byte file. FIXME: this should then also work for overwriting 0 byte on disk
-        # NZBFiles
-        return False
-    
-    return True
 
 segmentEndRe = re.compile(r'^segment\d{4}$')
 def segmentsNeedDownload(segmentList, overwriteZeroByteSegments = False):

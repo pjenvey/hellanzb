@@ -11,7 +11,6 @@ Command line interface to the Hellanzb library.
 (c) Copyright 2005 Philip Jenvey, Ben Bangert
 [See end of file]
 """
-
 from Hellanzb.Core import main
 
 __id__ = '$Id$'

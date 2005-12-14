@@ -405,7 +405,7 @@ def dirHasFileTypes(dirName, fileExtensionList):
     return False
 
 def getFileExtension(fileName):
-    """ Return the extenion of the specified file name """
+    """ Return the extenion of the specified file name, in lowercase """
     if len(fileName) > 1 and fileName.find('.') > -1:
         return string.lower(os.path.splitext(fileName)[1][1:])
 
@@ -509,27 +509,101 @@ def flattenDoc(docString):
         clean += line.strip() + ' '
     return clean
 
+RENAME_SUFFIX = '_hellanzb_renamed'
 def hellaRename(filename):
     """ rename a dupe file to filename _hellanzb_renamedX """
     if os.path.exists(filename):
         # Rename the dir if it exists already
-        renamedDir = filename + '_hellanzb_renamed'
+        renamedDir = filename + RENAME_SUFFIX
         i = 0
         while os.path.exists(renamedDir + str(i)):
             i += 1
         move(filename, renamedDir + str(i))
-        
-def dupeName(filename):
-    """ Return a new filename with '_hellanzb_dupeX' appended to it, if a duplicate name
-    already exists on the file system """
-    if not os.path.exists(filename):
+
+DUPE_SUFFIX = '_hellanzb_dupe'
+DUPE_SUFFIX_RE = re.compile('(.*)' + DUPE_SUFFIX + '(\d{1,4})$')
+def _nextDupeName(filename):
+    """ Return the next dupeName in the dupeName sequence """
+    i = -1
+    dupeMatch = DUPE_SUFFIX_RE.match(filename)
+    
+    # If this is a dupe name already, pull the DUPE_SUFFIX off
+    if dupeMatch:
+        filename = dupeMatch.group(1)
+        i = int(dupeMatch.group(2))
+
+    # Increment dupeName sequence
+    renamed = filename + DUPE_SUFFIX + str(i + 1)
+    return renamed
+
+def dupeName(filename, checkOnDisk = True, eschewNames = [], minIteration = 0):
+    """ Returns a new filename with '_hellanzb_dupeX' appended to it (where X is the next
+    integer in a sequence producing the first available unique filename on disk). The
+    optional checkOnDisk option is mainly intended for use by the nextDupeName
+    function. The optional eschewNames list acts as a list of filenames to be avoided --
+    as if they were on disk
+    
+    e.g.:
+    With no files in the /test/ dir,
+    
+    dupeName('/test/file') would return:
+    '/test/file'
+
+    dupeName('/test/file', eschewNames = ('/test/file')) would return:
+    '/test/file_hellanzb_dupe0'
+
+    With the files 'file' and 'file_hellanzb_dupe0' in the /test/ dir,
+    dupeName('/test/file') would return:
+    '/test/file_hellanzb_dupe1'
+
+    dupeName('/test/file', eschewNames = ('/test/file_hellanzb_dupe1')) would return:
+    '/test/file_hellanzb_dupe2'
+    """
+    if (not checkOnDisk or not os.path.exists(filename)) and minIteration == 0 and \
+            filename not in eschewNames:
         return filename
     
-    renamed = filename + '_hellanzb_dupe'
+    def onDisk(filename):
+        if not checkOnDisk:
+            return False
+        return os.path.exists(filename)
+        
     i = 0
-    while os.path.exists(renamed + str(i)):
+    while True:
         i += 1
-    return renamed + str(i)
+        filename = _nextDupeName(filename)
+        if not onDisk(filename) and filename not in eschewNames and i >= minIteration:
+            break
+
+    return filename
+
+def nextDupeName(*args, **kwargs):
+    """ nextDupeName acts as dupeName, except it will always increment the dupeName sequence
+    by at least one time
+
+    e.g.:
+    With no files in the /test/ dir,
+    
+    nextDupeName('/test/file') would return:
+    '/test/file_hellanzb_dupe0'
+
+    nextDupeName('/test/file', eschewNames = ('/test/file_hellanzb_dupe0')) would return:
+    '/test/file_hellanzb_dupe1'
+
+    With the files 'file' and 'file_hellanzb_dupe0' in the /test/ dir,
+    nextDupeName('/test/file') would return:
+    '/test/file_hellanzb_dupe1'
+
+    nextDupeName('/test/file', checkOnDisk = False) would return:
+    '/test/file_hellanzb_dupe0'
+
+    nextDupeName('/test/file', checkOnDisk = False,
+                 eschewNames = ('/test/file_hellanzb_dupe0')) would return:
+    '/test/file_hellanzb_dupe1'
+    """
+    if not kwargs.has_key('minIteration'):
+        kwargs['minIteration'] = 1
+    return dupeName(*args, **kwargs)
 
 def getMsgId(archiveName):
     """ grab the msgid from a 'msgid_31337_HellaBlah.nzb string """
@@ -597,6 +671,24 @@ def prettyEta(etaSeconds):
     seconds = etaSeconds - (hours * 60 * 60) - (minutes * 60)
     return '%.2d:%.2d:%.2d' % (hours, minutes, seconds)
 
+def prettyElapsed(seconds):
+    """ Return a pretty string representing the elapsed time in hours, minutes, seconds """
+    def shiftTo(seconds, shiftToSeconds, shiftToLabel):
+        """ Return a pretty string, shifting seconds to the specified unit of measure """
+        prettyStr = '%i%s' % ((seconds / shiftToSeconds), shiftToLabel)
+        mod = seconds % shiftToSeconds
+        if mod != 0:
+            prettyStr += ' %s' % prettyElapsed(mod)
+        return prettyStr
+    
+    seconds = int(seconds)
+    if seconds < 60:
+        return '%is' % seconds
+    elif seconds < 60 * 60:
+        return shiftTo(seconds, 60, 'm')
+    else:
+        return shiftTo(seconds, 60 * 60, 'h')
+
 def toUnicode(str):
     """ Convert the specified string to a unicode string """
     if str == None:
@@ -625,35 +717,33 @@ def nuke(filename):
     except Exception, e:
         pass
     
-# NOTE: if you're cut & pasting -- the ascii is escaped (\") in one spot
 Hellanzb.CMHELLA = \
-"""
+'''
            ;;;;            .  .
       ... :liil ...........:..:      ,._    ,._      ...................
       :   l$$$:  _.,._       _..,,._ "$$$b. "$$$b.   `_..,,._        :::
       :   $$$$.d$$$$$$L   .d$$$$$$$$L $$$$:  $$$$: .d$$$$$$$$$;      :::
       :  :$$$$P`  T$$$$: :$$$$`  7$$F:$$$$  :$$$$ :$$$$: `$$$$ __  _  |_
-      :  l$$$F   :$$$$$  8$$$l""\"""` l$$$l  l$$$l l$$$l   $$$L | ) /_ |_)
+      :  l$$$F   :$$$$$  8$$$l"""""` l$$$l  l$$$l l$$$l   $$$L | ) /_ |_)
       :  $$$$:   l$$$$$L `4$$$bcmang;ACID$::$$$88:`4$$$bmm$$$$;.     ...
       :    ```      ```""              ```    ```    .    ```.     ..:::..
       :..............................................:              `:::`
                                                                       `
-"""
+'''
 
-# NOTE: if you're cut & pasting -- the ascii is escaped (\") in one spot
 Hellanzb.CMHELLA_VERSIONED = \
-"""
+'''
            ;;;;            .  .
       ... :liil ...........:..:      ,._    ,._      ...................
       :   l$$$:  _.,._       _..,,._ "$$$b. "$$$b.   `_..,,._        :::
       :   $$$$.d$$$$$$L   .d$$$$$$$$L $$$$:  $$$$: .d$$$$$$$$$;      :::
       :  :$$$$P`  T$$$$: :$$$$`  7$$F:$$$$  :$$$$ :$$$$: `$$$$ __  _  |_
-      :  l$$$F   :$$$$$  8$$$l""\"""` l$$$l  l$$$l l$$$l   $$$L | ) /_ |_)
+      :  l$$$F   :$$$$$  8$$$l"""""` l$$$l  l$$$l l$$$l   $$$L | ) /_ |_)
       :  $$$$:   l$$$$$L `4$$$bcmang;ACID$::$$$88:`4$$$bmm$$$$;.     ...
       :    ```      ```""              ```    ```    .    ```.     ..:::..
       :..............................................:     %s  `:::`
                                                                       `
-"""
+'''
 def cmVersion(version = Hellanzb.version):
     """ try to make Hellanzb.version always look like this: 'V 1 . 0' """
     cmV = 'V 1 . 0'

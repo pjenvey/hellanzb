@@ -100,12 +100,14 @@ def dequeueIfExtraPar(segment):
     
         if line.startswith('=ybegin'):
             ybegin = ySplit(line)
-            setRealFileName(segment, ybegin['name'])
+            setRealFileName(segment.nzbFile, ybegin['name'],
+                            settingSegmentNumber = segment.number)
             break
         
         elif line.startswith('begin '):
             filename = line.rstrip().split(' ', 2)[2]
-            setRealFileName(segment, filename)
+            setRealFileName(segment.nzbFile, filename,
+                            settingSegmentNumber = segment.number)
             break
 
     if segment.nzbFile.filename == None:

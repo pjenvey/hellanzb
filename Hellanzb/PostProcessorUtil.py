@@ -356,14 +356,14 @@ def processRars(dirName, rarPassword):
                 
             unrared += 1
 
-    e = time.time() - start
-    rarTxt = 'rar'
+    processComplete(dirName, 'rar', lambda file : os.path.isfile(file) and isRar(file))
+    
+    rarTxt = 'rar group'
     if unrared > 1:
         rarTxt += 's'
-    info(archiveName(dirName) + ': Finished unraring (%i %s, took: %.1fs)' % (unrared,
-                                                                              rarTxt, e))
-    processComplete(dirName, 'rar',
-                    lambda file : os.path.isfile(file) and isRar(file))
+    e = time.time() - start
+    info('%s: Finished unraring (%i %s, took: %s)' % (archiveName(dirName), unrared,
+                                                      rarTxt, prettyElapsed(e)))
 
 """
 ## From unrarsrc-3.4.3
@@ -386,9 +386,9 @@ def unrar(dirName, fileName, rarPassword = None, pathToExtract = None):
     if rarPassword != None:
         # Specify the password during the listing, in the case that the data AND headers
         # are passworded
-        listCmd = Hellanzb.UNRAR_CMD + ' l -y "-p' + rarPassword + '" "' + fileName + '"'
+        listCmd = '%s l -y "-p%s" -- "%s"' % (Hellanzb.UNRAR_CMD, rarPassword, fileName)
     else:
-        listCmd = Hellanzb.UNRAR_CMD + ' l -y -p-' + ' "' + fileName + '"'
+        listCmd = '%s l -y -p- -- "%s"' % (Hellanzb.UNRAR_CMD, fileName)
     t = Topen(listCmd)
     output, listReturnCode = t.readlinesAndWait()
 
@@ -438,10 +438,9 @@ def unrar(dirName, fileName, rarPassword = None, pathToExtract = None):
                          ' -p on the archive directory with the -P option to specify a password')
 
     if isPassworded:
-        cmd = Hellanzb.UNRAR_CMD + ' x -y "-p' + rarPassword + '" "' + fileName + '" "' + \
-            pathToExtract + '"'
+        cmd = '%s x -y "-p%s" -- "%s" "%s"' % (Hellanzb.UNRAR_CMD, rarPassword, fileName, pathToExtract)
     else:
-        cmd = Hellanzb.UNRAR_CMD + ' x -y -p-' + ' "' + fileName + '" "' + pathToExtract + '"'
+        cmd = '%s x -y -p- -- "%s" "%s"' % (Hellanzb.UNRAR_CMD, fileName, pathToExtract)
     
     info(archiveName(dirName) + ': Unraring ' + os.path.basename(fileName) + '..')
     t = Topen(cmd)
@@ -598,16 +597,16 @@ def processPars(dirName, hasMorePars, needAssembly = None):
         for parFile in parFiles:
             moveToProcessed(dirName + os.sep + parFile)
 
-    e = time.time() - start
+    processComplete(dirName, 'par', lambda file : isPar(file) or \
+                    (file[-2:] == '.1' and file not in dotOneFiles))
+    
     parTxt = 'par group'
     groupCount = len(parGroups)
     if groupCount > 1:
         parTxt += 's'
-    info(archiveName(dirName) + ': Finished par verifiy (%i %s, took: %.1fs)' % (groupCount,
-                                                                              parTxt, e))
-    
-    processComplete(dirName, 'par', lambda file : isPar(file) or \
-                    (file[-2:] == '.1' and file not in dotOneFiles))
+    e = time.time() - start
+    info('%s: Finished par verify (%i %s, took: %s)' % (archiveName(dirName), groupCount,
+                                                        parTxt, prettyElapsed(e)))
 
 """
 ## From par2cmdline-0.4
@@ -649,9 +648,9 @@ def par2(dirName, parFiles, wildcard, needAssembly = None, hasMorePars = False):
     if needAssembly == None:
         needAssembly = {}
         
-    repairCmd = 'par2 r'
+    repairCmd = 'par2 r --'
     for parFile in parFiles:
-        repairCmd += ' "' + dirName + parFile + '"'
+        repairCmd += ' "%s%s"' % (dirName, parFile)
         
     t = Topen(repairCmd)
     output, returnCode = t.readlinesAndWait()
@@ -691,21 +690,29 @@ def par2(dirName, parFiles, wildcard, needAssembly = None, hasMorePars = False):
         # First, if the repair is not possible, double check the output for what files are
         # missing or damaged (a missing file is considered as damaged in this case). they
         # may be unimportant
-        damagedAndRequired, allMissing, neededBlocks, isPar1Archive = \
+        damagedAndRequired, missingFiles, targetsFound, neededBlocks, isPar1Archive = \
             parseParNeedsBlocksOutput(archiveName(dirName), output)
 
-        for file in allMissing:
+        for file in missingFiles:
             if needAssembly.has_key(file):
                 # Found a file we need to assemble for Par2. Throw us back out to handle
                 # that work, we'll run par2 again later
                 raise ParExpectsUnsplitFiles('')
 
+        needType = 'blocks'
+        if isPar1Archive:
+            needType = 'files (par1)'
+
+        # par did not find any valid 'Target:' files, and more blocks are needed. This is
+        # probably a bad archive
+        if targetsFound == 0 and neededBlocks > 0:
+            # FIXME: download more pars and try again
+            raise FatalError('Unable to par repair: archive requires ' + neededBlocks + \
+                             ' more recovery ' + needType + \
+                             ' for repair. No valid files found (bad archive?)')
+
         # The archive is only totally broken when we're missing required files
         if len(damagedAndRequired) > 0:
-            needType = 'blocks'
-            if isPar1Archive:
-                needType = 'files (par1)'
-                
             growlNotify('Error', 'hellanzb Cannot par repair:', archiveName(dirName) + \
                         '\nNeed ' + neededBlocks + ' more recovery ' + needType, True)
             # FIXME: download more pars and try again
@@ -724,11 +731,12 @@ def parseParNeedsBlocksOutput(archive, output):
     required blocks needed. Will also log warn the user when it finds either of these
     kinds of files, or log error when they're required """
     damagedAndRequired = []
-    allMissing = []
+    missingFiles = []
     neededBlocks = None
     damagedRE = re.compile(r'"\ -\ damaged\.\ Found\ \d+\ of\ \d+\ data\ blocks\.')
     isPar1Archive = False
 
+    targetsFound = 0
     maxSpam = 4 # only spam this many lines (before truncating)
     spammed = 0
     extraSpam = []
@@ -737,6 +745,8 @@ def parseParNeedsBlocksOutput(archive, output):
             
         index = line.find('Target:')
         if index > -1 and line.endswith('missing.') or damagedRE.search(line):
+            targetsFound += 1
+            
             # Strip any preceeding curses junk
             line = line[index:]
 
@@ -749,7 +759,7 @@ def parseParNeedsBlocksOutput(archive, output):
                 # in this function)
                 errMsg = archive + ': Archive missing required file: ' + file
                 warnMsg = archive + ': Archive missing non-required file: ' + file
-                allMissing.append(file)
+                missingFiles.append(file)
             else:
                 file = damagedRE.sub('', line)
                 errMsg = archive + ': Archive has damaged, required file: ' + file
@@ -792,7 +802,7 @@ def parseParNeedsBlocksOutput(archive, output):
         else:
             error(lastMsg)
             
-    return damagedAndRequired, allMissing, neededBlocks, isPar1Archive
+    return damagedAndRequired, missingFiles, targetsFound, neededBlocks, isPar1Archive
 
 FIRST_SEGMENT_SUFFIX = '.segment0001'
 def cleanUpSkippedPars(dirName):
@@ -802,12 +812,12 @@ def cleanUpSkippedPars(dirName):
         if file.endswith(FIRST_SEGMENT_SUFFIX) and isPar(file[:-len(FIRST_SEGMENT_SUFFIX)]):
             moveToProcessed(dirName + os.sep + file)
 
-SPLIT_RE = re.compile(r'.*\.\d{3,4}$')
+SPLIT_RE = re.compile(r'.*\.\d{2,4}$')
 SPLIT_TS_RE = re.compile(r'.*\.\d{3,4}\.ts$', re.I)
 def findSplitFiles(dirName):
     """ Find files split into chunks. This currently supports the following formats:
 
-    Files ending with 3-4 digits, e.g.:
+    Files ending with 2-4 digits, e.g.:
 
     ArchiveA.avi.001                ArchiveB.mpg.0001
     ArchiveA.avi.002                ArchiveB.mpg.0002
@@ -864,9 +874,11 @@ def assembleSplitFiles(dirName, toAssemble):
         parts.sort()
 
         if key[-3:].lower() == '.ts':
-            msg = archiveName(dirName) + ': Assembling split TS file from parts: ' + key[:-3] + '.*.ts..' 
+            msg = archiveName(dirName) + ': Assembling split TS file from parts: ' + \
+                key[:-3] + '.*.ts..' 
         else:
-            msg = archiveName(dirName) + ': Assembling split file from parts: ' + key + '.*..'
+            msg = archiveName(dirName) + ': Assembling split file from parts: ' + key + \
+                '.*..'
         info(msg)
         debug(msg + ' ' + str(parts))
         
@@ -883,7 +895,8 @@ def assembleSplitFiles(dirName, toAssemble):
             except SystemExit:
                 # We were interrupted. Instead of waiting to finish, just delete the file. It
                 # will be automatically assembled upon restart
-                debug('PostProcessor: (CTRL-C) Removing unfinished file: ' + dirName + os.sep + key)
+                debug('PostProcessor: (CTRL-C) Removing unfinished file: ' + dirName + \
+                      os.sep + key)
                 assembledFile.close()
                 try:
                     os.remove(dirName + os.sep + key)
@@ -895,6 +908,12 @@ def assembleSplitFiles(dirName, toAssemble):
 
         for part in parts:
             moveToProcessed(dirName + os.sep + part)
+
+def cleanDupeFiles(dirName):
+    """ Remove any files marked as duplicates """
+    for file in os.listdir(dirName):
+        if DUPE_SUFFIX_RE.match(file):
+            moveToProcessed(dirName + os.sep + file)
 
 def moveToProcessed(file):
     """ Move files to the processed dir """
@@ -912,11 +931,13 @@ def processComplete(dirName, processStateName, moveFileFilterFunction):
             moveToProcessed(file)
 
     # And make a note of the completion
-    touch(dirName + os.sep + Hellanzb.PROCESSED_SUBDIR + os.sep + '.' + processStateName + '_done')
+    touch(dirName + os.sep + Hellanzb.PROCESSED_SUBDIR + os.sep + '.' + \
+          processStateName + '_done')
 
 def isFreshState(dirName, stateName):
     """ Determine if the specified state has already been completed """
-    if os.path.isfile(dirName + os.sep + Hellanzb.PROCESSED_SUBDIR + os.sep + '.' + stateName + '_done'):
+    if os.path.isfile(dirName + os.sep + Hellanzb.PROCESSED_SUBDIR + os.sep + \
+                      '.' + stateName + '_done'):
         return False
     return True
 

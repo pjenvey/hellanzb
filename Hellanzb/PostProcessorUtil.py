@@ -664,21 +664,29 @@ def par2(dirName, parFiles, wildcard, needAssembly = None):
         # First, if the repair is not possible, double check the output for what files are
         # missing or damaged (a missing file is considered as damaged in this case). they
         # may be unimportant
-        damagedAndRequired, allMissing, neededBlocks, isPar1Archive = \
+        damagedAndRequired, missingFiles, targetsFound, neededBlocks, isPar1Archive = \
             parseParNeedsBlocksOutput(archiveName(dirName), output)
 
-        for file in allMissing:
+        for file in missingFiles:
             if needAssembly.has_key(file):
                 # Found a file we need to assemble for Par2. Throw us back out to handle
                 # that work, we'll run par2 again later
                 raise ParExpectsUnsplitFiles('')
 
+        needType = 'blocks'
+        if isPar1Archive:
+            needType = 'files (par1)'
+
+        # par did not find any valid 'Target:' files, and more blocks are needed. This is
+        # probably a bad archive
+        if targetsFound == 0 and neededBlocks > 0:
+            # FIXME: download more pars and try again
+            raise FatalError('Unable to par repair: archive requires ' + neededBlocks + \
+                             ' more recovery ' + needType + \
+                             ' for repair. No valid files found (bad archive?)')
+
         # The archive is only totally broken when we're missing required files
         if len(damagedAndRequired) > 0:
-            needType = 'blocks'
-            if isPar1Archive:
-                needType = 'files (par1)'
-                
             growlNotify('Error', 'hellanzb Cannot par repair:', archiveName(dirName) + \
                         '\nNeed ' + neededBlocks + ' more recovery ' + needType, True)
             # FIXME: download more pars and try again
@@ -697,11 +705,12 @@ def parseParNeedsBlocksOutput(archive, output):
     required blocks needed. Will also log warn the user when it finds either of these
     kinds of files, or log error when they're required """
     damagedAndRequired = []
-    allMissing = []
+    missingFiles = []
     neededBlocks = None
     damagedRE = re.compile(r'"\ -\ damaged\.\ Found\ \d+\ of\ \d+\ data\ blocks\.')
     isPar1Archive = False
 
+    targetsFound = 0
     maxSpam = 4 # only spam this many lines (before truncating)
     spammed = 0
     extraSpam = []
@@ -710,6 +719,8 @@ def parseParNeedsBlocksOutput(archive, output):
             
         index = line.find('Target:')
         if index > -1 and line.endswith('missing.') or damagedRE.search(line):
+            targetsFound += 1
+            
             # Strip any preceeding curses junk
             line = line[index:]
 
@@ -722,7 +733,7 @@ def parseParNeedsBlocksOutput(archive, output):
                 # in this function)
                 errMsg = archive + ': Archive missing required file: ' + file
                 warnMsg = archive + ': Archive missing non-required file: ' + file
-                allMissing.append(file)
+                missingFiles.append(file)
             else:
                 file = damagedRE.sub('', line)
                 errMsg = archive + ': Archive has damaged, required file: ' + file
@@ -765,7 +776,7 @@ def parseParNeedsBlocksOutput(archive, output):
         else:
             error(lastMsg)
             
-    return damagedAndRequired, allMissing, neededBlocks, isPar1Archive
+    return damagedAndRequired, missingFiles, targetsFound, neededBlocks, isPar1Archive
 
 SPLIT_RE = re.compile(r'.*\.\d{2,4}$')
 SPLIT_TS_RE = re.compile(r'.*\.\d{3,4}\.ts$', re.I)

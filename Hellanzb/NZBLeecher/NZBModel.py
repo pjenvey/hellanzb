@@ -16,16 +16,15 @@ from Hellanzb.Daemon import handleNZBDone
 from Hellanzb.Log import *
 from Hellanzb.NZBLeecher.ArticleDecoder import assembleNZBFile, parseArticleData, \
     setRealFileName, tryFinishNZB
+from Hellanzb.NZBLeecher.DupeHandler import handleDupeNZBFileNeedsDownload, handleDupeOnDisk
 from Hellanzb.Util import archiveName, getFileExtension, IDPool, EmptyForThisPool, \
-    PoolsExhausted, PriorityQueue, OutOfDiskSpace
+    PoolsExhausted, PriorityQueue, OutOfDiskSpace, DUPE_SUFFIX
 from Queue import Empty
 
 __id__ = '$Id$'
 
 def validWorkingFile(file, overwriteZeroByteFiles = False):
-    """ Determine if the specified file is a valid WORKING_DIR file that will be checked
-    against the NZB file currently being parsed (i.e. a valid working dir file will not be
-    overwritten by the ArticleDecoder """
+    """ Determine if the specified file path is a valid, existing file in the WORKING_DIR """
     if not os.path.isfile(file):
         return False
 
@@ -112,15 +111,30 @@ def segmentsNeedDownload(segmentList, overwriteZeroByteSegments = False):
             needDlSegments.append(segment)
             needDlFiles.add(segment.nzbFile)
         else:
-            if segment.number == 1 and foundFileName.find('hellanzb-tmp-') != 0:
+            if foundFileName.find('hellanzb-tmp-') != 0 and \
+                    segment.nzbFile.filename is None:
                 # HACK: filename is None. so we only have the temporary name in
-                # memory. since we didnt see the temporary name on the filesystem, but
-                # we found a subject match, that means we have the real name on the
-                # filesystem. In the case where this happens, and we are segment #1,
-                # we've figured out the real filename (hopefully!)
-                setRealFileName(segment, foundFileName)
+                # memory. since we didnt see the temporary name on the filesystem, but we
+                # found a subject match, that means we have the real name on the
+                # filesystem. In the case where this happens we've figured out the real
+                # filename (hopefully!). Set it if it hasn't already been set
+                setRealFileName(segment.nzbFile, foundFileName,
+                            settingSegmentNumber = segment.number)
                 
             onDiskSegments.append(segment)
+            
+            # We only call segmentDone here to update the queue's onDiskSegments. The call
+            # shouldn't actually be decrementing the queue's totalQueuedBytes at this
+            # point. We call this so isBeingDownloaded (called from handleDupeNZBSegment)
+            # can identify orphaned segments on disk that technically aren't being
+            # downloaded, but need to be identified as so, so their parent NZBFile can be
+            # renamed
+            Hellanzb.queue.segmentDone(segment)
+
+            # This segment was matched. Remove it from the list to avoid matching it again
+            # later (dupes)
+            segmentFileNames.remove(foundFileName)
+
         #else:
         #    debug('SKIPPING SEGMENT: ' + segment.getTempFileName() + ' subject: ' + \
         #          segment.nzbFile.subject)
@@ -238,76 +252,83 @@ class NZBFile:
         # NOTE: maybe just change nzbFile.filename via the reactor (callFromThread), and
         # remove the lock entirely?
 
+        self.forcedChangedFilename = False
+
     def getDestination(self):
         """ Return the full pathname of where this NZBFile should be written to on disk """
         return self.nzb.destDir + os.sep + self.getFilename()
 
     def getFilename(self):
-        """ Return the file name of where this NZBFile will lie on the filesystem (not including
-        dirname). The filename information is grabbed from the first segment's articleData
+        """ Return the filename of where this NZBFile will reside on the filesystem, within the
+        WORKING_DIR (not a full path)
+
+        The filename information is grabbed from the first segment's articleData
         (uuencode's fault -- yencode includes the filename in every segment's
-        articleData). In the case where a segment needs to know it's filename, and that
+        articleData). In the case where we need this file's filename filename, and that
         first segment doesn't have articleData (hasn't been downloaded yet), a temp
-        filename will be returned. Downloading segments out of order can easily occur in
-        app like hellanzb that downloads the segments in parallel, thus the need for
+        filename will be returned
+
+        Downloading segments out of order often occurs in hellanzb, thus the need for
         temporary file names """
-        try:
-            # FIXME: try = slow. just simply check if tempFilename exists after
-            # getFilenamefromArticleData. does exactly the same thing w/ no try. should probably
-            # looked at the 2nd revised version of this and make sure it's still as functional as
-            # the original
-            if self.filename != None:
-                return self.filename
-            elif self.tempFilename != None and self.firstSegment.articleData == None:
-                return self.tempFilename
-            else:
-                # FIXME: i should only have to call this once after i get article
-                # data. that is if it fails, it should set the real filename to the
-                # incorrect tempfilename
+        if self.filename is not None:
+            # We've determined the real filename (or the last filename we're ever going to
+            # get)
+            return self.filename
+        
+        elif self.firstSegment is not None and self.firstSegment.articleData is not None:
+            # No real filename yet, but we should be able to determine it from the first
+            # segment's article data
+            try:
+                # getFilenameFromArticleData will either set our self.filename when
+                # successful, or raise a FatalError
                 self.firstSegment.getFilenameFromArticleData()
-                return self.tempFilename
-        except AttributeError:
-            self.tempFilename = self.getTempFileName()
+            except Exception, e:
+                debug('getFilename: Unable to getFilenameFromArticleData: file number: %i: %s' % \
+                      (self.number, str(e)))
+                
+            if self.filename is None:
+                # We only check the first segment for a real filename (FIXME: looking at
+                # any yDecode segment for the real filename would be nice). If we had
+                # trouble finding it there -- force this file to use the temp filename
+                # throughout its lifetime
+                self.filename = self.getTempFileName()
+                
+            return self.filename
+
+        elif self.tempFilename is not None:
+            # We can't get the real filename yet -- use the already cached tempFilename
+            # for now (NOTE: caching this is really unnecessary)
             return self.tempFilename
 
-    def needsDownload(self, workingDirListing = None):
+        # We can't get the real filename yet, cache the temp filename and use it for now
+        self.tempFilename = self.getTempFileName()
+        return self.tempFilename
+
+    def needsDownload(self, workingDirListing, workingDirDupeMap):
         """ Whether or not this NZBFile needs to be downloaded (isn't on the file system). You may
         specify the optional workingDirListing so this function does not need to prune
         this directory listing every time it is called (i.e. prune directory
         names). workingDirListing should be a list of only filenames (basename, not
         including dirname) of files lying in Hellanzb.WORKING_DIR """
-        start = time.time()
-        # We need to ensure that we're not in the process of renaming from a temp file
-        # name, so we have to lock.
-        # FIXME: probably no longer True in any cases. These locks can probably be removed
-    
-        if workingDirListing == None:
-            workingDirListing = []
-            for file in os.listdir(Hellanzb.WORKING_DIR):
-                if not validWorkingFile(Hellanzb.WORKING_DIR + os.sep + file,
-                                        self.nzb.overwriteZeroByteFiles):
-                    continue
-                
-                workingDirListing.append(file)
-    
         if os.path.isfile(self.getDestination()):
-            end = time.time() - start
-            debug('needsDownload took: ' + str(end))
+            # This block only handles matching temporary file names
             return False
-    
+
         elif self.filename == None:
+
+            # First, check if this is one of the dupe files on disk
+            isDupe, dupeNeedsDl = handleDupeNZBFileNeedsDownload(self, workingDirDupeMap)
+            if isDupe:
+                return dupeNeedsDl
+
             # We only know about the temp filename. In that case, fall back to matching
             # filenames in our subject line
             for file in workingDirListing:
-                
+
                 # Whole file match
                 if self.subject.find(file) > -1:
-                    end = time.time() - start
-                    debug('needsDownload took: ' + str(end))
                     return False
     
-        end = time.time() - start
-        debug('needsDownload took: ' + str(end))
         return True
 
     def getTempFileName(self):
@@ -602,6 +623,9 @@ class NZBQueue(PriorityQueue):
 
         self.totalQueuedBytes = 0
 
+        # Segments curently on disk
+        self.onDiskSegments = {}
+
         self.retryQueueEnabled = False
         self.rQueue = RetryQueue()
 
@@ -613,9 +637,13 @@ class NZBQueue(PriorityQueue):
 
     def clear(self):
         """ Clear the queue of all its contents"""
-        if self.retryQueueEnabled:
+        if self.retryQueueEnabled is not None:
             self.rQueue.clear()
         PriorityQueue.clear(self)
+
+        self.nzbs = []
+        
+        self.onDiskSegments.clear()
 
     def postpone(self, cancel = False):
         """ Postpone the current download """
@@ -627,8 +655,6 @@ class NZBQueue(PriorityQueue):
         if not cancel:
             self.postponedNzbFiles.union_update(self.nzbFiles)
         self.nzbFiles.clear()
-
-        self.nzbs = []
         
         self.nzbFilesLock.release()
         self.nzbsLock.release()
@@ -767,13 +793,27 @@ class NZBQueue(PriorityQueue):
             self.nzbFiles.remove(nzbFile)
         self.nzbFilesLock.release()
 
+        for nzbSegment in nzbFile.nzbSegments:
+            if self.onDiskSegments.has_key(nzbSegment.getDestination()):
+                self.onDiskSegments.pop(nzbSegment.getDestination())
+
     def segmentDone(self, nzbSegment):
         """ Simply decrement the queued byte count, unless the segment is part of a postponed
         download """
         self.nzbsLock.acquire()
-        if nzbSegment.nzbFile.nzb in self.nzbs:
+        if nzbSegment.nzbFile.nzb in self.nzbs and self.totalQueuedBytes > 0:
             self.totalQueuedBytes -= nzbSegment.bytes
         self.nzbsLock.release()
+
+        self.onDiskSegments[nzbSegment.getDestination()] = nzbSegment
+
+    def isBeingDownloadedFile(self, segmentFilename):
+        """ Whether or not the file on disk is currently in the middle of being
+        downloaded/assembled. Return the NZBSegment representing the segment specified by
+        the filename """
+        segmentFilename = segmentFilename
+        if self.onDiskSegments.has_key(segmentFilename):
+            return self.onDiskSegments[segmentFilename]
 
     def parseNZB(self, nzb):
         """ Initialize the queue from the specified nzb file """
@@ -830,7 +870,7 @@ class NZBQueue(PriorityQueue):
             if nzbFile not in needDlFiles:
                 # Don't automatically 'finish' the NZB, we'll take care of that in this
                 # function if necessary
-                info(nzbFile.getFilename() + ': assembling -- all segments were on disk')
+                info(nzbFile.getFilename() + ': Assembling -- all segments were on disk')
                 
                 # NOTE: this function is destructive to the passed in nzbFile! And is only
                 # called on occasion (might bite you in the ass one day)
@@ -847,7 +887,7 @@ class NZBQueue(PriorityQueue):
             # nudge GC
             nzbFileName = nzb.nzbFileName
             self.nzbDone(nzb)
-            info(nzb.archiveName + ': assembled archive!')
+            info(nzb.archiveName + ': Assembled archive!')
             for nzbFile in nzb.nzbFileElements:
                 del nzbFile.todoNzbSegments
                 del nzbFile.nzb
@@ -868,6 +908,8 @@ class NZBQueue(PriorityQueue):
         for nzbSegment in needDlSegments:
             self.put((nzbSegment.priority, nzbSegment))
 
+        # NOTE: This doesn't take into account the orphaned on disk segments. The block
+        # below handles decrementing the total queued byte count to the correct value
         self.calculateTotalQueuedBytes()
 
         # Finally, figure out what on disk segments are part of partially downloaded
@@ -882,6 +924,7 @@ class NZBQueue(PriorityQueue):
         # Archive not complete
         return False
 
+DUPE_SEGMENT_RE = re.compile('.*%s\d{1,4}.segment\d{4}$' % DUPE_SUFFIX)
 class NZBParser(ContentHandler):
     """ Parse an NZB 1.0 file into an NZBQueue
     http://www.newzbin.com/DTD/nzb/nzb-1.0.dtd """
@@ -904,21 +947,45 @@ class NZBParser(ContentHandler):
         self.fileCount = 0
         self.segmentCount = 0
 
+        # Current listing of existing files in the WORKING_DIR
         self.workingDirListing = []
-        for file in os.listdir(Hellanzb.WORKING_DIR):
+        
+        # Map of duplicate filenames -- @see DupeHandler.handleDupeOnDisk
+        self.workingDirDupeMap = {}
+        
+        files = os.listdir(Hellanzb.WORKING_DIR)
+        files.sort()
+        for file in files:
+
+            if DUPE_SEGMENT_RE.match(file):
+                # Sorry duplicate file segments, handling dupes is a pain enough as it is
+                # without segments coming into the mix
+                os.remove(Hellanzb.WORKING_DIR + os.sep + file)
+                continue
+
+            # Add an entry to the self.workingDirDupeMap if this file looks like a
+            # duplicate, and also skip adding it to self.workingDirListing (dupes are
+            # handled specially so we don't care for them there)
+            if handleDupeOnDisk(file, self.workingDirDupeMap):
+                continue
+            
             if not validWorkingFile(Hellanzb.WORKING_DIR + os.sep + file,
                                     self.nzb.overwriteZeroByteFiles):
                 continue
 
             self.workingDirListing.append(file)
-
+            
     def startElement(self, name, attrs):
         if name == 'file':
             subject = self.parseUnicode(attrs.get('subject'))
             poster = self.parseUnicode(attrs.get('poster'))
 
             self.file = NZBFile(subject, attrs.get('date'), poster, self.nzb)
-            self.fileNeedsDownload = self.file.needsDownload(workingDirListing = self.workingDirListing)
+            
+            self.fileNeedsDownload = \
+              self.file.needsDownload(workingDirListing = self.workingDirListing,
+                                      workingDirDupeMap = self.workingDirDupeMap)
+              
             if not self.fileNeedsDownload:
                 debug('SKIPPING FILE: ' + self.file.getTempFileName() + ' subject: ' + \
                       self.file.subject)

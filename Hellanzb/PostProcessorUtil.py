@@ -346,14 +346,14 @@ def processRars(dirName, rarPassword):
                 
             unrared += 1
 
-    e = time.time() - start
-    rarTxt = 'rar'
+    processComplete(dirName, 'rar', lambda file : os.path.isfile(file) and isRar(file))
+    
+    rarTxt = 'rar group'
     if unrared > 1:
         rarTxt += 's'
-    info(archiveName(dirName) + ': Finished unraring (%i %s, took: %.1fs)' % (unrared,
-                                                                              rarTxt, e))
-    processComplete(dirName, 'rar',
-                    lambda file : os.path.isfile(file) and isRar(file))
+    e = time.time() - start
+    info('%s: Finished unraring (%i %s, took: %s)' % (archiveName(dirName), unrared,
+                                                      rarTxt, prettyElapsed(e)))
 
 """
 ## From unrarsrc-3.4.3
@@ -587,16 +587,16 @@ def processPars(dirName, needAssembly = None):
         for parFile in parFiles:
             moveToProcessed(dirName + parFile)
 
-    e = time.time() - start
+    processComplete(dirName, 'par', lambda file : isPar(file) or \
+                    (file[-2:] == '.1' and file not in dotOneFiles))
+    
     parTxt = 'par group'
     groupCount = len(parGroups)
     if groupCount > 1:
         parTxt += 's'
-    info(archiveName(dirName) + ': Finished par verify (%i %s, took: %.1fs)' % (groupCount,
-                                                                              parTxt, e))
-    
-    processComplete(dirName, 'par', lambda file : isPar(file) or \
-                    (file[-2:] == '.1' and file not in dotOneFiles))
+    e = time.time() - start
+    info('%s: Finished par verify (%i %s, took: %s)' % (archiveName(dirName), groupCount,
+                                                        parTxt, prettyElapsed(e)))
 
 """
 ## From par2cmdline-0.4
@@ -829,9 +829,11 @@ def assembleSplitFiles(dirName, toAssemble):
         parts.sort()
 
         if key[-3:].lower() == '.ts':
-            msg = archiveName(dirName) + ': Assembling split TS file from parts: ' + key[:-3] + '.*.ts..' 
+            msg = archiveName(dirName) + ': Assembling split TS file from parts: ' + \
+                key[:-3] + '.*.ts..' 
         else:
-            msg = archiveName(dirName) + ': Assembling split file from parts: ' + key + '.*..'
+            msg = archiveName(dirName) + ': Assembling split file from parts: ' + key + \
+                '.*..'
         info(msg)
         debug(msg + ' ' + str(parts))
         
@@ -848,7 +850,8 @@ def assembleSplitFiles(dirName, toAssemble):
             except SystemExit:
                 # We were interrupted. Instead of waiting to finish, just delete the file. It
                 # will be automatically assembled upon restart
-                debug('PostProcessor: (CTRL-C) Removing unfinished file: ' + dirName + os.sep + key)
+                debug('PostProcessor: (CTRL-C) Removing unfinished file: ' + dirName + \
+                      os.sep + key)
                 assembledFile.close()
                 try:
                     os.remove(dirName + os.sep + key)
@@ -860,6 +863,12 @@ def assembleSplitFiles(dirName, toAssemble):
 
         for part in parts:
             moveToProcessed(dirName + os.sep + part)
+
+def cleanDupeFiles(dirName):
+    """ Remove any files marked as duplicates """
+    for file in os.listdir(dirName):
+        if DUPE_SUFFIX_RE.match(file):
+            moveToProcessed(dirName + os.sep + file)
 
 def moveToProcessed(file):
     """ Move files to the processed dir """
@@ -877,11 +886,13 @@ def processComplete(dirName, processStateName, moveFileFilterFunction):
             moveToProcessed(file)
 
     # And make a note of the completion
-    touch(dirName + os.sep + Hellanzb.PROCESSED_SUBDIR + os.sep + '.' + processStateName + '_done')
+    touch(dirName + os.sep + Hellanzb.PROCESSED_SUBDIR + os.sep + '.' + \
+          processStateName + '_done')
 
 def isFreshState(dirName, stateName):
     """ Determine if the specified state has already been completed """
-    if os.path.isfile(dirName + os.sep + Hellanzb.PROCESSED_SUBDIR + os.sep + '.' + stateName + '_done'):
+    if os.path.isfile(dirName + os.sep + Hellanzb.PROCESSED_SUBDIR + os.sep + \
+                      '.' + stateName + '_done'):
         return False
     return True
 

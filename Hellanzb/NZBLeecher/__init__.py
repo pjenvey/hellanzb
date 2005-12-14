@@ -12,6 +12,7 @@ Freddie (freddie@madcowdisease.org) utilizing the twisted framework
 import os, re, time, Hellanzb
 from sets import Set
 from shutil import move
+from twisted.copyright import version as twistedVersion
 from twisted.internet import reactor
 from twisted.internet.error import ConnectionRefusedError, DNSLookupError, TimeoutError, UserError
 from twisted.internet.protocol import ReconnectingClientFactory
@@ -32,6 +33,13 @@ __id__ = '$Id$'
 
 def initNZBLeecher():
     """ Init """
+    # Note what version of twisted is being used
+    twistedVersionMsg = 'Using: Twisted-%s' % twistedVersion
+    if twistedVersion >= '2.0.0':
+        from twisted.web import __version__ as twistedWebVersion
+        twistedVersionMsg += ', TwistedWeb-%s' % twistedWebVersion
+    debug(twistedVersionMsg)
+    
     # Direct twisted log output to the debug level
     fileStream = LogOutputStream(debug)
     log.startLogging(fileStream)

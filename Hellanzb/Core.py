@@ -5,38 +5,6 @@ Core - All of our main()ish functions. Initialization/shutdown/etc
 (c) Copyright 2005 Philip Jenvey, Ben Bangert
 [See end of file]
 """
-### DEBUGGING/FIXME ###
-def registerReapProcessHandler(pid, process):
-    import os
-    from twisted.python import log
-    from twisted.internet.process import reapProcessHandlers
-    from Hellanzb.Log import debug, error
-
-    if reapProcessHandlers.has_key(pid):
-        raise RuntimeError
-    try:
-        aux_pid, status = os.waitpid(pid, os.WNOHANG)
-    except:
-        try:
-            log.msg('Failed to reap %s:' % pid)
-        except TypeError, te:
-            msg = 'FAILURE: TypeError during Failed to reap! pid: %s: class name: %s' % \
-                (str(pid), pid.__class__.__name__)
-            log.err()
-            error(msg)
-            debug(msg)
-            raise
-        log.err()
-        aux_pid = None
-    if aux_pid:
-        process.processEnded(status)
-    else:
-        reapProcessHandlers[pid] = process
-
-import twisted.internet.process
-twisted.internet.process.registerReapProcessHandler = registerReapProcessHandler
-### /DEBUGGING/FIXME ###
-
 # Install our custom twisted reactor immediately
 from Hellanzb.HellaReactor import HellaReactor
 HellaReactor.install()
@@ -47,16 +15,16 @@ from shutil import rmtree
 from threading import Lock
 from twisted.internet import reactor
 from Hellanzb.Daemon import initDaemon, postProcess
+from Hellanzb.HellaXMLRPC import hellaRemote, initXMLRPCClient
 from Hellanzb.Log import *
 from Hellanzb.Logging import initLogging, stdinEchoOn
 from Hellanzb.PostProcessorUtil import defineMusicType
 from Hellanzb.Util import *
-from Hellanzb.HellaXMLRPC import hellaRemote, initXMLRPCClient
 
 __id__ = '$Id$'
 
 def findAndLoadConfig(optionalConfigFile = None):
-    """ Load the configuration file """
+    """ Find and load the configuration file """
     if optionalConfigFile != None:
         if loadConfig(optionalConfigFile):
             return
@@ -84,7 +52,8 @@ def findAndLoadConfig(optionalConfigFile = None):
     sys.exit(1)
     
 def loadConfig(fileName):
-    """ Attempt to load the specified config file"""
+    """ Attempt to load the specified config file. If successful, clean the variables/data the
+    config file has setup """
     if not os.path.isfile(fileName):
         return False
 
@@ -104,7 +73,7 @@ def loadConfig(fileName):
             # output during initialization if you're using the -d option
             Hellanzb.DEBUG_MODE_ENABLED = True
 
-        # ensure the types are lower case
+        # Ensure the types are lower case
         for varName in ('NOT_REQUIRED_FILE_TYPES', 'KEEP_FILE_TYPES'):
             types = getattr(Hellanzb, varName)
             lowerTypes = [ext.lower() for ext in types]
@@ -240,7 +209,6 @@ def init(options = {}):
         Hellanzb.HAVE_C_YENC = False
 
     assertHasARar()
-    assertIsExe('file')
 
     # Twisted will replace this with its own signal handler when initialized
     signal.signal(signal.SIGINT, signalHandler)
@@ -341,6 +309,7 @@ def marquee():
         msg += ')'
         
     info(msg)
+    debug(msg)
 
 USAGE = """
 hellanzb version %s

@@ -118,7 +118,7 @@ def scanQueueDir(firstRun = False, justScan = False):
     from Hellanzb.NZBLeecher.NZBModel import NZB
     current_nzbs = []
     for file in os.listdir(Hellanzb.CURRENT_DIR):
-        if re.search(r'\.nzb$', file):
+        if re.search(r'(?i)\.(nzb|xml)$', file):
             current_nzbs.append(Hellanzb.CURRENT_DIR + os.sep + file)
 
     # See if we're resuming a nzb fetch
@@ -130,7 +130,7 @@ def scanQueueDir(firstRun = False, justScan = False):
         queuedMap[os.path.normpath(nzb.nzbFileName)] = nzb
 
     for file in os.listdir(Hellanzb.QUEUE_DIR):
-        if re.search(r'\.nzb$', file) and \
+        if re.search(r'(?i)\.(nzb|xml)$', file) and \
             os.path.normpath(Hellanzb.QUEUE_DIR + os.sep + file) not in queuedMap:
             new_nzbs.append(Hellanzb.QUEUE_DIR + os.sep + file)
             
@@ -263,10 +263,10 @@ def beginDownload():
 
 def endDownload():
     """ Finished downloading """
-    dur = time.time() - Hellanzb.totalStartTime
-    speed = Hellanzb.totalReadBytes / 1024.0 / dur
+    elapsed = time.time() - Hellanzb.totalStartTime
+    speed = Hellanzb.totalReadBytes / 1024.0 / elapsed
     leeched = prettySize(Hellanzb.totalReadBytes)
-    info('Transferred %s in %.1fs at %.1fKB/s' % (leeched, dur, speed))
+    info('Transferred %s in %s at %.1fKB/s' % (leeched, prettyElapsed(elapsed), speed))
     
     Hellanzb.totalReadBytes = 0
     Hellanzb.totalStartTime = None
@@ -668,7 +668,7 @@ def enqueueNZBs(nzbFileOrFiles, next = False, writeQueue = True):
             for n in Hellanzb.queued_nzbs:
                 if os.path.normpath(n.nzbFileName) == os.path.normpath(nzbFile):
                     found = True
-                    error('Cannot add nzb file to queue: ' + os.path.basename(nzbFile) + \
+                    error('Unable to add nzb file to queue: ' + os.path.basename(nzbFile) + \
                           ' it already exists!')
             if found:
                 continue

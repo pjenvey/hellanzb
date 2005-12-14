@@ -12,6 +12,7 @@ from zlib import crc32
 from Hellanzb.Daemon import handleNZBDone, pauseCurrent
 from Hellanzb.Log import *
 from Hellanzb.Logging import prettyException
+from Hellanzb.NZBLeecher.DupeHandler import handleDupeNZBFile, handleDupeNZBSegment
 from Hellanzb.Util import checkShutdown, touch, OutOfDiskSpace
 if Hellanzb.HAVE_C_YENC: import _yenc
 
@@ -63,9 +64,9 @@ def decode(segment):
         reactor.callFromThread(Hellanzb.queue.put, (segment.priority, segment))
         return
     except Exception, e:
-        touch(segment.getDestination())
         error(segment.nzbFile.showFilename + ' segment: ' + str(segment.number) + \
               ' a problem occurred during decoding', e)
+        touch(segment.getDestination())
 
     segment.nzbFile.todoNzbSegments.remove(segment) # FIXME: lock????
     Hellanzb.queue.segmentDone(segment)
@@ -106,15 +107,24 @@ def handleCanceled(segmentOrFile):
     return False
         
 def stripArticleData(articleData):
-    """ Rip off leading/trailing whitespace from the articleData list """
+    """ Rip off leading/trailing whitespace (and EOM char) from the articleData list """
     try:
-        # Only rip off the first leading whitespace
+        # Rip off the leading whitespace
         while articleData[0] == '':
             articleData.pop(0)
 
-        # Trailing
+        # and trailing
         while articleData[-1] == '':
             articleData.pop(-1)
+
+        # Remove the EOM char
+        if articleData[-1] == '..' or articleData[-1] == '.':
+            articleData.pop(-1)
+            
+            # and trailing again
+            while articleData[-1] == '':
+                articleData.pop(-1)
+            
     except IndexError:
         pass
 
@@ -139,7 +149,6 @@ def parseArticleData(segment, justExtractFilename = False):
     # First, clean it
     stripArticleData(segment.articleData)
 
-    cleanData = []
     encodingType = UNKNOWN
     withinData = False
     index = -1
@@ -162,7 +171,8 @@ def parseArticleData(segment, justExtractFilename = False):
                 # FIXME: show filename information
                 raise FatalError('* Invalid =ybegin line in part %d!' % segment.number)
 
-            setRealFileName(segment, ybegin['name'])
+            setRealFileName(segment.nzbFile, ybegin['name'],
+                            settingSegmentNumber = segment.number)
             if segment.nzbFile.ySize == None:
                     segment.nzbFile.ySize = yInt(ybegin['size'],
                                                   '* Invalid =ybegin line in part %d!' % segment.number)
@@ -193,12 +203,10 @@ def parseArticleData(segment, justExtractFilename = False):
             if not filename:
                 # FIXME: show filename information
                 raise FatalError('* Invalid begin line in part %d!' % segment.number)
-            setRealFileName(segment, filename)
+            setRealFileName(segment.nzbFile, filename,
+                            settingSegmentNumber = segment.number)
             encodingType = UUENCODE
             withinData = True
-
-        elif line == '':
-            continue
 
         elif not withinData and encodingType == YENCODE:
             # Found ybegin, but no ypart. withinData should have started on the previous
@@ -210,6 +218,20 @@ def parseArticleData(segment, justExtractFilename = False):
                 line = line[1:]
                 segment.articleData[index] = line
 
+        elif not withinData and segment.number == 1:
+            # Assume segment #1 has a valid header -- continue until we find it. I've seen
+            # some UUEncoded archives start like this:
+            #
+            # 222 423850423 <PLSmfijf.803495116$Es4.92395@feung.shui.beek.dk> body
+            # BSD.ARCHIVE HERE IT IS
+            # begin 644 bsd-archive.part45.rar
+            # MJ"D+D:J6@1L'J0[O;JXTO/V`HR]4JO:/Q\J$M79S9("@]^]MFIGW/\`VJJC_
+            #
+            # (and of course, only segment #1 actually contains a filename). The UUDecode
+            # function will also quietly ignore the first couple of lines if they are
+            # garbage (can't decode)
+            continue
+
         elif not withinData:
             # Assume this is a subsequent uuencode segment
             withinData = True
@@ -220,39 +242,81 @@ def parseArticleData(segment, justExtractFilename = False):
         return
 
     decodeSegmentToFile(segment, encodingType)
-    del cleanData
     del segment.articleData
     segment.articleData = '' # We often check it for == None
 decodeArticleData=parseArticleData
 
-def setRealFileName(segment, filename):
+def setRealFileName(nzbFile, filename, forceChange = False, settingSegmentNumber = None):
     """ Set the actual filename of the segment's parent nzbFile. If the filename wasn't
     already previously set, set the actual filename atomically and also atomically rename
     known temporary files belonging to that nzbFile to use the new real filename """
-    if segment.nzbFile.filename == None:
-        # We might have been using a tempFileName previously, and just succesfully found
-        # the real filename in the articleData. Immediately rename any files that were
-        # using the temp name
-        segment.nzbFile.tempFileNameLock.acquire()
-        segment.nzbFile.filename = filename
-        # do we really have to lock for this entire operation?
+    # FIXME: remove locking
+    switchedReal = False
+    if nzbFile.filename is not None and nzbFile.filename != filename:
+        # This NZBFile already had a real filename set, and now something has triggered it
+        # be changed
+        switchedReal = True
 
-        tempFileNames = {}
-        for nzbSegment in segment.nzbFile.nzbSegments:
-            tempFileNames[nzbSegment.getTempFileName()] = os.path.basename(nzbSegment.getDestination())
+        if forceChange:
+            # Force change -- this segment has been found to be a duplicate and needs to
+            # be renamed (but its parent NZBFile is currently being downloaded)
+            nzbFile.forcedChangedFilename = True
+        else:
+            # Not a force change. Either ignore the supposed new real filename (we already
+            # had one, we're just going to stick with it) and print an error about
+            # receiving bad header data. Or if this NZBFile filename mismatches because it
+            # was previously found to be a dupe (and its filename was renamed) just
+            # completely ignore the new filename
+            if not nzbFile.forcedChangedFilename:
+                segmentInfo = ''
+                if settingSegmentNumber is not None:
+                    segmentInfo = ' segment: %i' % settingSegmentNumber
+                    
+                error(nzbFile.showFilename + segmentInfo + \
+                      ' has incorrect filename header!: ' + filename + ' should be: ' + \
+                      nzbFile.showFilename)
+            return
+     
+    # We might have been using a tempFileName previously, and just succesfully found
+    # the real filename in the articleData. Immediately rename any files that were
+    # using the temp name
+    nzbFile.tempFileNameLock.acquire()
+    renameFilenames = {}
 
-        from Hellanzb import WORKING_DIR
-        for file in os.listdir(WORKING_DIR):
-            if file in tempFileNames:
-                newDest = tempFileNames.get(file)
-                shutil.move(WORKING_DIR + os.sep + file,
-                            WORKING_DIR + os.sep + newDest)
+    if switchedReal:
+        # Get the original segment filenames via getDestination() (before we change it)
+        renameSegments = [(nzbSegment, nzbSegment.getDestination()) for nzbSegment in
+                           nzbFile.nzbSegments if nzbSegment not in
+                           nzbSegment.nzbFile.todoNzbSegments]
 
-        segment.nzbFile.tempFileNameLock.release()
-    elif segment.nzbFile.filename != filename:
-        error(segment.nzbFile.showFilename + ' segment: ' + str(segment.number) + \
-              ' has incorrect filename header!: ' + filename + ' should be: ' + \
-              segment.nzbFile.showFilename)
+    # Change the filename
+    nzbFile.filename = filename
+
+    if switchedReal:
+        # Now get the new filenames via getDestination()
+        for (renameSegment, oldName) in renameSegments:
+            renameFilenames[os.path.basename(oldName)] = \
+                os.path.basename(renameSegment.getDestination())
+
+    # We also need a mapping of temp filenames to the new filename, incase we just found
+    # the real file name (filename is None or filename was previously set to a temp name)
+    for nzbSegment in nzbFile.nzbSegments:
+        renameFilenames[nzbSegment.getTempFileName()] = \
+            os.path.basename(nzbSegment.getDestination())
+                          
+    # Rename all segments
+    for file in os.listdir(Hellanzb.WORKING_DIR):
+        if file in renameFilenames:
+            orig = Hellanzb.WORKING_DIR + os.sep + file
+            new = Hellanzb.WORKING_DIR + os.sep + renameFilenames.get(file)
+            shutil.move(orig, new)
+
+            # Keep the onDiskSegments map in sync
+            if Hellanzb.queue.onDiskSegments.has_key(orig):
+                Hellanzb.queue.onDiskSegments[new] = \
+                    Hellanzb.queue.onDiskSegments.pop(orig)
+
+    nzbFile.tempFileNameLock.release()
 
 def yDecodeCRCCheck(segment, decoded):
     """ Validate the CRC of the segment with the yencode keyword """
@@ -341,6 +405,10 @@ def decodeSegmentToFile(segment, encodingType = YENCODE):
 
         # Write the decoded segment to disk
         size = len(decoded)
+
+        # Handle dupes if they exist
+        handleDupeNZBSegment(segment)
+        
         out = open(segment.getDestination(), 'wb')
         try:
             out.write(decoded)
@@ -367,6 +435,8 @@ def decodeSegmentToFile(segment, encodingType = YENCODE):
             debug('UUDecode failed in file: %s (part number: %d) error: %s' % \
                   (segment.getDestination(), segment.number, prettyException(msg)))
 
+        handleDupeNZBSegment(segment)
+        
         # Write the decoded segment to disk
         writeLines(segment.getDestination(), decodedLines)
 
@@ -374,6 +444,9 @@ def decodeSegmentToFile(segment, encodingType = YENCODE):
 
     elif segment.articleData == '':
         debug('NO articleData, touching file: ' + segment.getDestination())
+
+        handleDupeNZBSegment(segment)
+
         touch(segment.getDestination())
 
     else:
@@ -381,6 +454,9 @@ def decodeSegmentToFile(segment, encodingType = YENCODE):
         # above: articleData == '' check to articleData.strip() == ''. that block would
         # cover all null articleData and would be safer to always info() about
         debug('Mysterious data, did not YY/UDecode!! Touching file: ' + segment.getDestination())
+
+        handleDupeNZBSegment(segment)
+
         touch(segment.getDestination())
 
 ## This yDecoder is verified to be 100% correct. We have reverted back to our older one,
@@ -420,7 +496,7 @@ def yDecode(dataList):
     for line in dataList:
        if index <= 5 and (line[:7] == '=ybegin' or line[:6] == '=ypart'):
            continue
-       elif not line or line[:5] == '=yend':
+       elif line[:5] == '=yend':
            break
 
        buffer.append(line)
@@ -465,14 +541,25 @@ def UUDecode(dataList):
     """ UUDecode the specified list of data, returning results as a list """
     buffer = []
 
+    # All whitespace and EOMs (.) should be stripped from the end at this point. Now,
+    # strip the uuencode 'end' string and or whitespace (including grave accents) until we
+    # have nothing but uuencoded data and its headers
+    if dataList[-1][:3] == 'end':
+        dataList.pop(-1)
+    while dataList[-1] == '' or dataList[-1] == '`':
+        dataList.pop(-1)
+
+    # Any line before this index should precede with 'M'
+    notMLines = len(dataList) - 1
+
     index = -1
     for line in dataList:
         index += 1
 
-        if index <= 5 and (not line or line[:6] == 'begin '):
+        if (index <= 5 and line[:6] == 'begin ') or \
+                (index < notMLines and line[:1] != 'M'):
+            notMLines -= 1
             continue
-        elif not line or line[:3] == 'end':
-            break
 
         # From pyNewsleecher. Which ripped it from python's uu module (with maybe extra
         # overhead stripped out)
@@ -495,8 +582,10 @@ def UUDecode(dataList):
 def assembleNZBFile(nzbFile, autoFinish = True):
     """ Assemble the final file from all the NZBFile's decoded segments """
     # FIXME: does someone has to pad the file if we have broken pieces?
-    
-    # FIXME: don't overwrite existing files???
+
+    # don't overwrite existing files -- instead rename them to 'file_dupeX' if they exist
+    handleDupeNZBFile(nzbFile)
+        
     file = open(nzbFile.getDestination(), 'wb')
     segmentFiles = []
 

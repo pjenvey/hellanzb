@@ -39,7 +39,7 @@ class StreamHandlerNoLF(StreamHandler):
         except:
             self.handleError(record)
 
-class RotatingFileHandlerNoLF(RotatingFileHandler):
+class RotatingFileHandlerNoLF(RotatingFileHandler, StreamHandlerNoLF):
     """ A RotatingFileHandler that doesn't append \n to every message logged to it """
 
     def emit(self, record):
@@ -49,7 +49,7 @@ class RotatingFileHandlerNoLF(RotatingFileHandler):
             self.stream.seek(0, 2)  #due to non-posix-compliant Windows feature
             if self.stream.tell() + len(msg) >= self.maxBytes:
                 self.doRollover()
-        logging.FileHandler.emit(self, record)
+        StreamHandlerNoLF.emit(self, record)
 
 class ScrollableHandler(StreamHandlerNoLF):
     """ ScrollableHandler is a StreamHandler that specially handles scrolling (log
@@ -213,19 +213,10 @@ class NZBLeecherTicker:
 
     def addClient(self, segment):
         """ Add a client (it's segment) to the ticker """
-        from Hellanzb.Log import debug
-        debug('ADD CLIENT: ' + str(segment.priority) + ' segment: ' + str(segment.getDestination()))
         heapq.heappush(self.segments, (segment.priority, segment))
         
     def removeClient(self, segment):
         """ Remove a client (it's segment) from the ticker """
-        from Hellanzb.Log import debug
-        if (segment.priority, segment) in self.segments:
-            debug('REMOVE CLIENT: ' + str(segment.priority) + ' segment: ' + \
-                  str(segment.getDestination()))
-        else:
-            debug('BAD REMOVE CLIENT: ' + str(segment.priority) + ' segment: ' + \
-                  str(segment.getDestination()))
         self.segments.remove((segment.priority, segment))
 
     def scrollHeader(self, message):

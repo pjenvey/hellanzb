@@ -214,14 +214,16 @@ class PostProcessor(Thread):
             filesTxt += 's'
         if threadCount != 1:
             threadsTxt += 's'
-            
-        info(archiveName(self.dirName) + ': Decompressing ' + str(len(self.musicFiles)) + \
+
+        fileCount = len(self.musicFiles)
+        info(archiveName(self.dirName) + ': Decompressing ' + str(fileCount) + \
              ' ' + filesTxt + ' via ' + str(threadCount) + ' ' + threadsTxt + '..')
 
         # Failed decompress threads put their file names in this list
         self.failedToProcesses = []
         self.failedLock = Lock()
 
+        start = time.time()
         # Maintain a pool of threads of the specified size until we've exhausted the
         # musicFiles list
         while len(self.musicFiles) > 0:
@@ -257,7 +259,11 @@ class PostProcessor(Thread):
             raise FatalError('Failed to complete music decompression')
 
         processComplete(self.dirName, 'music', None)
-        info(archiveName(self.dirName) + ': Finished decompressing')
+
+        e = time.time() - start
+        info('%s: Finished decompressing (%i %s, took: %s)' % (archiveName(self.dirName),
+                                                               fileCount, filesTxt,
+                                                               prettyElapsed(e)))
 
     def finishedPostProcess(self):
         """ finish the post processing work """
@@ -324,8 +330,8 @@ class PostProcessor(Thread):
             if not handledPars:
                 parMessage = ' (No Pars)'
                 
-            info((archiveName(self.dirName) + ': Finished processing (took: %.1fs)' + \
-                 parMessage) % (e))
+            info('%s: Finished processing (took: %s)%s' % (archiveName(self.dirName),
+                                                           prettyElapsed(e), parMessage))
 
             if parMessage != '':
                 parMessage = '\n' + parMessage
@@ -399,7 +405,10 @@ class PostProcessor(Thread):
         # Find any files that need to assembled (e.g. file.avi.001, file.avi.002)
         needAssembly = findSplitFiles(self.dirName)
         
+        foundPars = False
         if dirHasPars(self.dirName):
+            foundPars = True
+            
             checkShutdown()
             try:
                 processPars(self.dirName, needAssembly)
@@ -436,6 +445,9 @@ class PostProcessor(Thread):
                                           parentDir = self.parentDir)
                 troll.run()
                 trolled += 1
+
+        if foundPars:
+            cleanDupeFiles(self.dirName)
                 
         self.finishedPostProcess()
 

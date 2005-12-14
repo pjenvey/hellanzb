@@ -6,12 +6,20 @@ o Fixed a nasty bug with the 'clear' RPC call -- it was deleting all files in
   the QUEUE_DIR (not just queued .nzb files). This bug prevented hellanzb from
   working nicely with shared QUEUE_DIRs (such as your web browser's download
   dir. This technique was even recommended in hellanzb's OS X install
-  document), in fact, it could cause unwanted data loss. The potential evilness
-  of this bug has warranted an early 0.8 release (thanks yak)
+  document), in fact, it could cause unwanted data loss (thanks yak)
 
 o Quicker and more robust newzbin.com downloads (enqueuenewzbin call)
 
 NZBLeecher:
+
+o Added duplicate file detection/handling. Previously, NZB files containing
+  duplicate files could cause the downloader to stop (at the end of an archive)
+  under certain situations
+
+o Fixed a decoder bug (causing corrupt downloads) affecting some uuencoded
+  posts (and potentially some rare yEncoded posts)
+
+o Fixed a yDecode specific decoder bug (causing corrupt downloads)
 
 o Fixed a couple nasty bugs in the new downloader code (submitted by
   bobmckenzie, thanks!)

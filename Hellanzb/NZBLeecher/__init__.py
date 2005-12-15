@@ -854,13 +854,7 @@ class NZBLeecher(NNTPClient, TimeoutMixin):
             self._state[0](line)
 
     def dataReceived(self, data):
-        """ *From Twisted-2.0*
-        Supposed to be at least 3x as fast.
-        
-        Protocol.dataReceived.
-        Translates bytes into lines, and calls lineReceived (or
-        rawDataReceived, depending on mode.)
-        """
+        """ Receive data from the usenet server """
         # Update statistics
         self.updateByteCount(len(data))
         self.updateStats(Hellanzb.preReadTime)
@@ -878,16 +872,19 @@ class NZBLeecher(NNTPClient, TimeoutMixin):
             return self.dataReceivedToLines(data)
 
     def dataReceivedToLines(self, data):
-        """ Convert the raw dataReceived into lines subsequently parsed by lineReceived. This is
-        slower/more CPU intensive than the optimized dataReceivedToFile. This function
+        """ *From Twisted-2.0*
+        Supposed to be at least 3x as fast.
+        
+        Protocol.dataReceived.
+        Translates bytes into lines, and calls lineReceived (or
+        rawDataReceived, depending on mode.)
+
+        Convert the raw dataReceived into lines subsequently parsed by lineReceived. This
+        is slower/more CPU intensive than the optimized dataReceivedToFile. This function
         parses the received data into lines (delimited by new lines) -- the typical
         twisted-2.0 LineReceiver way of doing things. Unlike dataReceivedToFile, it
-        doesn't require a file object to write to """
-        #  *From Twisted-2.0*
-        # Supposed to be at least 3x as fast.
-        # Protocol.dataReceived.
-        # Translates bytes into lines, and calls lineReceived (or
-        # rawDataReceived, depending on mode.)
+        doesn't require a file object to write to
+        """
         self.__buffer = self.__buffer+data
         lastoffset=0
         while not self.paused:

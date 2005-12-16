@@ -7,10 +7,13 @@ filename (as in their uuenc/yenc headers), and only downloading them when needed
 (c) Copyright 2005 Philip Jenvey
 [See end of file]
 """
+import re, Hellanzb
 from xml.sax import make_parser, SAXParseException
 from xml.sax.handler import ContentHandler, feature_external_ges, feature_namespaces
 from Hellanzb.Log import *
+from Hellanzb.PostProcessorUtil import isPar, isPar1, isPar2
 from Hellanzb.Util import FatalError
+from Hellanzb.NZBLeecher.ArticleDecoder import setRealFileName, stripArticleData, ySplit
 
 __id__ = '$Id$'
 
@@ -73,9 +76,6 @@ class ParExtractor(ContentHandler):
 
 
 def dequeueIfExtraPar(segment):
-    from Hellanzb.NZBLeecher.ArticleDecoder import setRealFileName, stripArticleData, ySplit
-    from Hellanzb.Util import FatalError
-    import Hellanzb, re
     # FIXME: must download in order: number 1 segment. check the headers. if this is a par
     # file, and the nzb has failed previous crc checks (only if ydecode) and we probably
     # havent dled enough repair already or we are explicitly forced to get all pars at nzb
@@ -115,8 +115,6 @@ def dequeueIfExtraPar(segment):
         raise FatalError('handleParSegment: Could not get real fileName %d!' % segment.number)
 
     # FIXME: also - resume code needs to skip, when we find an isPar segment #1 on disk
-    from Hellanzb.PostProcessorUtil import isPar, isPar1, isPar2
-    # FIXME
     PAR2_VOL_RE = re.compile(r'(.*)\.vol(\d*)\+(\d*)\.par2', re.I)
     if isPar(segment.nzbFile.filename):
         segment.nzbFile.isParFile = True

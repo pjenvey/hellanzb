@@ -190,6 +190,6 @@ def validWorkingFile(file, overwriteZeroByteFiles = False):
  * OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF
  * SUCH DAMAGE.
  *
- * $Id: Daemon.py 287 2005-05-30 05:36:01Z pjenvey $
+ * $Id$
  */
 """

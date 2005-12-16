@@ -149,6 +149,6 @@ if __name__ == '__main__':
  * OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF
  * SUCH DAMAGE.
  *
- * $Id: HellaReactor.py 248 2005-05-03 07:58:12Z pjenvey $
+ * $Id$
  */
 """

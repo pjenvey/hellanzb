@@ -127,11 +127,9 @@ def yInt(object, message = None):
         return None
 
 def parseArticleData(segment, justExtractFilename = False):
-    """ get the article's filename from the articleData. if justExtractFilename == False,
-    continue parsing the articleData -- decode that articleData (uudecode/ydecode) to the
-    segment's destination """
-    # FIXME: rename if fileDestination exists? what to do w /existing files?
-
+    """ Clean the specified segment's articleData, and get the article's filename from the
+    articleData. If not justExtractFilename, also decode the articleData to the segment's
+    destination """
     if segment.articleData == None:
         raise FatalError('Could not getFilenameFromArticleData')
 

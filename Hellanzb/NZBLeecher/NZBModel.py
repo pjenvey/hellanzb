@@ -1034,8 +1034,6 @@ class NZBParser(ContentHandler):
                 # them need to be downloaded
                 self.file.nzb.totalSkippedBytes += self.file.totalBytes
                 self.file.todoNzbSegments.clear()
-
-                # FIXME: (GC) can we del self.nzbfile here???
             
             self.file = None
             self.fileNeedsDownload = None

@@ -8,7 +8,7 @@ Elite code -- no meaningful use/pure vanity
 import random
 from Hellanzb.Util import cmHella
 
-__id__ = '$Id: ArticleDecoder.py 235 2005-04-28 02:41:24Z pjenvey $'
+__id__ = '$Id$'
 
 class Codez:
     allCodez = {}
@@ -374,6 +374,6 @@ Codez.aolSays.extend(aolSay.strip().split('\n'))
  * OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF
  * SUCH DAMAGE.
  *
- * $Id: ArticleDecoder.py 235 2005-04-28 02:41:24Z pjenvey $
+ * $Id$
  */
 """

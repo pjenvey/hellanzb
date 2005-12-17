@@ -163,6 +163,7 @@ class NZB:
         
     def isCanceled(self):
         """ Whether or not this NZB was cancelled """
+        # FIXME: this doesn't need locks
         self.canceledLock.acquire()
         c = self.canceled
         self.canceledLock.release()
@@ -170,6 +171,7 @@ class NZB:
 
     def cancel(self):
         """ Mark this NZB as having been cancelled """
+        # FIXME: this doesn't need locks
         self.canceledLock.acquire()
         self.canceled = True
         self.canceledLock.release()

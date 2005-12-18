@@ -21,31 +21,15 @@ __id__ = '$Id$'
 def ensureDaemonDirs():
     """ Ensure that all the required directories exist and are writable, otherwise attempt to
     create them """
-    badPermDirs = []
+    dirNames = {}
     for arg in dir(Hellanzb):
         if arg.endswith("_DIR") and arg == arg.upper():
             exec 'dirName = Hellanzb.' + arg
             if dirName == None:
                 raise FatalError('Required directory not defined in config file: Hellanzb.' + arg)
-            elif not os.path.isdir(dirName):
-                try:
-                    os.makedirs(dirName)
-                except OSError, ose:
-                    raise FatalError('Unable to create directory for option: Hellanzb.' + \
-                                     arg + ' dirName: ' + dirName + ' error: ' + str(ose))
-            elif not os.access(dirName, os.W_OK):
-                badPermDirs.append(dirName)
-
-    if len(badPermDirs):
-        dirTxt = 'directory'
-        if len(badPermDirs) > 1:
-            dirTxt = 'directories'
-        err = 'Cannot continue: hellanzb needs write access to ' + dirTxt + ':'
-        
-        for dirName in badPermDirs:
-            err += '\n' + dirName
+            dirNames[arg] = dirName
             
-        raise FatalError(err)
+    ensureDirs(dirNames)
 
     if not hasattr(Hellanzb, 'QUEUE_LIST') or Hellanzb.QUEUE_LIST == None:
         raise FatalError('Hellanzb.QUEUE_LIST not defined in config file')
@@ -68,7 +52,8 @@ def ensureDownloadTempDir():
             raise FatalError('Cannot continue: hellanzb needs write access to ' + dirName)
         
         rmtree(Hellanzb.DOWNLOAD_TEMP_DIR)
-        
+
+    # ensureDaemonDirs already guaranteed us write access to the parent TEMP_DIR
     os.makedirs(Hellanzb.DOWNLOAD_TEMP_DIR)
             
 def initDaemon():

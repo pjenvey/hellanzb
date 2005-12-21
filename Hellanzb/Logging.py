@@ -492,9 +492,9 @@ def initLogFile(logFile = None, debugLogFile = None):
 
     # Ensure the log file's parent dirs exist and are writable
     dirNames = {}
-    if Hellanzb.LOG_FILE is not None:
+    if hasattr(Hellanzb, 'LOG_FILE') and Hellanzb.LOG_FILE is not None:
         dirNames['LOG_FILE'] = os.path.dirname(Hellanzb.LOG_FILE)
-    if Hellanzb.DEBUG_MODE is not None:
+    if hasattr(Hellanzb, 'DEBUG_MODE') and Hellanzb.DEBUG_MODE is not None:
         dirNames['DEBUG_MODE'] = os.path.dirname(Hellanzb.DEBUG_MODE)
     ensureDirs(dirNames)
     

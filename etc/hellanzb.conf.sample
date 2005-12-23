@@ -1,15 +1,31 @@
 # 
 # hellanzb.conf - sample hellanzb configuration file
+#
+# To quickly get started, change the default defineServer() call and the
+# Hellanzb.PREFIX_DIR directory
+#
+# This is actually interpreted python code: strings must be surrounded by
+# quotes, numbers and the 'None' keyword should not
 # 
 # $Id$
 
 # Log output to this file, set to None (no single quotes) for no logging
 Hellanzb.LOG_FILE = '/var/tmp/hellanzb.log'
 
+# Uncomment this line to log DEBUG messages to the specified file
+#Hellanzb.DEBUG_MODE = '/var/tmp/hellanzb-debug.log'
+
+# Automatically roll over both log files when they reach LOG_FILE_MAX_BYTES
+# size
+Hellanzb.LOG_FILE_MAX_BYTES = 0
+
+# Save LOG_FILE_BACKUP_COUNT of those rolled over log files
+Hellanzb.LOG_FILE_BACKUP_COUNT = 0
+
 
 # Define server connections. Servers can have multiple hosts, hellanzb will
 # persist the number of connections to each specified server. There may be
-# mulitple defineServer lines.
+# multiple defineServer lines.
 
 # Set both the username and password to 'None' (without the quotes) if your
 # usenet server does not require authorization
@@ -31,6 +47,7 @@ defineServer(id = 'changeme',
 # Uncomment this line to limit all server connections to the specified KB/s
 # bandwidth
 #Hellanzb.MAX_RATE = 150 # limit to 150kB/s
+
 
 # Important locations
 Hellanzb.PREFIX_DIR = '/ext2/'
@@ -62,11 +79,7 @@ Hellanzb.TEMP_DIR = Hellanzb.PREFIX_DIR + 'nzb/daemon.temp/'
 Hellanzb.QUEUE_LIST = Hellanzb.PREFIX_DIR + 'nzb/QUEUE_LIST'
 
 
-# List of alternative file extensions matched as NZB files in the QUEUE_DIR.
-# The 'nzb' file extension is always matched
-#Hellanzb.OTHER_NZB_FILE_TYPES = [ 'xml' ]
-
-# _Sub directory within the nzb archive dir_ to move proccessed files to
+# _Sub directory within the nzb archive dir_ to move processed files to
 Hellanzb.PROCESSED_SUBDIR = 'processed'
 
 # Remove the PROCESSED_SUBDIR if the archive was successfully post processed. 
@@ -107,16 +120,6 @@ Hellanzb.GROWL_SERVER = 'IP'
 Hellanzb.GROWL_PASSWORD = 'password'
 
 
-# If any of the following file types are missing from the archive and cannot be
-# repaired, continue processing because they're unimportant (case insensitive)
-Hellanzb.NOT_REQUIRED_FILE_TYPES = [ 'log', 'm3u', 'nfo', 'nzb', 'sfv', 'txt' ]
-
-# Don't get rid of (move into the PROCESSED dir) the following file types when
-# finished post processing (case insensitive)
-#Hellanzb.KEEP_FILE_TYPES = [ 'log', 'm3u', 'nfo', 'nzb', 'sfv', 'txt' ]
-Hellanzb.KEEP_FILE_TYPES = [ 'nfo', 'txt' ]
-
-
 # Hostname for the XMLRPC client to connect to. By default, localhost
 Hellanzb.XMLRPC_SERVER = 'localhost'
 
@@ -135,11 +138,16 @@ Hellanzb.NEWZBIN_USERNAME = None
 Hellanzb.NEWZBIN_PASSWORD = None
 
 
-# Automatically rollover both log files when they reach LOG_FILE_MAX_BYTES size
-Hellanzb.LOG_FILE_MAX_BYTES = 0
+# If any of the following file types are missing from the archive and cannot be
+# repaired, continue processing because they're unimportant (case insensitive)
+Hellanzb.NOT_REQUIRED_FILE_TYPES = [ 'log', 'm3u', 'nfo', 'nzb', 'sfv', 'txt' ]
 
-# Save LOG_FILE_BACKUP_COUNT of those rolled over log files
-Hellanzb.LOG_FILE_BACKUP_COUNT = 0
+# Don't get rid of (move into the PROCESSED dir) the following file types when
+# finished post processing (case insensitive)
+#Hellanzb.KEEP_FILE_TYPES = [ 'log', 'm3u', 'nfo', 'nzb', 'sfv', 'txt' ]
+Hellanzb.KEEP_FILE_TYPES = [ 'nfo', 'txt' ]
 
-# Uncomment this line to log DEBUG messages to the specified file
-#Hellanzb.DEBUG_MODE = '/var/tmp/hellanzb-debug.log'
+
+# List of alternative file extensions matched as NZB files in the QUEUE_DIR.
+# The 'nzb' file extension is always matched
+#Hellanzb.OTHER_NZB_FILE_TYPES = [ 'xml' ]

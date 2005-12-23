@@ -62,6 +62,10 @@ Hellanzb.TEMP_DIR = Hellanzb.PREFIX_DIR + 'nzb/daemon.temp/'
 Hellanzb.QUEUE_LIST = Hellanzb.PREFIX_DIR + 'nzb/QUEUE_LIST'
 
 
+# List of alternative file extensions matched as NZB files in the QUEUE_DIR.
+# The 'nzb' file extension is always matched
+#Hellanzb.OTHER_NZB_FILE_TYPES = [ 'xml' ]
+
 # _Sub directory within the nzb archive dir_ to move proccessed files to
 Hellanzb.PROCESSED_SUBDIR = 'processed'
 
@@ -89,7 +93,7 @@ defineMusicType('mp3', None, None)
 #defineMusicType('flac', 'flac -d -- <FILE>', 'wav')
 #defineMusicType('shn', 'shorten -x < <FILE> > <DESTFILE>', 'wav')
 
-# max files we should decompress at the same time
+# Max files we should decompress at the same time
 Hellanzb.MAX_DECOMPRESSION_THREADS = 2
 
 

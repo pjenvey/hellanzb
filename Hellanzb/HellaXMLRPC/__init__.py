@@ -87,7 +87,7 @@ class HellaXMLRPCServer(XMLRPC):
 
     def xmlrpc_dequeue(self, nzbId):
         """ Remove the NZB with specified ID from the queue """
-        from Hellanzb.Daemon import dequeueNZBs, listQueue
+        from Hellanzb.NZBQueue import dequeueNZBs, listQueue
         dequeueNZBs(nzbId)
         return listQueue()
 
@@ -97,7 +97,7 @@ class HellaXMLRPCServer(XMLRPC):
     def xmlrpc_down(self, nzbId, shift = 1):
         """ Move the NZB with the specified ID down in the queue. The optional second argument
         specifies the number of spaces to shift by (Default: 1) """
-        from Hellanzb.Daemon import listQueue, moveDown
+        from Hellanzb.NZBQueue import listQueue, moveDown
         moveDown(nzbId, shift)
         return listQueue()
 
@@ -108,7 +108,7 @@ class HellaXMLRPCServer(XMLRPC):
 
     def xmlrpc_enqueue(self, nzbFilename, nzbData = None):
         """ Add the specified NZB file to the end of the queue """
-        from Hellanzb.Daemon import enqueueNZBs, enqueueNZBStr
+        from Hellanzb.NZBQueue import enqueueNZBs, enqueueNZBStr
         if nzbData == None:
             # FIXME: this should really check for a valid nzb. if it's not valid, raise a
             # Fault (like the xmlrpc_process does)
@@ -146,7 +146,7 @@ class HellaXMLRPCServer(XMLRPC):
 
     def xmlrpc_last(self, nzbId):
         """ Move the NZB with the specified ID to the end of the queue """
-        from Hellanzb.Daemon import lastNZB, listQueue
+        from Hellanzb.NZBQueue import lastNZB, listQueue
         lastNZB(nzbId)
         return listQueue()
 
@@ -156,7 +156,7 @@ class HellaXMLRPCServer(XMLRPC):
     def xmlrpc_list(self, excludeIds = False):
         """ List the NZBs in the queue, along with their NZB IDs. Specify True as the second
         argument to exclude the NZB ID in the listing """
-        from Hellanzb.Daemon import listQueue
+        from Hellanzb.NZBQueue import listQueue
         return listQueue(not excludeIds)
 
     xmlrpc_list.signature = [ ['list'],
@@ -178,7 +178,7 @@ class HellaXMLRPCServer(XMLRPC):
 
     def xmlrpc_move(self, nzbId, index):
         """ Move the NZB with the specified ID to the specified index in the queue """
-        from Hellanzb.Daemon import listQueue, moveNZB
+        from Hellanzb.NZBQueue import listQueue, moveNZB
         moveNZB(nzbId, index)
         return listQueue()
 
@@ -187,7 +187,7 @@ class HellaXMLRPCServer(XMLRPC):
     
     def xmlrpc_next(self, nzbId):
         """ Move the NZB with the specified ID to the beginning of the queue """
-        from Hellanzb.Daemon import listQueue, nextNZBId
+        from Hellanzb.NZBQueue import listQueue, nextNZBId
         nextNZBId(nzbId)
         return listQueue()
 
@@ -251,7 +251,7 @@ class HellaXMLRPCServer(XMLRPC):
         
     def xmlrpc_status(self):
         """ Return hellanzb's current status text """
-        from Hellanzb.Daemon import listQueue
+        from Hellanzb.NZBQueue import listQueue
         s = {}
     
         totalSpeed = 0
@@ -309,7 +309,7 @@ class HellaXMLRPCServer(XMLRPC):
     def xmlrpc_up(self, nzbId, shift = 1):
         """ Move the NZB with the specified ID up in the queue. The optional second argument
         specifies the number of spaces to shift by (Default: 1) """
-        from Hellanzb.Daemon import listQueue, moveUp
+        from Hellanzb.NZBQueue import listQueue, moveUp
         moveUp(nzbId, shift)
         return listQueue()
 

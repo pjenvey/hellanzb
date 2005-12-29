@@ -14,8 +14,8 @@ from twisted.internet import reactor
 from twisted.internet.error import ConnectionRefusedError, DNSLookupError, TimeoutError
 from twisted.web.client import HTTPClientFactory, HTTPDownloader
 from urllib import splitattr, splitvalue
-from Hellanzb.Daemon import enqueueNZBs
 from Hellanzb.Log import *
+from Hellanzb.NZBQueue import enqueueNZBs
 from Hellanzb.Util import tempFilename
 
 __id__ = '$Id$'

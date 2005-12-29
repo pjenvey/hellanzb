@@ -716,7 +716,17 @@ def nuke(filename):
         os.remove(filename)
     except Exception, e:
         pass
-    
+
+def validNZB(nzbfilename):
+    """ Return true if the specified filename is a valid NZB """
+    if nzbfilename == None or not os.path.isfile(nzbfilename):
+        error('Invalid NZB file: ' + str(nzbfilename))
+        return False
+    elif not os.access(nzbfilename, os.R_OK):
+        error('Unable to read NZB file: ' + str(nzbfilename))
+        return False
+    return True
+
 Hellanzb.CMHELLA = \
 '''
            ;;;;            .  .

@@ -74,7 +74,6 @@ class ParExtractor(ContentHandler):
             
         indent -= 1
 
-
 def dequeueIfExtraPar(segment):
     # FIXME: must download in order: number 1 segment. check the headers. if this is a par
     # file, and the nzb has failed previous crc checks (only if ydecode) and we probably

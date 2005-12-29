@@ -26,7 +26,7 @@ from Hellanzb.Util import prettySize, rtruncate, truncateToMultiLine, EmptyForTh
 from Hellanzb.NZBLeecher.nntp import NNTPClient, extractCode
 #from Hellanzb.NZBLeecher.ArticleDecoder import decode, setRealFileName, stripArticleData, ySplit
 from Hellanzb.NZBLeecher.ArticleDecoder import decode
-from Hellanzb.NZBLeecher.NZBModel import NZBQueue
+from Hellanzb.NZBLeecher.NZBSegmentQueue import NZBSegmentQueue
 from Hellanzb.NZBLeecher.NZBLeecherUtil import HellaThrottler, HellaThrottlingFactory
 from Queue import Empty
 
@@ -46,7 +46,7 @@ def initNZBLeecher():
     log.startLogging(fileStream)
 
     # Create the one and only download queue
-    Hellanzb.queue = NZBQueue()
+    Hellanzb.queue = NZBSegmentQueue()
 
     Hellanzb.totalReadBytes = 0
     Hellanzb.totalStartTime = None

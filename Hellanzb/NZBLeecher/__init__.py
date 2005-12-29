@@ -41,7 +41,9 @@ def initNZBLeecher():
     debug(twistedVersionMsg)
     
     # Direct twisted log output to the debug level
-    fileStream = LogOutputStream(debug)
+    def debugNoLF(message):
+        debug(message, appendLF = False)
+    fileStream = LogOutputStream(debugNoLF)
     log.startLogging(fileStream)
 
     # Create the one and only download queue

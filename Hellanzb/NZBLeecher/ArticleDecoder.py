@@ -261,7 +261,8 @@ def setRealFileName(nzbFile, filename, forceChange = False, settingSegmentNumber
     known temporary files belonging to that nzbFile to use the new real filename """
     # FIXME: remove locking
     switchedReal = False
-    if nzbFile.filename is not None and nzbFile.filename != filename:
+    if nzbFile.filename is not None and nzbFile.filename != filename and \
+            nzbFile.filename.find('hellanzb-tmp-') != 0:
         # This NZBFile already had a real filename set, and now something has triggered it
         # be changed
         switchedReal = True

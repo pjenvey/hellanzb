@@ -163,11 +163,11 @@ class PostProcessor(Thread):
                 msg = begin + \
                     '\n <hellanzb truncated the error\'s output, see the log file for full output>\n' + \
                     end
+                
+                noLogFile(archiveName(self.dirName) + ': A problem occurred: ' + msg)
+                logFile(archiveName(self.dirName) + ': A problem occurred', fe)
             else:
-                msg = pe
-            
-            noLogFile(archiveName(self.dirName) + ': A problem occurred: ' + msg)
-            logFile(archiveName(self.dirName) + ': A problem occurred: ', fe)
+                error(archiveName(self.dirName) + ': A problem occurred: ' + pe)
 
             return
         

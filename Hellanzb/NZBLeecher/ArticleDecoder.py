@@ -608,15 +608,12 @@ def assembleNZBFile(nzbFile, autoFinish = True):
         return
 
     file = open(nzbFile.getDestination(), 'wb')
-    segmentFiles = []
 
     # Sort the segments incase they were out of order in the NZB file
     toAssembleSegments = nzbFile.nzbSegments[:]
     toAssembleSegments.sort(lambda x, y : cmp(x.number, y.number))
     
     for nzbSegment in toAssembleSegments:
-        segmentFiles.append(nzbSegment.getDestination())
-
         decodedSegmentFile = open(nzbSegment.getDestination(), 'rb')
         try:
             for line in decodedSegmentFile:
@@ -652,9 +649,9 @@ def assembleNZBFile(nzbFile, autoFinish = True):
 
     file.close()
     # Finally, delete all the segment files when finished
-    for segmentFile in segmentFiles:
+    for nzbSegment in toAssembleSegments:
         try:
-            os.remove(segmentFile)
+            os.remove(nzbSegment.getDestination())
         except OSError, ose:
             # postponement might have moved the file we just wrote to:
             # exceptions.OSError: [Errno 2] No such file or directory: 

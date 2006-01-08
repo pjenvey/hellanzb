@@ -493,7 +493,7 @@ def pauseCurrent():
         for client in nsf.clients:
             client.transport.stopReading()
 
-    info('Pausing download')
+    info('Pausing downloader')
     return True
 
 def continueCurrent():
@@ -527,9 +527,9 @@ def continueCurrent():
 
     Hellanzb.downloadPaused = False
     if resetConnections:
-        info('Continuing download (%i connections were reset)' % resetConnections)
+        info('Continuing downloader (%i connections were reset)' % resetConnections)
     else:
-        info('Continuing download')
+        info('Continuing downloader')
     return True
 
 def clearCurrent(andCancel):

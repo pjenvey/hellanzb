@@ -198,6 +198,10 @@ def parseArticleData(segment, justExtractFilename = False):
             if 'end' in ypart:
                 segment.yEnd = yInt(ypart['end'])
 
+            # Just incase a bad post doesn't include a begin header, ensure
+            # the correct encodingType
+            encodingType = YENCODE
+
         elif withinData and line.startswith('=yend'):
             yend = ySplit(line)
             if 'size' in yend:

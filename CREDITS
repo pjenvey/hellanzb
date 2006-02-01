@@ -42,6 +42,9 @@ o Hellanzb.NZBLeecher.nntp is twisted's news module (TwistedNews-0.1.0) --
 o Hellanzb.Util.walk was written by Robin Parmar
   (http://aspn.activestate.com/ASPN/Cookbook/Python/Recipe/52664)
 
+o Hellanzb.external.elementtree.SimpleXMLWriter is from Fredrik Lundh's
+  elementtree-1.2.6
+
       ________________________
 o     \   |    /  ___/_   _  /
       |   _   /  \_   /   _  \

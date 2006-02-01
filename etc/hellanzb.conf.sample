@@ -129,7 +129,8 @@ Hellanzb.XMLRPC_PORT = 8760
 
 # Password for the XML RPC server. You might probably never use this, but the
 # command line XML RPC calls do -- it should definitely be changed from its
-# default value
+# default value. The XML RPC username is hardcoded as 'hellanzb' -- E.g. URL:
+# http://hellanzb:changeme@localhost:8760
 Hellanzb.XMLRPC_PASSWORD = 'changeme'
 
 

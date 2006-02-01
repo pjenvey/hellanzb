@@ -6,16 +6,17 @@ the twisted reactor loop, except for initialization functions
 (c) Copyright 2005 Ben Bangert, Philip Jenvey
 [See end of file]
 """
-import os, time, Hellanzb, PostProcessor
+import os, time, Hellanzb, PostProcessor, PostProcessorUtil
 from shutil import copy, move, rmtree
 from twisted.internet import reactor
 from twisted.scripts.twistd import daemonize
 from Hellanzb.HellaXMLRPC import initXMLRPCServer, HellaXMLRPCServer
 from Hellanzb.Log import *
 from Hellanzb.Logging import prettyException
-from Hellanzb.NZBQueue import dequeueNZBs, parseNZB, scanQueueDir, writeQueueToDisk
+from Hellanzb.NZBQueue import dequeueNZBs, loadQueueFromDisk, parseNZB, \
+    recoverFromOnDiskQueue, scanQueueDir, syncFromRecovery, writeQueueToDisk
 from Hellanzb.Util import archiveName, getMsgId, hellaRename, prettyElapsed, prettySize, \
-    touch, validNZB
+    touch, validNZB, IDPool
 
 __id__ = '$Id$'
 
@@ -87,6 +88,7 @@ def initDaemon():
 
     reactor.callLater(0, info, 'hellanzb - Now monitoring queue...')
     reactor.callLater(0, growlNotify, 'Queue', 'hellanzb', 'Now monitoring queue..', False)
+    reactor.callLater(0, loadQueueFromDisk)
     reactor.callLater(0, resumePostProcessors)
     reactor.callLater(0, scanQueueDir, True)
 
@@ -98,23 +100,43 @@ def initDaemon():
 
 def resumePostProcessors():
     """ Pickup left off Post Processors that were cancelled via CTRL-C """
-    for archive in os.listdir(Hellanzb.PROCESSING_DIR):
-        if archive[0] == '.':
+    # FIXME: with the new queue, could kill the processing dir sym links (for windows)
+    for resumeArchiveName in os.listdir(Hellanzb.PROCESSING_DIR):
+        if resumeArchiveName[0] == '.':
             continue
 
-        archiveDir = Hellanzb.PROCESSING_DIR + os.sep + archive
+        archiveDir = Hellanzb.PROCESSING_DIR + os.sep + resumeArchiveName
+        # syncFromRecovery should pick up the password
+        """
         rarPassword = None
         if os.path.isfile(archiveDir + os.sep + '.hellanzb_rar_password'):
             rarPassword = ''.join(open(archiveDir + os.sep + '.hellanzb_rar_password').readlines())
+        """
 
-        troll = PostProcessor.PostProcessor(archiveDir, IDPool.getNextId(),
-                                            rarPassword = rarPassword)
-        info('Resuming post processor: ' + archiveName(archive))
+        recovered = recoverFromOnDiskQueue(resumeArchiveName, 'processing')
+        if recovered:
+            if recovered.get('nzbFileName') is not None:
+                from Hellanzb.NZBLeecher.NZBModel import NZB
+                archive = NZB(recovered['nzbFileName'], recovered['id'],
+                              archiveDir = archiveDir)
+                #id = recovered['id']
+            else:
+                archive = PostProcessorUtil.Archive(archiveDir, recovered['id'])
+        else:
+            archive = PostProcessorUtil.Archive(archiveDir, IDPool.getNextId())
+            #id = IDPool.getNextId()
+
+        #archive = PostProcessorUtil.Archive(archiveDir, id)
+        troll = PostProcessor.PostProcessor(archive)
+        syncFromRecovery(troll, recovered)
+
+        info('Resuming post processor: ' + archiveName(resumeArchiveName))
         troll.start()
 
 def beginDownload():
     """ Initialize the download. Notify the downloaders to begin their work, etc """
     # BEGIN
+    writeQueueToDisk()
     now = time.time()
     Hellanzb.totalReadBytes = 0
     Hellanzb.totalStartTime = now
@@ -153,33 +175,45 @@ def endDownload():
 
     Hellanzb.downloadScannerID.cancel()
     Hellanzb.totalArchivesDownloaded += 1
+    writeQueueToDisk()
     # END
 
-def handleNZBDone(nzbfilename, nzbId, rarPassword = None):
+def handleNZBDone(nzb):
     """ Hand-off from the downloader -- make a dir for the NZB with its contents, then post
     process it in a separate thread"""
     # Make our new directory, minus the .nzb
-    newdir = Hellanzb.PROCESSING_DIR + archiveName(nzbfilename)
+    processingDir = Hellanzb.PROCESSING_DIR + nzb.archiveName
     
-    # Grab the message id, we'll store it in the newdir for later use
-    msgId = getMsgId(nzbfilename)
+    # Grab the message id, we'll store it in the processingDir for later use
+    msgId = getMsgId(nzb.nzbFileName)
 
-    # Move our nzb contents to their new location, clear out the temp dir
-    hellaRename(newdir)
+    # Move our nzb contents to their new location for post processing
+    hellaRename(processingDir)
         
-    move(Hellanzb.WORKING_DIR,newdir)
-    touch(newdir + os.sep + '.msgid_' + msgId)
-    nzbfile = Hellanzb.CURRENT_DIR + os.path.basename(nzbfilename)
-    move(nzbfile, newdir)
+    move(Hellanzb.WORKING_DIR, processingDir)
+    nzb.archiveDir = processingDir
+    
+    move(nzb.nzbFileName, processingDir)
+    nzb.nzbFileName = processingDir + os.sep + nzb.nzbFileName
+    
+    touch(processingDir + os.sep + '.msgid_' + msgId)
+    
     os.mkdir(Hellanzb.WORKING_DIR)
 
+    hasMorePars = False
+    for nzbFile in nzb.nzbFileElements:
+        if nzbFile.isSkippedPar:
+            hasMorePars = True
+            break
+        
     # Finally unarchive/process the directory in another thread, and continue
     # nzbing
-    troll = PostProcessor.PostProcessor(newdir, nzbId, rarPassword = rarPassword)
+    troll = PostProcessor.PostProcessor(nzb, hasMorePars)
 
     # Give NZBLeecher some time (another reactor loop) to killHistory() & scrollEnd()
     # without any logging interference from PostProcessor
     reactor.callLater(0, troll.start)
+    reactor.callLater(0, writeQueueToDisk)
     reactor.callLater(0, scanQueueDir)
 
 def postProcess(options, isQueueDaemon = False):
@@ -200,12 +234,16 @@ def postProcess(options, isQueueDaemon = False):
         rarPassword = options.rarPassword
 
     # UNIX: realpath
+    # FIXME: I don't recall why realpath is even necessary
     dirName = os.path.realpath(options.postProcessDir)
-    troll = Hellanzb.PostProcessor.PostProcessor(dirName, IDPool.getNextId(),
-                                                 background = False, rarPassword = rarPassword)
+    archive = PostProcessorUtil.Archive(dirName, rarPassword = rarPassword)
+    troll = Hellanzb.PostProcessor.PostProcessor(archive, background = False)
+
     reactor.callLater(0, info, '')
     reactor.callLater(0, info, 'Starting post processor')
     reactor.callLater(0, reactor.callInThread, troll.run)
+    if isQueueDaemon:
+        reactor.callLater(0, writeQueueToDisk)
 
 def isActive():
     """ Whether or not we're actively downloading """
@@ -251,6 +289,7 @@ def cancelCurrent():
             
             client.deactivate()
             
+    writeQueueToDisk()
     reactor.callLater(0, scanQueueDir)
         
     return canceled
@@ -373,6 +412,7 @@ def setRarPassword(nzbId, rarPassword):
 
     if found:
         found.rarPassword = rarPassword
+        writeQueueToDisk()
         return True
     
     return False
@@ -417,7 +457,7 @@ def forceNZB(nzbfilename):
             move(nzb.nzbFileName, Hellanzb.QUEUE_DIR + os.sep + os.path.basename(nzb.nzbFileName))
             nzb.nzbFileName = Hellanzb.QUEUE_DIR + os.sep + os.path.basename(nzb.nzbFileName)
             Hellanzb.queued_nzbs.insert(0, nzb)
-            writeQueueToDisk(Hellanzb.queued_nzbs)
+            writeQueueToDisk()
 
             # remove what we've forced with from the old queue, if it exists
             nzb = None
@@ -455,6 +495,13 @@ def forceNZB(nzbfilename):
             # nzb in the queue needs to be interrupted????
             debug('forceNZB: NAME ERROR', ne)
             reactor.callLater(0, scanQueueDir)
+
+def forceNZBParRecover(nzb, neededBlocks):
+    """ Immediately begin (force) downloading recovery blocks (only the neededBlocks amount)
+    for the specified NZB """
+    nzb.isParRecovery = True
+    forceNZB(nzb.nzbFileName)
+    
 
 """
 /*

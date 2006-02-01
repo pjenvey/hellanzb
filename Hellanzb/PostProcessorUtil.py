@@ -14,9 +14,37 @@ from Hellanzb.Util import *
 
 __id__ = '$Id$'
 
+# par types enum
+UNKNOWN, PAR1, PAR2, = range(3)
+
+class Archive(object):
+    """ Representation of an archive that can be post processed """
+    def __init__(self, archiveDir, id = None, rarPassword = None, deleteProcessed = None,
+                 skipUnrar = None):
+        self.archiveDir, self.rarPassword = archiveDir, rarPassword
+        
+        if id is None:
+            self.id = IDPool.getNextId()
+        else:
+            self.id = id
+
+        # Set the default (application level) settings for an Archive, unless they are
+        # explicitly overrridden
+        for attr, default in {'deleteProcessed': Hellanzb.DELETE_PROCESSED,
+                              'skipUnrar': Hellanzb.SKIP_UNRAR}.iteritems():
+            val = locals()[attr]
+            if val is None:
+                setattr(self, attr, default)
+            else:
+                setattr(self, attr, val)
+
+    def getName(self):
+        """ Return the name of this archive for display """
+        return os.path.basename(self.archiveDir)
+
 # FIXME: this class should be a KnownFileType class, or something. file types other than
 # music might want to be decompressed
-class MusicType:
+class MusicType(object):
     """ Defines a music file type, and whether or not this program should attempt to
     decompress the music (to wav, generally) if it comes across this type of file """
     extension = None
@@ -131,11 +159,11 @@ class NeedMorePars(Exception):
     """ The PostProcessor throws this exception when an archive has more par chunks available
     to download, and the par2 identified the archive as needing the specified size of par
     chunks to repair """
-    def __init__(self, size):
-        self.args = [size]
-        
-        # How many more blocks (par2) or par files (par1) are needed
-        self.size = size
+    def __init__(self, size, parType):
+        """ Construct with how many more blocks (par2) or par files (par1) are needed, and the par
+        type """
+        self.args = [size, parType]
+        self.size, self.parType = size, parType
 
 def dirHasRars(dirName):
     """ Determine if the specified directory contains rar files """
@@ -210,6 +238,21 @@ def isPar1(fileName):
         return True
 
     return False
+
+def getParRecoveryName(parType, describePar1 = True):
+    """ Return the term used to to describe the particular parType's (a par type enum value)
+    recovery data.
+    Par1: files
+    Par2: blocks
+    """
+    if parType == PAR1:
+        name = 'files'
+        if describePar1:
+            name += ' (par1)'
+        return name
+    elif parType == PAR2:
+        return 'blocks'
+    return 'unknown'
 
 def isDuplicate(fileName):
     """ Determine if the specified file is a duplicate """
@@ -670,19 +713,15 @@ def par2(dirName, parFiles, wildcard, needAssembly = None, hasMorePars = False):
 
     elif returnCode == 2 and hasMorePars:
         # Damaged data, more par data is needed that hasn't been downloaded yet
-        damagedAndRequired, allMissing, neededBlocks, isPar1Archive = \
+        damagedAndRequired, allMissing, neededBlocks, parType = \
             parseParNeedsBlocksOutput(archiveName(dirName), output)
         
-        needType = 'blocks'
-        if isPar1Archive:
-            needType = 'files (par1)'
-            
         #growlNotify('Error', archiveName(dirName) + '\nNeed ' + neededBlocks + \
         #            ' more recovery ' + needType, True)
         info(archiveName(dirName) + ': Failed par verify, requires ' + neededBlocks + \
-             ' more recovery ' + needType)
+             ' more recovery ' + getParRecoveryName(parType))
         
-        raise NeedMorePars(neededBlocks)
+        raise NeedMorePars(neededBlocks, parType)
         
     elif returnCode == 2:
         # Repair required and impossible
@@ -690,7 +729,7 @@ def par2(dirName, parFiles, wildcard, needAssembly = None, hasMorePars = False):
         # First, if the repair is not possible, double check the output for what files are
         # missing or damaged (a missing file is considered as damaged in this case). they
         # may be unimportant
-        damagedAndRequired, missingFiles, targetsFound, neededBlocks, isPar1Archive = \
+        damagedAndRequired, missingFiles, targetsFound, neededBlocks, parType = \
             parseParNeedsBlocksOutput(archiveName(dirName), output)
 
         for file in missingFiles:
@@ -699,16 +738,12 @@ def par2(dirName, parFiles, wildcard, needAssembly = None, hasMorePars = False):
                 # that work, we'll run par2 again later
                 raise ParExpectsUnsplitFiles('')
 
-        needType = 'blocks'
-        if isPar1Archive:
-            needType = 'files (par1)'
-
         # par did not find any valid 'Target:' files, and more blocks are needed. This is
         # probably a bad archive
         if targetsFound == 0 and neededBlocks > 0:
             # FIXME: download more pars and try again
             raise FatalError('Unable to par repair: archive requires ' + neededBlocks + \
-                             ' more recovery ' + needType + \
+                             ' more recovery ' + getParRecoveryName(parType) + \
                              ' for repair. No valid files found (bad archive?)')
 
         # The archive is only totally broken when we're missing required files
@@ -734,7 +769,7 @@ def parseParNeedsBlocksOutput(archive, output):
     missingFiles = []
     neededBlocks = None
     damagedRE = re.compile(r'"\ -\ damaged\.\ Found\ \d+\ of\ \d+\ data\ blocks\.')
-    isPar1Archive = False
+    parType = UNKNOWN
 
     targetsFound = 0
     maxSpam = 4 # only spam this many lines (before truncating)
@@ -786,10 +821,11 @@ def parseParNeedsBlocksOutput(archive, output):
             
             if line.find(' more recovery files ') > -1:
                 # Par 1 format
-                isPar1Archive = True
+                parType = PAR1
                 neededBlocks = line[:-len(' more recovery files to be able to repair.')]
             else:
                 # Par 2
+                parType = PAR2
                 neededBlocks = line[:-len(' more recovery blocks to be able to repair.')]
 
     if spammed > maxSpam and len(extraSpam):
@@ -802,7 +838,7 @@ def parseParNeedsBlocksOutput(archive, output):
         else:
             error(lastMsg)
             
-    return damagedAndRequired, missingFiles, targetsFound, neededBlocks, isPar1Archive
+    return damagedAndRequired, missingFiles, targetsFound, neededBlocks, parType
 
 FIRST_SEGMENT_SUFFIX = '.segment0001'
 def cleanUpSkippedPars(dirName):

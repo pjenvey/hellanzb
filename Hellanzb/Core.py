@@ -208,7 +208,9 @@ def init(options = {}):
     except ImportError:
         Hellanzb.HAVE_C_YENC = False
 
+    # abort if we lack required binaries
     assertHasARar()
+    assertIsExe('par2')
 
     # Twisted will replace this with its own signal handler when initialized
     signal.signal(signal.SIGINT, signalHandler)

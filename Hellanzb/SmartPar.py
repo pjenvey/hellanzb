@@ -118,11 +118,13 @@ def dequeueIfExtraPar(segment):
     if isPar(segment.nzbFile.filename):
         segment.nzbFile.isParFile = True
     
-        if isPar2(segment.nzbFile.filename) and not PAR2_VOL_RE.match(segment.nzbFile.filename):
-            # not a .vol????.par2. Download it
+        if isPar2(segment.nzbFile.filename) and \
+                not PAR2_VOL_RE.match(segment.nzbFile.filename):
+            # Not a .vol????.par2. This is the main par2, download it
             return
-        elif isPar1(segment.nzbFile.filename) and segment.nzbFile.filename.lower().endswith('.p00'):
-            # first par1 should be .p00
+        elif isPar1(segment.nzbFile.filename) and \
+                segment.nzbFile.filename.lower().endswith('.p00'):
+            # First par1 should be .p00
             return
 
         segment.nzbFile.isExtraParFile = True

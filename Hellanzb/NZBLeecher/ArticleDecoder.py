@@ -687,20 +687,16 @@ def tryFinishNZB(nzb):
         debug('tryFinishNZB: finished downloading NZB: ' + nzb.archiveName)
         
         # nudge GC
-        nzbFileName = nzb.nzbFileName
+        """
         for nzbFile in nzb.nzbFileElements:
             del nzbFile.todoNzbSegments
             del nzbFile.nzb
         del nzb.nzbFileElements
-        
-        nzbId = nzb.id
-        rarPassword = nzb.rarPassword
-        del nzb
+        """
         
         gc.collect()
 
-        reactor.callFromThread(handleNZBDone, nzbFileName, nzbId,
-                               **{'rarPassword': rarPassword })
+        reactor.callFromThread(handleNZBDone, nzb)
         
     finish = time.time() - start
     debug('tryFinishNZB (' + str(done) + ') took: ' + str(finish) + ' seconds')

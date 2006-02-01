@@ -2,31 +2,64 @@
 
 NZBQueue - Maintains NZB files queued to be downloaded in the future
 
+These are all module level functions that operate on the main Hellanzb queue, which is at
+Hellanzb.queued_nzbs (FIXME)
+
 (c) Copyright 2005 Philip Jenvey
 [See end of file]
 """
 import os, re, time, Hellanzb, Hellanzb.Daemon
 from shutil import copy, move, rmtree
 from twisted.internet import reactor
+from xml.sax import make_parser, SAXParseException
+from xml.sax.handler import ContentHandler, feature_external_ges, feature_namespaces
+from Hellanzb.external.elementtree.SimpleXMLWriter import XMLWriter
 from Hellanzb.Log import *
+from Hellanzb.NewzbinDownloader import NewzbinDownloader
 from Hellanzb.Util import archiveName, hellaRename, getFileExtension, toUnicode, validNZB
 
 __id__ = '$Id$'
 
-class NZBQueue(object):
-    """ NZBQueue maintains pending NZB files to be downloaded. Only the NZB  """
-    def __init__(self, nzbQueueDir = None):
-        if nzbQueueDir is None:
-            nzbQueueDir = Hellanzb.QUEUE_DIR
-        self.nzbQueueDir = nzbQueueDir
+class NZBQueueParser(ContentHandler):
+    """ Loads the on disk QUEUE_LIST into an NZBQueueRecovered object """
+    def __init__(self):
+        Hellanzb.nzbQueueRecovered = NZBQueueRecovered()
 
-        self.queuedNZBs = []
+        self.currentTag = None
+        self.currentAttrs = None
+        
+    def startElement(self, name, attrs):
+        # <hellanzb newzbinSessId="8f9c7badc62a5d5f776d810f0498cde1" version="0.9-trunk">
+        if name == 'hellanzb':
+            Hellanzb.nzbQueueRecovered.version = attrs.get('version')
+            Hellanzb.nzbQueueRecovered.newzbinSessId = attrs.get('newzbinSessId')
 
-        self.append, self.remove = self.queuedNZBs.append, self.queuedNZBs.remove
+        # <downloading id="10" isParRecovery="true">Archive 3</downloading>
+        # <processing id="4" rarPassword="sup" deleteProcessed="true" skipUnrar="true"
+        #    overwriteZeroByteFiles="true" keepDupes="true" destSubDir="?"
+        #    nzbFile="Archive_0.nzb">Archive 0</processing>
+        # <queued id="3" order="1">Archive 1</queued>
+        elif name in ('downloading', 'processing', 'queued'):
+            self.currentTag = name
+            self.currentAttrs = dict(attrs.items())
 
-    def __iter__(self):
-        return iter(self.queuedNZBs)
+    def characters(self, content):
+        if self.currentTag in ('downloading', 'processing', 'queued'):
+            typeDict = getattr(Hellanzb.nzbQueueRecovered, self.currentTag)
+            if self.currentAttrs is not None:
+                typeDict[content] = self.currentAttrs
+                self.currentAttrs = None
 
+class NZBQueueRecovered(object):
+    """ Data recovered from the on disk QUEUE_LIST """
+    def __init__(self):
+        # These are maps of the archive name (the XML tag's content) to their
+        # attributes. These will later be resynced to their associated objects
+        self.downloading, self.processing, self.queued = {}, {}, {}
+        
+        self.version = None
+        self.newzbinSessId = None
+        
 def scanQueueDir(firstRun = False, justScan = False):
     """ Find new/resume old NZB download sessions """
     t = time.time()
@@ -73,6 +106,9 @@ def scanQueueDir(firstRun = False, justScan = False):
 
     if not current_nzbs:
         if not Hellanzb.queued_nzbs or Hellanzb.downloadPaused:
+            if firstRun:
+                writeQueueToDisk()
+
             # Nothing to do, lets wait 5 seconds and start over
             reactor.callLater(5, scanQueueDir)
             return
@@ -93,14 +129,24 @@ def scanQueueDir(firstRun = False, justScan = False):
     else:
         # Resume the NZB in the CURRENT_DIR
         nzbfilename = current_nzbs[0]
-        nzb = NZB(nzbfilename)
+        
+        nzbId = None
+        recovered = recoverFromOnDiskQueue(os.path.basename(nzbfilename), 'downloading')
+        if recovered:
+            nzbId = recovered['id']
+        nzb = NZB(nzbfilename, nzbId)
+        syncFromRecovery(nzb, recovered)
+        
         nzbfilename = os.path.basename(nzb.nzbFileName)
         displayNotification = True
         del current_nzbs[0]
         resuming = True
 
-    nzbfile = Hellanzb.CURRENT_DIR + nzbfilename
+    nzbfile = Hellanzb.CURRENT_DIR + os.sep + nzbfilename
     nzb.nzbFileName = nzbfile
+
+    if firstRun:
+        writeQueueToDisk()
 
     if resuming:
         parseNZB(nzb, 'Resuming')
@@ -110,14 +156,17 @@ def scanQueueDir(firstRun = False, justScan = False):
         parseNZB(nzb, quiet = True)
 
 def sortQueueFromDisk():
-    """ sort the queue from what's on disk """
-    onDiskQueue = loadQueueFromDisk()
+    """ Sort the queue from the order recovered from the on disk QUEUE_LIST """
+    onDiskQueue = [(archiveEntry['order'], archiveName) for archiveName, archiveEntry in \
+                   Hellanzb.nzbQueueRecovered.queued.iteritems()]
+    onDiskQueue.sort()
+    
     unsorted = Hellanzb.queued_nzbs[:]
     Hellanzb.queued_nzbs = []
     arranged = []
-    for line in onDiskQueue:
+    for order, archiveName in onDiskQueue:
         for nzb in unsorted:
-            if os.path.basename(nzb.nzbFileName) == line:
+            if os.path.basename(nzb.nzbFileName) == archiveName:
                 Hellanzb.queued_nzbs.append(nzb)
                 arranged.append(nzb)
                 break
@@ -127,41 +176,111 @@ def sortQueueFromDisk():
         Hellanzb.queued_nzbs.append(nzb)
             
 def loadQueueFromDisk():
-    """ load the queue from disk """
-    queue = []
+    """ Load the queue from disk """
+    Hellanzb.nzbQueueRecovered = NZBQueueRecovered()
     if os.path.isfile(Hellanzb.QUEUE_LIST):
+        # Create a parser
+        parser = make_parser()
+
+        # No XML namespaces here
+        parser.setFeature(feature_namespaces, 0)
+        parser.setFeature(feature_external_ges, 0)
+
+        # Tell the parser to use it
+        parser.setContentHandler(NZBQueueParser())
+
+        # Parse the input
         try:
-            f = open(Hellanzb.QUEUE_LIST)
-        except:
-            f.close()
-            return queue
-        for line in f:
-            queue.append(line.strip('\n'))
-        f.close()
-    return queue
+            parser.parse(Hellanzb.QUEUE_LIST)
+        except SAXParseException, saxpe:
+            debug('Unable to parse Invalid NZB QUEUE LIST: ' + Hellanzb.QUEUE_LIST)
+            return None
 
-def writeQueueToDisk(queue):
-    """ write the queue to disk """
-    unique = []
-    for item in queue:
-        if item not in unique:
-            unique.append(item)
-    if len(unique) != len(queue):
-        warn('Warning: Found duplicates in queue while writing to disk: ' + \
-             str([nzb.nzbFileName for nzb in queue]))
-    queue = unique
-        
-    f = open(Hellanzb.QUEUE_LIST, 'w')
-    for nzb in queue:
-        f.write(os.path.basename(nzb.nzbFileName) + '\n')
-    f.close()
+        if Hellanzb.nzbQueueRecovered.newzbinSessId is not None and \
+                not NewzbinDownloader.cookies.get('PHPSESSID'):
+            NewzbinDownloader.cookies['PHPSESSID'] = Hellanzb.nzbQueueRecovered.newzbinSessId
 
+def writeQueueToDisk():
+    """ Write the queue to disk """
+    def itemsToXML(xmlWriter, items, type, extraAttribs = ()):
+        for item in items:
+            attribs = getQueueAttribs(item)
+            
+            for extraAttrib in extraAttribs:
+                extraAttribVal = getattr(item, extraAttrib)
+                if extraAttribVal is not None:
+                    attribs[extraAttrib] = unicode(extraAttribVal)
+                
+            d = xmlWriter.element(type, item.getName(), attribs)
+    
+    queueListFile = open(Hellanzb.QUEUE_LIST, 'w')
+
+    writer = XMLWriter(queueListFile, 'utf-8')
+    
+    hAttribs = {'version': Hellanzb.version}
+    if NewzbinDownloader.cookies.get('PHPSESSID') != None:
+        hAttribs['newzbinSessId'] = NewzbinDownloader.cookies['PHPSESSID']
+    h = writer.start('hellanzb', hAttribs)
+
+    itemsToXML(writer, Hellanzb.queue.currentNZBs(), 'downloading')
+    itemsToXML(writer, Hellanzb.postProcessors, 'processing',
+               extraAttribs = ('nzbFileName',))
+
+    i = 0
+    for queued in Hellanzb.queued_nzbs:
+        i += 1
+        attribs = getQueueAttribs(queued)
+        #attribs['order'] = str(i)
+        attribs['order'] = unicode(i)
+        d = writer.element('queued', queued.getName(), attribs)
+
+    writer.comment('Generated @ %s FIXME: rename hellanzb tag to something else' % 'time')
+    writer.close(h)
+    queueListFile.close()
+
+    # We should be done with the NZBQueueRecovered data -- clean it out
+    Hellanzb.nzbQueueRecovered = NZBQueueRecovered() 
+
+def getQueueAttribs(item):
+    """ Return a dict of attributes to be written to the on disk XML queue. Takes into account
+    the attribute defaults """
+    class Required: pass
+    # All queue attributes and their defaults
+    QUEUE_ATTRIBS = {'rarPassword': None,
+                     'id': Required}
+    
+    attribs = {}
+    for attribName, default in QUEUE_ATTRIBS.iteritems():
+        val = getattr(item, attribName)
+        # Only write to XML required values and values that do not match their defaults
+        if default == Required or val != default:
+            #attribs[attribName] = str(val)
+            attribs[attribName] = unicode(val)
+    return attribs
+
+def recoverFromOnDiskQueue(archiveName, type):
+    """ Attempt to recover attributes (dict) from the QUEUE_LIST read from disk for the
+    specified archiveName of the specified type (valid types: downloading, processing,
+    queued) """
+    typeDict = getattr(Hellanzb.nzbQueueRecovered, type)
+    
+    recovered = None
+    if archiveName in typeDict:
+        recovered = typeDict[archiveName]
+
+    return recovered
+
+def syncFromRecovery(obj, recovered):
+    """ Copy the attributes from the specified recovered dict to the specified object """
+    if recovered:
+        for key, value in recovered.iteritems():
+            if key == 'id':
+                value = int(value)
+            setattr(obj, key, value)
         
 def parseNZB(nzb, notification = 'Downloading', quiet = False):
     """ Parse the NZB file into the Queue. Unless the NZB file is deemed already fully
     processed at the end of parseNZB, tell the factory to start downloading it """
-    writeQueueToDisk(Hellanzb.queued_nzbs)
-
     if not quiet:
         info(notification + ': ' + nzb.archiveName)
         growlNotify('Queue', 'hellanzb ' + notification + ':', nzb.archiveName,
@@ -172,6 +291,7 @@ def parseNZB(nzb, notification = 'Downloading', quiet = False):
         
         info('Parsing: ' + os.path.basename(nzb.nzbFileName) + '...')
         if not Hellanzb.queue.parseNZB(nzb):
+            writeQueueToDisk()
             Hellanzb.Daemon.beginDownload()
 
     except FatalError, fe:
@@ -221,7 +341,7 @@ def ensureSafePostponedLoad(nzbFileName):
             nzbl.deactivate()
         
 def findAndLoadPostponedDir(nzb):
-    """ move a postponed working directory for the specified nzb, if one is found, to the
+    """ Move a postponed working directory for the specified nzb, if one is found, to the
     WORKING_DIR """
     def fixNZBFileName(nzb):
         if os.path.normpath(os.path.dirname(nzb.destDir)) == os.path.normpath(Hellanzb.POSTPONED_DIR):
@@ -306,7 +426,7 @@ def moveUp(nzbId, shift = 1, moveDown = False):
         Hellanzb.queued_nzbs.insert(i - shift, foundNzb)
     else:
         Hellanzb.queued_nzbs.insert(i + shift, foundNzb)
-    writeQueueToDisk(Hellanzb.queued_nzbs)
+    writeQueueToDisk()
     return True
 
 def moveDown(nzbId, shift = 1):
@@ -341,7 +461,7 @@ def dequeueNZBs(nzbIdOrIds, quiet = False):
         move(nzb.nzbFileName, Hellanzb.TEMP_DIR + os.sep + os.path.basename(nzb.nzbFileName))
         Hellanzb.queued_nzbs.remove(nzb)
         
-    writeQueueToDisk(Hellanzb.queued_nzbs)
+    writeQueueToDisk()
     return not error
 
 def enqueueNZBStr(nzbFilename, nzbStr):
@@ -387,7 +507,14 @@ def enqueueNZBs(nzbFileOrFiles, next = False, writeQueue = True):
                 continue
                     
             from Hellanzb.NZBLeecher.NZBModel import NZB
-            nzb = NZB(nzbFile)
+            name = os.path.basename(nzbFile)
+            nzbId = None
+            
+            recovered = recoverFromOnDiskQueue(name, 'queued')
+            if recovered:
+                nzbId = recovered['id']
+            nzb = NZB(nzbFile, nzbId)
+            syncFromRecovery(nzb, recovered)
             
             if not next:
                 Hellanzb.queued_nzbs.append(nzb)
@@ -399,7 +526,7 @@ def enqueueNZBs(nzbFileOrFiles, next = False, writeQueue = True):
             growlNotify('Queue', 'hellanzb ' + msg, archiveName(nzbFile), False)
                 
     if writeQueue:
-        writeQueueToDisk(Hellanzb.queued_nzbs)
+        writeQueueToDisk()
             
 def enqueueNextNZBs(nzbFileOrFiles):
     """ enqueue one or more nzbs to the beginning of the queue """
@@ -424,7 +551,7 @@ def nextNZBId(nzbId):
     Hellanzb.queued_nzbs.remove(foundNZB)
     Hellanzb.queued_nzbs.insert(0, foundNZB)
 
-    writeQueueToDisk(Hellanzb.queued_nzbs)
+    writeQueueToDisk()
     return True
 
 def lastNZB(nzbId):
@@ -445,7 +572,7 @@ def lastNZB(nzbId):
     Hellanzb.queued_nzbs.remove(foundNZB)
     Hellanzb.queued_nzbs.append(foundNZB)
 
-    writeQueueToDisk(Hellanzb.queued_nzbs)
+    writeQueueToDisk()
     return True
 
 def moveNZB(nzbId, index):
@@ -471,7 +598,7 @@ def moveNZB(nzbId, index):
     Hellanzb.queued_nzbs.remove(foundNZB)
     Hellanzb.queued_nzbs.insert(index - 1, foundNZB)
 
-    writeQueueToDisk(Hellanzb.queued_nzbs)
+    writeQueueToDisk()
     return True
 
 def listQueue(includeIds = True, convertToUnicode = True):

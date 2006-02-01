@@ -9,13 +9,12 @@ people might want it so here it is -pjenvey
 (c) Copyright 2005 Philip Jenvey
 [See end of file]
 """
-import os, time
+import os, time, Hellanzb.NZBQueue
 from twisted.internet import reactor
 from twisted.internet.error import ConnectionRefusedError, DNSLookupError, TimeoutError
 from twisted.web.client import HTTPClientFactory, HTTPDownloader
 from urllib import splitattr, splitvalue
 from Hellanzb.Log import *
-from Hellanzb.NZBQueue import enqueueNZBs
 from Hellanzb.Util import tempFilename
 
 __id__ = '$Id$'
@@ -65,7 +64,7 @@ class NewzbinDownloader(object):
     GET_NZB_URL = 'http://www.newzbin.com/browse/post/____ID____/msgids/msgidlist_post____ID____.nzb'
     TEMP_FILENAME_PREFIX = 'hellanzb-newzbin-download'
 
-    cookies = None
+    cookies = {}
     
     def __init__(self, msgId):
         self.msgId = msgId
@@ -188,7 +187,7 @@ class NewzbinDownloader(object):
         dest = os.path.dirname(self.tempFilename) + os.sep + self.nzbFilename
         os.rename(self.tempFilename, dest)
         
-        enqueueNZBs(dest)
+        Hellanzb.NZBQueue.enqueueNZBs(dest)
 
     def errBack(self, reason):
         # FIXME:

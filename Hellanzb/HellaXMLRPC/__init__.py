@@ -20,6 +20,7 @@ from Hellanzb.HellaXMLRPC.HtPasswdAuth import HtPasswdWrapper
 from Hellanzb.Logging import LogOutputStream
 from Hellanzb.Log import *
 from Hellanzb.PostProcessor import PostProcessor
+from Hellanzb.PostProcessorUtil import Archive
 from Hellanzb.Util import archiveName, cmHella, dupeName, flattenDoc, prettyEta, toUnicode, \
     truncateToMultiLine, IDPool
 
@@ -222,7 +223,8 @@ class HellaXMLRPCServer(XMLRPC):
             os.symlink(archiveDir, destDir)
             archiveDir = destDir
 
-        troll = PostProcessor(archiveDir, IDPool.getNextId(), rarPassword = rarPassword)
+        archive = Archive(archiveDir, rarPassword = rarPassword)
+        troll = PostProcessor(archive)
         troll.start()
         return self.xmlrpc_status()
 

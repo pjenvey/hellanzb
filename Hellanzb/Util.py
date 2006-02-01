@@ -424,7 +424,6 @@ def archiveName(dirName):
     while dirName[len(dirName) - 1] == os.sep:
         dirName = dirName[0:len(dirName) - 1]
     if isinstance(dirName, DirName) and dirName.isSubDir():
-        from Hellanzb.Log import info
         name = os.path.basename(dirName.parentDir) + \
         normpath(dirName).replace(normpath(dirName.parentDir), '')
     else:

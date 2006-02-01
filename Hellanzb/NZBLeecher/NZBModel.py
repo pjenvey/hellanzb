@@ -9,10 +9,11 @@ import os, re, Hellanzb
 from sets import Set
 from threading import Lock, RLock
 from Hellanzb.Log import *
-from Hellanzb.NZBLeecher.ArticleDecoder import parseArticleData, setRealFileName
 from Hellanzb.Util import archiveName, getFileExtension, nuke, IDPool
+from Hellanzb.NZBLeecher.ArticleDecoder import parseArticleData, setRealFileName
 from Hellanzb.NZBLeecher.DupeHandler import handleDupeNZBFileNeedsDownload
 from Hellanzb.NZBLeecher.NZBLeecherUtil import validWorkingFile
+from Hellanzb.PostProcessorUtil import Archive
 
 __id__ = '$Id$'
 
@@ -122,16 +123,16 @@ def segmentsNeedDownload(segmentList, overwriteZeroByteSegments = False):
 
     return needDlFiles, needDlSegments, onDiskSegments
 
-class NZB:
+class NZB(Archive):
     """ Representation of an nzb file -- the root <nzb> tag """
     
-    def __init__(self, nzbFileName):
+    def __init__(self, nzbFileName, id = None, rarPassword = None, archiveDir = None):
+        Archive.__init__(self, archiveDir, id, None, rarPassword)
+            
         ## NZB file general information
         self.nzbFileName = nzbFileName
         self.archiveName = archiveName(self.nzbFileName) # pretty name
         self.nzbFileElements = []
-        
-        self.id = IDPool.getNextId()
 
         # Where the nzb files will be downloaded
         self.destDir = Hellanzb.WORKING_DIR
@@ -150,9 +151,6 @@ class NZB:
         ## How many bytes have been downloaded for this NZB
         self.totalReadBytes = 0
 
-        # To be passed to the PostProcessor
-        self.rarPassword = None
-        
         ## Whether or not we should redownload NZBFile and NZBSegment files on disk that are 0 bytes in
         ## size
         self.overwriteZeroByteFiles = True
@@ -169,6 +167,9 @@ class NZB:
         self.canceledLock.acquire()
         self.canceled = True
         self.canceledLock.release()
+
+    def getName(self):
+        return os.path.basename(self.nzbFileName)
         
 class NZBFile:
     """ <nzb><file/><nzb> """

@@ -32,18 +32,20 @@ class PostProcessor(Thread):
     msgId = None
     nzbFile = None
 
-    def __init__(self, dirName, id, background = True, rarPassword = None, parentDir = None,
-                 hasMorePars = False):
+    archiveAttrs = ('id', 'rarPassword', 'deleteProcessed', 'skipUnrar')
+
+    def __init__(self, archive, background = True, parentDir = None, hasMorePars = False):
         """ Ensure sanity of this instance before starting """
-        # abort if we lack required binaries
-        assertIsExe('par2')
+        # The archive to post process
+        self.archive = archive
+    
+        # DirName is a hack printing out the correct directory name when running nested
+        # post processors on sub directories
+        self.dirName = DirName(archive.archiveDir)
 
-         # DirName is a hack printing out the correct directory name when running nested
-         # post processors on sub directories
-        self.dirName = DirName(dirName)
-
-        # unique identifier
-        self.id = id
+        self.nzbFileName = None
+        if self.isNZBArchive():
+            self.nzbFileName = archive.nzbFileName
 
         # Whether or not this thread is the only thing happening in the app (-p mode)
         self.background = background
@@ -60,12 +62,6 @@ class PostProcessor(Thread):
         self.decompressorLock = RLock()
         self.decompressorCondition = Condition(self.decompressorLock)
 
-        self.rarPassword = rarPassword
-        if self.rarPassword != None:
-            rarPasswordFile = open(dirName + os.sep + '.hellanzb_rar_password', 'w')
-            rarPasswordFile.write(self.rarPassword)
-            rarPasswordFile.close()
-
         # The parent directory we the originating post process call started from, if we
         # are post processing a sub directory
         self.isSubDir = False
@@ -78,6 +74,28 @@ class PostProcessor(Thread):
     
         Thread.__init__(self)
 
+    def __getattr__(self, name):
+        """ Forward specific attribute lookups to the Archive object """
+        if name in self.archiveAttrs:
+            return getattr(self.archive, name)
+        raise AttributeError, name
+
+    def __setattr__(self, name, value):
+        """ Forward specific attribute setting to the Archive object """
+        if name in self.archiveAttrs:
+            setattr(self.archive, name, value)
+        else:
+            self.__dict__[name] = value
+
+    def getName(self):
+        """ The name of the archive currently being post processed """
+        return os.path.basename(self.dirName)
+
+    def isNZBArchive(self):
+        """ Whether or not the current archive was downloaded from an NZB file """
+        from Hellanzb.NZBLeecher.NZBModel import NZB # FIXME:
+        return isinstance(archive, NZB)
+        
     def addDecompressor(self, decompressorThread):
         """ Add a decompressor thread to the pool and notify the caller """
         self.decompressorCondition.acquire()
@@ -100,6 +118,9 @@ class PostProcessor(Thread):
             Hellanzb.postProcessorLock.acquire()
             Hellanzb.postProcessors.remove(self)
             Hellanzb.postProcessorLock.release()
+            
+            from Hellanzb.NZBQueue import writeQueueToDisk # FIXME:
+            writeQueueToDisk()
             
         # When a Post Processor fails, we end up moving the destDir here
         self.moveDestDir() 
@@ -137,6 +158,9 @@ class PostProcessor(Thread):
             # FIXME: could block if there are too many processors going
             Hellanzb.postProcessors.append(self)
             Hellanzb.postProcessorLock.release()
+
+            from Hellanzb.NZBQueue import writeQueueToDisk # FIXME:
+            writeQueueToDisk()
         
         try:
             self.postProcess()
@@ -423,11 +447,23 @@ class PostProcessor(Thread):
                 processPars(self.dirName, None)
                 
             except NeedMorePars, nmp:
-                # Must download more pars. Move the archive to the postponed dir. Queue
-                # next or force the extra_pars NZB dir
-                os.rename(self.dirName, Hellanzb.POSTPONED_DIR + os.sep + os.path.basename(self.dirName))
-                
-                pass
+                if self.background and self.isNZBArchive() and self.hasMorePars:
+                    # Must download more pars. Move the archive to the postponed dir. Queue
+                    # next or force the extra_pars NZB dir
+                    os.rename(self.dirName, Hellanzb.POSTPONED_DIR + os.sep + \
+                              os.path.basename(self.dirName))
+
+                    info(archiveName(self.dirName) + \
+                         ': Needs More Pars for recovery (%i %s), forcing download' % \
+                         (nmp.neededBlocks, getParRecoveryName(nmp.parType)))
+
+                    from Hellanzb.Daemon import forceNZBParRecover # FIXME:
+                    # FIXME: this is going to overwrite the NZB file eventually
+                    forceNZBParRecover(self.archive.nzbFileName, nmp.neededBlocks)
+                else:
+                    info(archiveName(self.dirName) + ': Failed par verify, requires ' + \
+                         nmp.neededBlocks + ' more recovery ' + \
+                         getParRecoveryName(nmp.parType))
 
         cleanUpSkippedPars(self.dirName)
         

@@ -146,10 +146,12 @@ def escape_attrib(s, encoding=None, replace=string.replace):
 # @param file A file or file-like object.  This object must implement
 #    a <b>write</b> method that takes an 8-bit string.
 # @param encoding Optional encoding.
+# @param indent Optionally include this many characters for indenting
+# the XML. Specify -1 for no indents
 
 class XMLWriter:
 
-    def __init__(self, file, encoding="us-ascii"):
+    def __init__(self, file, encoding="us-ascii", indent = -1):
         if not hasattr(file, "write"):
             file = open(file, "w")
         self.__write = file.write
@@ -159,16 +161,30 @@ class XMLWriter:
         self.__tags = []
         self.__data = []
         self.__encoding = encoding
+        self.__indent = indent
+        self.__indentLevel = -1
 
     def __flush(self):
         # flush internal buffers
+        wasOpen = False
         if self.__open:
+            wasOpen = True
             self.__write(">")
             self.__open = 0
         if self.__data:
             data = string.join(self.__data, "")
             self.__write(escape_cdata(data, self.__encoding))
             self.__data = []
+        elif wasOpen:
+            self.__write("\n")
+
+    ##
+    # Returns proper indentation whitespace
+    #
+    # @return Whitespace as an 8-bit string
+
+    def __getIndent(self):
+        return ' '*self.__indent*self.__indentLevel
 
     ##
     # Writes an XML declaration.
@@ -194,11 +210,12 @@ class XMLWriter:
     # @return An element identifier.
 
     def start(self, tag, attrib={}, **extra):
+        self.__indentLevel += 1
         self.__flush()
         tag = escape_cdata(tag, self.__encoding)
         self.__data = []
         self.__tags.append(tag)
-        self.__write("<%s" % tag)
+        self.__write("%s<%s" % (self.__getIndent(), tag))
         if attrib or extra:
             attrib = attrib.copy()
             attrib.update(extra)
@@ -218,7 +235,8 @@ class XMLWriter:
 
     def comment(self, comment):
         self.__flush()
-        self.__write("<!-- %s -->\n" % escape_cdata(comment, self.__encoding))
+        self.__write("%s<!-- %s -->\n" % (self.__getIndent(),
+                                          escape_cdata(comment, self.__encoding)))
 
     ##
     # Adds character data to the output stream.
@@ -247,9 +265,11 @@ class XMLWriter:
             self.__flush()
         elif self.__open:
             self.__open = 0
-            self.__write(" />")
+            self.__write(" />\n")
+            self.__indentLevel -= 1
             return
-        self.__write("</%s>" % tag)
+        self.__write("%s</%s>\n" % (self.__getIndent(), tag))
+        self.__indentLevel -= 1
 
     ##
     # Closes open elements, up to (and including) the element identified

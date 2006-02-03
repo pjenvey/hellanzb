@@ -111,7 +111,8 @@ def growlNotify(type, title, description, sticky = False):
     # to UTF-8 the description if it contains unusual characters. we also have to force
     # latin-1, otherwise converting to unicode can fail too
     # (e.g. 'SÃÂ£o_Paulo')
-    description = unicode(description, 'latin-1')
+    if not isinstance(description, unicode):
+        description = unicode(description, 'latin-1')
     
     p = GrowlNotificationPacket(application="hellanzb",
                                 notification=type, title=title,

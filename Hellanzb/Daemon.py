@@ -114,11 +114,16 @@ def resumePostProcessors():
         """
 
         recovered = recoverFromOnDiskQueue(resumeArchiveName, 'processing')
+        hasMorePars = False
         if recovered:
             if recovered.get('nzbFileName') is not None:
                 from Hellanzb.NZBLeecher.NZBModel import NZB
                 archive = NZB(recovered['nzbFileName'], recovered['id'],
                               archiveDir = archiveDir)
+                extraPars = recovered.get('extraPars') 
+                if len(extraPars):
+                    archive.extraParNamesList = extraPars
+                    hasMorePars = True
                 #id = recovered['id']
             else:
                 archive = PostProcessorUtil.Archive(archiveDir, recovered['id'])
@@ -128,6 +133,9 @@ def resumePostProcessors():
 
         #archive = PostProcessorUtil.Archive(archiveDir, id)
         troll = PostProcessor.PostProcessor(archive)
+        from Hellanzb.NZBLeecher.NZBModel import NZB
+        if isinstance(archive, NZB):
+            troll.hasMorePars = hasMorePars
         syncFromRecovery(troll, recovered)
 
         info('Resuming post processor: ' + archiveName(resumeArchiveName))
@@ -443,6 +451,7 @@ def forceNZB(nzbfilename):
 
     if not len(Hellanzb.queue.nzbs):
         # No need to actually 'force'
+        from Hellanzb.NZBLeecher.NZBModel import NZB
         return parseNZB(NZB(nzbfilename))
 
     # postpone the current NZB download
@@ -496,12 +505,24 @@ def forceNZB(nzbfilename):
             debug('forceNZB: NAME ERROR', ne)
             reactor.callLater(0, scanQueueDir)
 
-def forceNZBParRecover(nzb, neededBlocks):
+def forceNZBParRecover(nzb):
     """ Immediately begin (force) downloading recovery blocks (only the neededBlocks amount)
     for the specified NZB """
     nzb.isParRecovery = True
+
+    #postponedDir = Hellanzb.POSTPONED_DIR + os.sep + os.path.basename(nzb.archiveDir)
+    #nzb.nzbFileName = postponedDir + os.sep + os.path.basename(nzb.nzbFileName)
+    # FIXME: handle situations where enqueueNZBs() fails
+    #enqueueNZBs(nzb.nzbFileName) # copies NZB file to the queue dir
+    #old = nzb.nzbFileName
+    #nzb.nzbFileName = Hellanzb.QUEUE_DIR + os.sep + os.path.basename(old)
+    new = Hellanzb.QUEUE_DIR + os.sep + os.path.basename(nzb.nzbFileName)
+    # not checking if it already exists
+    #move(old, nzb.nzbFileName)
+    move(nzb.nzbFileName, new)
+    nzb.nzbFileName = new
+    Hellanzb.queued_nzbs.insert(0, nzb)
     forceNZB(nzb.nzbFileName)
-    
 
 """
 /*

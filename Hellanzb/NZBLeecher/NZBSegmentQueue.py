@@ -6,7 +6,8 @@ downloading NZB
 (c) Copyright 2005 Philip Jenvey
 [See end of file]
 """
-import gc, os, re, time, Hellanzb, Hellanzb.Core, Hellanzb.Daemon
+#import gc, os, re, time, Hellanzb, Hellanzb.Core, Hellanzb.Daemon
+import os, re, time, Hellanzb, Hellanzb.Core, Hellanzb.Daemon
 from sets import Set
 from threading import Lock
 from twisted.internet import reactor
@@ -455,10 +456,10 @@ class NZBSegmentQueue(PriorityQueue):
         self.nzbAdd(nzb)
         needWorkFiles = []
         needWorkSegments = []
-        dh = NZBParser(nzb, needWorkFiles, needWorkSegments)
+        nzbp = NZBParser(nzb, needWorkFiles, needWorkSegments)
         
         # Tell the parser to use it
-        parser.setContentHandler(dh)
+        parser.setContentHandler(nzbp)
 
         # Parse the input
         try:
@@ -476,12 +477,12 @@ class NZBSegmentQueue(PriorityQueue):
                                                                            nzb.overwriteZeroByteFiles)
         e = time.time() - s
 
-        onDiskCount = dh.fileCount - len(needWorkFiles)
+        onDiskCount = nzbp.fileCount - len(needWorkFiles)
         if onDiskCount:
-            info('Parsed: ' + str(dh.segmentCount) + ' posts (' + str(dh.fileCount) + ' files, skipping ' + \
-                 str(onDiskCount) + ' on disk files)')
+            info('Parsed: ' + str(nzbp.segmentCount) + ' posts (' + str(nzbp.fileCount) + \
+                 ' files, skipping ' + str(onDiskCount) + ' on disk files)')
         else:
-            info('Parsed: ' + str(dh.segmentCount) + ' posts (' + str(dh.fileCount) + ' files)')
+            info('Parsed: ' + str(nzbp.segmentCount) + ' posts (' + str(nzbp.fileCount) + ' files)')
 
         # Tally what was skipped for correct percentages in the UI
         for nzbSegment in onDiskSegments:
@@ -507,13 +508,21 @@ class NZBSegmentQueue(PriorityQueue):
                     error('Cannot assemble ' + nzb.getFileName() + ': No space left on device! Exiting..')
                     Hellanzb.Core.shutdown(True)
 
-        if not len(needDlSegments):
+        for nzbSegment in needDlSegments:
+            #self.put((nzbSegment.priority, nzbSegment))
+            if not nzbSegment.nzbFile.isExtraParFile:
+                self.put((nzbSegment.priority, nzbSegment))
+                
+        if not len(self):
             # FIXME: this block of code is the end of tryFinishNZB. there should be a
             # separate function
+            """
             # nudge GC
+            """
             nzbFileName = nzb.nzbFileName
             self.nzbDone(nzb)
             info(nzb.archiveName + ': Assembled archive!')
+            """
             for nzbFile in nzb.nzbFileElements:
                 del nzbFile.todoNzbSegments
                 del nzbFile.nzb
@@ -525,15 +534,14 @@ class NZBSegmentQueue(PriorityQueue):
             del nzb
             
             gc.collect()
+            """
 
-            reactor.callLater(0, Hellanzb.Daemon.handleNZBDone, nzbFileName, nzbId,
-                              **{'rarPassword': rarPassword })
+            #reactor.callLater(0, Hellanzb.Daemon.handleNZBDone, nzbFileName, nzbId,
+            #                  **{'rarPassword': rarPassword })
+            reactor.callLater(0, Hellanzb.Daemon.handleNZBDone, nzb)
 
             # True == the archive is complete
             return True
-
-        for nzbSegment in needDlSegments:
-            self.put((nzbSegment.priority, nzbSegment))
 
         # NOTE: This doesn't take into account the orphaned on disk segments. The block
         # below handles decrementing the total queued byte count to the correct value
@@ -543,15 +551,18 @@ class NZBSegmentQueue(PriorityQueue):
         # files. adjust the queued byte count to not include these aleady downloaded
         # segments. phew
         for nzbFile in needDlFiles:
-            if len(nzbFile.todoNzbSegments) != len(nzbFile.nzbSegments):
-                for segment in nzbFile.nzbSegments:
-                    if segment not in nzbFile.todoNzbSegments:
-                        self.segmentDone(segment)
+            if not nzbFile.isExtraParFile:
+                if len(nzbFile.todoNzbSegments) != len(nzbFile.nzbSegments):
+                    for segment in nzbFile.nzbSegments:
+                        if segment not in nzbFile.todoNzbSegments:
+                            self.segmentDone(segment)
 
         # Archive not complete
         return False
 
-DUPE_SEGMENT_RE = re.compile('.*%s\d{1,4}.segment\d{4}$' % DUPE_SUFFIX)
+# FIXME:
+#DUPE_SEGMENT_RE = re.compile('.*%s\d{1,4}.segment\d{4}$' % DUPE_SUFFIX)
+DUPE_SEGMENT_RE = re.compile('.*%s\d{1,4}\.segment\d{4}$' % DUPE_SUFFIX)
 class NZBParser(ContentHandler):
     """ Parse an NZB 1.0 file into an NZBSegmentQueue
     http://www.newzbin.com/DTD/nzb/nzb-1.0.dtd """
@@ -608,10 +619,14 @@ class NZBParser(ContentHandler):
             poster = self.parseUnicode(attrs.get('poster'))
 
             self.file = NZBFile(subject, attrs.get('date'), poster, self.nzb)
-            
-            self.fileNeedsDownload = \
-              self.file.needsDownload(workingDirListing = self.workingDirListing,
-                                      workingDirDupeMap = self.workingDirDupeMap)
+
+            if self.nzb.isParRecovery and \
+                    (subject not in self.nzb.extraParNamesList or self.nzb.parPrefix not in subject):
+                self.fileNeedsDownload = False
+            else:
+                self.fileNeedsDownload = \
+                    self.file.needsDownload(workingDirListing = self.workingDirListing,
+                                            workingDirDupeMap = self.workingDirDupeMap)
               
             if not self.fileNeedsDownload:
                 debug('SKIPPING FILE: ' + self.file.getTempFileName() + ' subject: ' + \

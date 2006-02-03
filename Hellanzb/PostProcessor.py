@@ -6,7 +6,7 @@ nzbget
 (c) Copyright 2005 Philip Jenvey, Ben Bangert
 [See end of file]
 """
-import os, re, sys, time, Hellanzb
+import gc, os, re, sys, time, Hellanzb
 from os.path import join as pathjoin
 from shutil import move, rmtree
 from threading import Thread, Condition, Lock, RLock
@@ -71,6 +71,11 @@ class PostProcessor(Thread):
             self.dirName.parentDir = self.parentDir
             
         self.startTime = None
+
+        # Whether or not this PostProcessor's Topen processes were explicitly kill()'ed
+        self.killed = False
+
+        self.forcedRecovery = False
     
         Thread.__init__(self)
 
@@ -94,7 +99,7 @@ class PostProcessor(Thread):
     def isNZBArchive(self):
         """ Whether or not the current archive was downloaded from an NZB file """
         from Hellanzb.NZBLeecher.NZBModel import NZB # FIXME:
-        return isinstance(archive, NZB)
+        return isinstance(self.archive, NZB)
         
     def addDecompressor(self, decompressorThread):
         """ Add a decompressor thread to the pool and notify the caller """
@@ -112,18 +117,33 @@ class PostProcessor(Thread):
 
     def stop(self):
         """ Perform any cleanup and remove ourself from the pool before exiting """
-        cleanUp(self.dirName)
+        if not self.forcedRecovery:
+            cleanUp(self.dirName)
 
         if not self.isSubDir:
             Hellanzb.postProcessorLock.acquire()
             Hellanzb.postProcessors.remove(self)
             Hellanzb.postProcessorLock.release()
-            
-            from Hellanzb.NZBQueue import writeQueueToDisk # FIXME:
-            writeQueueToDisk()
+
+            # Write the queue to disk unless we've been stopped by a killed Topen (via
+            # CTRL-C)
+            if not self.killed:
+                from Hellanzb.NZBQueue import writeQueueToDisk # FIXME:
+                writeQueueToDisk()
+
+        if self.forcedRecovery:
+            return
             
         # When a Post Processor fails, we end up moving the destDir here
         self.moveDestDir() 
+
+        # Nudge GC
+        if self.isNZBArchive():
+            for nzbFile in self.archive.nzbFileElements:
+                del nzbFile.todoNzbSegments
+                del nzbFile.nzb
+            del self.archive.nzbFileElements
+            gc.collect()
             
         if not self.background and not self.isSubDir:
             # We're not running in the background of a downloader -- we're post processing
@@ -440,26 +460,38 @@ class PostProcessor(Thread):
             
             checkShutdown()
             try:
-                processPars(self.dirName, self.hasMorePars, needAssembly)
+                processPars(self, needAssembly)
             except ParExpectsUnsplitFiles:
                 info(archiveName(self.dirName) + ': This archive requires assembly before running par2')
                 assembleSplitFiles(self.dirName, needAssembly)
-                processPars(self.dirName, None)
+                processPars(self, None)
                 
             except NeedMorePars, nmp:
                 if self.background and self.isNZBArchive() and self.hasMorePars:
-                    # Must download more pars. Move the archive to the postponed dir. Queue
-                    # next or force the extra_pars NZB dir
-                    os.rename(self.dirName, Hellanzb.POSTPONED_DIR + os.sep + \
-                              os.path.basename(self.dirName))
+                    # Must download more pars. Move the archive to the postponed dir, and
+                    # triggere the special force call for par recoveries
+                    postponedDir = Hellanzb.POSTPONED_DIR + os.sep + \
+                        os.path.basename(self.dirName)
+                    move(self.dirName, postponedDir)
+                    self.archive.archiveDir = postponedDir
+                    self.archive.nzbFileName = postponedDir + os.sep + \
+                        os.path.basename(self.archive.nzbFileName)
 
+                    """
                     info(archiveName(self.dirName) + \
-                         ': Needs More Pars for recovery (%i %s), forcing download' % \
-                         (nmp.neededBlocks, getParRecoveryName(nmp.parType)))
+                         ': has more ars for recovery (%i %s), forcing download' % \
+                         (nmp.size, getParRecoveryName(nmp.parType)))
+                         """
+                    info(archiveName(self.dirName) + \
+                         ': Has pars avaialble for download. Forcing extra par download')
 
                     from Hellanzb.Daemon import forceNZBParRecover # FIXME:
-                    # FIXME: this is going to overwrite the NZB file eventually
-                    forceNZBParRecover(self.archive.nzbFileName, nmp.neededBlocks)
+                    self.archive.neededBlocks, self.archive.parType, self.archive.parPrefix = \
+                        nmp.size, nmp.parType, nmp.parPrefix
+                    self.forcedRecovery = True
+                    from twisted.internet import reactor
+                    reactor.callFromThread(forceNZBParRecover, self.archive)
+                    return
                 else:
                     info(archiveName(self.dirName) + ': Failed par verify, requires ' + \
                          nmp.neededBlocks + ' more recovery ' + \
@@ -469,7 +501,7 @@ class PostProcessor(Thread):
         
         if not Hellanzb.SKIP_UNRAR and dirHasRars(self.dirName):
             checkShutdown()
-            processRars(self.dirName, self.rarPassword)
+            processRars(self)
 
         if dirHasMusic(self.dirName):
             checkShutdown()

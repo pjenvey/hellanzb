@@ -41,11 +41,12 @@ class PoolsExhausted(Exception):
     
 class IDPool:
     """ Returns a unique identifier, used for keying NZBs and their archives """
-    
     nextId = 0
-    
+    skipIds = []
     def getNextId():
         """ Return a new unique identifier """
+        while IDPool.nextId in IDPool.skipIds:
+            IDPool.nextId += 1
         id = IDPool.nextId
         IDPool.nextId += 1
         return id
@@ -58,7 +59,7 @@ class Topen(protocol.ProcessProtocol):
 
     activePool = []
     
-    def __init__(self, cmd, captureStdErr = True):
+    def __init__(self, cmd, postProcessor, captureStdErr = True):
         # FIXME: seems like twisted just writes something to stderr if there was a
         # problem. this class should probably always capture stderr, optionally to another
         # stream
@@ -70,6 +71,7 @@ class Topen(protocol.ProcessProtocol):
         self.finished = Condition()
         self.returnCode = None
         self.isRunning = False
+        self.postProcessor = postProcessor
 
         self.threadIdent = thread.get_ident()
 
@@ -116,6 +118,8 @@ class Topen(protocol.ProcessProtocol):
                       ' process: ' + self.cmd, ose)
             except Exception, e:
                 debug('could not kill process: ' + self.cmd + ': ' + str(e))
+
+        self.postProcessor.killed = True
                 
         self.finished.acquire()
         self.finished.notify()
@@ -363,6 +367,8 @@ class PriorityQueue(Queue):
     def dequeueItems(self, items):
         """ Explicitly dequeue the specified items. Yes, this queue supports random access """
         for item in items:
+            #from Hellanzb.Log import info
+            #info('dequeueing (p: %s): %s' % (str(item[0]), str(item[1].nzbFile.filename)))
             try:
                 self.queue.remove(item)
             except Exception:
@@ -416,9 +422,10 @@ def touch(fileName):
     os.close(fd)
     os.utime(fileName, None)
 
-def archiveName(dirName):
+def archiveName(dirName, unformatNewzbinNZB = True):
     """ Extract the name of the archive from the archive's absolute path, or its .nzb file
-    name """
+    name. Optionally remove newzbin 'msgid_99999' prefix and '.nzb' suffix from a newzbin
+    formatted .nzb filename """
     from Hellanzb.PostProcessorUtil import DirName
     # pop off separator and basename
     while dirName[len(dirName) - 1] == os.sep:
@@ -430,7 +437,7 @@ def archiveName(dirName):
         name = os.path.basename(dirName)
 
     # Strip the msg_id and .nzb extension from an nzb file name
-    if len(name) > 3 and name[-3:].lower() == 'nzb':
+    if unformatNewzbinNZB and len(name) > 3 and name[-3:].lower() == 'nzb':
         name = re.sub(r'msgid_.*?_', r'', name)
         name = re.sub(r'\.nzb$', r'', name)
 
@@ -521,8 +528,19 @@ def hellaRename(filename):
 
 DUPE_SUFFIX = '_hellanzb_dupe'
 DUPE_SUFFIX_RE = re.compile('(.*)' + DUPE_SUFFIX + '(\d{1,4})$')
-def _nextDupeName(filename):
-    """ Return the next dupeName in the dupeName sequence """
+def cleanDupeName(filename):
+    """ For the given duplicate filename, return a tuple containing the non-duplicate
+    filename, and the duplicate filename index. Returns an index of -1 for non-duplicate
+    filenames.
+
+    e.g.:
+
+    cleanDupeName('/test/file') would return:
+    ('/test/file', -1)
+
+    cleanDupeName('/test/file_hellanzb_dupe0') would return:
+    ('/test/file', 0)
+    """
     i = -1
     dupeMatch = DUPE_SUFFIX_RE.match(filename)
     
@@ -530,6 +548,11 @@ def _nextDupeName(filename):
     if dupeMatch:
         filename = dupeMatch.group(1)
         i = int(dupeMatch.group(2))
+    return filename, i
+    
+def _nextDupeName(filename):
+    """ Return the next dupeName in the dupeName sequence """
+    filename, i = cleanDupeName(filename)
 
     # Increment dupeName sequence
     renamed = filename + DUPE_SUFFIX + str(i + 1)
@@ -692,7 +715,9 @@ def toUnicode(str):
     """ Convert the specified string to a unicode string """
     if str == None:
         return str
-    return unicode(str, 'latin-1')
+    elif not isinstance(str, unicode):
+        return unicode(str, 'latin-1')
+    return str
 
 def tempFilename(prefix = 'hellanzb-tmp'):
     """ Return a temp filename, prefixed with 'hellanzb-tmp' """

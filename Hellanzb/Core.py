@@ -238,6 +238,9 @@ def init(options = {}):
         if hasattr(options, option) and getattr(options, option) != None:
             setattr(Hellanzb, attr, getattr(options, option))
 
+    if not hasattr(Hellanzb, 'DELETE_PROCESSED'):
+        Hellanzb.DELETE_PROCESSED = True
+            
     if not hasattr(Hellanzb, 'GROWL_NOTIFY'):
         error('Required option not defined in config file: Hellanzb.GROWL_NOTIFY')
         sys.exit(1)

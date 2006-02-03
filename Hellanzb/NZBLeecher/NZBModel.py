@@ -14,6 +14,7 @@ from Hellanzb.NZBLeecher.ArticleDecoder import parseArticleData, setRealFileName
 from Hellanzb.NZBLeecher.DupeHandler import handleDupeNZBFileNeedsDownload
 from Hellanzb.NZBLeecher.NZBLeecherUtil import validWorkingFile
 from Hellanzb.PostProcessorUtil import Archive
+from Hellanzb.SmartPar import dequeueIfExtraPar, identifyPar
 
 __id__ = '$Id$'
 
@@ -73,7 +74,6 @@ def segmentsNeedDownload(segmentList, overwriteZeroByteSegments = False):
         
         foundFileName = None
         for segmentFileName in segmentFileNames:
-
             # We've matched to our on disk segment if we:
             # a) find that on disk segment's file name in our potential segment's subject
             # b) match that on disk segment's file name to our potential segment's temp
@@ -82,14 +82,18 @@ def segmentsNeedDownload(segmentList, overwriteZeroByteSegments = False):
                     segment.getTempFileName()[:-12] == segmentFileName:
                 foundFileName = segmentFileName
                 # make note that this segment doesn't have to be downloaded
-                segment.nzbFile.todoNzbSegments.remove(segment)
-                break
+                try:
+                    segment.nzbFile.todoNzbSegments.remove(segment)
+                finally:
+                    # dequeueIfExtraPar could have already removed this segment from
+                    # todoNzbSegments
+                    break
 
         if not foundFileName:
             needDlSegments.append(segment)
             needDlFiles.add(segment.nzbFile)
         else:
-            if foundFileName.find('hellanzb-tmp-') != 0 and \
+            if segment.number == 1 and foundFileName.find('hellanzb-tmp-') != 0 and \
                     segment.nzbFile.filename is None:
                 # HACK: filename is None. so we only have the temporary name in
                 # memory. since we didnt see the temporary name on the filesystem, but we
@@ -99,9 +103,13 @@ def segmentsNeedDownload(segmentList, overwriteZeroByteSegments = False):
                 setRealFileName(segment.nzbFile, foundFileName,
                             settingSegmentNumber = segment.number)
 
-                # FIXME: if isPar skip etc yadda yadda. unless we're a full extra par
-                # nzb. can tell that from the name of the nzb, hellanzb-extra-par
-                ###dequeueIfExtraPar(segment, special = True)
+                # dequeue the entire nzbFile if we've found an extra par file. NOTE:
+                # dequeueIfExtraPar will raise an Exception if the segment.number is >
+                # 1. We only end up in this block of code if that is the case, anyway,
+                # because it checks for segment.nzbFile.filename is None (and we go
+                # through a sorted list of segments)
+                #dequeueIfExtraPar(segment, segmentList)
+                dequeueIfExtraPar(segment)
                 
             onDiskSegments.append(segment)
             
@@ -154,6 +162,13 @@ class NZB(Archive):
         ## Whether or not we should redownload NZBFile and NZBSegment files on disk that are 0 bytes in
         ## size
         self.overwriteZeroByteFiles = True
+
+        ## Extra par subject names are kept here, in a list, during post processing
+        self.isParRecovery = False
+        self.neededBlocks = 0
+        self.parType = None
+        self.parPrefix = None
+        self.extraParNamesList = None
         
     def isCanceled(self):
         """ Whether or not this NZB was cancelled """
@@ -169,7 +184,11 @@ class NZB(Archive):
         self.canceledLock.release()
 
     def getName(self):
-        return os.path.basename(self.nzbFileName)
+        #return os.path.basename(self.nzbFileName)
+        return os.path.basename(self.archiveName)
+
+    def toStateXML(self):
+        pass
         
 class NZBFile:
     """ <nzb><file/><nzb> """
@@ -301,18 +320,25 @@ class NZBFile:
             return False
 
         elif self.filename == None:
-
             # First, check if this is one of the dupe files on disk
             isDupe, dupeNeedsDl = handleDupeNZBFileNeedsDownload(self, workingDirDupeMap)
             if isDupe:
+                # FIXME: do we need to identifyPar here?
                 return dupeNeedsDl
 
             # We only know about the temp filename. In that case, fall back to matching
             # filenames in our subject line
             for file in workingDirListing:
-
                 # Whole file match
                 if self.subject.find(file) > -1:
+                    # No need for setRealFileName(self, file)'s extra work here
+                    self.filename = file
+                    
+                    identifyPar(self)
+                    if self.isParFile:
+                        debug('needsDownload: Found par on disk: %s isExtraParFile: %s' % \
+                              (file, str(self.isExtraParFile)))
+                        
                     return False
     
         return True

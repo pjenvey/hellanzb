@@ -5,7 +5,8 @@ ArticleDecoder - Decode and assemble files from usenet articles (nzbSegments)
 (c) Copyright 2005 Philip Jenvey
 [See end of file]
 """
-import binascii, gc, os, re, shutil, string, time, Hellanzb
+#import binascii, gc, os, re, shutil, string, time, Hellanzb
+import binascii, os, re, shutil, string, time, Hellanzb
 from threading import Lock
 from twisted.internet import reactor
 from zlib import crc32
@@ -237,7 +238,8 @@ def setRealFileName(nzbFile, filename, forceChange = False, settingSegmentNumber
     """ Set the actual filename of the segment's parent nzbFile. If the filename wasn't
     already previously set, set the actual filename atomically and also atomically rename
     known temporary files belonging to that nzbFile to use the new real filename """
-    # FIXME: remove locking
+    # FIXME: remove locking. actually, this function really needs to be locking when
+    # nzb.destDir is changing (when the archive dir is moved around)
     switchedReal = False
     if nzbFile.filename is not None and nzbFile.filename != filename:
         # This NZBFile already had a real filename set, and now something has triggered it
@@ -292,10 +294,10 @@ def setRealFileName(nzbFile, filename, forceChange = False, settingSegmentNumber
             os.path.basename(nzbSegment.getDestination())
                           
     # Rename all segments
-    for file in os.listdir(Hellanzb.WORKING_DIR):
+    for file in os.listdir(nzbFile.nzb.destDir):
         if file in renameFilenames:
-            orig = Hellanzb.WORKING_DIR + os.sep + file
-            new = Hellanzb.WORKING_DIR + os.sep + renameFilenames.get(file)
+            orig = nzbFile.nzb.destDir + os.sep + file
+            new = nzbFile.nzb.destDir + os.sep + renameFilenames.get(file)
             shutil.move(orig, new)
 
             # Keep the onDiskSegments map in sync
@@ -692,9 +694,9 @@ def tryFinishNZB(nzb):
             del nzbFile.todoNzbSegments
             del nzbFile.nzb
         del nzb.nzbFileElements
-        """
         
         gc.collect()
+        """
 
         reactor.callFromThread(handleNZBDone, nzb)
         

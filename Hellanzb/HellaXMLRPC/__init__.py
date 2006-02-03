@@ -263,6 +263,9 @@ class HellaXMLRPCServer(XMLRPC):
             totalSpeed += nsf.sessionSpeed
             activeClients += len(nsf.activeClients)
 
+        if Hellanzb.downloadPaused:
+            totalSpeed = 0
+
         s['time'] = DateTime()
         s['uptime'] = secondsToUptime(time.time() - Hellanzb.BEGIN_TIME)
         s['is_paused'] = Hellanzb.downloadPaused

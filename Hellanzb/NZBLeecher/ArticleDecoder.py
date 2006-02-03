@@ -53,12 +53,17 @@ def decode(segment):
         decodeArticleData(segment)
         
     except OutOfDiskSpace:
-        # Ran out of disk space and download was paused! Easiest way out of this sticky
-        # situation is to requeue the segment =[
+        # Ran out of disk space and the download was paused! Easiest way out of this
+        # sticky situation is to requeue the segment
         nuke(segment.getDestination())
         reactor.callFromThread(Hellanzb.queue.put, (segment.priority, segment))
         return
     except Exception, e:
+        if handleCanceledSegment(segment):
+            # Cancelled NZBs could potentially cause IOErrors during writes -- just handle
+            # cleanup and return
+            return
+
         error(segment.nzbFile.showFilename + ' segment: ' + str(segment.number) + \
               ' a problem occurred during decoding', e)
         touch(segment.getDestination())
@@ -68,32 +73,44 @@ def decode(segment):
     Hellanzb.queue.segmentDone(segment) # FIXME: combine this with the above call. par skipping might cause a keyerror in the previous statement. probably need to always check for existance than remove
     debug('Decoded segment: ' + segment.getDestination())
 
-    if handleCanceled(segment):
+    if handleCanceledSegment(segment):
         return
 
     if segment.nzbFile.isAllSegmentsDecoded() and not segment.nzbFile.isSkippedPar:
         try:
             assembleNZBFile(segment.nzbFile)
-            
         except OutOfDiskSpace:
             # Delete the partially assembled file, it will be re-assembled later
             nuke(segment.nzbFile.getDestination())
-            
         except SystemExit, se:
             # checkShutdown() throws this, let the thread die
             pass
-        
-def handleCanceled(segmentOrFile):
-    """ if a file has been canceled, delete it """
-    from Hellanzb.NZBLeecher.NZBModel import NZBSegment
-    if (isinstance(segmentOrFile, NZBSegment) and \
-        segmentOrFile.nzbFile.nzb.isCanceled()) or \
-        (not isinstance(segmentOrFile, NZBSegment) and \
-         segmentOrFile.nzb.isCanceled()):
+        except Exception, e:
+            # Cancelled NZBs could potentially cause IOErrors during writes -- just handle
+            # cleanup and return
+            if not handleCanceledFile(segment.nzbFile):
+                raise
 
-        nuke(segmentOrFile.getDestination())
+def nuke(f):
+    try:
+        os.remove(f)
+    except Exception, e:
+        pass
+
+def handleCanceledSegment(nzbSegment): 
+    """ Return whether or not the specified NZBSegment has been canceled. If so, delete its
+    associated decoded file on disk, if it exists """
+    if nzbSegment.nzbFile.nzb.isCanceled():
+        nuke(nzbSegmentOrFile.getDestination())
         return True
-    
+    return False
+
+def handleCanceledFile(nzbFile):
+    """ Return whether or not the specified NZBFile has been canceled. If so, delete its
+    associated decoded file on disk, if it exists """
+    if nzbFile.nzb.isCanceled():
+        nuke(nzbFile.getDestination())
+        return True
     return False
         
 def stripArticleData(articleData):
@@ -177,6 +194,10 @@ def parseArticleData(segment, justExtractFilename = False):
             if 'end' in ypart:
                 segment.yEnd = yInt(ypart['end'])
 
+            # Just incase a bad post doesn't include a begin header, ensure
+            # the correct encodingType
+            encodingType = YENCODE
+
         elif withinData and line.startswith('=yend'):
             yend = ySplit(line)
             if 'size' in yend:
@@ -241,7 +262,8 @@ def setRealFileName(nzbFile, filename, forceChange = False, settingSegmentNumber
     # FIXME: remove locking. actually, this function really needs to be locking when
     # nzb.destDir is changing (when the archive dir is moved around)
     switchedReal = False
-    if nzbFile.filename is not None and nzbFile.filename != filename:
+    if nzbFile.filename is not None and nzbFile.filename != filename and \
+            nzbFile.filename.find('hellanzb-tmp-') != 0:
         # This NZBFile already had a real filename set, and now something has triggered it
         # be changed
         switchedReal = True
@@ -343,6 +365,7 @@ def handleIOError(ioe):
         growlNotify('Error', 'hellanzb Download Paused', 'No space left on device!', True)
         raise OutOfDiskSpace('LOL BURN SOME DVDS LOL')
     else:
+        debug('handleIOError: got: %s' % str(ioe))
         raise
     
 def writeLines(dest, lines):
@@ -397,6 +420,8 @@ def decodeSegmentToFile(segment, encodingType = YENCODE):
 
         # Handle dupes if they exist
         handleDupeNZBSegment(segment)
+        if handleCanceledSegment(segment):
+            return
         
         out = open(segment.getDestination(), 'wb')
         try:
@@ -425,6 +450,8 @@ def decodeSegmentToFile(segment, encodingType = YENCODE):
                   (segment.getDestination(), segment.number, prettyException(msg)))
 
         handleDupeNZBSegment(segment)
+        if handleCanceledSegment(segment):
+            return
         
         # Write the decoded segment to disk
         writeLines(segment.getDestination(), decodedLines)
@@ -435,6 +462,8 @@ def decodeSegmentToFile(segment, encodingType = YENCODE):
         debug('NO articleData, touching file: ' + segment.getDestination())
 
         handleDupeNZBSegment(segment)
+        if handleCanceledSegment(segment):
+            return
 
         touch(segment.getDestination())
 
@@ -445,6 +474,8 @@ def decodeSegmentToFile(segment, encodingType = YENCODE):
         debug('Mysterious data, did not YY/UDecode!! Touching file: ' + segment.getDestination())
 
         handleDupeNZBSegment(segment)
+        if handleCanceledSegment(segment):
+            return
 
         touch(segment.getDestination())
 
@@ -574,17 +605,16 @@ def assembleNZBFile(nzbFile, autoFinish = True):
 
     # don't overwrite existing files -- instead rename them to 'file_dupeX' if they exist
     handleDupeNZBFile(nzbFile)
-        
+    if handleCanceledFile(nzbFile):
+        return
+
     file = open(nzbFile.getDestination(), 'wb')
-    segmentFiles = []
 
     # Sort the segments incase they were out of order in the NZB file
     toAssembleSegments = nzbFile.nzbSegments[:]
     toAssembleSegments.sort(lambda x, y : cmp(x.number, y.number))
     
     for nzbSegment in toAssembleSegments:
-        segmentFiles.append(nzbSegment.getDestination())
-
         decodedSegmentFile = open(nzbSegment.getDestination(), 'rb')
         try:
             for line in decodedSegmentFile:
@@ -620,9 +650,9 @@ def assembleNZBFile(nzbFile, autoFinish = True):
 
     file.close()
     # Finally, delete all the segment files when finished
-    for segmentFile in segmentFiles:
+    for nzbSegment in toAssembleSegments:
         try:
-            os.remove(segmentFile)
+            os.remove(nzbSegment.getDestination())
         except OSError, ose:
             # postponement might have moved the file we just wrote to:
             # exceptions.OSError: [Errno 2] No such file or directory: 
@@ -634,8 +664,6 @@ def assembleNZBFile(nzbFile, autoFinish = True):
     
     debug('Assembled file: ' + nzbFile.getDestination() + ' from segment files: ' + \
           str([nzbSegment.getDestination() for nzbSegment in toAssembleSegments]))
-    
-    canceled = handleCanceled(nzbFile)
 
     # nudge gc
     for nzbSegment in nzbFile.nzbSegments:
@@ -643,12 +671,7 @@ def assembleNZBFile(nzbFile, autoFinish = True):
         del nzbSegment
     del nzbFile.nzbSegments
     
-    # FIXME: remove this. I don't think it's necessary
-    #if GCDelay.shouldGC():
-    #    debug('(GCDELAYED) GCING')
-    #    gc.collect()
-
-    if autoFinish and not canceled:
+    if autoFinish and not handleCanceledFile(nzbFile):
         # After assembling a file, check the contents of the filesystem to determine if we're done 
         tryFinishNZB(nzbFile.nzb)
 

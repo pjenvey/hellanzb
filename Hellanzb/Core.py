@@ -86,6 +86,18 @@ def loadConfig(fileName):
 
         if not hasattr(Hellanzb, 'SKIP_UNRAR') or Hellanzb.SKIP_UNRAR == None:
             Hellanzb.SKIP_UNRAR = False
+
+        if not hasattr(Hellanzb, 'OTHER_NZB_FILE_TYPES'):
+            # By default, just match .nzb files in the queue dir
+            Hellanzb.NZB_FILE_RE = re.compile(r'(?i)\.(nzb)$')
+        else:
+            nzbTypeRe = r'(?i)\.(%s)$'
+            if not isinstance(Hellanzb.OTHER_NZB_FILE_TYPES, list):
+                Hellanzb.OTHER_NZB_FILE_TYPES = [Hellanzb.OTHER_NZB_FILE_TYPES]
+            if 'nzb' not in Hellanzb.OTHER_NZB_FILE_TYPES:
+                Hellanzb.OTHER_NZB_FILE_TYPES.append('nzb')
+            typesStr = '|'.join(Hellanzb.OTHER_NZB_FILE_TYPES)
+            Hellanzb.NZB_FILE_RE = re.compile(nzbTypeRe % typesStr)
             
         debug('Found config file in directory: ' + os.path.dirname(fileName))
         return True
@@ -223,7 +235,8 @@ def init(options = {}):
         findAndLoadConfig()
 
     # FIXME: these blocks below, and some code in loadConfig should all be pulled out into
-    # a post-loadConfig normalizeConfig function
+    # a post-loadConfig normalizeConfig function. Could we skip any of this init stuff
+    # when just making an RPC call (to reduce startup time)?
     for attr in ('logFile', 'debugLogFile'):
         # this is really: logFile = None
         setattr(sys.modules[__name__], attr, None)

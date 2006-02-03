@@ -480,16 +480,24 @@ def initLogFile(logFile = None, debugLogFile = None):
                     or record.levelno == ScrollableHandler.NOLOGFILE:
                 return False
             return True
-    
+
     # FIXME: should check if Hellanzb.LOG_FILE is set first
-    if logFile != None:
+    if logFile is not None:
         Hellanzb.LOG_FILE = os.path.abspath(logFile)
-    if debugLogFile != None:
+    if debugLogFile is not None:
         Hellanzb.DEBUG_MODE = os.path.abspath(debugLogFile)
         
         # Set this, maybe again, incase the -d option was specified
         Hellanzb.DEBUG_MODE_ENABLED = True
 
+    # Ensure the log file's parent dirs exist and are writable
+    dirNames = {}
+    if hasattr(Hellanzb, 'LOG_FILE') and Hellanzb.LOG_FILE is not None:
+        dirNames['LOG_FILE'] = os.path.dirname(Hellanzb.LOG_FILE)
+    if hasattr(Hellanzb, 'DEBUG_MODE') and Hellanzb.DEBUG_MODE is not None:
+        dirNames['DEBUG_MODE'] = os.path.dirname(Hellanzb.DEBUG_MODE)
+    ensureDirs(dirNames)
+    
     if Hellanzb.LOG_FILE:
         fileHdlr = RotatingFileHandlerNoLF(Hellanzb.LOG_FILE, maxBytes = maxBytes,
                                            backupCount = backupCount)

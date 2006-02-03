@@ -84,6 +84,7 @@ def buildPort(version):
     shutil.copy(portStubDir + os.sep + 'pkg-descr', destDir + os.sep + 'pkg-descr')
     shutil.copy(portStubDir + os.sep + 'pkg-plist', destDir + os.sep + 'pkg-plist')
     shutil.copytree(portStubDir + os.sep + 'files', destDir + os.sep + 'files')
+    shutil.rmtree(destDir + os.sep + 'files/.svn')
 
     # create a distinfo with the checksum
     distinfo = open(destDir + os.sep + 'distinfo', 'w')

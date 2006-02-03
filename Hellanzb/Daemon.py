@@ -15,39 +15,23 @@ from Hellanzb.Log import *
 from Hellanzb.Logging import prettyException
 from Hellanzb.NZBQueue import dequeueNZBs, loadQueueFromDisk, parseNZB, \
     recoverFromOnDiskQueue, scanQueueDir, syncFromRecovery, writeQueueToDisk
-from Hellanzb.Util import archiveName, getMsgId, hellaRename, prettyElapsed, prettySize, \
-    touch, validNZB, IDPool
+from Hellanzb.Util import archiveName, ensureDirs, getMsgId, hellaRename, prettyElapsed, \
+    prettySize, touch, validNZB, IDPool
 
 __id__ = '$Id$'
 
 def ensureDaemonDirs():
     """ Ensure that all the required directories exist and are writable, otherwise attempt to
     create them """
-    badPermDirs = []
+    dirNames = {}
     for arg in dir(Hellanzb):
         if arg.endswith("_DIR") and arg == arg.upper():
             exec 'dirName = Hellanzb.' + arg
             if dirName == None:
                 raise FatalError('Required directory not defined in config file: Hellanzb.' + arg)
-            elif not os.path.isdir(dirName):
-                try:
-                    os.makedirs(dirName)
-                except OSError, ose:
-                    raise FatalError('Unable to create directory for option: Hellanzb.' + \
-                                     arg + ' dirName: ' + dirName + ' error: ' + str(ose))
-            elif not os.access(dirName, os.W_OK):
-                badPermDirs.append(dirName)
-
-    if len(badPermDirs):
-        dirTxt = 'directory'
-        if len(badPermDirs) > 1:
-            dirTxt = 'directories'
-        err = 'Cannot continue: hellanzb needs write access to ' + dirTxt + ':'
-        
-        for dirName in badPermDirs:
-            err += '\n' + dirName
+            dirNames[arg] = dirName
             
-        raise FatalError(err)
+    ensureDirs(dirNames)
 
     if not hasattr(Hellanzb, 'QUEUE_LIST') or Hellanzb.QUEUE_LIST == None:
         raise FatalError('Hellanzb.QUEUE_LIST not defined in config file')
@@ -70,7 +54,8 @@ def ensureDownloadTempDir():
             raise FatalError('Cannot continue: hellanzb needs write access to ' + dirName)
         
         rmtree(Hellanzb.DOWNLOAD_TEMP_DIR)
-        
+
+    # ensureDaemonDirs already guaranteed us write access to the parent TEMP_DIR
     os.makedirs(Hellanzb.DOWNLOAD_TEMP_DIR)
             
 def initDaemon():
@@ -310,7 +295,7 @@ def pauseCurrent():
         for client in nsf.clients:
             client.transport.stopReading()
 
-    info('Pausing download')
+    info('Pausing downloader')
     return True
 
 def continueCurrent():
@@ -344,9 +329,9 @@ def continueCurrent():
 
     Hellanzb.downloadPaused = False
     if resetConnections:
-        info('Continuing download (%i connections were reset)' % resetConnections)
+        info('Continuing downloader (%i connections were reset)' % resetConnections)
     else:
-        info('Continuing download')
+        info('Continuing downloader')
     return True
 
 def clearCurrent(andCancel):

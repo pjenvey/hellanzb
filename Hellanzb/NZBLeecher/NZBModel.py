@@ -172,6 +172,7 @@ class NZB(Archive):
         
     def isCanceled(self):
         """ Whether or not this NZB was cancelled """
+        # FIXME: this doesn't need locks
         self.canceledLock.acquire()
         c = self.canceled
         self.canceledLock.release()
@@ -179,6 +180,7 @@ class NZB(Archive):
 
     def cancel(self):
         """ Mark this NZB as having been cancelled """
+        # FIXME: this doesn't need locks
         self.canceledLock.acquire()
         self.canceled = True
         self.canceledLock.release()
@@ -422,7 +424,7 @@ class NZBSegment:
     def loadArticleDataFromDisk(self, removeFromDisk = True):
         """ Load the previously downloaded article BODY from disk, as a list to the .articleData
         variable """
-        # downloaded articleData was written to disk by the downloader
+        # downloaded encodedData was written to disk by NZBLeecher
         encodedData = open(Hellanzb.DOWNLOAD_TEMP_DIR + os.sep + self.getTempFileName() + '_ENC')
         # remove crlfs. FIXME: might be quicker to do this during a later loop
         self.articleData = [line[:-2] for line in encodedData.readlines()]

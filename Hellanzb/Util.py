@@ -751,6 +751,34 @@ def validNZB(nzbfilename):
         return False
     return True
 
+def ensureDirs(dirNames):
+    """ Ensure the specified map of Hellanzb options to their required directory exist and are
+    writable, otherwise attempt to create them. Raises a FatalError if any one of them
+    cannot be created, or is not writable """
+    # NOTE: this function is called prior to Logging is fully setup -- it CANNOT use the
+    # logging system
+    badPermDirs = []
+    for arg, dirName in dirNames.iteritems():
+        if not os.path.isdir(dirName):
+            try:
+                os.makedirs(dirName)
+            except OSError, ose:
+                raise FatalError('Unable to create directory for option: Hellanzb.' + \
+                                 arg + ' dirName: ' + dirName + ' error: ' + str(ose))
+        elif not os.access(dirName, os.W_OK):
+            badPermDirs.append(dirName)
+
+    if len(badPermDirs):
+        dirTxt = 'directory'
+        if len(badPermDirs) > 1:
+            dirTxt = 'directories'
+        err = 'Cannot continue: hellanzb needs write access to ' + dirTxt + ':'
+        
+        for dirName in badPermDirs:
+            err += '\n' + dirName
+            
+        raise FatalError(err)
+
 Hellanzb.CMHELLA = \
 '''
            ;;;;            .  .

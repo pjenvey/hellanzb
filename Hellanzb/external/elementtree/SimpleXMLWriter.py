@@ -162,20 +162,20 @@ class XMLWriter:
         self.__data = []
         self.__encoding = encoding
         self.__indent = indent
-        self.__indentLevel = -1
+        self.__indent_level = -1
 
     def __flush(self):
         # flush internal buffers
-        wasOpen = False
+        was_open = False
         if self.__open:
-            wasOpen = True
+            was_open = True
             self.__write(">")
             self.__open = 0
         if self.__data:
             data = string.join(self.__data, "")
             self.__write(escape_cdata(data, self.__encoding))
             self.__data = []
-        elif wasOpen:
+        elif was_open:
             self.__write("\n")
 
     ##
@@ -183,8 +183,8 @@ class XMLWriter:
     #
     # @return Whitespace as an 8-bit string
 
-    def __getIndent(self):
-        return ' '*self.__indent*self.__indentLevel
+    def __get_indent(self):
+        return ' '*self.__indent*self.__indent_level
 
     ##
     # Writes an XML declaration.
@@ -210,12 +210,12 @@ class XMLWriter:
     # @return An element identifier.
 
     def start(self, tag, attrib={}, **extra):
-        self.__indentLevel += 1
+        self.__indent_level += 1
         self.__flush()
         tag = escape_cdata(tag, self.__encoding)
         self.__data = []
         self.__tags.append(tag)
-        self.__write("%s<%s" % (self.__getIndent(), tag))
+        self.__write("%s<%s" % (self.__get_indent(), tag))
         if attrib or extra:
             attrib = attrib.copy()
             attrib.update(extra)
@@ -235,7 +235,7 @@ class XMLWriter:
 
     def comment(self, comment):
         self.__flush()
-        self.__write("%s<!-- %s -->\n" % (self.__getIndent(),
+        self.__write("%s<!-- %s -->\n" % (self.__get_indent(),
                                           escape_cdata(comment, self.__encoding)))
 
     ##
@@ -261,15 +261,20 @@ class XMLWriter:
         else:
             assert self.__tags, "unbalanced end()"
         tag = self.__tags.pop()
+        had_data = False
         if self.__data:
+            had_data = True
             self.__flush()
         elif self.__open:
             self.__open = 0
             self.__write(" />\n")
-            self.__indentLevel -= 1
+            self.__indent_level -= 1
             return
-        self.__write("%s</%s>\n" % (self.__getIndent(), tag))
-        self.__indentLevel -= 1
+        indent = ''
+        if not had_data:
+            indent = self.__get_indent()
+        self.__write("%s</%s>\n" % (indent, tag))
+        self.__indent_level -= 1
 
     ##
     # Closes open elements, up to (and including) the element identified

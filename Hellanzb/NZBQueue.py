@@ -55,25 +55,18 @@ class HellanzbStateXMLParser(ContentHandler):
             self.currentAttrs = currentAttrs
                 
         elif name == 'extraPar':
-            if self.currentAttrs.has_key('extraPars'):
-                self.extraPars = self.currentAttrs['extraPars']
+            if self.currentAttrs.has_key('extraParSubjects'):
+                self.extraParSubjects = self.currentAttrs['extraParSubjects']
             else:
-                self.extraPars = self.currentAttrs['extraPars'] = []
+                self.extraParSubjects = self.currentAttrs['extraParSubjects'] = []
 
     def characters(self, content):
-        """
-        if self.currentTag in ('downloading', 'processing', 'queued'):
-            typeDict = getattr(Hellanzb.recoveredState, self.currentTag)
-            if self.currentAttrs is not None:
-                typeDict[content] = self.currentAttrs
-                self.currentAttrs = None
-                """
         if self.currentTag == 'extraPar':
             self.extraParContent += content
 
     def endElement(self, name):
         if self.currentTag == 'extraPar':
-            self.extraPars.append(self.extraParContent)
+            self.extraParSubjects.append(self.extraParContent)
             self.extraParContent = ''
         else:
             self.currentAttrs = None
@@ -95,6 +88,7 @@ class RecoveredState(object):
         queued) """
         typeDict = getattr(self, type)
 
+        archiveName = unicode(archiveName)
         recoveredDict = None
         if archiveName in typeDict:
             recoveredDict = typeDict[archiveName]
@@ -178,20 +172,6 @@ def scanQueueDir(firstRun = False, justScan = False):
     else:
         # Resume the NZB in the CURRENT_DIR
         nzbfilename = current_nzbs[0]
-
-        """
-        nzbId = None
-        #recovered = recoverFromOnDiskQueue(os.path.basename(nzbfilename), 'downloading')
-        recovered = recoverFromOnDiskQueue(archiveName(nzbfilename), 'downloading')
-        extraPars = None
-        if recovered:
-            nzbId = recovered['id']
-            extraPars = recovered.get('extraPars') 
-        nzb = NZB(nzbfilename, nzbId)
-        syncFromRecovery(nzb, recovered)
-        if extraPars:
-            nzb.extraParNamesList = extraPars
-        """
         nzb = NZB.fromStateXML('downloading', nzbfilename)
         
         nzbfilename = os.path.basename(nzb.nzbFileName)
@@ -290,16 +270,6 @@ def writeStateXML():
 
     # We should be done with the RecoveredState data -- clean it out
     Hellanzb.recoveredState = RecoveredState() 
-
-"""
-def syncFromRecovery(obj, recovered):
-    "" Copy the attributes from the specified recovered dict to the specified object ""
-    if recovered:
-        for key, value in recovered.iteritems():
-            if key == 'id' or key == 'neededBlocks':
-                value = int(value)
-            setattr(obj, key, value)
-"""
         
 def parseNZB(nzb, notification = 'Downloading', quiet = False):
     """ Parse the NZB file into the Queue. Unless the NZB file is deemed already fully
@@ -531,16 +501,6 @@ def enqueueNZBs(nzbFileOrFiles, next = False, writeQueue = True):
 
             from Hellanzb.NZBLeecher.NZBModel import NZB
             name = os.path.basename(nzbFile)
-            
-            """
-            nzbId = None
-            #recovered = recoverFromOnDiskQueue(name, 'queued')
-            recovered = recoverFromOnDiskQueue(archiveName(name), 'queued')
-            if recovered:
-                nzbId = recovered['id']
-            nzb = NZB(nzbFile, nzbId)
-            syncFromRecovery(nzb, recovered)
-            """
             nzb = NZB.fromStateXML('queued', nzbFile)
             
             if not next:

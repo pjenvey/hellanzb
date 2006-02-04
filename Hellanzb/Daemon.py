@@ -89,47 +89,18 @@ def initDaemon():
 def resumePostProcessors():
     """ Pickup left off Post Processors that were cancelled via CTRL-C """
     # FIXME: with the new queue, could kill the processing dir sym links (for windows)
-    for resumeArchiveName in os.listdir(Hellanzb.PROCESSING_DIR):
-        if resumeArchiveName[0] == '.':
+    from Hellanzb.NZBLeecher.NZBModel import NZB
+    for archiveDirName in os.listdir(Hellanzb.PROCESSING_DIR):
+        if archiveDirName[0] == '.':
             continue
-
-        archiveDir = Hellanzb.PROCESSING_DIR + os.sep + resumeArchiveName
-        # syncFromRecovery should pick up the password
-        """
-        rarPassword = None
-        if os.path.isfile(archiveDir + os.sep + '.hellanzb_rar_password'):
-            rarPassword = ''.join(open(archiveDir + os.sep + '.hellanzb_rar_password').readlines())
-        """
-
-        """
-        recovered = recoverFromOnDiskQueue(resumeArchiveName, 'processing')
-        hasMorePars = False
-        if recovered:
-            if recovered.get('nzbFileName') is not None:
-                from Hellanzb.NZBLeecher.NZBModel import NZB
-                archive = NZB(recovered['nzbFileName'], recovered['id'],
-                              archiveDir = archiveDir)
-                extraPars = recovered.get('extraPars') 
-                if extraPars:
-                    archive.extraParNamesList = extraPars
-                    hasMorePars = True
-                #id = recovered['id']
-            else:
-                archive = PostProcessorUtil.Archive(archiveDir, recovered['id'])
-        else:
-            archive = PostProcessorUtil.Archive(archiveDir, IDPool.getNextId())
-            #id = IDPool.getNextId()
-            """
-        from Hellanzb.NZBLeecher.NZBModel import NZB
-        archive = NZB.fromStateXML('processing', archiveDir)
-
+        
+        archive = NZB.fromStateXML('processing', archiveDirName)
         troll = PostProcessor.PostProcessor(archive)
-        from Hellanzb.NZBLeecher.NZBModel import NZB
-        if isinstance(archive, NZB) and archive.extraParNamesList:
-            troll.hasMorePars = hasMorePars
-        #syncFromRecovery(troll, recovered)
+        if isinstance(archive, NZB) and archive.extraParSubjects and \
+                len(archive.extraParSubjects):
+            troll.hasMorePars = True
 
-        info('Resuming post processor: ' + archiveName(resumeArchiveName))
+        info('Resuming post processor: ' + archiveName(archiveDirName))
         troll.start()
 
 def beginDownload():
@@ -202,13 +173,13 @@ def handleNZBDone(nzb):
 
     # Determine if this archive has more pars available for download before PostProcessing
     hasMorePars = False
-    extraPars = []
+    extraParSubjects = []
     for nzbFile in nzb.nzbFileElements:
         if nzbFile.isSkippedPar:
             hasMorePars = True
-            extraPars.append(nzbFile.subject)
-    if extraPars:
-        nzb.extraParNamesList = extraPars
+            extraParSubjects.append(nzbFile.subject)
+    if extraParSubjects:
+        nzb.extraParSubjects = extraParSubjects
 
     # Finally unarchive/process the directory in another thread, and continue
     # nzbing
@@ -506,15 +477,6 @@ def forceNZBParRecover(nzb):
     amount) for the specified NZB """
     nzb.isFinished = False
     nzb.isParRecovery = True
-
-    #postponedDir = Hellanzb.POSTPONED_DIR + os.sep + os.path.basename(nzb.archiveDir)
-    #nzb.nzbFileName = postponedDir + os.sep + os.path.basename(nzb.nzbFileName)
-    # FIXME: handle situations where enqueueNZBs() fails
-    #enqueueNZBs(nzb.nzbFileName) # copies NZB file to the queue dir
-    #old = nzb.nzbFileName
-    #nzb.nzbFileName = Hellanzb.QUEUE_DIR + os.sep + os.path.basename(old)
-    # not checking if it already exists
-    #move(old, nzb.nzbFileName)
 
     notification = 'Forcing par recovery download'
     if not len(Hellanzb.queued_nzbs) and not len(Hellanzb.queue.currentNZBs()):

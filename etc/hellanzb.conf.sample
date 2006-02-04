@@ -88,6 +88,9 @@ Hellanzb.PROCESSED_SUBDIR = 'processed'
 # for a record of what hellanzb deletes
 Hellanzb.DELETE_PROCESSED = True
 
+# Disable SMART_PAR (download all PAR files)
+#Hellanzb.SMART_PAR = False
+
 # Skip unraring during post processing
 #Hellanzb.SKIP_UNRAR = False
 

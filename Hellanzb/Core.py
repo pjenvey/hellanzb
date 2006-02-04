@@ -87,6 +87,9 @@ def loadConfig(fileName):
         if not hasattr(Hellanzb, 'SKIP_UNRAR') or Hellanzb.SKIP_UNRAR == None:
             Hellanzb.SKIP_UNRAR = False
 
+        if not hasattr(Hellanzb, 'SMART_PAR'):
+            Hellanzb.SMART_PAR = True
+
         if not hasattr(Hellanzb, 'OTHER_NZB_FILE_TYPES'):
             # By default, just match .nzb files in the queue dir
             Hellanzb.NZB_FILE_RE = re.compile(r'(?i)\.(nzb)$')

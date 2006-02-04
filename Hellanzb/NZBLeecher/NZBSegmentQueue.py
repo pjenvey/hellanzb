@@ -507,6 +507,10 @@ class NZBSegmentQueue(PriorityQueue):
         # downloaded (in needDlFiles) simply need to be assembled
         for nzbFile in needWorkFiles:
             if nzbFile not in needDlFiles:
+                # if isSkippedPar -- it wasn't actually skipped. as if needsDownload =
+                # False were set by the NZBParser
+                nzbFile.isSkippedPar = False
+                
                 # Don't automatically 'finish' the NZB, we'll take care of that in this
                 # function if necessary
                 info(nzbFile.getFilename() + ': Assembling -- all segments were on disk')
@@ -521,35 +525,41 @@ class NZBSegmentQueue(PriorityQueue):
                     Hellanzb.Core.shutdown(True)
 
         for nzbSegment in needDlSegments:
-            #self.put((nzbSegment.priority, nzbSegment))
-            if not nzbSegment.nzbFile.isExtraParFile:
+            # dequeueIfExtraPar called from segmentsNeedDownload would have set
+            # isSkippedParFile for us
+            if not nzbSegment.nzbFile.isSkippedPar:
                 self.put((nzbSegment.priority, nzbSegment))
+                """
+                info('NOT ISSKIPPED SEGMENT %s num %i' % (nzbSegment.nzbFile.subject, nzbSegment.number))
+            elif nzbSegment.nzbFile.isExtraParFile:
+                info('ISEXTRATHOUGH SEGMENT %s num %i' % (nzbSegment.nzbFile.subject, nzbSegment.number))
+            else:
+                info('SKIPPING SEGMENT %s num %i' % (nzbSegment.nzbFile.subject, nzbSegment.number))
+                """
                 
+        if nzb.isParRecovery and nzb.extraParSubjects and len(nzb.extraParSubjects) and \
+                not len(self):
+            msg = 'Par recovery download: Not sure what specific pars are needed -- downloading all pars'
+            if skippedPars:
+                msg = '%s (%s)' % (msg, skippedParsMsg)
+            info(msg)
+            nzb.isParRecovery = False
+            for nzbSegment in needDlSegments:
+                if nzbSegment.nzbFile.isSkippedPar:
+                    self.put((nzbSegment.priority, nzbSegment))
+                    nzbSegment.nzbFile.todoNzbSegments.add(nzbSegment)
+                    #info('REQUEUED SEGMENT %s num %i' % (nzbSegment.nzbFile.subject, nzbSegment.number))
+
+            # Only reset the isSkippedPar flag after queueing
+            for nzbSegment in needDlSegments:
+                if nzbSegment.nzbFile.isSkippedPar:
+                    #info('undoing isSkippedPar %s num %i' % (nzbSegment.nzbFile.subject, nzbSegment.number))
+                    nzbSegment.nzbFile.isSkippedPar = False
+                    
         if not len(self):
-            # FIXME: this block of code is the end of tryFinishNZB. there should be a
-            # separate function
-            """
-            # nudge GC
-            """
-            nzbFileName = nzb.nzbFileName
             self.nzbDone(nzb)
             info(nzb.archiveName + ': Assembled archive!')
-            """
-            for nzbFile in nzb.nzbFileElements:
-                del nzbFile.todoNzbSegments
-                del nzbFile.nzb
-            del nzb.nzbFileElements
             
-            # FIXME: put the above dels in NZB.__del__ (that's where collect can go if needed too)
-            nzbId = nzb.id
-            rarPassword = nzb.rarPassword
-            del nzb
-            
-            gc.collect()
-            """
-
-            #reactor.callLater(0, Hellanzb.Daemon.handleNZBDone, nzbFileName, nzbId,
-            #                  **{'rarPassword': rarPassword })
             reactor.callLater(0, Hellanzb.Daemon.handleNZBDone, nzb)
 
             # True == the archive is complete
@@ -563,17 +573,19 @@ class NZBSegmentQueue(PriorityQueue):
         # files. adjust the queued byte count to not include these aleady downloaded
         # segments. phew
         for nzbFile in needDlFiles:
-            if not nzbFile.isExtraParFile:
-                if len(nzbFile.todoNzbSegments) != len(nzbFile.nzbSegments):
-                    for segment in nzbFile.nzbSegments:
-                        if segment not in nzbFile.todoNzbSegments:
-                            self.segmentDone(segment)
+            """
+            if not ALLPAR_FORCE and nzbFile.isExtraParFile:
+                nzbFile.isSkippedPar = True
+            else:
+                """
+            if len(nzbFile.todoNzbSegments) != len(nzbFile.nzbSegments):
+                for segment in nzbFile.nzbSegments:
+                    if segment not in nzbFile.todoNzbSegments:
+                        self.segmentDone(segment)
 
         # Archive not complete
         return False
 
-# FIXME:
-#DUPE_SEGMENT_RE = re.compile('.*%s\d{1,4}.segment\d{4}$' % DUPE_SUFFIX)
 DUPE_SEGMENT_RE = re.compile('.*%s\d{1,4}\.segment\d{4}$' % DUPE_SUFFIX)
 class NZBParser(ContentHandler):
     """ Parse an NZB 1.0 file into an NZBSegmentQueue
@@ -632,13 +644,21 @@ class NZBParser(ContentHandler):
 
             self.file = NZBFile(subject, attrs.get('date'), poster, self.nzb)
 
+            """
             if self.nzb.isParRecovery and \
-                    (subject not in self.nzb.extraParNamesList or self.nzb.parPrefix not in subject):
+                    (subject not in self.nzb.extraParSubjects or self.nzb.parPrefix not in subject):
                 self.fileNeedsDownload = False
             else:
                 self.fileNeedsDownload = \
                     self.file.needsDownload(workingDirListing = self.workingDirListing,
                                             workingDirDupeMap = self.workingDirDupeMap)
+                                            """
+            self.fileNeedsDownload = \
+                self.file.needsDownload(workingDirListing = self.workingDirListing,
+                                        workingDirDupeMap = self.workingDirDupeMap)
+            if self.fileNeedsDownload and self.nzb.isParRecovery and \
+                    (subject not in self.nzb.extraParSubjects or self.nzb.parPrefix not in subject):
+                self.file.isSkippedPar = True
               
             if not self.fileNeedsDownload:
                 debug('SKIPPING FILE: ' + self.file.getTempFileName() + ' subject: ' + \

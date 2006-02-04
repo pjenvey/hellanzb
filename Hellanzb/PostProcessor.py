@@ -489,7 +489,7 @@ class PostProcessor(Thread):
                          (nmp.size, getParRecoveryName(nmp.parType)))
                          """
                     info(archiveName(self.dirName) + \
-                         ': Has pars avaialble for download. Forcing extra par download')
+                         ': More pars avaialble, forcing extra par download')
 
                     from Hellanzb.Daemon import forceNZBParRecover # FIXME:
                     self.archive.neededBlocks, self.archive.parType, self.archive.parPrefix = \

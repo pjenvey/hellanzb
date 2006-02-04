@@ -13,7 +13,7 @@ from zlib import crc32
 from Hellanzb.Daemon import handleNZBDone, pauseCurrent
 from Hellanzb.Log import *
 from Hellanzb.Logging import prettyException
-from Hellanzb.Util import checkShutdown, nuke, touch, OutOfDiskSpace
+from Hellanzb.Util import checkShutdown, isHellaTemp, nuke, touch, OutOfDiskSpace
 from Hellanzb.NZBLeecher.DupeHandler import handleDupeNZBFile, handleDupeNZBSegment
 if Hellanzb.HAVE_C_YENC: import _yenc
 
@@ -263,7 +263,7 @@ def setRealFileName(nzbFile, filename, forceChange = False, settingSegmentNumber
     # nzb.destDir is changing (when the archive dir is moved around)
     switchedReal = False
     if nzbFile.filename is not None and nzbFile.filename != filename and \
-            nzbFile.filename.find('hellanzb-tmp-') != 0:
+            not isHellaTemp(nzbFile.filename):
         # This NZBFile already had a real filename set, and now something has triggered it
         # be changed
         switchedReal = True

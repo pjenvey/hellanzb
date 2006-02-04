@@ -287,6 +287,15 @@ def getParName(parType):
         return 'par2'
     return 'unknown'
 
+def getParEnum(parName):
+    """ Return the ENUM value representing the specified parName (PAR1, PAR2,
+    UNKNOWN). Opposite of getParName """
+    if parName == 'par1':
+        return PAR1
+    elif parName == 'par2':
+        return PAR2
+    return UNKNOWN
+
 def getParRecoveryName(parType, describePar1 = True):
     """ Return the term used to to describe the particular parType's (a par type enum value)
     recovery data.

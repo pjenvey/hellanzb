@@ -779,6 +779,10 @@ def ensureDirs(dirNames):
             
         raise FatalError(err)
 
+def isHellaTemp(filename):
+    """ Determine whether or not the specified file is a 'hellanzb-tmp-' file """
+    return filename.find('hellanzb-tmp-') == 0
+
 Hellanzb.CMHELLA = \
 '''
            ;;;;            .  .

@@ -9,11 +9,11 @@ import os, re, Hellanzb
 from sets import Set
 from threading import Lock, RLock
 from Hellanzb.Log import *
-from Hellanzb.Util import archiveName, getFileExtension, nuke, IDPool
+from Hellanzb.Util import archiveName, getFileExtension, isHellaTemp, nuke, IDPool
 from Hellanzb.NZBLeecher.ArticleDecoder import parseArticleData, setRealFileName
 from Hellanzb.NZBLeecher.DupeHandler import handleDupeNZBFileNeedsDownload
 from Hellanzb.NZBLeecher.NZBLeecherUtil import validWorkingFile
-from Hellanzb.PostProcessorUtil import Archive, getParName
+from Hellanzb.PostProcessorUtil import Archive, getParEnum, getParName
 from Hellanzb.SmartPar import dequeueIfExtraPar, identifyPar
 
 __id__ = '$Id$'
@@ -93,7 +93,7 @@ def segmentsNeedDownload(segmentList, overwriteZeroByteSegments = False):
             needDlSegments.append(segment)
             needDlFiles.add(segment.nzbFile)
         else:
-            if segment.number == 1 and foundFileName.find('hellanzb-tmp-') != 0 and \
+            if segment.number == 1 and not isHellaTemp(foundFileName) and \
                     segment.nzbFile.filename is None:
                 # HACK: filename is None. so we only have the temporary name in
                 # memory. since we didnt see the temporary name on the filesystem, but we
@@ -168,7 +168,7 @@ class NZB(Archive):
         self.neededBlocks = 0
         self.parType = None
         self.parPrefix = None
-        self.extraParNamesList = None
+        self.extraParSubjects = None
 
         self.isFinished = False
         
@@ -212,8 +212,6 @@ class NZB(Archive):
         elif self.postProcessor is not None and \
                 self.postProcessor in Hellanzb.postProcessors:
             type = 'processing'
-            #attribs['nzbFileName'] = archiveName(self.nzbFileName,
-            #                                     unformatNewzbinNZB = False)
             attribs['nzbFileName'] = os.path.basename(self.nzbFileName)
         elif self in Hellanzb.queued_nzbs:
             type = 'queued'
@@ -224,12 +222,10 @@ class NZB(Archive):
             return
         
         xmlWriter.start(type, attribs)
-        #if (type == 'downloading' and self.isParRecovery) or \
-        #        self.extraParNamesList is not None:
         if type != 'downloading' or self.isParRecovery:
             # Write 'extraPar' tags describing the known extra par files
-            if self.extraParNamesList is not None:
-                for nzbFileName in self.extraParNamesList:
+            if self.extraParSubjects is not None:
+                for nzbFileName in self.extraParSubjects:
                     xmlWriter.element('extraPar', nzbFileName)
             else:
                 for nzbFile in self.nzbFileElements:
@@ -241,36 +237,27 @@ class NZB(Archive):
         """ Factory method, returns a new NZB object for the specified target, and recovers
         the NZB state from the RecoveredState object if the target exists there for
         the specified type (such as 'processing', 'downloading') """
-        recoveredDict = Hellanzb.recoveredState.getRecoveredDict(type, target)
-
         if type == 'processing':
+            recoveredDict = Hellanzb.recoveredState.getRecoveredDict(type, target)
+            archiveDir = Hellanzb.PROCESSING_DIR + os.sep + target
             if recoveredDict and recoveredDict.get('nzbFileName') is not None:
                 target = recoveredDict.get('nzbFileName')
             else:
                 # If this is a processing recovery request, and we didn't recover any
                 # state information, we'll consider this a basic Archive object (it has no
                 # accompanying .NZB file to keep track of)
-                return Archive.fromStateXML(target, recoveredDict)
-
-        """
-        if type == 'processing':
-            if recoveredDict:
-                if recoveredDict.get('nzbFileName') is not None:
-                    nzbFileName = recoveredDict.get('nzbFileName')
-                else:
-                    archive = PostProcessorUtil.Archive(archiveDir, recoveredDict.get('id'))
-            else:
-                return Archive.fromStateXML(
-                """
+                return Archive.fromStateXML(archiveDir, recoveredDict)
+        else:
+            recoveredDict = Hellanzb.recoveredState.getRecoveredDict(type,
+                                                                     archiveName(target))
 
         nzbId = None
-        extraPars = None
         if recoveredDict:
             nzbId = recoveredDict['id']
-            # FIXME: rename to extraParSubjects
-            extraPars = recoveredDict.get('extraPars')
-            
+
         nzb = NZB(target, nzbId)
+        if type == 'processing':
+            nzb.archiveDir = archiveDir
         
         if recoveredDict:
             for key, value in recoveredDict.iteritems():
@@ -278,10 +265,10 @@ class NZB(Archive):
                     continue
                 if key == 'neededBlocks':
                     value = int(value)
-                setattr(obj, key, value)
+                if key == 'parType':
+                    value = getParEnum(value)
+                setattr(nzb, key, value)
 
-        if extraPars:
-            nzb.extraParNamesList = extraPars
         return nzb
     fromStateXML = staticmethod(fromStateXML)
         

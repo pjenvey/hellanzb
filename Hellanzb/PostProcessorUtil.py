@@ -6,6 +6,7 @@ PostProcessorUtil - support functions for the PostProcessor
 [See end of file]
 """
 import os, re, sys, time, Hellanzb
+from os.path import join as pathjoin
 from shutil import move
 from threading import Thread
 from time import time
@@ -679,12 +680,12 @@ def processPars(postProcessor, needAssembly = None):
     have their own explicit par2 process ran on the grouping's files """
     # Just incase we're running the program again, and we already successfully processed
     # the pars, don't bother doing it again
-    if not isFreshState(postProcessor.dirName, 'par'):
-        info(archiveName(postProcessor.dirName) + ': Skipping par processing')
+    dirName = postProcessor.dirName
+    if not isFreshState(dirName, 'par'):
+        info(archiveName(dirName) + ': Skipping par processing')
         return
 
     start = time.time()
-    dirName = DirName(postProcessor.dirName + os.sep)
 
     # Remove any .1 files after succesful par2 that weren't previously there (aren't in
     # this list)
@@ -694,7 +695,7 @@ def processPars(postProcessor, needAssembly = None):
     for wildcard in parGroupOrder:
         parFiles = parGroups[wildcard]
         
-        par2(postProcessor, dirName, parFiles, wildcard, needAssembly)
+        par2(postProcessor, parFiles, wildcard, needAssembly)
         
         # Successful par2, move them out of the way
         for parFile in parFiles:
@@ -744,16 +745,17 @@ typedef enum Result
 
 } Result;
 """
-def par2(postProcessor, dirName, parFiles, wildcard, needAssembly = None):
+def par2(postProcessor, parFiles, wildcard, needAssembly = None):
     """ Verify (and repair) the integrity of the files in the specified directory via par2. If
     files need repair and there are not enough recovery blocks, raise a fatal exception """
+    dirName = postProcessor.dirName
     info(archiveName(dirName) + ': Verifying via par group: ' + wildcard + '..')
     if needAssembly == None:
         needAssembly = {}
         
     repairCmd = 'par2 r --'
     for parFile in parFiles:
-        repairCmd += ' "%s%s"' % (dirName, parFile)
+        repairCmd += ' "%s"' % (pathjoin(dirName, parFile))
         
     t = Topen(repairCmd, postProcessor)
     output, returnCode = t.readlinesAndWait()
@@ -778,7 +780,7 @@ def par2(postProcessor, dirName, parFiles, wildcard, needAssembly = None):
         
         #growlNotify('Error', archiveName(dirName) + '\nNeed ' + neededBlocks + \
         #            ' more recovery ' + needType, True)
-        info(archiveName(dirName) + ': Failed par verify, requires ' + neededBlocks + \
+        warn(archiveName(dirName) + ': Failed par verify, requires ' + neededBlocks + \
              ' more recovery ' + getParRecoveryName(parType))
 
         parPrefix = None
@@ -799,6 +801,7 @@ def par2(postProcessor, dirName, parFiles, wildcard, needAssembly = None):
         # may be unimportant
         damagedAndRequired, missingFiles, targetsFound, neededBlocks, parType = \
             parseParNeedsBlocksOutput(archiveName(dirName), output)
+        needType = getParRecoveryName(parType)
 
         for file in missingFiles:
             if needAssembly.has_key(file):
@@ -811,7 +814,7 @@ def par2(postProcessor, dirName, parFiles, wildcard, needAssembly = None):
         if targetsFound == 0 and neededBlocks > 0:
             # FIXME: download more pars and try again
             raise FatalError('Unable to par repair: archive requires ' + neededBlocks + \
-                             ' more recovery ' + getParRecoveryName(parType) + \
+                             ' more recovery ' + needType + \
                              ' for repair. No valid files found (bad archive?)')
 
         # The archive is only totally broken when we're missing required files

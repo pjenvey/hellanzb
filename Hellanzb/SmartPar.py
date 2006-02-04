@@ -1,8 +1,7 @@
 """
 
-SmartPar - Functions for identifying potential par files from their subject lines (these
-are downloaded first), verifying that these segments are in fact pars by their actual
-filename (as in their uuenc/yenc headers), and only downloading them when needed.
+SmartPar - Functions for identifying potential par files from their their real filename
+(as defined in their uuenc/yenc headers), and only downloading them when needed
 
 (c) Copyright 2005 Philip Jenvey
 [See end of file]
@@ -24,14 +23,14 @@ def dequeueIfExtraPar(segment, tryFinishWhenSkipped = False):
     """ This function is called after downloading the first segment of every nzbFile
 
     It determines whether or not the segment's parent nzbFile is part of a par archive. If
-    it is and is an 'extra' par file (not the first par. first par nzbFiles are always
-    downloaded, as they usually only contain the verification data), this function will
-    determine whether or not the rest of the nzbFile segments need to be downloaded, and
-    dequeues them from the NZBSegment queue if they don't.
+    it is and is also an 'extra' par file ('extra' pars are pars other than the first
+    par. the first par nzbFiles should contain only verification data, and no recovery
+    data), this function will determine whether or not the rest of the nzbFile segments
+    need to be downloaded (dequeueing them necessary)
 
     Optionally specifying tryFinishWhenSkipped will attempt to ArticleDecoder.tryFinishNZB
     upon completition (completely stop the downloader loop when there are no files left to
-    download """
+    download) """
     if segment.number != 1:
         raise FatalError('dequeueIfExtraPar on number > 1')
 
@@ -39,13 +38,13 @@ def dequeueIfExtraPar(segment, tryFinishWhenSkipped = False):
         segment.loadArticleDataFromDisk(removeFromDisk = False)
         stripArticleData(segment.articleData)
 
-        # A stripped down version of the Article.parseArticleData loop. Finds the real
+        # A stripped down version of the Article.parseArticleData loop: find the real
         # filename in the downlaoded segment data as quickly as possible
         index = -1
         for line in segment.articleData:
             index += 1
 
-            # Don't go to far
+            # Don't prolong the search
             if index > 20:
                 break
 
@@ -62,7 +61,7 @@ def dequeueIfExtraPar(segment, tryFinishWhenSkipped = False):
                 break
 
     if segment.nzbFile.filename == None:
-        # Don't know what the filename is
+        # We can't do anything 'smart' without the filename
         return
 
     identifyPar(segment.nzbFile)
@@ -87,11 +86,10 @@ def dequeueIfExtraPar(segment, tryFinishWhenSkipped = False):
                                                   getParSize(segment.nzbFile.filename),
                                                   getParRecoveryName(segment.nzbFile.parType)))
 
-
 PAR2_VOL_RE = re.compile(r'(.*)\.vol(\d*)\+(\d*)\.par2', re.I)
 def identifyPar(nzbFile):
-    """ Identify the nzbFile object as isParFile, and if so its parType and isExtraParFile
-    vars """
+    """ Mark the nzbFile object as isParFile, and if so, also mark its parType and
+    isExtraParFile vars """
     if isPar(nzbFile.filename):
         nzbFile.isParFile = True
     
@@ -104,18 +102,12 @@ def identifyPar(nzbFile):
             if not nzbFile.filename.lower().endswith('.p00'):
                 return
 
-        #info('isPar %s prefix %s subject %s neededBlocks %s' % \
-        #     (str(nzbFile.nzb.isParRecovery), nzbFile.nzb.parPrefix, nzbFile.subject,
-        #      str(nzbFile.nzb.neededBlocks)))
-            
-        # If this is a 'par recovery' nzb download, the parPrefix matches the nzbFiles
-        # subject and we still need to queue more pars, don't mark it as isExtraParFile
-        # (leave it downloading)
+        # Does not match, mark the nzbFile as an extra par file
         if nzbFile.nzb.isParRecovery and nzbFile.nzb.parPrefix in nzbFile.subject and \
                 nzbFile.nzb.neededBlocks > 0:
             nzbFile.nzb.neededBlocks -= getParSize(nzbFile.filename)
         else:
-            # To be skipped
+            # This nzbFile should be completely skipped
             nzbFile.isExtraParFile = True
 
 GET_PAR2_SIZE_RE = re.compile(r'(?i).*\.vol\d{1,8}\+(\d{1,8}).par2$')

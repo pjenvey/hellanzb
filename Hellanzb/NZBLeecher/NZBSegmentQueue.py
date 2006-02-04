@@ -307,11 +307,6 @@ class NZBSegmentQueue(PriorityQueue):
         
         for nzbSegment in nzbSegments:
             self.segmentDone(nzbSegment)
-            self.fileDone(nzbSegment.nzbFile)
-            
-            if nzbSegment in nzbSegment.nzbFile.todoNzbSegments:
-                #FIXME: jacks up assembly code
-                nzbSegment.nzbFile.todoNzbSegments.remove(nzbSegment) # FIXME: lock????
 
     def currentNZBs(self):
         """ Return a copy of the list of nzbs currently being downloaded """
@@ -425,11 +420,13 @@ class NZBSegmentQueue(PriorityQueue):
                 self.onDiskSegments.pop(nzbSegment.getDestination())
 
     def segmentDone(self, nzbSegment):
-        """ Simply decrement the queued byte count, unless the segment is part of a postponed
-        download """
+        """ Simply decrement the queued byte count and register this nzbSegment as finished
+        downloading, unless the segment is part of a postponed download """
         self.nzbsLock.acquire()
-        if nzbSegment.nzbFile.nzb in self.nzbs and self.totalQueuedBytes > 0:
-            self.totalQueuedBytes -= nzbSegment.bytes
+        if nzbSegment in nzbSegment.nzbFile.todoNzbSegments:
+            nzbSegment.nzbFile.todoNzbSegments.remove(nzbSegment)
+            if nzbSegment.nzbFile.nzb in self.nzbs:
+                self.totalQueuedBytes -= nzbSegment.bytes
         self.nzbsLock.release()
 
         self.onDiskSegments[nzbSegment.getDestination()] = nzbSegment
@@ -491,7 +488,7 @@ class NZBSegmentQueue(PriorityQueue):
             msg = '%s, skipping %i on disk files' % (msg, onDiskCount)
             if skippedPars:
                 msg = '%s & %s' % (msg, skippedParsMsg)
-        else:
+        elif skippedPars:
             msg = '%s, skipping %s' % (msg, skippedParsMsg)
         msg += ')'
         info(msg)
@@ -529,13 +526,6 @@ class NZBSegmentQueue(PriorityQueue):
             # isSkippedParFile for us
             if not nzbSegment.nzbFile.isSkippedPar:
                 self.put((nzbSegment.priority, nzbSegment))
-                """
-                info('NOT ISSKIPPED SEGMENT %s num %i' % (nzbSegment.nzbFile.subject, nzbSegment.number))
-            elif nzbSegment.nzbFile.isExtraParFile:
-                info('ISEXTRATHOUGH SEGMENT %s num %i' % (nzbSegment.nzbFile.subject, nzbSegment.number))
-            else:
-                info('SKIPPING SEGMENT %s num %i' % (nzbSegment.nzbFile.subject, nzbSegment.number))
-                """
                 
         if nzb.isParRecovery and nzb.extraParSubjects and len(nzb.extraParSubjects) and \
                 not len(self):
@@ -548,12 +538,10 @@ class NZBSegmentQueue(PriorityQueue):
                 if nzbSegment.nzbFile.isSkippedPar:
                     self.put((nzbSegment.priority, nzbSegment))
                     nzbSegment.nzbFile.todoNzbSegments.add(nzbSegment)
-                    #info('REQUEUED SEGMENT %s num %i' % (nzbSegment.nzbFile.subject, nzbSegment.number))
 
             # Only reset the isSkippedPar flag after queueing
             for nzbSegment in needDlSegments:
                 if nzbSegment.nzbFile.isSkippedPar:
-                    #info('undoing isSkippedPar %s num %i' % (nzbSegment.nzbFile.subject, nzbSegment.number))
                     nzbSegment.nzbFile.isSkippedPar = False
                     
         if not len(self):
@@ -573,11 +561,6 @@ class NZBSegmentQueue(PriorityQueue):
         # files. adjust the queued byte count to not include these aleady downloaded
         # segments. phew
         for nzbFile in needDlFiles:
-            """
-            if not ALLPAR_FORCE and nzbFile.isExtraParFile:
-                nzbFile.isSkippedPar = True
-            else:
-                """
             if len(nzbFile.todoNzbSegments) != len(nzbFile.nzbSegments):
                 for segment in nzbFile.nzbSegments:
                     if segment not in nzbFile.todoNzbSegments:
@@ -644,19 +627,10 @@ class NZBParser(ContentHandler):
 
             self.file = NZBFile(subject, attrs.get('date'), poster, self.nzb)
 
-            """
-            if self.nzb.isParRecovery and \
-                    (subject not in self.nzb.extraParSubjects or self.nzb.parPrefix not in subject):
-                self.fileNeedsDownload = False
-            else:
-                self.fileNeedsDownload = \
-                    self.file.needsDownload(workingDirListing = self.workingDirListing,
-                                            workingDirDupeMap = self.workingDirDupeMap)
-                                            """
             self.fileNeedsDownload = \
                 self.file.needsDownload(workingDirListing = self.workingDirListing,
                                         workingDirDupeMap = self.workingDirDupeMap)
-            if self.fileNeedsDownload and self.nzb.isParRecovery and \
+            if Hellanzb.SMART_PAR and self.fileNeedsDownload and self.nzb.isParRecovery and \
                     (subject not in self.nzb.extraParSubjects or self.nzb.parPrefix not in subject):
                 self.file.isSkippedPar = True
               

@@ -81,13 +81,7 @@ def segmentsNeedDownload(segmentList, overwriteZeroByteSegments = False):
             if segment.nzbFile.subject.find(segmentFileName) > -1 or \
                     segment.getTempFileName()[:-12] == segmentFileName:
                 foundFileName = segmentFileName
-                # make note that this segment doesn't have to be downloaded
-                try:
-                    segment.nzbFile.todoNzbSegments.remove(segment)
-                finally:
-                    # dequeueIfExtraPar could have already removed this segment from
-                    # todoNzbSegments
-                    break
+                break
 
         if not foundFileName:
             needDlSegments.append(segment)
@@ -103,13 +97,14 @@ def segmentsNeedDownload(segmentList, overwriteZeroByteSegments = False):
                 setRealFileName(segment.nzbFile, foundFileName,
                             settingSegmentNumber = segment.number)
 
-                # dequeue the entire nzbFile if we've found an extra par file. NOTE:
-                # dequeueIfExtraPar will raise an Exception if the segment.number is >
-                # 1. We only end up in this block of code if that is the case, anyway,
-                # because it checks for segment.nzbFile.filename is None (and we go
-                # through a sorted list of segments)
-                #dequeueIfExtraPar(segment, segmentList)
-                dequeueIfExtraPar(segment)
+                if Hellanzb.SMART_PAR:
+                    # dequeueIfExtraPar won't actually 'dequeue' any of this segment's
+                    # nzbFile's segments (because there are no segments in the queue at
+                    # this point). It will identifyPar the segment AND more importantly it
+                    # will mark nzbFiles as isSkippedPar (taken into account later during
+                    # parseNZB) and print a 'Skipping par' message for those isSkippedPar
+                    # nzbFiles
+                    dequeueIfExtraPar(segment)
                 
             onDiskSegments.append(segment)
             
@@ -415,11 +410,12 @@ class NZBFile:
                 if self.subject.find(file) > -1:
                     # No need for setRealFileName(self, file)'s extra work here
                     self.filename = file
-                    
-                    identifyPar(self)
-                    if self.isParFile:
-                        debug('needsDownload: Found par on disk: %s isExtraParFile: %s' % \
-                              (file, str(self.isExtraParFile)))
+
+                    if Hellanzb.SMART_PAR:
+                        identifyPar(self)
+                        if self.isParFile:
+                            debug('needsDownload: Found par on disk: %s isExtraParFile: %s' % \
+                                  (file, str(self.isExtraParFile)))
                         
                     return False
     

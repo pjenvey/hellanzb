@@ -478,7 +478,6 @@ def forceNZBParRecover(nzb):
     nzb.isFinished = False
     nzb.isParRecovery = True
 
-    notification = 'Forcing par recovery download'
     if not len(Hellanzb.queued_nzbs) and not len(Hellanzb.queue.currentNZBs()):
         new = Hellanzb.CURRENT_DIR + os.sep + os.path.basename(nzb.nzbFileName)
         move(nzb.nzbFileName, new)
@@ -487,10 +486,10 @@ def forceNZBParRecover(nzb):
                 not Hellanzb.downloadScannerID.called:
             Hellanzb.downloadScannerID.cancel()
         nzb.destDir = Hellanzb.WORKING_DIR
-        parseNZB(nzb, notification)
+        parseNZB(nzb, 'Downloading recovery pars')
     else:
         Hellanzb.queued_nzbs.insert(0, nzb)
-        forceNZB(nzb.nzbFileName, notification)
+        forceNZB(nzb.nzbFileName, 'Forcing par recovery download')
 
 """
 /*

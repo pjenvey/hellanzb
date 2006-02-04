@@ -68,9 +68,7 @@ def decode(segment):
               ' a problem occurred during decoding', e)
         touch(segment.getDestination())
 
-    if segment in segment.nzbFile.todoNzbSegments:
-        segment.nzbFile.todoNzbSegments.remove(segment) # FIXME: lock????
-    Hellanzb.queue.segmentDone(segment) # FIXME: combine this with the above call. par skipping might cause a keyerror in the previous statement. probably need to always check for existance than remove
+    Hellanzb.queue.segmentDone(segment)
     debug('Decoded segment: ' + segment.getDestination())
 
     if handleCanceledSegment(segment):

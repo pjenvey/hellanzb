@@ -34,7 +34,7 @@ class PostProcessor(Thread):
 
     archiveAttrs = ('id', 'rarPassword', 'deleteProcessed', 'skipUnrar', 'toStateXML')
 
-    def __init__(self, archive, background = True, parentDir = None, hasMorePars = False):
+    def __init__(self, archive, background = True, subDir = None, hasMorePars = False):
         """ Ensure sanity of this instance before starting """
         # The archive to post process
         self.archive = archive
@@ -42,7 +42,16 @@ class PostProcessor(Thread):
     
         # DirName is a hack printing out the correct directory name when running nested
         # post processors on sub directories
-        self.dirName = DirName(archive.archiveDir)
+        if subDir:
+            # Make a note of the parent directory the originating post process call
+            # started from
+            self.isSubDir = True
+            self.subDir = subDir
+            self.dirName = DirName(pathjoin(archive.archiveDir, self.subDir))
+            self.dirName.parentDir = archive.archiveDir
+        else:
+            self.isSubDir = False
+            self.dirName = DirName(archive.archiveDir)
 
         self.nzbFileName = None
         if self.isNZBArchive():
@@ -65,14 +74,6 @@ class PostProcessor(Thread):
         self.decompressorLock = RLock()
         self.decompressorCondition = Condition(self.decompressorLock)
 
-        # The parent directory we the originating post process call started from, if we
-        # are post processing a sub directory
-        self.isSubDir = False
-        self.parentDir = parentDir
-        if self.parentDir != None:
-            self.isSubDir = True
-            self.dirName.parentDir = self.parentDir
-            
         self.startTime = None
 
         # Whether or not this PostProcessor's Topen processes were explicitly kill()'ed
@@ -357,12 +358,6 @@ class PostProcessor(Thread):
         # Finally, nuke the processed dir. Hopefully the PostProcessor did its job and
         # there was absolutely no need for any of the files in the processed dir,
         # otherwise tough! (otherwise disable the option and redownload again)
-            
-        # Strip the parentDir name from the filename's full path
-        parentDir = self.dirName
-        if self.isSubDir:
-            parentDir = self.parentDir
-
         deleteDir = self.dirName + os.sep + Hellanzb.PROCESSED_SUBDIR
         deletedFiles = walk(deleteDir, 1, return_folders = 1)
         deletedFiles.sort()
@@ -483,11 +478,6 @@ class PostProcessor(Thread):
                     self.archive.nzbFileName = postponedDir + os.sep + \
                         os.path.basename(self.archive.nzbFileName)
 
-                    """
-                    info(archiveName(self.dirName) + \
-                         ': has more ars for recovery (%i %s), forcing download' % \
-                         (nmp.size, getParRecoveryName(nmp.parType)))
-                         """
                     info(archiveName(self.dirName) + \
                          ': More pars avaialble, forcing extra par download')
 
@@ -526,11 +516,10 @@ class PostProcessor(Thread):
             
             if os.path.isdir(pathjoin(self.dirName, file)):
                 if not self.isSubDir:
-                    troll = PostProcessor(pathjoin(self.dirName, file), id = self.id,
-                                          parentDir = self.dirName)
+                    troll = PostProcessor(self.archive, subDir = file)
                 else:
-                    troll = PostProcessor(pathjoin(self.dirName, file), id = self.id,
-                                          parentDir = self.parentDir)
+                    troll = PostProcessor(self.archive, subDir = pathjoin(self.subDir,
+                                                                          file))
                 troll.run()
                 trolled += 1
 

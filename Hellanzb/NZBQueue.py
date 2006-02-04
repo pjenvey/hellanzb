@@ -38,6 +38,8 @@ class HellanzbStateXMLParser(ContentHandler):
             Hellanzb.recoveredState.newzbinSessId = attrs.get('newzbinSessId')
 
         # <downloading id="10" isParRecovery="true">Archive 3</downloading>
+        #          <extraPar>Subject Line vol02+01.par2</extraPar>
+        # </downloading>
         # <processing id="4" rarPassword="sup" deleteProcessed="true" skipUnrar="true"
         #    overwriteZeroByteFiles="true" keepDupes="true" destSubDir="?"
         #    nzbFile="Archive_0.nzb">Archive 0</processing>
@@ -297,11 +299,11 @@ def parseNZB(nzb, notification = 'Downloading', quiet = False):
 
 def ensureSafePostponedLoad(nzbFileName):
     """ Force doesn't immediately abort the download of the forced out NZB -- it lets the
-     NZBLeechers currently working on them finish. We need to be careful of forced NZBs
-     that are so small, that they finish downloading before these 'slower' NZBLeechers are
-     even done with the previous, forced out NZB. The parseNZB function could end up
-     colliding with the leechers, while pareseNZB looks for segments on disk/to be skipped
-     """
+    NZBLeechers currently working on them finish. We need to be careful of forced NZBs
+    that are so small, that they finish downloading before these 'slower' NZBLeechers are
+    even done with the previous, forced out NZB. The parseNZB function could end up
+    colliding with the leechers, while pareseNZB looks for segments on disk/to be skipped
+    """
     # Look for any NZBLeechers downloading files for the specified unpostponed NZB. They
     # are most likely left over from a force call, using a very small NZB.
     shouldCancel = False

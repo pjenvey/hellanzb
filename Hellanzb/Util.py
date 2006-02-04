@@ -369,8 +369,6 @@ class PriorityQueue(Queue):
     def dequeueItems(self, items):
         """ Explicitly dequeue the specified items. Yes, this queue supports random access """
         for item in items:
-            #from Hellanzb.Log import info
-            #info('dequeueing (p: %s): %s' % (str(item[0]), str(item[1].nzbFile.filename)))
             try:
                 self.queue.remove(item)
             except Exception:

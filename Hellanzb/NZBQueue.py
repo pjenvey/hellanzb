@@ -2,8 +2,8 @@
 
 NZBQueue - Maintains NZB files queued to be downloaded in the future
 
-These are all module level functions that operate on the main Hellanzb queue, which is at
-Hellanzb.queued_nzbs (FIXME)
+These are all module level functions that operate on the main Hellanzb queue, located at
+Hellanzb.queued_nzbs
 
 (c) Copyright 2005 Philip Jenvey
 [See end of file]

@@ -46,6 +46,10 @@ class HellaXMLRPCServer(XMLRPC):
             d['rarPassword'] = toUnicode(rarPass)
         return d
 
+    def cleanLog(self, logEntry):
+        """ Return a safe-for-xml version of the specified log entry string """
+        return toUnicode(logEntry.replace('\x08', ''))
+
     def xmlrpc_asciiart(self):
         """ Return a random ascii art """
         from Hellanzb.Elite import C
@@ -305,7 +309,8 @@ class HellaXMLRPCServer(XMLRPC):
 
         Hellanzb.postProcessorLock.release()
         s['queued'] = listQueue()
-        s['log_entries'] = [{getLevelName(entry[0]): toUnicode(entry[1])} for entry in Hellanzb.recentLogs]
+        s['log_entries'] = [{getLevelName(entry[0]): self.cleanLog(entry[1])} \
+                            for entry in Hellanzb.recentLogs]
         
         return s
 

@@ -790,8 +790,7 @@ class NZBLeecher(NNTPClient, TimeoutMixin):
                 self.factory.sessionReadBytes = 0
                 self.factory.sessionStartTime = now
 
-            if not Hellanzb.SHUTDOWN:
-                Hellanzb.scroller.updateLog()
+            Hellanzb.scroller.updateLog()
 
     def antiIdleConnection(self):
         """ anti idle the connection """

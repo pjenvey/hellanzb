@@ -33,7 +33,7 @@ Python >= 2.3          http://www.python.org
 Twisted >= 2.0         http://www.twistedmatrix.com *and*
 Twisted Web            http://www.twistedmatrix.com/projects/web
   OR
-Twisted >= 1.3         http://www.twistedmatrix.com
+Twisted = 1.3          http://www.twistedmatrix.com
 
 par2cmdline =~ 0.4     http://parchive.sourceforge.net
 rar or unrar =~ 3.41   http://www.rarlab.com

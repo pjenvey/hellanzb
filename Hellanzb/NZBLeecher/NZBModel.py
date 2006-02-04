@@ -246,11 +246,14 @@ class NZB(Archive):
             recoveredDict = Hellanzb.recoveredState.getRecoveredDict(type,
                                                                      archiveName(target))
 
+        # Pass the id in with the constructor (instead of setting it after the fact) --
+        # otherwise the constructor would unnecessarily incremenet the IDPool
         nzbId = None
         if recoveredDict:
             nzbId = recoveredDict['id']
 
         nzb = NZB(target, nzbId)
+        
         if type == 'processing':
             nzb.archiveDir = archiveDir
         

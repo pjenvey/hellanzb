@@ -78,7 +78,12 @@ class NewzbinDownloader(object):
     def gotCookies(self, cookies):
         """ The downloader will feeds cookies via this function """
         # Grab the cookies for the PHPSESSID
+        newId = False
+        if NewzbinDownloader.cookies.get('PHPSESSID') != cookies.get('PHPSESSID'):
+            newId = True
         NewzbinDownloader.cookies = cookies
+        if newId:
+            Hellanzb.NZBQueue.writeStateXML()
         debug(str(self) + ' gotCookies: ' + str(NewzbinDownloader.cookies))
 
     def gotHeaders(self, headers):
@@ -192,6 +197,9 @@ class NewzbinDownloader(object):
     def errBack(self, reason):
         # FIXME:
         # os.remove(self.tempFilename)
+        if Hellanzb.SHUTDOWN:
+            return
+        
         if reason.check(TimeoutError):
             error('Unable to connect to www.newzbin.com: Connection timed out')
         elif reason.check(ConnectionRefusedError):

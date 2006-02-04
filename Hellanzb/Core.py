@@ -150,9 +150,13 @@ def signalHandler(signum, frame):
         if Hellanzb.stopSignalCount < 2:
             msg = 'Caught interrupt, waiting for these child processes to finish:\n'
             for topen in Topen.activePool:
+                pid = topen.getPid()
+                if pid is None:
+                    pid = 'Init'
+                else:
+                    pid = str(pid)
                 msg += truncateToMultiLine(topen.prettyCmd, length = 68,
-                                           prefix = str(topen.getPid()) + '  ',
-                                           indentPrefix = ' '*8) + '\n'
+                                           prefix = pid + '  ', indentPrefix = ' '*8) + '\n'
             msg += '(CTRL-C again within 5 seconds to kill them and exit immediately.\n' + \
                 'PostProcessors will automatically resume when hellanzb is restarted)'
             warn(msg)
@@ -291,7 +295,7 @@ def shutdown(killPostProcessors = False):
         Topen.killAll()
 
     # stop the twisted reactor
-    reactor.callLater(0, reactor.stop)
+    reactor.stop()
 
     # Just in case we left it off
     stdinEchoOn()

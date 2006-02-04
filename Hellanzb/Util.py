@@ -171,8 +171,10 @@ class Topen(protocol.ProcessProtocol):
         return output, self.returnCode
 
     def getPid(self):
-        # FIXME: this is for compat. w/ ptyopen
-        return self.transport.pid
+        """ Return the pid of the process if it exists """
+        if self.transport:
+            return self.transport.pid
+        return None
     
     def killAll():
         """ kill -9 all active topens """

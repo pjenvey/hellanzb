@@ -682,6 +682,10 @@ def tryFinishNZB(nzb):
     """ Determine if the NZB download/decode process is done for the specified NZB -- if it's
     done, trigger handleNZBDone. We'll call this check everytime we finish processing an
     nzbFile """
+    # NZB was already marked as being finished
+    if nzb.isFinished:
+        return
+    
     start = time.time()
     done = True
 
@@ -721,6 +725,23 @@ def tryFinishNZB(nzb):
         gc.collect()
         """
 
+        nzb.isFinished = True
+
+        # Forcefully disconnect any skipped par segments that are still downloading
+        skippedParNZBFiles = []
+        for nzbFile in nzb.nzbFileElements:
+            if nzbFile.isSkippedPar:
+                skippedParNZBFiles.append(nzbFile)
+                
+        def stopDownloadingSkippedPars():
+            for nsf in Hellanzb.nsfs:
+                for client in nsf.activeClients.copy():
+                    if client.currentSegment.nzbFile in skippedParNZBFiles:
+                        client.transport.loseConnection()
+                        client.isLoggedIn = False
+                        client.deactivate()
+                        
+        reactor.callFromThread(stopDownloadingSkippedPars)
         reactor.callFromThread(handleNZBDone, nzb)
         
     finish = time.time() - start

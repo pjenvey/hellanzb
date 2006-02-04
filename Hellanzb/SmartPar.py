@@ -8,17 +8,19 @@ filename (as in their uuenc/yenc headers), and only downloading them when needed
 [See end of file]
 """
 import re, Hellanzb
+from twisted.internet import reactor
 from xml.sax import make_parser, SAXParseException
 from xml.sax.handler import ContentHandler, feature_external_ges, feature_namespaces
 from Hellanzb.Log import *
 from Hellanzb.PostProcessorUtil import getParRecoveryName, isPar, isPar1, isPar2
 from Hellanzb.Util import FatalError
-from Hellanzb.NZBLeecher.ArticleDecoder import setRealFileName, stripArticleData, ySplit
+from Hellanzb.NZBLeecher.ArticleDecoder import setRealFileName, stripArticleData, \
+    tryFinishNZB, ySplit
 
 __id__ = '$Id$'
 
 #def dequeueIfExtraPar(segment, segmentList = None):
-def dequeueIfExtraPar(segment):
+def dequeueIfExtraPar(segment, tryFinishWhenSkipped = False):
     # FIXME: must download in order: number 1 segment. check the headers. if this is a par
     # file, and the nzb has failed previous crc checks (only if ydecode) and we probably
     # havent dled enough repair already or we are explicitly forced to get all pars at nzb
@@ -84,18 +86,31 @@ def dequeueIfExtraPar(segment):
         size = segment.nzbFile.totalBytes / 1024 / 1024
         if segment.nzbFile.isExtraParFile:
             # Extra par2 -- remove it from the queue
+            """
             info('Skipping %s: %s (%iMB, %i %s)' % (desc, segment.nzbFile.filename, size,
                                                     getParSize(segment.nzbFile.filename),
                                                     getParRecoveryName(segment.nzbFile.parType)))
+                                                    """
+            info('Skipping %s: %s (%iMB)' % (desc, segment.nzbFile.filename, size))
             Hellanzb.queue.dequeueSegments(segment.nzbFile.nzbSegments)
             #if segmentList is not None:
             #    [segmentList.remove(dequeuedSegment) for dequeuedSegment in \
             #     segment.nzbFile.nzbSegments]
             segment.nzbFile.isSkippedPar = True
-    elif segment.nzbFile.isParFile:
-        info('Queued %s: %s (%iMB, %i %s)' % (desc, segment.nzbFile.filename, size,
-                                              getParSize(segment.nzbFile.filename),
-                                              getParRecoveryName(segment.nzbFile.parType)))
+
+            if tryFinishWhenSkipped:
+                # We could be at the end of the download. Since we're not doing the usual
+                # decode(), we have to manually check if we're done. This is potential
+                # reactor-slowing work, so handle it in a thread
+                reactor.callInThread(tryFinishNZB, segment.nzbFile.nzb)
+        else:
+            """
+            info('Queued %s: %s (%iMB, %i %s)' % (desc, segment.nzbFile.filename, size,
+                                                  getParSize(segment.nzbFile.filename),
+                                                  getParRecoveryName(segment.nzbFile.parType)))
+                                                  """
+            info('Queued %s: %s (%iMB)' % (desc, segment.nzbFile.filename, size))
+
 
 PAR2_VOL_RE = re.compile(r'(.*)\.vol(\d*)\+(\d*)\.par2', re.I)
 def identifyPar(nzbFile):
@@ -106,20 +121,23 @@ def identifyPar(nzbFile):
         if isPar2(nzbFile.filename) and \
                 not PAR2_VOL_RE.match(nzbFile.filename):
             # Not a .vol????.par2. This is the main par2, download it
+            #nzbFile.nzb.parType = PAR2
             return
         elif isPar1(nzbFile.filename) and \
                 nzbFile.filename.lower().endswith('.p00'):
             # First par1 should be .p00
+            #nzbFile.nzb.parType = PAR1
             return
 
+        #info('isPar %s prefix %s subject %s neededBlocks %s' % (str(nzbFile.nzb.isParRecovery), nzbFile.nzb.parPrefix, nzbFile.subject, str(nzbFile.nzb.neededBlocks)))
         if nzbFile.nzb.isParRecovery and nzbFile.nzb.parPrefix in nzbFile.subject and \
                 nzbFile.nzb.neededBlocks > 0:
-            info('filename: ' + nzbFile.filename + ' parPrefix: ' + nzbFile.nzb.parPrefix)
+            #info('filename: ' + nzbFile.filename + ' parPrefix: ' + nzbFile.nzb.parPrefix)
             nzbFile.nzb.neededBlocks -= getParSize(nzbFile.filename)
         else:
         #if not nzbFile.nzb.isParRecovery or nzbFile.nzb.parPrefix not in nzbFile.subject or \
             #nzbFile.nzb.neededBlocks == 0:
-            info('filename: ' + nzbFile.filename + 'isExtraParFile: True')
+            #info('filename: ' + nzbFile.filename + 'isExtraParFile: True')
             nzbFile.isExtraParFile = True
 
 GET_PAR2_SIZE_RE = re.compile(r'(?i).*\.vol\d{1,8}\+(\d{1,8}).par2$')

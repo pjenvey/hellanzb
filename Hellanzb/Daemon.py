@@ -106,7 +106,7 @@ def resumePostProcessors():
                 archive = NZB(recovered['nzbFileName'], recovered['id'],
                               archiveDir = archiveDir)
                 extraPars = recovered.get('extraPars') 
-                if len(extraPars):
+                if extraPars:
                     archive.extraParNamesList = extraPars
                     hasMorePars = True
                 #id = recovered['id']
@@ -184,6 +184,7 @@ def handleNZBDone(nzb):
     hellaRename(processingDir)
         
     move(Hellanzb.WORKING_DIR, processingDir)
+    nzb.destDir = processingDir
     nzb.archiveDir = processingDir
     
     move(nzb.nzbFileName, processingDir)
@@ -193,15 +194,19 @@ def handleNZBDone(nzb):
     
     os.mkdir(Hellanzb.WORKING_DIR)
 
+    # Determine if this archive has more pars available for download before PostProcessing
     hasMorePars = False
+    extraPars = []
     for nzbFile in nzb.nzbFileElements:
         if nzbFile.isSkippedPar:
             hasMorePars = True
-            break
-        
+            extraPars.append(nzbFile.subject)
+    if extraPars:
+        nzb.extraParNamesList = extraPars
+
     # Finally unarchive/process the directory in another thread, and continue
     # nzbing
-    troll = PostProcessor.PostProcessor(nzb, hasMorePars)
+    troll = PostProcessor.PostProcessor(nzb, hasMorePars = hasMorePars)
 
     # Give NZBLeecher some time (another reactor loop) to killHistory() & scrollEnd()
     # without any logging interference from PostProcessor
@@ -429,7 +434,7 @@ def forceNZBId(nzbId):
     
     forceNZB(foundNZB.nzbFileName)
 
-def forceNZB(nzbfilename):
+def forceNZB(nzbfilename, notification = 'Forcing download'):
     """ Interrupt the current download, if necessary, to start the specified nzb """
     if not validNZB(nzbfilename):
         return
@@ -482,7 +487,7 @@ def forceNZB(nzbfilename):
             Hellanzb.queue.postpone()
 
             # load the new file
-            reactor.callLater(0, parseNZB, nzb, 'Forcing Download')
+            reactor.callLater(0, parseNZB, nzb, notification)
 
         except NameError, ne:
             # GC beat us. that should mean there is either a free spot open, or the next
@@ -491,8 +496,9 @@ def forceNZB(nzbfilename):
             reactor.callLater(0, scanQueueDir)
 
 def forceNZBParRecover(nzb):
-    """ Immediately begin (force) downloading recovery blocks (only the neededBlocks amount)
-    for the specified NZB """
+    """ Immediately begin (force) downloading recovery blocks (only the nzb.neededBlocks
+    amount) for the specified NZB """
+    nzb.isFinished = False
     nzb.isParRecovery = True
 
     #postponedDir = Hellanzb.POSTPONED_DIR + os.sep + os.path.basename(nzb.archiveDir)
@@ -501,13 +507,22 @@ def forceNZBParRecover(nzb):
     #enqueueNZBs(nzb.nzbFileName) # copies NZB file to the queue dir
     #old = nzb.nzbFileName
     #nzb.nzbFileName = Hellanzb.QUEUE_DIR + os.sep + os.path.basename(old)
-    new = Hellanzb.QUEUE_DIR + os.sep + os.path.basename(nzb.nzbFileName)
     # not checking if it already exists
     #move(old, nzb.nzbFileName)
-    move(nzb.nzbFileName, new)
-    nzb.nzbFileName = new
-    Hellanzb.queued_nzbs.insert(0, nzb)
-    forceNZB(nzb.nzbFileName)
+
+    notification = 'Forcing par recovery download'
+    if not len(Hellanzb.queued_nzbs) and not len(Hellanzb.queue.currentNZBs()):
+        new = Hellanzb.CURRENT_DIR + os.sep + os.path.basename(nzb.nzbFileName)
+        move(nzb.nzbFileName, new)
+        nzb.nzbFileName = new
+        if Hellanzb.downloadScannerID != None and not Hellanzb.downloadScannerID.cancelled and \
+                not Hellanzb.downloadScannerID.called:
+            Hellanzb.downloadScannerID.cancel()
+        nzb.destDir = Hellanzb.WORKING_DIR
+        parseNZB(nzb, notification)
+    else:
+        Hellanzb.queued_nzbs.insert(0, nzb)
+        forceNZB(nzb.nzbFileName, notification)
 
 """
 /*

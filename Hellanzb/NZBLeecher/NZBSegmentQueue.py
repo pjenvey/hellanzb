@@ -477,12 +477,24 @@ class NZBSegmentQueue(PriorityQueue):
                                                                            nzb.overwriteZeroByteFiles)
         e = time.time() - s
 
+        skippedPars = 0
+        for nzbFile in needDlFiles:
+            if nzbFile.isSkippedPar:
+                skippedPars += 1
+
         onDiskCount = nzbp.fileCount - len(needWorkFiles)
+        msg = 'Parsed: %i posts (%i files' % (nzbp.segmentCount, nzbp.fileCount)
+        skippedParsMsg = ''
+        if skippedPars:
+            skippedParsMsg = '%i par files' % skippedPars
         if onDiskCount:
-            info('Parsed: ' + str(nzbp.segmentCount) + ' posts (' + str(nzbp.fileCount) + \
-                 ' files, skipping ' + str(onDiskCount) + ' on disk files)')
+            msg = '%s, skipping %i on disk files' % (msg, onDiskCount)
+            if skippedPars:
+                msg = '%s & %s' % (msg, skippedParsMsg)
         else:
-            info('Parsed: ' + str(nzbp.segmentCount) + ' posts (' + str(nzbp.fileCount) + ' files)')
+            msg = '%s, skipping %s' % (msg, skippedParsMsg)
+        msg += ')'
+        info(msg)
 
         # Tally what was skipped for correct percentages in the UI
         for nzbSegment in onDiskSegments:

@@ -32,12 +32,13 @@ class PostProcessor(Thread):
     msgId = None
     nzbFile = None
 
-    archiveAttrs = ('id', 'rarPassword', 'deleteProcessed', 'skipUnrar')
+    archiveAttrs = ('id', 'rarPassword', 'deleteProcessed', 'skipUnrar', 'toStateXML')
 
     def __init__(self, archive, background = True, parentDir = None, hasMorePars = False):
         """ Ensure sanity of this instance before starting """
         # The archive to post process
         self.archive = archive
+        self.archive.postProcessor = self
     
         # DirName is a hack printing out the correct directory name when running nested
         # post processors on sub directories
@@ -123,6 +124,7 @@ class PostProcessor(Thread):
         if not self.isSubDir:
             Hellanzb.postProcessorLock.acquire()
             Hellanzb.postProcessors.remove(self)
+            self.archive.postProcessor = None
             Hellanzb.postProcessorLock.release()
 
             # Write the queue to disk unless we've been stopped by a killed Topen (via
@@ -137,7 +139,9 @@ class PostProcessor(Thread):
         # When a Post Processor fails, we end up moving the destDir here
         self.moveDestDir() 
 
-        # Nudge GC
+        # FIXME: craptacular place to GC. Really need to push this out until after the
+        # next download if possible (not really possible if post processor/downloader are
+        # always busy though) Nudge GC
         if self.isNZBArchive():
             for nzbFile in self.archive.nzbFileElements:
                 del nzbFile.todoNzbSegments
@@ -473,7 +477,7 @@ class PostProcessor(Thread):
                     postponedDir = Hellanzb.POSTPONED_DIR + os.sep + \
                         os.path.basename(self.dirName)
                     move(self.dirName, postponedDir)
-                    self.archive.archiveDir = postponedDir
+                    self.archive.archiveDir = self.archive.destDir = postponedDir
                     self.archive.nzbFileName = postponedDir + os.sep + \
                         os.path.basename(self.archive.nzbFileName)
 

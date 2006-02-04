@@ -38,9 +38,36 @@ class Archive(object):
             else:
                 setattr(self, attr, val)
 
+        # Reference to a post processor if post processing the archive
+        self.postProcessor = None
+
     def getName(self):
         """ Return the name of this archive for display """
         return os.path.basename(self.archiveDir)
+
+    def getStateAttribs(self):
+        """ Return a dict of attributes to be written to the on disk state XML. Takes into account
+        the attribute defaults """
+        class Required: pass
+        # All queue attributes and their defaults
+        QUEUE_ATTRIBS = {'rarPassword': None,
+                         'id': Required}
+        
+        attribs = {}
+        for attribName, default in QUEUE_ATTRIBS.iteritems():
+            val = getattr(self, attribName)
+            # Only write to XML required values and values that do not match their defaults
+            if default == Required or val != default:
+                #attribs[attribName] = str(val)
+                attribs[attribName] = unicode(val)
+        attribs['name'] = self.getName()
+        return attribs
+
+    def toStateXML(self, xmlWriter):
+        """ Write a brief version of this object to an elementtree.SimpleXMLWriter.XMLWriter """
+        if self in Hellanzb.postProcessors:
+            # Plain Archive objects can only be in the 'processing' state
+            xmlWriter.element('processing', None, self.getStateAttribs())
 
 # FIXME: this class should be a KnownFileType class, or something. file types other than
 # music might want to be decompressed
@@ -240,6 +267,14 @@ def isPar1(fileName):
 
     return False
 
+def getParName(parType):
+    """ Return the name of the given parType """
+    if parType == PAR1:
+        return 'par1'
+    elif parType == PAR2:
+        return 'par2'
+    return 'unknown'
+
 def getParRecoveryName(parType, describePar1 = True):
     """ Return the term used to to describe the particular parType's (a par type enum value)
     recovery data.
@@ -249,7 +284,7 @@ def getParRecoveryName(parType, describePar1 = True):
     if parType == PAR1:
         name = 'files'
         if describePar1:
-            name += ' (par1)'
+            name += ' (%s)' % getParName(parType)
         return name
     elif parType == PAR2:
         return 'blocks'

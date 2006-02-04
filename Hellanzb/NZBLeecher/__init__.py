@@ -19,7 +19,7 @@ from twisted.internet.protocol import ReconnectingClientFactory
 from twisted.protocols.basic import LineReceiver
 from twisted.protocols.policies import TimeoutMixin, ThrottlingFactory
 from twisted.python import log
-from Hellanzb.Daemon import cancelCurrent, endDownload, scanQueueDir
+from Hellanzb.Daemon import cancelCurrent, endDownload
 from Hellanzb.Log import *
 from Hellanzb.Logging import LogOutputStream, NZBLeecherTicker
 from Hellanzb.Util import prettySize, rtruncate, truncateToMultiLine, EmptyForThisPool, PoolsExhausted
@@ -683,7 +683,7 @@ class NZBLeecher(NNTPClient, TimeoutMixin):
         if segment.number == 1 and len(segment.nzbFile.nzbSegments) > 1:
             #self.handleParSuspect(segment)
             from Hellanzb.SmartPar import dequeueIfExtraPar
-            dequeueIfExtraPar(segment)
+            dequeueIfExtraPar(segment, tryFinishWhenSkipped = True)
             """
         else:
             self.deferSegmentDecode(segment)
@@ -828,8 +828,9 @@ class NZBLeecher(NNTPClient, TimeoutMixin):
                 self.factory.sessionSpeed = self.factory.sessionReadBytes / max(0.1, elapsed) / 1024.0
                 self.factory.sessionReadBytes = 0
                 self.factory.sessionStartTime = now
-            
-            Hellanzb.scroller.updateLog()
+
+            if not Hellanzb.SHUTDOWN:
+                Hellanzb.scroller.updateLog()
 
     def antiIdleConnection(self):
         """ anti idle the connection """

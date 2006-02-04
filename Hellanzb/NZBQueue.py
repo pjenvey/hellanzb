@@ -76,8 +76,9 @@ class NZBQueueParser(ContentHandler):
         if self.currentTag == 'extraPar':
             self.extraPars.append(self.extraParContent)
             self.extraParContent = ''
+        else:
+            self.currentAttrs = None
         self.currentTag = None
-        self.currentAttrs = None
 
 class NZBQueueRecovered(object):
     """ Data recovered from the on disk QUEUE_LIST """
@@ -146,7 +147,7 @@ def scanQueueDir(firstRun = False, justScan = False):
                 writeQueueToDisk()
 
             # Nothing to do, lets wait 5 seconds and start over
-            reactor.callLater(5, scanQueueDir)
+            Hellanzb.downloadScannerID = reactor.callLater(5, scanQueueDir)
             return
 
         # Start the next download
@@ -275,6 +276,8 @@ def writeQueueToDisk():
 
     #itemsToXML(writer, Hellanzb.queue.currentNZBs(), 'downloading', ('isParRecovery',))
     for currentNZB in Hellanzb.queue.currentNZBs():
+        currentNZB.toStateXML(writer)
+        """
         attribs = itemAttribs(currentNZB)
         if currentNZB.isParRecovery:
             attribs['isParRecovery'] = 'True'
@@ -291,10 +294,13 @@ def writeQueueToDisk():
                         writer.element('extraPar', nzbFile.subject)
         #xmlWriter.element('downloading', None, attribs)
         writer.end('downloading')
+        """
         
     #itemsToXML(writer, Hellanzb.postProcessors, 'processing',
     #           extraAttribs = ('nzbFileName',))
     for processor in Hellanzb.postProcessors:
+        processor.toStateXML(writer)
+    """
         #attribs = itemAttribs(processor, extraAttribs = ('nzbFileName',))
         attribs = itemAttribs(processor)
         if processor.isNZBArchive():
@@ -315,16 +321,20 @@ def writeQueueToDisk():
                     
         #writer.element('extra-par', )
         writer.end('processing')
+        """
 
     i = 0
     for queued in Hellanzb.queued_nzbs:
         i += 1
+        queued.toStateXML(writer, i)
+        """
         attribs = getQueueAttribs(queued)
         # FIXME: order isn't needed, is it?
         #attribs['order'] = str(i)
         attribs['order'] = unicode(i)
         #d = writer.element('queued', queued.getName(), attribs)
         writer.element('queued', None, attribs)
+        """
 
     writer.comment('Generated @ %s FIXME: rename hellanzb tag to something else' % 'time')
     writer.close(h)
@@ -333,9 +343,10 @@ def writeQueueToDisk():
     # We should be done with the NZBQueueRecovered data -- clean it out
     Hellanzb.nzbQueueRecovered = NZBQueueRecovered() 
 
+"""    
 def getQueueAttribs(item):
-    """ Return a dict of attributes to be written to the on disk XML queue. Takes into account
-    the attribute defaults """
+    "" Return a dict of attributes to be written to the on disk XML queue. Takes into account
+    the attribute defaults ""
     class Required: pass
     # All queue attributes and their defaults
     QUEUE_ATTRIBS = {'rarPassword': None,
@@ -350,6 +361,7 @@ def getQueueAttribs(item):
             attribs[attribName] = unicode(val)
     attribs['name'] = item.getName()
     return attribs
+"""    
 
 def recoverFromOnDiskQueue(archiveName, type):
     """ Attempt to recover attributes (dict) from the QUEUE_LIST read from disk for the
@@ -368,7 +380,7 @@ def syncFromRecovery(obj, recovered):
     """ Copy the attributes from the specified recovered dict to the specified object """
     if recovered:
         for key, value in recovered.iteritems():
-            if key == 'id':
+            if key == 'id' or key == 'neededBlocks':
                 value = int(value)
             setattr(obj, key, value)
         

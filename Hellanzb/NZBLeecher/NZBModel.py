@@ -13,7 +13,7 @@ from Hellanzb.Util import archiveName, getFileExtension, nuke, IDPool
 from Hellanzb.NZBLeecher.ArticleDecoder import parseArticleData, setRealFileName
 from Hellanzb.NZBLeecher.DupeHandler import handleDupeNZBFileNeedsDownload
 from Hellanzb.NZBLeecher.NZBLeecherUtil import validWorkingFile
-from Hellanzb.PostProcessorUtil import Archive
+from Hellanzb.PostProcessorUtil import Archive, getParName
 from Hellanzb.SmartPar import dequeueIfExtraPar, identifyPar
 
 __id__ = '$Id$'
@@ -169,6 +169,8 @@ class NZB(Archive):
         self.parType = None
         self.parPrefix = None
         self.extraParNamesList = None
+
+        self.isFinished = False
         
     def isCanceled(self):
         """ Whether or not this NZB was cancelled """
@@ -189,8 +191,51 @@ class NZB(Archive):
         #return os.path.basename(self.nzbFileName)
         return os.path.basename(self.archiveName)
 
-    def toStateXML(self):
-        pass
+    def getStateAttribs(self):
+        """ Return attributes to be written out to the """
+        attribs = Archive.getStateAttribs(self)
+
+        # NZBs in isParRecovery mode need the par recovery state written
+        if self.isParRecovery:
+            attribs['isParRecovery'] = 'True'
+            for attrib in ('neededBlocks', 'parPrefix'):
+                attribs[attrib] = unicode(getattr(self, attrib))
+            attribs['parType'] = getParName(self.parType)
+
+        return attribs
+
+    def toStateXML(self, xmlWriter, order = None):
+        """ Write a brief version of this object to an elementtree.SimpleXMLWriter.XMLWriter """
+        attribs = self.getStateAttribs()
+        if self in Hellanzb.queue.currentNZBs():
+            type = 'downloading'
+        elif self.postProcessor is not None and \
+                self.postProcessor in Hellanzb.postProcessors:
+            type = 'processing'
+            #attribs['nzbFileName'] = archiveName(self.nzbFileName,
+            #                                     unformatNewzbinNZB = False)
+            attribs['nzbFileName'] = os.path.basename(self.nzbFileName)
+        elif self in Hellanzb.queued_nzbs:
+            type = 'queued'
+            # FIXME: do we even need order?
+            if order is not None:
+                attribs['order'] = unicode(order)
+        else:
+            return
+        
+        xmlWriter.start(type, attribs)
+        #if (type == 'downloading' and self.isParRecovery) or \
+        #        self.extraParNamesList is not None:
+        if type != 'downloading' or self.isParRecovery:
+            # Write 'extraPar' tags describing the known extra par files
+            if self.extraParNamesList is not None:
+                for nzbFileName in self.extraParNamesList:
+                    xmlWriter.element('extraPar', nzbFileName)
+            else:
+                for nzbFile in self.nzbFileElements:
+                    if nzbFile.isExtraParFile:
+                        xmlWriter.element('extraPar', nzbFile.subject)
+        xmlWriter.end(type)
         
 class NZBFile:
     """ <nzb><file/><nzb> """

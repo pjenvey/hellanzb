@@ -69,6 +69,18 @@ class Archive(object):
             # Plain Archive objects can only be in the 'processing' state
             xmlWriter.element('processing', None, self.getStateAttribs())
 
+    def fromStateXML(archiveDir, recoveredDict = None):
+        """ Returns a new Archive (assumed to be in the processing state) for the specified
+        archiveDir, and recovers its state from the RecoveredState object if the
+        archiveDir exists there """
+        if recoveredDict == None:
+            recoveredDict = Hellanzb.recoveredState.getRecoveredDict('processing', archiveDir)
+        if recoveredDict:
+            return Archive(archiveDir, recoveredDict['id'])
+        else:
+            return Archive(archiveDir)
+    fromStateXML = staticmethod(fromStateXML)
+
 # FIXME: this class should be a KnownFileType class, or something. file types other than
 # music might want to be decompressed
 class MusicType(object):

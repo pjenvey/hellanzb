@@ -236,6 +236,54 @@ class NZB(Archive):
                     if nzbFile.isExtraParFile:
                         xmlWriter.element('extraPar', nzbFile.subject)
         xmlWriter.end(type)
+
+    def fromStateXML(type, target):
+        """ Factory method, returns a new NZB object for the specified target, and recovers
+        the NZB state from the RecoveredState object if the target exists there for
+        the specified type (such as 'processing', 'downloading') """
+        recoveredDict = Hellanzb.recoveredState.getRecoveredDict(type, target)
+
+        if type == 'processing':
+            if recoveredDict and recoveredDict.get('nzbFileName') is not None:
+                target = recoveredDict.get('nzbFileName')
+            else:
+                # If this is a processing recovery request, and we didn't recover any
+                # state information, we'll consider this a basic Archive object (it has no
+                # accompanying .NZB file to keep track of)
+                return Archive.fromStateXML(target, recoveredDict)
+
+        """
+        if type == 'processing':
+            if recoveredDict:
+                if recoveredDict.get('nzbFileName') is not None:
+                    nzbFileName = recoveredDict.get('nzbFileName')
+                else:
+                    archive = PostProcessorUtil.Archive(archiveDir, recoveredDict.get('id'))
+            else:
+                return Archive.fromStateXML(
+                """
+
+        nzbId = None
+        extraPars = None
+        if recoveredDict:
+            nzbId = recoveredDict['id']
+            # FIXME: rename to extraParSubjects
+            extraPars = recoveredDict.get('extraPars')
+            
+        nzb = NZB(target, nzbId)
+        
+        if recoveredDict:
+            for key, value in recoveredDict.iteritems():
+                if key == 'id':
+                    continue
+                if key == 'neededBlocks':
+                    value = int(value)
+                setattr(obj, key, value)
+
+        if extraPars:
+            nzb.extraParNamesList = extraPars
+        return nzb
+    fromStateXML = staticmethod(fromStateXML)
         
 class NZBFile:
     """ <nzb><file/><nzb> """

@@ -57,6 +57,8 @@ class PostProcessor(Thread):
 
         # Whether all par data for the NZB has not been downloaded. If this is True,
         # and par fails needing more data, we can trigger a download of extra par dat
+        # FIXME: should probably change this to looking at isNZBArchive() and
+        # self.archive.extraParSubjects
         self.hasMorePars = hasMorePars
         
         self.decompressionThreadPool = []
@@ -130,8 +132,8 @@ class PostProcessor(Thread):
             # Write the queue to disk unless we've been stopped by a killed Topen (via
             # CTRL-C)
             if not self.killed:
-                from Hellanzb.NZBQueue import writeQueueToDisk # FIXME:
-                writeQueueToDisk()
+                from Hellanzb.NZBQueue import writeStateXML # FIXME:
+                writeStateXML()
 
         if self.forcedRecovery:
             return
@@ -183,8 +185,8 @@ class PostProcessor(Thread):
             Hellanzb.postProcessors.append(self)
             Hellanzb.postProcessorLock.release()
 
-            from Hellanzb.NZBQueue import writeQueueToDisk # FIXME:
-            writeQueueToDisk()
+            from Hellanzb.NZBQueue import writeStateXML # FIXME:
+            writeStateXML()
         
         try:
             self.postProcess()

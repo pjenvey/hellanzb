@@ -13,8 +13,8 @@ from twisted.scripts.twistd import daemonize
 from Hellanzb.HellaXMLRPC import initXMLRPCServer, HellaXMLRPCServer
 from Hellanzb.Log import *
 from Hellanzb.Logging import prettyException
-from Hellanzb.NZBQueue import dequeueNZBs, loadQueueFromDisk, parseNZB, \
-    recoverFromOnDiskQueue, scanQueueDir, syncFromRecovery, writeQueueToDisk
+from Hellanzb.NZBQueue import dequeueNZBs, recoverStateFromDisk, parseNZB, \
+    scanQueueDir, writeStateXML
 from Hellanzb.Util import archiveName, ensureDirs, getMsgId, hellaRename, prettyElapsed, \
     prettySize, touch, validNZB, IDPool
 
@@ -33,10 +33,13 @@ def ensureDaemonDirs():
             
     ensureDirs(dirNames)
 
-    if not hasattr(Hellanzb, 'QUEUE_LIST') or Hellanzb.QUEUE_LIST == None:
-        raise FatalError('Hellanzb.QUEUE_LIST not defined in config file')
-    elif os.path.isfile(Hellanzb.QUEUE_LIST) and not os.access(Hellanzb.QUEUE_LIST, os.W_OK):
-        raise FatalError('hellanzb does not have write access to the Hellanzb.QUEUE_LIST file')
+    if hasattr(Hellanzb, 'QUEUE_LIST'):
+        if not hasattr(Hellanzb, 'STATE_XML_FILE'):
+            Hellanzb.STATE_XML_FILE = Hellanzb.QUEUE_LIST
+    if not hasattr(Hellanzb, 'STATE_XML_FILE'):
+        raise FatalError('Hellanzb.STATE_XML_FILE not defined in config file')
+    elif os.path.isfile(Hellanzb.STATE_XML_FILE) and not os.access(Hellanzb.STATE_XML_FILE, os.W_OK):
+        raise FatalError('hellanzb does not have write access to the Hellanzb.STATE_XML_FILE file')
 
 def ensureDownloadTempDir():
     """ This must be called just prior to starting the daemon, thus it's separated from
@@ -73,7 +76,7 @@ def initDaemon():
 
     reactor.callLater(0, info, 'hellanzb - Now monitoring queue...')
     reactor.callLater(0, growlNotify, 'Queue', 'hellanzb', 'Now monitoring queue..', False)
-    reactor.callLater(0, loadQueueFromDisk)
+    reactor.callLater(0, recoverStateFromDisk)
     reactor.callLater(0, resumePostProcessors)
     reactor.callLater(0, scanQueueDir, True)
 
@@ -98,6 +101,7 @@ def resumePostProcessors():
             rarPassword = ''.join(open(archiveDir + os.sep + '.hellanzb_rar_password').readlines())
         """
 
+        """
         recovered = recoverFromOnDiskQueue(resumeArchiveName, 'processing')
         hasMorePars = False
         if recovered:
@@ -115,13 +119,15 @@ def resumePostProcessors():
         else:
             archive = PostProcessorUtil.Archive(archiveDir, IDPool.getNextId())
             #id = IDPool.getNextId()
+            """
+        from Hellanzb.NZBLeecher.NZBModel import NZB
+        archive = NZB.fromStateXML('processing', archiveDir)
 
-        #archive = PostProcessorUtil.Archive(archiveDir, id)
         troll = PostProcessor.PostProcessor(archive)
         from Hellanzb.NZBLeecher.NZBModel import NZB
-        if isinstance(archive, NZB):
+        if isinstance(archive, NZB) and archive.extraParNamesList:
             troll.hasMorePars = hasMorePars
-        syncFromRecovery(troll, recovered)
+        #syncFromRecovery(troll, recovered)
 
         info('Resuming post processor: ' + archiveName(resumeArchiveName))
         troll.start()
@@ -129,7 +135,7 @@ def resumePostProcessors():
 def beginDownload():
     """ Initialize the download. Notify the downloaders to begin their work, etc """
     # BEGIN
-    writeQueueToDisk()
+    writeStateXML()
     now = time.time()
     Hellanzb.totalReadBytes = 0
     Hellanzb.totalStartTime = now
@@ -168,7 +174,7 @@ def endDownload():
 
     Hellanzb.downloadScannerID.cancel()
     Hellanzb.totalArchivesDownloaded += 1
-    writeQueueToDisk()
+    writeStateXML()
     # END
 
 def handleNZBDone(nzb):
@@ -211,7 +217,7 @@ def handleNZBDone(nzb):
     # Give NZBLeecher some time (another reactor loop) to killHistory() & scrollEnd()
     # without any logging interference from PostProcessor
     reactor.callLater(0, troll.start)
-    reactor.callLater(0, writeQueueToDisk)
+    reactor.callLater(0, writeStateXML)
     reactor.callLater(0, scanQueueDir)
 
 def postProcess(options, isQueueDaemon = False):
@@ -241,7 +247,7 @@ def postProcess(options, isQueueDaemon = False):
     reactor.callLater(0, info, 'Starting post processor')
     reactor.callLater(0, reactor.callInThread, troll.run)
     if isQueueDaemon:
-        reactor.callLater(0, writeQueueToDisk)
+        reactor.callLater(0, writeStateXML)
 
 def isActive():
     """ Whether or not we're actively downloading """
@@ -287,7 +293,7 @@ def cancelCurrent():
             
             client.deactivate()
             
-    writeQueueToDisk()
+    writeStateXML()
     reactor.callLater(0, scanQueueDir)
         
     return canceled
@@ -410,7 +416,7 @@ def setRarPassword(nzbId, rarPassword):
 
     if found:
         found.rarPassword = rarPassword
-        writeQueueToDisk()
+        writeStateXML()
         return True
     
     return False
@@ -456,7 +462,7 @@ def forceNZB(nzbfilename, notification = 'Forcing download'):
             move(nzb.nzbFileName, Hellanzb.QUEUE_DIR + os.sep + os.path.basename(nzb.nzbFileName))
             nzb.nzbFileName = Hellanzb.QUEUE_DIR + os.sep + os.path.basename(nzb.nzbFileName)
             Hellanzb.queued_nzbs.insert(0, nzb)
-            writeQueueToDisk()
+            writeStateXML()
 
             # remove what we've forced with from the old queue, if it exists
             nzb = None

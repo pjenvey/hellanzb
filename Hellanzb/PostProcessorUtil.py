@@ -850,10 +850,12 @@ def parseParNeedsBlocksOutput(archive, output):
         line = line.rstrip()
             
         index = line.find('Target:')
-        # FIXME:
-        if index > -1:
+        isTargetLine = index > -1
+        
+        if isTargetLine:
             targetsFound += 1
-        if index > -1 and line.endswith('missing.') or damagedRE.search(line):
+            
+        if isTargetLine and line.endswith('missing.') or damagedRE.search(line):
             # Strip any preceeding curses junk
             line = line[index:]
 

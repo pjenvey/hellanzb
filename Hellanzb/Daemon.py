@@ -172,10 +172,14 @@ def handleNZBDone(nzb):
     os.mkdir(Hellanzb.WORKING_DIR)
 
     # Determine if this archive has more pars available for download before PostProcessing
+    oldParSubjects = []
+    if nzb.extraParSubjects:
+        oldParSubjects = nzb.extraParSubjects[:]
+        
     hasMorePars = False
     extraParSubjects = []
     for nzbFile in nzb.nzbFileElements:
-        if nzbFile.isSkippedPar:
+        if nzbFile.isSkippedPar and nzbFile.subject not in oldParSubjects:
             hasMorePars = True
             extraParSubjects.append(nzbFile.subject)
     if extraParSubjects:

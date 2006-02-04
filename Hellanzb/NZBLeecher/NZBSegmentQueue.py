@@ -306,7 +306,7 @@ class NZBSegmentQueue(PriorityQueue):
         self.dequeueItems([(nzbSegment.priority, nzbSegment) for nzbSegment in nzbSegments])
         
         for nzbSegment in nzbSegments:
-            self.segmentDone(nzbSegment)
+            self.segmentDone(nzbSegment, dequeued = True)
 
     def currentNZBs(self):
         """ Return a copy of the list of nzbs currently being downloaded """
@@ -406,7 +406,7 @@ class NZBSegmentQueue(PriorityQueue):
                 if nsf.serverPoolName not in requeuedSegment.failedServerPools:
                     nsf.fetchNextNZBSegment()
 
-    def fileDone(self, nzbFile):
+    def fileDone(self, nzbFile, dequeued = False):
         """ Notify the queue a file is done. This is called after assembling a file into it's
         final contents. Segments are really stored independantly of individual Files in
         the queue, hence this function """
@@ -415,11 +415,12 @@ class NZBSegmentQueue(PriorityQueue):
             self.nzbFiles.remove(nzbFile)
         self.nzbFilesLock.release()
 
-        for nzbSegment in nzbFile.nzbSegments:
-            if self.onDiskSegments.has_key(nzbSegment.getDestination()):
-                self.onDiskSegments.pop(nzbSegment.getDestination())
+        if not dequeued:
+            for nzbSegment in nzbFile.nzbSegments:
+                if self.onDiskSegments.has_key(nzbSegment.getDestination()):
+                    self.onDiskSegments.pop(nzbSegment.getDestination())
 
-    def segmentDone(self, nzbSegment):
+    def segmentDone(self, nzbSegment, dequeued = False):
         """ Simply decrement the queued byte count and register this nzbSegment as finished
         downloading, unless the segment is part of a postponed download """
         self.nzbsLock.acquire()
@@ -428,8 +429,12 @@ class NZBSegmentQueue(PriorityQueue):
             if nzbSegment.nzbFile.nzb in self.nzbs:
                 self.totalQueuedBytes -= nzbSegment.bytes
         self.nzbsLock.release()
+        
+        if not len(nzbSegment.nzbFile.todoNzbSegments):
+            self.fileDone(nzbSegment.nzbFile)
 
-        self.onDiskSegments[nzbSegment.getDestination()] = nzbSegment
+        if not dequeued:
+            self.onDiskSegments[nzbSegment.getDestination()] = nzbSegment
 
     def isBeingDownloadedFile(self, segmentFilename):
         """ Whether or not the file on disk is currently in the middle of being

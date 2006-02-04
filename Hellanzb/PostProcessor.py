@@ -145,7 +145,7 @@ class PostProcessor(Thread):
         # FIXME: craptacular place to GC. Really need to push this out until after the
         # next download if possible (not really possible if post processor/downloader are
         # always busy though) Nudge GC
-        if self.isNZBArchive():
+        if not self.isSubDir and self.isNZBArchive():
             for nzbFile in self.archive.nzbFileElements:
                 del nzbFile.todoNzbSegments
                 del nzbFile.nzb
@@ -159,6 +159,7 @@ class PostProcessor(Thread):
             reactor.callFromThread(reactor.stop)
 
     def moveDestDir(self):
+        """ Move the archive dir out of PROCESSING_DIR """
         if self.movedDestDir or Hellanzb.SHUTDOWN:
             return
         

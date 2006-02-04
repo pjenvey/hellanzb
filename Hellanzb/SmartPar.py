@@ -73,7 +73,12 @@ def dequeueIfExtraPar(segment, tryFinishWhenSkipped = False):
         if segment.nzbFile.isExtraParFile:
             # Extra par2 -- remove it from the queue
             info('Skipping %s: %s (%iMB)' % (parTypeName, segment.nzbFile.filename, size))
-            Hellanzb.queue.dequeueSegments(segment.nzbFile.nzbSegments)
+
+            # Segment is actually done (lies on disk)
+            Hellanzb.queue.segmentDone(segment)
+
+            # The rest are actually dequeued
+            Hellanzb.queue.dequeueSegments(segment.nzbFile.todoNzbSegments.copy())
             segment.nzbFile.isSkippedPar = True
 
             if tryFinishWhenSkipped:

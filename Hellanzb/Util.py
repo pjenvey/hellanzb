@@ -20,6 +20,9 @@ from StringIO import StringIO
 
 __id__ = '$Id$'
 
+# Size of buffer for file i/o
+BUF_SIZE = 16 * 1024
+
 class FatalError(Exception):
     """ An error that will cause the program to exit """
     def __init__(self, message):

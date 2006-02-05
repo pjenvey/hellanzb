@@ -881,12 +881,12 @@ def parseParNeedsBlocksOutput(archive, output):
             if line.endswith('missing.'):
                 file = line[:-len('" - missing.')]
                 errMsgs = {error: 'Archive missing required file',
-                           warning: 'Archive missing non-required file'}
+                           warn: 'Archive missing non-required file'}
                 missingFiles.append(file)
             else:
                 file = RAR_DAMAGED_RE.sub('', line)
                 errMsgs = {error: 'Archive has damaged, required file',
-                           warning: 'Archive has damaged, non-required file'}
+                           warn: 'Archive has damaged, non-required file'}
 
             spammed = checkRequired(file, errMsgs, spammed)
 
@@ -983,7 +983,7 @@ def findSplitFiles(dirName):
             toAssemble.pop(key)
             
     return toAssemble
-    
+
 def assembleSplitFiles(dirName, toAssemble):
     """ Assemble files previously found to be split in the common split formats. This could be
     a lengthy process, so this function will abort the attempt when a shutdown occurs """
@@ -1002,12 +1002,16 @@ def assembleSplitFiles(dirName, toAssemble):
         debug(msg + ' ' + str(parts))
         
         assembledFile = open(dirName + os.sep + key, 'w')
-
+        write = assembledFile.write
+        
         for file in parts:
             partFile = open(dirName + os.sep + file)
-            for line in partFile:
-                assembledFile.write(line)
-            partFile.close()
+            read = partFile.read
+            while True:
+                buf = read(BUF_SIZE)
+                if not buf:
+                    break
+                write(buf)
             
             try:
                 checkShutdown()

@@ -13,7 +13,8 @@ from zlib import crc32
 from Hellanzb.Daemon import handleNZBDone, pauseCurrent
 from Hellanzb.Log import *
 from Hellanzb.Logging import prettyException
-from Hellanzb.Util import checkShutdown, isHellaTemp, nuke, touch, OutOfDiskSpace
+from Hellanzb.Util import BUF_SIZE, checkShutdown, isHellaTemp, nuke, touch, \
+    OutOfDiskSpace
 from Hellanzb.NZBLeecher.DupeHandler import handleDupeNZBFile, handleDupeNZBSegment
 if Hellanzb.HAVE_C_YENC: import _yenc
 
@@ -607,6 +608,7 @@ def assembleNZBFile(nzbFile, autoFinish = True):
         return
 
     file = open(nzbFile.getDestination(), 'wb')
+    write = file.write
 
     # Sort the segments incase they were out of order in the NZB file
     toAssembleSegments = nzbFile.nzbSegments[:]
@@ -614,12 +616,13 @@ def assembleNZBFile(nzbFile, autoFinish = True):
     
     for nzbSegment in toAssembleSegments:
         decodedSegmentFile = open(nzbSegment.getDestination(), 'rb')
+        read = decodedSegmentFile.read
         try:
-            for line in decodedSegmentFile:
-                if line == '':
+            while True:
+                buf = read(BUF_SIZE)
+                if not buf:
                     break
-
-                file.write(line)
+                write(buf)
 
         except IOError, ioe:
             file.close()

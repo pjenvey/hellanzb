@@ -812,7 +812,6 @@ def par2(postProcessor, parFiles, wildcard, needAssembly = None):
         # par did not find any valid 'Target:' files, and more blocks are needed. This is
         # probably a bad archive
         if targetsFound == 0 and neededBlocks > 0:
-            # FIXME: download more pars and try again
             raise FatalError('Unable to par repair: archive requires ' + neededBlocks + \
                              ' more recovery ' + needType + \
                              ' for repair. No valid files found (bad archive?)')
@@ -821,10 +820,8 @@ def par2(postProcessor, parFiles, wildcard, needAssembly = None):
         if len(damagedAndRequired) > 0:
             growlNotify('Error', 'hellanzb Cannot par repair:', archiveName(dirName) + \
                         '\nNeed ' + neededBlocks + ' more recovery ' + needType, True)
-            # FIXME: download more pars and try again
             raise FatalError('Unable to par repair: archive requires ' + neededBlocks + \
                              ' more recovery ' + needType + ' for repair')
-            # otherwise processComplete here (failed)
 
     else:
         # Abnormal behavior -- let the user deal with it
@@ -832,6 +829,8 @@ def par2(postProcessor, parFiles, wildcard, needAssembly = None):
                          '. Please run par2 manually for more information, par2 cmd: ' + \
                          repairCmd)
 
+RAR_NOT_FOUND_RE = re.compile(r'.*File:\ "(.*)"\ -\ no\ data\ found\..*')
+RAR_DAMAGED_RE = re.compile(r'"\ -\ damaged\.\ Found\ \d+\ of\ \d+\ data\ blocks\.')
 def parseParNeedsBlocksOutput(archive, output):
     """ Return a list of broken or damaged required files from par2 v output, and the
     required blocks needed. Will also log warn the user when it finds either of these
@@ -839,23 +838,40 @@ def parseParNeedsBlocksOutput(archive, output):
     damagedAndRequired = []
     missingFiles = []
     neededBlocks = None
-    damagedRE = re.compile(r'"\ -\ damaged\.\ Found\ \d+\ of\ \d+\ data\ blocks\.')
     parType = UNKNOWN
 
     targetsFound = 0
     maxSpam = 4 # only spam this many lines (before truncating)
     spammed = 0
     extraSpam = []
+    def checkRequired(file, errMsgs, spammed):
+        if isRequiredFile(file):
+            damagedAndRequired.append(file)
+            logger = error
+            msg = errMsgs[error]
+        else:
+            logger = warn
+            msg = errMsgs[warn]
+            
+        if spammed <= maxSpam:
+            # FIXME: Could queue up these messages for later processing (return them in
+            # this function)
+            logger('%s: %s: %s' % (archive, msg, file))
+            spammed += 1
+        else:
+            extraSpam.append(msg)
+        return spammed
+
     for line in output:
         line = line.rstrip()
-            
+
         index = line.find('Target:')
         isTargetLine = index > -1
         
         if isTargetLine:
             targetsFound += 1
             
-        if isTargetLine and line.endswith('missing.') or damagedRE.search(line):
+        if isTargetLine and line.endswith('missing.') or RAR_DAMAGED_RE.search(line):
             # Strip any preceeding curses junk
             line = line[index:]
 
@@ -864,30 +880,15 @@ def parseParNeedsBlocksOutput(archive, output):
 
             if line.endswith('missing.'):
                 file = line[:-len('" - missing.')]
-                # FIXME: Could queue up these messages for later processing (return them
-                # in this function)
-                errMsg = archive + ': Archive missing required file: ' + file
-                warnMsg = archive + ': Archive missing non-required file: ' + file
+                errMsgs = {error: 'Archive missing required file',
+                           warning: 'Archive missing non-required file'}
                 missingFiles.append(file)
             else:
-                file = damagedRE.sub('', line)
-                errMsg = archive + ': Archive has damaged, required file: ' + file
-                warnMsg = archive + ': Archive has damaged, non-required file: ' + file
+                file = RAR_DAMAGED_RE.sub('', line)
+                errMsgs = {error: 'Archive has damaged, required file',
+                           warning: 'Archive has damaged, non-required file'}
 
-            if isRequiredFile(file):
-                if spammed <= maxSpam:
-                    error(errMsg)
-                    spammed += 1
-                else:
-                    extraSpam.append(errMsg)
-                    
-                damagedAndRequired.append(file)
-            else:
-                if spammed <= maxSpam:
-                    warn(warnMsg)
-                    spammed += 1
-                else:
-                    extraSpam.append(errMsg)
+            spammed = checkRequired(file, errMsgs, spammed)
 
         elif line[0:len('You need ')] == 'You need ' and \
             line.endswith(' to be able to repair.'):
@@ -901,13 +902,19 @@ def parseParNeedsBlocksOutput(archive, output):
                 # Par 2
                 parType = PAR2
                 neededBlocks = line[:-len(' more recovery blocks to be able to repair.')]
+                
+        elif RAR_NOT_FOUND_RE.match(line):
+            file = RAR_NOT_FOUND_RE.sub(r'\1', line)
+            errMsgs =  {error: 'Archive has damaged, required file',
+                        warn: 'Archive has damaged, non-required file'}
+            spammed = checkRequired(file, errMsgs, spammed)
 
     if spammed > maxSpam and len(extraSpam):
         error(' <hellanzb truncated the missing/damaged listing, see the log for full output>')
         
-        # Hi I'm lame. Why do I even bother enforcing warn() usage anyway
+        # Enforce usage of warn() on non-required messages. sigh
         lastMsg = extraSpam[-1]
-        if lastMsg.find('non-required') > 1:
+        if lastMsg.find('non-required') > -1:
             warn(lastMsg)
         else:
             error(lastMsg)

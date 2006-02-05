@@ -439,10 +439,12 @@ class NZBLeecher(NNTPClient, TimeoutMixin):
                 debug(str(self) + ' requeueing segment: ' + self.currentSegment.getDestination())
                 Hellanzb.queue.requeue(self.factory.serverPoolName, self.currentSegment)
 
+                self.resetCurrentSegment(removeEncFile = True)
             else:
                 debug(str(self) + ' DID NOT requeue existing segment: ' + self.currentSegment.getDestination())
-            
-            self.resetCurrentSegment(removeEncFile = True)
+                # Don't resetCurrentSegment -- the encodedData file would have already
+                # been closed by ensureSafePostponedLoad
+                self.currentSegment = None
         
         # Continue being quiet about things if we're shutting down
         if not Hellanzb.SHUTDOWN:

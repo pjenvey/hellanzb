@@ -38,7 +38,6 @@ class PostProcessor(Thread):
         """ Ensure sanity of this instance before starting """
         # The archive to post process
         self.archive = archive
-        self.archive.postProcessor = self
     
         # DirName is a hack printing out the correct directory name when running nested
         # post processors on sub directories
@@ -52,6 +51,7 @@ class PostProcessor(Thread):
         else:
             self.isSubDir = False
             self.dirName = DirName(archive.archiveDir)
+            self.archive.postProcessor = self
 
         self.nzbFileName = None
         if self.isNZBArchive():
@@ -150,6 +150,8 @@ class PostProcessor(Thread):
                 del nzbFile.todoNzbSegments
                 del nzbFile.nzb
             del self.archive.nzbFileElements
+            del self.archive.postProcessor
+            del self.achive
             gc.collect()
             
         if not self.background and not self.isSubDir:
@@ -226,6 +228,7 @@ class PostProcessor(Thread):
             else:
                 error(archiveName(self.dirName) + ': A problem occurred: ' + pe)
 
+            writeStatXML(LogOutputStream(debug))
             return
         
         except Exception, e:
@@ -237,7 +240,7 @@ class PostProcessor(Thread):
                 raise
             
             error(archiveName(self.dirName) + ': An unexpected problem occurred', e)
-
+            writeStatXML(LogOutputStream(debug))
             return
 
         # REACTOR STOPPED IF NOT BACKGROUND/SUBIDR

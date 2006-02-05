@@ -35,7 +35,7 @@ def dequeueIfExtraPar(segment, tryFinishWhenSkipped = False):
         raise FatalError('dequeueIfExtraPar on number > 1')
 
     if segment.nzbFile.filename is None or isHellaTemp(segment.nzbFile.filename):
-        segment.loadArticleDataFromDisk(removeFromDisk = False)
+        segment.loadArticleDataFromDisk()
         stripArticleData(segment.articleData)
 
         # A stripped down version of the Article.parseArticleData loop: find the real

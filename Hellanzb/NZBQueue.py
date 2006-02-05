@@ -251,17 +251,19 @@ def recoverStateFromDisk():
                 not NewzbinDownloader.cookies.get('PHPSESSID'):
             NewzbinDownloader.cookies['PHPSESSID'] = Hellanzb.recoveredState.newzbinSessId
 
-def writeStateXML():
+def writeStateXML(outFile = None):
     """ Write portions of hellanzb's state to an XML file on disk. This includes queued NZBs
     and their order in the queue, and smart par recovery information"""
-    queueListFile = open(Hellanzb.STATE_XML_FILE, 'w')
+    if outFile is None:
+        outFile = open(Hellanzb.STATE_XML_FILE, 'w')
 
-    writer = XMLWriter(queueListFile, 'utf-8', indent = 8)
+    writer = XMLWriter(outFile, 'utf-8', indent = 8)
     writer.declaration()
     
     hAttribs = {'version': Hellanzb.version}
-    if NewzbinDownloader.cookies.get('PHPSESSID') != None:
+    if NewzbinDownloader.cookies.get('PHPSESSID') is not None:
         hAttribs['newzbinSessId'] = NewzbinDownloader.cookies['PHPSESSID']
+        
     h = writer.start('hellanzbState', hAttribs)
     
     for container in (Hellanzb.queue.currentNZBs(), Hellanzb.postProcessors,
@@ -272,9 +274,9 @@ def writeStateXML():
     writer.close(h)
     #writer.comment('Generated @ %s' % time.strftime("%a, %d %b %Y %H:%M:%S %Z",
     #                                                time.localtime()))
-    queueListFile.close()
+    outFile.close()
 
-    # We should be done with the RecoveredState data -- clean it out
+    # Delete the recoveredState data -- done with it
     Hellanzb.recoveredState = RecoveredState() 
         
 def parseNZB(nzb, notification = 'Downloading', quiet = False):
@@ -306,7 +308,7 @@ def ensureSafePostponedLoad(nzbFileName):
     NZBLeechers currently working on them finish. We need to be careful of forced NZBs
     that are so small, that they finish downloading before these 'slower' NZBLeechers are
     even done with the previous, forced out NZB. The parseNZB function could end up
-    colliding with the leechers, while pareseNZB looks for segments on disk/to be skipped
+    colliding with the leechers, while parseNZB looks for segments on disk/to be skipped
     """
     # Look for any NZBLeechers downloading files for the specified unpostponed NZB. They
     # are most likely left over from a force call, using a very small NZB.
@@ -321,7 +323,7 @@ def ensureSafePostponedLoad(nzbFileName):
                 # just pull the trigger on those slow NZBLeechers connections --
                 # disconnect them and ensure the segments they were trying to download
                 # aren't requeued
-                debug('Aborting/Disconnecting %s to ensure safe postponed NZB load' % str(nzbl))
+                debug('%s Aborting/Disconnecting to ensure safe postponed NZB load' % str(nzbl))
                 shouldCancel = True
                 nzbl.currentSegment.dontRequeue = True
                 cancelledClients.append(nzbl)
@@ -331,6 +333,17 @@ def ensureSafePostponedLoad(nzbFileName):
                 # cancelCurrent() does
                 nzbl.transport.loseConnection()
                 nzbl.isLoggedIn = False
+                
+                if nzbl.currentSegment is not None and \
+                        nzbl.currentSegment.encodedData is not None:
+                    try:
+                        name = nzbl.currentSegment.getTempFileName() + '_ENC'
+                        debug('%s Closing encodedData file: %s' % (str(nzbl), name))
+                        nzbl.currentSegment.encodedData.close()
+                        debug('%s Closed encodedData file' % str(nzbl))
+                    except Exception, e:
+                        debug('%s Error while closing encodedData file' % str(nzbl), e)
+                        pass
 
     if shouldCancel:
         # Also reset the state of the queue if we had to do any cleanup

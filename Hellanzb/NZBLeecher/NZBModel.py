@@ -183,7 +183,6 @@ class NZB(Archive):
         self.canceledLock.release()
 
     def getName(self):
-        #return os.path.basename(self.nzbFileName)
         return os.path.basename(self.archiveName)
 
     def getStateAttribs(self):
@@ -497,18 +496,17 @@ class NZBSegment:
             raise FatalError('Could not getFilenameFromArticleData, file:' + str(self.nzbFile) +
                              ' segment: ' + str(self))
 
-    def loadArticleDataFromDisk(self, removeFromDisk = True):
+    def loadArticleDataFromDisk(self):
         """ Load the previously downloaded article BODY from disk, as a list to the .articleData
-        variable """
+        variable. Removes the on disk version upon loading """
         # downloaded encodedData was written to disk by NZBLeecher
         encodedData = open(Hellanzb.DOWNLOAD_TEMP_DIR + os.sep + self.getTempFileName() + '_ENC')
         # remove crlfs. FIXME: might be quicker to do this during a later loop
         self.articleData = [line[:-2] for line in encodedData.readlines()]
         encodedData.close()
 
-        if removeFromDisk:
-            # Delete the copy on disk ASAP
-            nuke(Hellanzb.DOWNLOAD_TEMP_DIR + os.sep + self.getTempFileName() + '_ENC')
+        # Delete the copy on disk ASAP
+        nuke(Hellanzb.DOWNLOAD_TEMP_DIR + os.sep + self.getTempFileName() + '_ENC')
 
     #def __repr__(self):
     #    return 'segment: ' + os.path.basename(self.getDestination()) + ' number: ' + \

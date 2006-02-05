@@ -1,3 +1,13 @@
+v0.9:
+
+NZBLeecher:
+
+o New feature: smartpar. hellanzb will now skip downloading extra par2/par1
+files. If the post processor finds the archive requires more par data for
+repair, hellanzb will automatically immediately force downloading of enough
+extra pars for repair
+
+
 v0.8:
 
 Daemon:

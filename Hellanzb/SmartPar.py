@@ -103,8 +103,8 @@ def identifyPar(nzbFile):
             if not PAR2_VOL_RE.match(nzbFile.filename):
                 return
         elif isPar1(nzbFile.filename):
-            nzbFile.parType = PAR2
-            if not nzbFile.filename.lower().endswith('.p00'):
+            nzbFile.parType = PAR1
+            if nzbFile.filename.lower().endswith('.par'):
                 return
 
         # Does not match, mark the nzbFile as an extra par file

@@ -46,6 +46,12 @@ class HellanzbStateXMLParser(ContentHandler):
         # <queued id="3" order="1">Archive 1</queued>
         elif name in ('downloading', 'processing', 'queued'):
             currentAttrs = dict(attrs.items())
+
+            # We'll lose the queued order while it's in the recoveredState dict. Tally the
+            # order in its attributes and sort by it later
+            if name == 'queued':
+                currentAttrs['order'] = len(Hellanzb.recoveredState.queued)
+                
             archiveName = currentAttrs['name']
             currentAttrs['id'] = int(currentAttrs['id'])
             IDPool.skipIds.append(currentAttrs['id'])
@@ -135,10 +141,14 @@ def scanQueueDir(firstRun = False, justScan = False):
     for nzb in queuedMap.itervalues():
         Hellanzb.queued_nzbs.remove(nzb)
 
+    if firstRun:
+        # enqueueNZBs() will delete the recovered state. Save it beforehand for sorting
+        queuedRecoveredState = Hellanzb.recoveredState.queued.copy()
+
     enqueueNZBs(new_nzbs, writeQueue = not firstRun)
             
     if firstRun:
-        sortQueueFromRecoveredState()
+        sortQueueFromRecoveredState(queuedRecoveredState)
 
     e = time.time() - t
     if justScan:
@@ -194,10 +204,10 @@ def scanQueueDir(firstRun = False, justScan = False):
     else:
         parseNZB(nzb, quiet = True)
 
-def sortQueueFromRecoveredState():
+def sortQueueFromRecoveredState(queuedRecoveredState):
     """ Sort the queue from the order recovered from the on disk STATE_XML_FILE """
     onDiskQueue = [(archiveEntry['order'], archiveName) for archiveName, archiveEntry in \
-                   Hellanzb.recoveredState.queued.iteritems()]
+                   queuedRecoveredState.iteritems()]
     onDiskQueue.sort()
     
     unsorted = Hellanzb.queued_nzbs[:]
@@ -205,7 +215,7 @@ def sortQueueFromRecoveredState():
     arranged = []
     for order, archiveName in onDiskQueue:
         for nzb in unsorted:
-            if os.path.basename(nzb.nzbFileName) == archiveName:
+            if nzb.archiveName == archiveName:
                 Hellanzb.queued_nzbs.append(nzb)
                 arranged.append(nzb)
                 break
@@ -253,17 +263,11 @@ def writeStateXML():
     if NewzbinDownloader.cookies.get('PHPSESSID') != None:
         hAttribs['newzbinSessId'] = NewzbinDownloader.cookies['PHPSESSID']
     h = writer.start('hellanzbState', hAttribs)
-
-    for currentNZB in Hellanzb.queue.currentNZBs():
-        currentNZB.toStateXML(writer)
-        
-    for processor in Hellanzb.postProcessors:
-        processor.toStateXML(writer)
-        
-    i = 0
-    for queued in Hellanzb.queued_nzbs:
-        i += 1
-        queued.toStateXML(writer, i)
+    
+    for container in (Hellanzb.queue.currentNZBs(), Hellanzb.postProcessors,
+                      Hellanzb.queued_nzbs):
+        for item in container:
+            item.toStateXML(writer)
 
     writer.close(h)
     #writer.comment('Generated @ %s' % time.strftime("%a, %d %b %Y %H:%M:%S %Z",

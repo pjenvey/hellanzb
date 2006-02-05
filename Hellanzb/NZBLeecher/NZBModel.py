@@ -199,7 +199,7 @@ class NZB(Archive):
 
         return attribs
 
-    def toStateXML(self, xmlWriter, order = None):
+    def toStateXML(self, xmlWriter):
         """ Write a brief version of this object to an elementtree.SimpleXMLWriter.XMLWriter """
         attribs = self.getStateAttribs()
         if self in Hellanzb.queue.currentNZBs():
@@ -210,9 +210,6 @@ class NZB(Archive):
             attribs['nzbFileName'] = os.path.basename(self.nzbFileName)
         elif self in Hellanzb.queued_nzbs:
             type = 'queued'
-            # FIXME: do we even need order?
-            if order is not None:
-                attribs['order'] = unicode(order)
         else:
             return
         
@@ -259,7 +256,7 @@ class NZB(Archive):
         
         if recoveredDict:
             for key, value in recoveredDict.iteritems():
-                if key == 'id':
+                if key == 'id' or key == 'order':
                     continue
                 if key == 'neededBlocks':
                     value = int(value)

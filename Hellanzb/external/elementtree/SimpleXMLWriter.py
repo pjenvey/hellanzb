@@ -147,7 +147,7 @@ def escape_attrib(s, encoding=None, replace=string.replace):
 #    a <b>write</b> method that takes an 8-bit string.
 # @param encoding Optional encoding.
 # @param indent Optionally include this many characters for indenting
-# the XML. Specify -1 for no indents
+#    the XML. Specify -1 for no indents
 
 class XMLWriter:
 

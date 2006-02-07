@@ -148,6 +148,7 @@ class PostProcessor(Thread):
         if not self.isSubDir and self.isNZBArchive():
             for nzbFile in self.archive.nzbFileElements:
                 del nzbFile.todoNzbSegments
+                #del nzbFile.skippedParFiles
                 del nzbFile.nzb
             del self.archive.nzbFileElements
             del self.archive.postProcessor
@@ -330,7 +331,7 @@ class PostProcessor(Thread):
         # Move other cruft out of the way
         deleteDuplicates(self.dirName)
         
-        if self.nzbFile != None:
+        if self.nzbFile is not None:
             if os.path.isfile(self.dirName + os.sep + self.nzbFile) and \
                     os.access(self.dirName + os.sep + self.nzbFile, os.R_OK):
                 move(self.dirName + os.sep + self.nzbFile,
@@ -345,7 +346,8 @@ class PostProcessor(Thread):
 
         for file in os.listdir(self.dirName):
             ext = getFileExtension(file)
-            if ext != None and len(ext) > 0 and ext.lower() not in Hellanzb.KEEP_FILE_TYPES and \
+            if ext is not None and len(ext) > 0 and \
+                    ext.lower() not in Hellanzb.KEEP_FILE_TYPES and \
                    ext.lower() in Hellanzb.NOT_REQUIRED_FILE_TYPES:
                 move(self.dirName + os.sep + file,
                      self.dirName + os.sep + Hellanzb.PROCESSED_SUBDIR + os.sep + file)

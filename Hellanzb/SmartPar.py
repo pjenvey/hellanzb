@@ -62,7 +62,7 @@ def dequeueIfExtraPar(segment, inMainThread = False):
                                 settingSegmentNumber = segment.number)
                 break
 
-    if segment.nzbFile.filename == None:
+    if segment.nzbFile.filename is None:
         # We can't do anything 'smart' without the filename
         return dequeuedCount
 
@@ -85,6 +85,7 @@ def dequeueIfExtraPar(segment, inMainThread = False):
                 reactor.callFromThread(Hellanzb.queue.dequeueSegments, dequeueSegments)
                 
             segment.nzbFile.isSkippedPar = True
+            #segment.nzbFile.nzb.skippedParFiles.append(segment.nzbFile)
             info('Skipped %s: %s (%iMB)' % (parTypeName, segment.nzbFile.filename, size))
         else:
             info('Queued %s: %s (%iMB, %i %s)' % (parTypeName, segment.nzbFile.filename, size,

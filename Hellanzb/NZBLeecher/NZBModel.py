@@ -48,7 +48,7 @@ def segmentsNeedDownload(segmentList, overwriteZeroByteSegments = False):
             continue
         
         ext = getFileExtension(file)
-        if ext != None and segmentEndRe.match(ext):
+        if ext is not None and segmentEndRe.match(ext):
             segmentNumber = int(ext[-4:])
             
             if onDiskSegmentsByNumber.has_key(segmentNumber):
@@ -136,6 +136,7 @@ class NZB(Archive):
         self.nzbFileName = nzbFileName
         self.archiveName = archiveName(self.nzbFileName) # pretty name
         self.nzbFileElements = []
+        #self.skippedParFiles = []
 
         # Where the nzb files will be downloaded
         self.destDir = Hellanzb.WORKING_DIR
@@ -182,6 +183,16 @@ class NZB(Archive):
         self.canceled = True
         self.canceledLock.release()
 
+    def cleanStats(self):
+        """ Reset downlaod statistics """
+        self.totalSkippedBytes = 0
+        for nzbFile in self.nzbFileElements:
+            nzbFile.totalSkippedBytes = 0
+            nzbFile.totalReadBytes = 0
+            nzbFile.downloadPercentage = 0
+            nzbFile.speed = 0
+            nzbFile.downloadStartTime = None
+
     def getName(self):
         return os.path.basename(self.archiveName)
 
@@ -214,14 +225,15 @@ class NZB(Archive):
         
         xmlWriter.start(type, attribs)
         if type != 'downloading' or self.isParRecovery:
-            # Write 'extraPar' tags describing the known extra par files
+            # Write 'skippedPar' tags describing the known extra par files that haven't
+            # been downloaded
             if self.extraParSubjects is not None:
                 for nzbFileName in self.extraParSubjects:
-                    xmlWriter.element('extraPar', nzbFileName)
+                    xmlWriter.element('skippedPar', nzbFileName)
             else:
                 for nzbFile in self.nzbFileElements:
                     if nzbFile.isExtraParFile:
-                        xmlWriter.element('extraPar', nzbFile.subject)
+                        xmlWriter.element('skippedPar', nzbFile.subject)
         xmlWriter.end(type)
 
     def fromStateXML(type, target):
@@ -395,7 +407,7 @@ class NZBFile:
             # This block only handles matching temporary file names
             return False
 
-        elif self.filename == None:
+        elif self.filename is None:
             # First, check if this is one of the dupe files on disk
             isDupe, dupeNeedsDl = handleDupeNZBFileNeedsDownload(self, workingDirDupeMap)
             if isDupe:
@@ -431,7 +443,7 @@ class NZBFile:
 
     #def __repr__(self):
     #    msg = 'nzbFile: ' + os.path.basename(self.getDestination())
-    #    if self.filename != None:
+    #    if self.filename is not None:
     #        msg += ' tempFileName: ' + self.getTempFileName()
     #    msg += ' number: ' + str(self.number) + ' subject: ' + \
     #           self.subject
@@ -492,7 +504,7 @@ class NZBSegment:
         """ Determine the segment's filename via the articleData """
         parseArticleData(self, justExtractFilename = True)
         
-        if self.nzbFile.filename == None and self.nzbFile.tempFilename == None:
+        if self.nzbFile.filename is None and self.nzbFile.tempFilename is None:
             raise FatalError('Could not getFilenameFromArticleData, file:' + str(self.nzbFile) +
                              ' segment: ' + str(self))
 

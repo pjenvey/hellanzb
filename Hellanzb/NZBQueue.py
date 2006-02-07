@@ -62,18 +62,18 @@ class HellanzbStateXMLParser(ContentHandler):
 
             self.currentAttrs = currentAttrs
                 
-        elif name == 'extraPar':
+        elif name == 'skippedPar':
             if self.currentAttrs.has_key('extraParSubjects'):
                 self.extraParSubjects = self.currentAttrs['extraParSubjects']
             else:
                 self.extraParSubjects = self.currentAttrs['extraParSubjects'] = []
 
     def characters(self, content):
-        if self.currentTag == 'extraPar':
+        if self.currentTag == 'skippedPar':
             self.extraParContent += content
 
     def endElement(self, name):
-        if self.currentTag == 'extraPar':
+        if self.currentTag == 'skippedPar':
             self.extraParSubjects.append(self.extraParContent)
             self.extraParContent = ''
         else:
@@ -468,8 +468,12 @@ def dequeueNZBs(nzbIdOrIds, quiet = False):
             if nzb.id == nzbId:
                 found.append(nzb)
     for nzb in found:
-        if not quiet:
-            info('Dequeueing: ' + nzb.archiveName)
+        msg = 'Dequeueing: %s' % (nzb.archiveName)
+        if os.path.isdir(Hellanzb.POSTPONED_DIR + os.sep + nzb.archiveName):
+            msg = '%s%s' % (msg, ' (archive has a postponed dir)')
+            warn(msg)
+        elif not quiet:
+            info(msg)
         move(nzb.nzbFileName, Hellanzb.TEMP_DIR + os.sep + os.path.basename(nzb.nzbFileName))
         Hellanzb.queued_nzbs.remove(nzb)
         
@@ -478,7 +482,8 @@ def dequeueNZBs(nzbIdOrIds, quiet = False):
 
 def enqueueNZBStr(nzbFilename, nzbStr):
     """ Write the specified NZB file (in string format) to disk and enqueue it """
-    tempLocation = Hellanzb.TEMP_DIR + os.sep + nzbFilename
+    # FIXME: could use a tempfile.TempFile here (NewzbinDownloader could use it also)
+    tempLocation = Hellanzb.TEMP_DIR + os.sep + os.path.basename(nzbFilename)
     if os.path.exists(tempLocation):
         if not os.access(tempLocation, os.W_OK):
             error('Unable to write NZB to temp location: ' + tempLocation)

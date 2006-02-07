@@ -55,7 +55,7 @@ def decode(segment):
         dequeuedCount = dequeueIfExtraPar(segment)
     
     try:
-        if segment.articleData == None:
+        if segment.articleData is None:
             segment.loadArticleDataFromDisk()
 
         decodeArticleData(segment)
@@ -154,7 +154,7 @@ def yInt(object, message = None):
     try:
         return int(object)
     except ValueError:
-        if message != None:
+        if message is not None:
             error(message)
         return None
 
@@ -162,7 +162,7 @@ def parseArticleData(segment, justExtractFilename = False):
     """ Clean the specified segment's articleData, and get the article's filename from the
     articleData. If not justExtractFilename, also decode the articleData to the segment's
     destination """
-    if segment.articleData == None:
+    if segment.articleData is None:
         raise FatalError('Could not getFilenameFromArticleData')
 
     # First, clean it
@@ -192,7 +192,7 @@ def parseArticleData(segment, justExtractFilename = False):
 
             setRealFileName(segment.nzbFile, ybegin['name'],
                             settingSegmentNumber = segment.number)
-            if segment.nzbFile.ySize == None:
+            if segment.nzbFile.ySize is None:
                     segment.nzbFile.ySize = yInt(ybegin['size'],
                                                   '* Invalid =ybegin line in part %d!' % segment.number)
                     
@@ -266,7 +266,7 @@ def parseArticleData(segment, justExtractFilename = False):
 
     decodeSegmentToFile(segment, encodingType)
     del segment.articleData
-    segment.articleData = '' # We often check it for == None
+    segment.articleData = '' # We often check it for is None
 decodeArticleData=parseArticleData
 
 def setRealFileName(nzbFile, filename, forceChange = False, settingSegmentNumber = None):
@@ -346,7 +346,7 @@ def setRealFileName(nzbFile, filename, forceChange = False, settingSegmentNumber
 def yDecodeCRCCheck(segment, decoded):
     """ Validate the CRC of the segment with the yencode keyword """
     passedCRC = False
-    if segment.yCrc == None:
+    if segment.yCrc is None:
         # FIXME: I've seen CRC errors at the end of archive cause logNow = True to
         # print I think after handleNZBDone appends a newline (looks like crap)
         error(segment.nzbFile.showFilename + ' segment: ' + str(segment.number) + \
@@ -367,7 +367,7 @@ def yDecodeCRCCheck(segment, decoded):
 
 def yDecodeFileSizeCheck(segment, size):
     """ Ensure the file size from the yencode keyword """
-    if segment.ySize != None and size != segment.ySize:
+    if segment.ySize is not None and size != segment.ySize:
         message = segment.nzbFile.showFilename + ' segment ' + str(segment.number) + \
             ': file size mismatch: actual: ' + str(size) + ' != ' + str(segment.ySize) + ' (expected)'
         warn(message)
@@ -409,7 +409,7 @@ def decodeSegmentToFile(segment, encodingType = YENCODE):
             decoded, crc, cruft = yDecode(segment.articleData)
             
             # CRC check. FIXME: use yDecodeCRCCheck for this!
-            if segment.yCrc == None:
+            if segment.yCrc is None:
                 passedCRC = False
                 # FIXME: I've seen CRC errors at the end of archive cause logNow = True to
                 # print I think after handleNZBDone appends a newline (looks like crap)

@@ -27,7 +27,7 @@ def ensureDaemonDirs():
     for arg in dir(Hellanzb):
         if arg.endswith("_DIR") and arg == arg.upper():
             exec 'dirName = Hellanzb.' + arg
-            if dirName == None:
+            if dirName is None:
                 raise FatalError('Required directory not defined in config file: Hellanzb.' + arg)
             dirNames[arg] = dirName
             
@@ -118,7 +118,8 @@ def beginDownload():
 
     # Scan the queue dir intermittently during downloading. Reset the scanner delayed call
     # if it's already going
-    if Hellanzb.downloadScannerID != None and not Hellanzb.downloadScannerID.cancelled and \
+    if Hellanzb.downloadScannerID is not None and \
+            not Hellanzb.downloadScannerID.cancelled and \
             not Hellanzb.downloadScannerID.called:
         Hellanzb.downloadScannerID.cancel()
     Hellanzb.downloadScannerID = reactor.callLater(5, scanQueueDir, False, True)
@@ -175,6 +176,10 @@ def handleNZBDone(nzb):
     oldParSubjects = []
     if nzb.extraParSubjects:
         oldParSubjects = nzb.extraParSubjects[:]
+
+    # This NZB could be requeued for download after PostProcessing -- clean some of its
+    # download statistics
+    nzb.cleanStats()
         
     hasMorePars = False
     extraParSubjects = []
@@ -337,7 +342,7 @@ def getRate():
     
 def maxRate(rate):
     """ Change the MAX_RATE value. Return the new value """
-    if rate == 'None' or rate == None:
+    if rate == 'None' or rate is None:
         rate = 0
     else:
         try:
@@ -354,12 +359,12 @@ def maxRate(rate):
         
     restartCheckRead = False
     if rate == 0:
-        if Hellanzb.ht.unthrottleReadsID != None and \
+        if Hellanzb.ht.unthrottleReadsID is not None and \
                 not Hellanzb.ht.unthrottleReadsID.cancelled and \
                 not Hellanzb.ht.unthrottleReadsID.called:
             Hellanzb.ht.unthrottleReadsID.cancel()
 
-        if Hellanzb.ht.checkReadBandwidthID != None and \
+        if Hellanzb.ht.checkReadBandwidthID is not None and \
             not Hellanzb.ht.checkReadBandwidthID.cancelled:
             Hellanzb.ht.checkReadBandwidthID.cancel()
         Hellanzb.ht.unthrottleReads()
@@ -446,7 +451,7 @@ def forceNZB(nzbfilename, notification = 'Forcing download'):
                 if os.path.normpath(n.nzbFileName) == os.path.normpath(nzbfilename):
                     nzb = n
                     
-            if nzb == None:
+            if nzb is None:
                 from Hellanzb.NZBLeecher.NZBModel import NZB
                 nzb = NZB(nzbfilename)
             else:
@@ -483,13 +488,28 @@ def forceNZBParRecover(nzb):
     nzb.isFinished = False
     nzb.isParRecovery = True
 
+    """
+    subjectMap = {}
+    for nzbFile in nzb.nzbFileElements:
+        # FIXME: lazily overwriting potential duplicate subjects
+        subjectMap[nzbFile.subject] = nzbFile
+        
+    for extraParSubject in nzb.extraParSubjects:
+        subjectsFile = subjectMap.get(extraParSubject)
+        if subjectsFile is not None:
+            nzb.skippedParFiles.append(subjectsFile)
+    """
+
     if not len(Hellanzb.queued_nzbs) and not len(Hellanzb.queue.currentNZBs()):
         new = Hellanzb.CURRENT_DIR + os.sep + os.path.basename(nzb.nzbFileName)
         move(nzb.nzbFileName, new)
         nzb.nzbFileName = new
-        if Hellanzb.downloadScannerID != None and not Hellanzb.downloadScannerID.cancelled and \
+
+        if Hellanzb.downloadScannerID is not None and \
+                not Hellanzb.downloadScannerID.cancelled and \
                 not Hellanzb.downloadScannerID.called:
             Hellanzb.downloadScannerID.cancel()
+
         nzb.destDir = Hellanzb.WORKING_DIR
         parseNZB(nzb, 'Downloading recovery pars')
     else:

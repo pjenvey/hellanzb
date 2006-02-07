@@ -295,11 +295,20 @@ class NZBSegmentQueue(PriorityQueue):
         """ Calculate how many bytes are queued to be downloaded in this queue """
         # NOTE: we don't maintain this calculation all the time, too much CPU work for
         # _put
+        self.totalQueuedBytes = 0
         self.nzbFilesLock.acquire()
         files = self.nzbFiles.copy()
         self.nzbFilesLock.release()
+
+        # Total all the nzbFiles, then subtract their segments that don't need to be
+        # downloaded
         for nzbFile in files:
             self.totalQueuedBytes += nzbFile.totalBytes
+            
+            if len(nzbFile.todoNzbSegments) != len(nzbFile.nzbSegments):
+                for nzbSegment in nzbFile.nzbSegments:
+                    if nzbSegment not in nzbFile.todoNzbSegments:
+                        self.totalQueuedBytes -= nzbSegment.bytes
 
     def dequeueSegments(self, nzbSegments):
         """ Explicitly dequeue the specified nzb segments """
@@ -558,18 +567,8 @@ class NZBSegmentQueue(PriorityQueue):
             # True == the archive is complete
             return True
 
-        # NOTE: This doesn't take into account the orphaned on disk segments. The block
-        # below handles decrementing the total queued byte count to the correct value
+        # Finally tally the size of the queue
         self.calculateTotalQueuedBytes()
-
-        # Finally, figure out what on disk segments are part of partially downloaded
-        # files. adjust the queued byte count to not include these aleady downloaded
-        # segments. phew
-        for nzbFile in needDlFiles:
-            if len(nzbFile.todoNzbSegments) != len(nzbFile.nzbSegments):
-                for segment in nzbFile.nzbSegments:
-                    if segment not in nzbFile.todoNzbSegments:
-                        self.segmentDone(segment)
 
         # Archive not complete
         return False

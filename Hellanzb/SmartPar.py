@@ -19,7 +19,7 @@ from Hellanzb.NZBLeecher.ArticleDecoder import setRealFileName, stripArticleData
 
 __id__ = '$Id$'
 
-def dequeueIfExtraPar(segment, tryFinishWhenSkipped = False):
+def dequeueIfExtraPar(segment):
     """ This function is called after downloading the first segment of every nzbFile
 
     It determines whether or not the segment's parent nzbFile is part of a par archive. If
@@ -34,6 +34,8 @@ def dequeueIfExtraPar(segment, tryFinishWhenSkipped = False):
     if segment.number != 1:
         raise FatalError('dequeueIfExtraPar on number > 1')
 
+    dequeuedCount = 0
+    
     if segment.nzbFile.filename is None or isHellaTemp(segment.nzbFile.filename):
         segment.loadArticleDataFromDisk()
         stripArticleData(segment.articleData)
@@ -62,7 +64,7 @@ def dequeueIfExtraPar(segment, tryFinishWhenSkipped = False):
 
     if segment.nzbFile.filename == None:
         # We can't do anything 'smart' without the filename
-        return
+        return dequeuedCount
 
     identifyPar(segment.nzbFile)
 
@@ -71,25 +73,29 @@ def dequeueIfExtraPar(segment, tryFinishWhenSkipped = False):
             
         size = segment.nzbFile.totalBytes / 1024 / 1024
         if segment.nzbFile.isExtraParFile:
-            # Extra par2 -- remove it from the queue
-            info('Skipping %s: %s (%iMB)' % (parTypeName, segment.nzbFile.filename, size))
+            # Extra par2 -- dequeue the rest of its segments
+            dequeueSegments = segment.nzbFile.todoNzbSegments.copy()
+            dequeueSegments.remove(segment)
+            dequeuedCount = len(dequeueSegments)
 
-            # Segment is actually done (lies on disk)
-            Hellanzb.queue.segmentDone(segment)
-
-            # The rest are actually dequeued
-            Hellanzb.queue.dequeueSegments(segment.nzbFile.todoNzbSegments.copy())
+            # Don't have to lock if the work is done in the reactor
+            reactor.callFromThread(Hellanzb.queue.dequeueSegments, dequeueSegments)
             segment.nzbFile.isSkippedPar = True
-
-            if tryFinishWhenSkipped:
-                # We could be at the end of the download. Since we're not doing the usual
-                # decode(), we have to manually check if we're done. This is potential
-                # reactor-slowing work, so handle it in a thread
-                reactor.callInThread(tryFinishNZB, segment.nzbFile.nzb)
+            info('Skipped %s: %s (%iMB)' % (parTypeName, segment.nzbFile.filename, size))
         else:
             info('Queued %s: %s (%iMB, %i %s)' % (parTypeName, segment.nzbFile.filename, size,
                                                   getParSize(segment.nzbFile.filename),
                                                   getParRecoveryName(segment.nzbFile.parType)))
+    return dequeuedCount
+
+def queueExtraPars(failedSegment):
+    """ Determine an estimated recovery blocks value for the known invalid segment file, and
+    requeue that number of extra pars files """
+    # If par1: return 1 -- how do we know we need par 1 files? (if all known extra par
+    # files are par1s?)
+    
+    # if par2: ... how do we know we need par2 files?
+    pass
 
 PAR2_VOL_RE = re.compile(r'(.*)\.vol(\d*)\+(\d*)\.par2', re.I)
 def identifyPar(nzbFile):

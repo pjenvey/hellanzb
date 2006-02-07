@@ -5,7 +5,6 @@ ArticleDecoder - Decode and assemble files from usenet articles (nzbSegments)
 (c) Copyright 2005 Philip Jenvey
 [See end of file]
 """
-#import binascii, gc, os, re, shutil, string, time, Hellanzb
 import binascii, os, re, shutil, string, time, Hellanzb
 from threading import Lock
 from twisted.internet import reactor
@@ -47,6 +46,14 @@ def decode(segment):
     """ Decode the NZBSegment's articleData to it's destination. Toggle the NZBSegment
     instance as having been decoded, then assemble all the segments together if all their
     decoded segment filenames exist """
+    isDequeued = False
+    dequeuedCount = 0
+    if Hellanzb.SMART_PAR and segment.number == 1 and \
+            len(segment.nzbFile.nzbSegments) > 1:
+        from Hellanzb.SmartPar import dequeueIfExtraPar
+        isDequeued = True
+        dequeuedCount = dequeueIfExtraPar(segment)
+    
     try:
         if segment.articleData == None:
             segment.loadArticleDataFromDisk()
@@ -75,7 +82,10 @@ def decode(segment):
     if handleCanceledSegment(segment):
         return
 
-    if segment.nzbFile.isAllSegmentsDecoded() and not segment.nzbFile.isSkippedPar:
+    # Assemble the final file if all segments are decoded to disk. dequeued par nzbFiles
+    # always report isAllSegmentsDecoded as True -- in that case, only assemble if nothing
+    # was dequeued
+    if segment.nzbFile.isAllSegmentsDecoded() and (not isDequeued or dequeuedCount == 0):
         try:
             assembleNZBFile(segment.nzbFile)
         except OutOfDiskSpace:
@@ -89,6 +99,11 @@ def decode(segment):
             # cleanup and return
             if not handleCanceledFile(segment.nzbFile):
                 raise
+    elif isDequeued and dequeuedCount > 0:
+        # A par file had segments dequeued so it doesnn't need assembly. However we're
+        # done with it and must to tryFinishNZB in case this is the final decode() called
+        # for the NZB
+        tryFinishNZB(segment.nzbFile.nzb)
 
 def nuke(f):
     try:
@@ -100,7 +115,7 @@ def handleCanceledSegment(nzbSegment):
     """ Return whether or not the specified NZBSegment has been canceled. If so, delete its
     associated decoded file on disk, if it exists """
     if nzbSegment.nzbFile.nzb.isCanceled():
-        nuke(nzbSegmentOrFile.getDestination())
+        nuke(nzbSegment.getDestination())
         return True
     return False
 
@@ -716,16 +731,6 @@ def tryFinishNZB(nzb):
         Hellanzb.queue.nzbDone(nzb)
         debug('tryFinishNZB: finished downloading NZB: ' + nzb.archiveName)
         
-        # nudge GC
-        """
-        for nzbFile in nzb.nzbFileElements:
-            del nzbFile.todoNzbSegments
-            del nzbFile.nzb
-        del nzb.nzbFileElements
-        
-        gc.collect()
-        """
-
         nzb.isFinished = True
 
         # Forcefully disconnect any skipped par segments that are still downloading

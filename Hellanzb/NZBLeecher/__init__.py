@@ -24,7 +24,6 @@ from Hellanzb.Log import *
 from Hellanzb.Logging import LogOutputStream, NZBLeecherTicker
 from Hellanzb.Util import prettySize, rtruncate, truncateToMultiLine, EmptyForThisPool, PoolsExhausted
 from Hellanzb.NZBLeecher.nntp import NNTPClient, extractCode
-#from Hellanzb.NZBLeecher.ArticleDecoder import decode, setRealFileName, stripArticleData, ySplit
 from Hellanzb.NZBLeecher.ArticleDecoder import decode
 from Hellanzb.NZBLeecher.NZBSegmentQueue import NZBSegmentQueue
 from Hellanzb.NZBLeecher.NZBLeecherUtil import HellaThrottler, HellaThrottlingFactory
@@ -612,7 +611,7 @@ class NZBLeecher(NNTPClient, TimeoutMixin):
     def fetchBody(self, index):
         debug(str(self) + ' getting BODY: <' + self.currentSegment.messageId + '> ' + \
               self.currentSegment.getDestination())
-        start = time.time()
+        start = Hellanzb.preReadTime
         if self.currentSegment.nzbFile.downloadStartTime == None:
             self.currentSegment.nzbFile.downloadStartTime = start
         
@@ -678,14 +677,6 @@ class NZBLeecher(NNTPClient, TimeoutMixin):
 
         segment = self.currentSegment
         self.resetCurrentSegment()
-
-        # Check first segments for extra pars to be skipped over. If we just downloaded
-        # the only segment piece composing the entire file, don't bother attempting the
-        # skip
-        if Hellanzb.SMART_PAR and segment.number == 1 and \
-                len(segment.nzbFile.nzbSegments) > 1:
-            from Hellanzb.SmartPar import dequeueIfExtraPar
-            dequeueIfExtraPar(segment, tryFinishWhenSkipped = True)
             
         self.deferSegmentDecode(segment)
 
@@ -782,7 +773,7 @@ class NZBLeecher(NNTPClient, TimeoutMixin):
 
         if self.currentSegment.nzbFile.downloadPercentage > oldPercentage:
             elapsed = max(0.1, now - self.currentSegment.nzbFile.downloadStartTime)
-            elapsedSession = max(0.1, now - self.factory.sessionStartTime)
+            #elapsedSession = max(0.1, now - self.factory.sessionStartTime)
 
             self.currentSegment.nzbFile.speed = self.currentSegment.nzbFile.totalReadBytes / elapsed / 1024.0
             ##self.factory.sessionSpeed = self.factory.sessionReadBytes / elapsedSession / 1024.0

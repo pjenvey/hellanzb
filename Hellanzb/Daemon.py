@@ -239,6 +239,7 @@ def cancelCurrent():
     
     canceled = False
     for nzb in Hellanzb.queue.currentNZBs():
+        # FIXME: should GC here
         canceled = True
         nzb.cancel()
         move(nzb.nzbFileName, Hellanzb.TEMP_DIR + os.sep + os.path.basename(nzb.nzbFileName))

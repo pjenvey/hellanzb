@@ -113,7 +113,7 @@ class RecoveredState(object):
         
 def scanQueueDir(firstRun = False, justScan = False):
     """ Find new/resume old NZB download sessions """
-    t = time.time()
+    #t = time.time()
 
     from Hellanzb.NZBLeecher.NZBModel import NZB
     current_nzbs = []
@@ -150,10 +150,11 @@ def scanQueueDir(firstRun = False, justScan = False):
     if firstRun:
         sortQueueFromRecoveredState(queuedRecoveredState)
 
-    e = time.time() - t
+    #e = time.time() - t
     if justScan:
         # Done scanning -- don't bother loading a new NZB
-        debug('Ziplick scanQueueDir (justScan): ' + Hellanzb.QUEUE_DIR + ' TOOK: ' + str(e))
+        #debug('Ziplick scanQueueDir (justScan): ' + Hellanzb.QUEUE_DIR + ' TOOK: ' + str(e))
+        debug('Ziplick scanQueueDir (justScan): ' + Hellanzb.QUEUE_DIR)
         Hellanzb.downloadScannerID = reactor.callLater(7, scanQueueDir, False, True)
         return
     else:
@@ -292,7 +293,6 @@ def parseNZB(nzb, notification = 'Downloading', quiet = False):
         
         info('Parsing: ' + os.path.basename(nzb.nzbFileName) + '...')
         if not Hellanzb.queue.parseNZB(nzb):
-            writeStateXML()
             Hellanzb.Daemon.beginDownload()
 
     except FatalError, fe:

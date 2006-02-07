@@ -19,7 +19,7 @@ from Hellanzb.NZBLeecher.ArticleDecoder import setRealFileName, stripArticleData
 
 __id__ = '$Id$'
 
-def dequeueIfExtraPar(segment):
+def dequeueIfExtraPar(segment, inMainThread = False):
     """ This function is called after downloading the first segment of every nzbFile
 
     It determines whether or not the segment's parent nzbFile is part of a par archive. If
@@ -78,8 +78,12 @@ def dequeueIfExtraPar(segment):
             dequeueSegments.remove(segment)
             dequeuedCount = len(dequeueSegments)
 
-            # Don't have to lock if the work is done in the reactor
-            reactor.callFromThread(Hellanzb.queue.dequeueSegments, dequeueSegments)
+            # Ensure the dequeue work is done in the reactor, so don't have to lock
+            if inMainThread:
+                Hellanzb.queue.dequeueSegments(dequeueSegments)
+            else:
+                reactor.callFromThread(Hellanzb.queue.dequeueSegments, dequeueSegments)
+                
             segment.nzbFile.isSkippedPar = True
             info('Skipped %s: %s (%iMB)' % (parTypeName, segment.nzbFile.filename, size))
         else:

@@ -702,7 +702,7 @@ def tryFinishNZB(nzb):
     if nzb.isFinished:
         return
     
-    start = time.time()
+    #start = time.time()
     done = True
 
     # Simply check if there are any more nzbFiles in the queue that belong to this nzb
@@ -723,7 +723,7 @@ def tryFinishNZB(nzb):
         if nzbFile not in nzb.nzbFileElements:
             continue
         
-        debug('NOT DONE, file: ' + nzbFile.getDestination())
+        debug('tryFinishNZB: NOT DONE: ' + nzbFile.getDestination())
         done = False
         break
 
@@ -750,8 +750,8 @@ def tryFinishNZB(nzb):
         reactor.callFromThread(stopDownloadingSkippedPars)
         reactor.callFromThread(handleNZBDone, nzb)
         
-    finish = time.time() - start
-    debug('tryFinishNZB (' + str(done) + ') took: ' + str(finish) + ' seconds')
+    #finish = time.time() - start
+    #debug('tryFinishNZB (' + str(done) + ') took: ' + str(finish) + ' seconds')
     return done
         
 """

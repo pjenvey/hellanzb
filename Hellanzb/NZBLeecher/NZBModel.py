@@ -104,7 +104,7 @@ def segmentsNeedDownload(segmentList, overwriteZeroByteSegments = False):
                     # will mark nzbFiles as isSkippedPar (taken into account later during
                     # parseNZB) and print a 'Skipping par' message for those isSkippedPar
                     # nzbFiles
-                    dequeueIfExtraPar(segment)
+                    dequeueIfExtraPar(segment, inMainThread = True)
                 
             onDiskSegments.append(segment)
             

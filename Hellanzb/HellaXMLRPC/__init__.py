@@ -131,7 +131,8 @@ class HellaXMLRPCServer(XMLRPC):
         """ Download the NZB with the specified NZB ID from www.newzbin.com, and enqueue it """
         from Hellanzb.NewzbinDownloader import NewzbinDownloader
         if not NewzbinDownloader.canDownload():
-            raise Fault(9001, 'Unable to enqueue NZB, Hellanzb.NEWZBIN_USERNAME and or Hellanzb.NEWZBIN_PASSWORD were not supplied in the conf file')
+            faultMsg = 'Unable to enqueue NZB, Hellanzb.NEWZBIN_USERNAME and or Hellanzb.NEWZBIN_PASSWORD were not supplied in the conf file'
+            raise Fault(9001, faultMsg)
         newzdl = NewzbinDownloader(str(nzbId))
         newzdl.download()
         return self.xmlrpc_status()

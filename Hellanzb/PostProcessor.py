@@ -151,7 +151,7 @@ class PostProcessor(Thread):
                 del nzbFile.nzb
             del self.archive.nzbFileElements
             del self.archive.postProcessor
-            del self.achive
+            del self.archive
             gc.collect()
             
         if not self.background and not self.isSubDir:

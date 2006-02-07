@@ -67,6 +67,7 @@ class NewzbinDownloader(object):
     cookies = {}
     
     def __init__(self, msgId):
+        """ Initialize the downloader with the specified msgId string """
         self.msgId = msgId
 
         # Write the downloaded NZB here temporarily
@@ -74,6 +75,11 @@ class NewzbinDownloader(object):
 
         # The real NZB filename determined from HTTP headers
         self.nzbFilename = None
+
+    def getNZBURL(self):
+        if not self.msgId:
+            return ''
+        return self.GET_NZB_URL.replace('____ID____', self.msgId)
 
     def gotCookies(self, cookies):
         """ The downloader will feeds cookies via this function """
@@ -130,11 +136,12 @@ class NewzbinDownloader(object):
         
     def download(self):
         """ Start the NZB download process """
-        debug(str(self) + ' Downloading from www.newzbin.com..')
+        debug(str(self) + ' Downloading from newzbin.com..')
         if not NewzbinDownloader.canDownload():
             debug(str(self) + ' download: No www.newzbin.com login information')
             return
 
+        info('Downloading newzbin NZB: %s ' % self.msgId)
         if self.haveValidSession():
             # We have a good session (logged in). Proceed to getting the NZB
             debug(str(self) + ' have a valid newzbin session, downloading..')
@@ -171,7 +178,7 @@ class NewzbinDownloader(object):
         """ Download the NZB after successful login """
         debug(str(self) + ' handleNZBDownloadFromNewzbin')
                          
-        httpd = StoreHeadersHTTPDownloader(self.GET_NZB_URL.replace('____ID____', self.msgId),
+        httpd = StoreHeadersHTTPDownloader(self.getNZBURL(),
                                            self.tempFilename, headerListener = self,
                                            agent = self.AGENT)
         httpd.cookies = {'PHPSESSID' : NewzbinDownloader.cookies['PHPSESSID']}
@@ -210,7 +217,7 @@ class NewzbinDownloader(object):
             error('Unable to download from www.newzbin.com: ' + str(reason))
 
     def __str__(self):
-        return 'NewzbinDownloader(%s):' % str(self.msgId)
+        return 'NewzbinDownloader(%s):' % self.msgId
 
     def canDownload():
         """ Whether or not the conf file supplied www.newzbin.com login info """

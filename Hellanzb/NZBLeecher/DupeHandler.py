@@ -47,6 +47,7 @@ def handleDupeNZBSegment(nzbSegment):
         # (represented by eschewNames)
         parentFilename = dest[:-12] # remove .segmentXXXX
         segmentNumStr = dest[-12:] # just .segmentXXXX
+        info('KNOWN: ' + str(knownRealNZBFilenames()) + ' parentname: ' + parentFilename)
         dupeNZBFileName = nextDupeName(parentFilename, eschewNames = knownRealNZBFilenames())
 
         beingDownloadedNZBSegment = Hellanzb.queue.isBeingDownloadedFile(dest)
@@ -61,6 +62,9 @@ def handleDupeNZBSegment(nzbSegment):
             
             # Maintain the correct order when renaming -- the earliest (as they appear in
             # the NZB) clashing NZBFile gets renamed
+            if beingDownloadedNZBSegment.nzbFile.number == nzbSegment.nzbFile.number:
+                info('CLASH!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!')
+                
             if beingDownloadedNZBSegment.nzbFile.number < nzbSegment.nzbFile.number:
                 renameFile = beingDownloadedNZBSegment.nzbFile
             else:

@@ -312,9 +312,12 @@ class NZBSegmentQueue(PriorityQueue):
 
     def dequeueSegments(self, nzbSegments):
         """ Explicitly dequeue the specified nzb segments """
-        self.dequeueItems([(nzbSegment.priority, nzbSegment) for nzbSegment in nzbSegments])
+        # ATOMIC:
+        dequeuedSegments = self.dequeueItems([(nzbSegment.priority, nzbSegment) \
+                                              for nzbSegment in nzbSegments])
         
-        for nzbSegment in nzbSegments:
+        #for nzbSegment in nzbSegments:
+        for p, nzbSegment in dequeuedSegments:
             self.segmentDone(nzbSegment, dequeued = True)
 
     def currentNZBs(self):
@@ -424,6 +427,7 @@ class NZBSegmentQueue(PriorityQueue):
             self.nzbFiles.remove(nzbFile)
         self.nzbFilesLock.release()
 
+        # FIXME: remove from nzb.skipped list?
         if not dequeued:
             for nzbSegment in nzbFile.nzbSegments:
                 if self.onDiskSegments.has_key(nzbSegment.getDestination()):
@@ -432,9 +436,18 @@ class NZBSegmentQueue(PriorityQueue):
     def segmentDone(self, nzbSegment, dequeued = False):
         """ Simply decrement the queued byte count and register this nzbSegment as finished
         downloading, unless the segment is part of a postponed download """
+        # NOTE: this should only really contend with resources accessed through the
+        # ArticleDecoder thread (only segmentDone() and isAllSegmentsDecoded() touches
+        # todoNzbSegments, dequeuedSegments, totalQueuedBytes?
+        # FIXME: onDiskSegments is touched by DupeHandler via isBeingDownloaded() however
         self.nzbsLock.acquire()
         if nzbSegment in nzbSegment.nzbFile.todoNzbSegments:
             nzbSegment.nzbFile.todoNzbSegments.remove(nzbSegment)
+            if dequeued:
+                info('DEQUEUED: ' + str(nzbSegment.nzbFile.subject) + ' ' + str(nzbSegment.number))
+                nzbSegment.nzbFile.dequeuedSegments.add(nzbSegment)
+            elif nzbSegment in nzbSegment.nzbFile.dequeuedSegments:
+                nzbSegment.nzbFile.dequeuedSegments.remove(nzbSegment)
             if nzbSegment.nzbFile.nzb in self.nzbs:
                 self.totalQueuedBytes -= nzbSegment.bytes
         self.nzbsLock.release()
@@ -449,6 +462,7 @@ class NZBSegmentQueue(PriorityQueue):
         """ Whether or not the file on disk is currently in the middle of being
         downloaded/assembled. Return the NZBSegment representing the segment specified by
         the filename """
+        # FIXME: thread safety?
         segmentFilename = segmentFilename
         if self.onDiskSegments.has_key(segmentFilename):
             return self.onDiskSegments[segmentFilename]

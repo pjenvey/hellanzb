@@ -11,7 +11,7 @@ from os.path import join as pathjoin
 from shutil import move, rmtree
 from threading import Thread, Condition, Lock, RLock
 from Hellanzb.Log import *
-from Hellanzb.Logging import prettyException
+from Hellanzb.Logging import LogOutputStream, prettyException
 from Hellanzb.PostProcessorUtil import *
 from Hellanzb.Util import *
 
@@ -148,7 +148,6 @@ class PostProcessor(Thread):
         if not self.isSubDir and self.isNZBArchive():
             for nzbFile in self.archive.nzbFileElements:
                 del nzbFile.todoNzbSegments
-                #del nzbFile.skippedParFiles
                 del nzbFile.nzb
             del self.archive.nzbFileElements
             del self.archive.postProcessor
@@ -229,7 +228,8 @@ class PostProcessor(Thread):
             else:
                 error(archiveName(self.dirName) + ': A problem occurred: ' + pe)
 
-            writeStatXML(LogOutputStream(debug))
+            from Hellanzb.NZBQueue import writeStateXML # FIXME:
+            writeStateXML(LogOutputStream(debug))
             return
         
         except Exception, e:
@@ -241,7 +241,8 @@ class PostProcessor(Thread):
                 raise
             
             error(archiveName(self.dirName) + ': An unexpected problem occurred', e)
-            writeStatXML(LogOutputStream(debug))
+            from Hellanzb.NZBQueue import writeStateXML # FIXME:
+            writeStateXML(LogOutputStream(debug))
             return
 
         # REACTOR STOPPED IF NOT BACKGROUND/SUBIDR

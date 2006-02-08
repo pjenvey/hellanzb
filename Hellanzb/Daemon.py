@@ -488,18 +488,6 @@ def forceNZBParRecover(nzb):
     nzb.isFinished = False
     nzb.isParRecovery = True
 
-    """
-    subjectMap = {}
-    for nzbFile in nzb.nzbFileElements:
-        # FIXME: lazily overwriting potential duplicate subjects
-        subjectMap[nzbFile.subject] = nzbFile
-        
-    for extraParSubject in nzb.extraParSubjects:
-        subjectsFile = subjectMap.get(extraParSubject)
-        if subjectsFile is not None:
-            nzb.skippedParFiles.append(subjectsFile)
-    """
-
     if not len(Hellanzb.queued_nzbs) and not len(Hellanzb.queue.currentNZBs()):
         new = Hellanzb.CURRENT_DIR + os.sep + os.path.basename(nzb.nzbFileName)
         move(nzb.nzbFileName, new)

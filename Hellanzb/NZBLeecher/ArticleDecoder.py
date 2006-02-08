@@ -48,11 +48,13 @@ def decode(segment):
     decoded segment filenames exist """
     isDequeued = False
     dequeuedCount = 0
-    if Hellanzb.SMART_PAR and segment.number == 1 and \
-            len(segment.nzbFile.nzbSegments) > 1:
+    #if Hellanzb.SMART_PAR and segment.number == 1 and \
+    #        len(segment.nzbFile.nzbSegments) > 1:
+    if Hellanzb.SMART_PAR and segment.number == 1:
         from Hellanzb.SmartPar import dequeueIfExtraPar
-        isDequeued = True
-        dequeuedCount = dequeueIfExtraPar(segment)
+        #isDequeued = True
+        #dequeuedCount = dequeueIfExtraPar(segment)
+        isDequeued, dequeuedCount = dequeueIfExtraPar(segment)
     
     try:
         if segment.articleData is None:
@@ -85,7 +87,10 @@ def decode(segment):
     # Assemble the final file if all segments are decoded to disk. dequeued par nzbFiles
     # always report isAllSegmentsDecoded as True -- in that case, only assemble if nothing
     # was dequeued
-    if segment.nzbFile.isAllSegmentsDecoded() and (not isDequeued or dequeuedCount == 0):
+    
+    # FIXME: isDequeued will eval to False for non 0001 segments -- causing them to trigger assembly
+    #if segment.nzbFile.isAllSegmentsDecoded() and (not isDequeued or dequeuedCount == 0):
+    if segment.nzbFile.isAllSegmentsDecoded():
         try:
             assembleNZBFile(segment.nzbFile)
         except OutOfDiskSpace:
@@ -99,7 +104,9 @@ def decode(segment):
             # cleanup and return
             if not handleCanceledFile(segment.nzbFile):
                 raise
-    elif isDequeued and dequeuedCount > 0:
+    #elif isDequeued and dequeuedCount > 0:
+    #elif isDequeued:
+    elif segment.nzbFile.isSkippedPar and not len(segment.nzbFile.todoNzbSegments):
         # A par file had segments dequeued so it doesnn't need assembly. However we're
         # done with it and must to tryFinishNZB in case this is the final decode() called
         # for the NZB
@@ -309,10 +316,15 @@ def setRealFileName(nzbFile, filename, forceChange = False, settingSegmentNumber
     renameFilenames = {}
 
     if switchedReal:
+        if nzbFile.isSkippedPar:
+            onDisk = nzbSegment.nzbFile.dequeuedSegments
+        else:
+            onDisk = nzbSegment.nzbFile.todoNzbSegments
         # Get the original segment filenames via getDestination() (before we change it)
         renameSegments = [(nzbSegment, nzbSegment.getDestination()) for nzbSegment in
                            nzbFile.nzbSegments if nzbSegment not in
-                           nzbSegment.nzbFile.todoNzbSegments]
+#                           nzbSegment.nzbFile.todoNzbSegments]
+                          onDisk]
 
     # Change the filename
     nzbFile.filename = filename
@@ -674,6 +686,13 @@ def assembleNZBFile(nzbFile, autoFinish = True):
             # exceptions.OSError: [Errno 2] No such file or directory: 
             if ose.errno != 2:
                 debug('Unexpected ERROR while removing segmentFile: ' + segmentFile)
+
+    if nzbFile.isSkippedPar:
+        # If a skipped par file actually got to assembly, it wassn't skipped (probably
+        # decided to skip it on the download of the final segment)
+        nzbFile.isSkippedPar = False
+        if nzbFile in nzbFile.nzb.skippedParFiles:
+            nzbFile.nzb.skippedParFiles.remove(nzbFile)
         
     Hellanzb.queue.fileDone(nzbFile)
     reactor.callFromThread(fileDone)

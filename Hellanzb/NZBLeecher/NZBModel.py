@@ -104,7 +104,8 @@ def segmentsNeedDownload(segmentList, overwriteZeroByteSegments = False):
                     # will mark nzbFiles as isSkippedPar (taken into account later during
                     # parseNZB) and print a 'Skipping par' message for those isSkippedPar
                     # nzbFiles
-                    dequeueIfExtraPar(segment, inMainThread = True)
+                    #dequeueIfExtraPar(segment, inMainThread = True)
+                    dequeueIfExtraPar(segment)
                 
             onDiskSegments.append(segment)
             
@@ -136,7 +137,7 @@ class NZB(Archive):
         self.nzbFileName = nzbFileName
         self.archiveName = archiveName(self.nzbFileName) # pretty name
         self.nzbFileElements = []
-        #self.skippedParFiles = []
+        self.skippedParFiles = []
 
         # Where the nzb files will be downloaded
         self.destDir = Hellanzb.WORKING_DIR
@@ -161,11 +162,12 @@ class NZB(Archive):
 
         ## Extra par subject names are kept here, in a list, during post processing
         self.isParRecovery = False
+        self.allParsMode = False
         self.neededBlocks = 0
         self.parType = None
         self.parPrefix = None
         self.extraParSubjects = None
-
+        
         self.isFinished = False
         
     def isCanceled(self):
@@ -182,6 +184,61 @@ class NZB(Archive):
         self.canceledLock.acquire()
         self.canceled = True
         self.canceledLock.release()
+
+    def isAllPars(self):
+        """ Determine whether or not all nzbFiles in this archive are par files. An NZB only
+        containing par files needs to be specially handled (all its nzbFiles should be
+        downloaded, instead of skipped) -- otherwise, no downloading would occur. This
+        situation isn't applicable to isParRecovery downloads
+
+        newzbin.com will always add the .nfo file to an NZB if it exists (even if you
+        didn't select it for download) -- this function will attempt to take that into
+        account """
+        if self.isParRecovery:
+            return False
+
+        skippedLen = len(self.skippedParFiles)
+        nzbFilesLen = len(self.nzbFileElements)
+        info('ISALLPARS %i %i' % (skippedLen, nzbFilesLen))
+        
+        if skippedLen == nzbFilesLen:
+            info('SKIPPED LEN == nzbFilesLen')
+            return True
+
+        # For this check to work, both lists of nzbFiles shouldn't contain any duplicates
+        if (skippedLen > 0 and skippedLen == nzbFilesLen - 1) or \
+                (skippedLen > 1 and skippedLen == nzbFilesLen - 2):
+
+            # We only downloaded 1 or 2 files. If they are a main par file
+            # (isParFile=True, isExtraPar=False) or a .nfo file, this is an all par
+            # archive
+            queuedFiles = []
+            for nzbFile in self.nzbFileElements:
+                if nzbFile not in self.skippedParFiles:
+                    queuedFiles.append(nzbFile)
+            info('LEN of queuedFiles: %i' % len(queuedFiles))
+
+            for queuedFile in queuedFiles[:]:
+                if queuedFile.subject.lower().find('.nfo') < -1 or (queuedFile.firstSegment.articleData == '' and queuedFile.isParFile):
+                    info('FOUND INNOCENT, HIT ON: isPar: %s %s' % (str(queuedFile.isParFile), queuedFile.subject))
+                    queuedFiles.remove(queuedFile)
+                else:
+                    info('QUEUED FILE: HIT ON: isPar: %s %s' % (str(queuedFile.isParFile), queuedFile.subject))
+                    
+            if not len(queuedFiles):
+                return True
+            #queuedFile = 
+            #nfoCheckFile = None
+            #for nfoCheckFile in self.nzbFileElements:
+            #    if nfoCheckFile not in self.skippedParFiles:
+            #        break
+            #if nfoCheckFile.subject.lower().find('.nfo') > -1:
+                # This NZB is scheduled to only download 1 .nfo file, and skip the rest of
+                # the nzbFiles as they're all pars. Probably not what the user intended --
+                # everything should be downloaded
+            #    return True
+
+        return False
 
     def cleanStats(self):
         """ Reset downlaod statistics """
@@ -300,6 +357,9 @@ class NZBFile:
         # we'll remove from this set everytime a segment is found completed (on the FS)
         # during NZB parsing, or later written to the FS
         self.todoNzbSegments = Set()
+
+        ## 
+        self.dequeuedSegments = Set()
 
         ## NZBFile statistics
         self.number = len(self.nzb.nzbFileElements)
@@ -439,6 +499,9 @@ class NZBFile:
 
     def isAllSegmentsDecoded(self):
         """ Determine whether all these file's segments have been decoded """
+        if self.isSkippedPar:
+            debug('SKIPPED LEN: %i %i' % (len(self.dequeuedSegments), len(self.todoNzbSegments)))
+            return not len(self.dequeuedSegments) and not len(self.todoNzbSegments)
         return not len(self.todoNzbSegments)
 
     #def __repr__(self):

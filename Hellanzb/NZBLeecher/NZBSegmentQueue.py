@@ -652,13 +652,24 @@ class NZBParser(ContentHandler):
             self.fileNeedsDownload = \
                 self.file.needsDownload(workingDirListing = self.workingDirListing,
                                         workingDirDupeMap = self.workingDirDupeMap)
-            if Hellanzb.SMART_PAR and self.fileNeedsDownload and self.nzb.isParRecovery and \
-                    (subject not in self.nzb.extraParSubjects or self.nzb.parPrefix not in subject):
-                self.file.isSkippedPar = True
-              
+
+            # Special handling for par recovery downloads
+            extraMsg = ''
+            if Hellanzb.SMART_PAR and self.fileNeedsDownload and self.nzb.isParRecovery:
+                if subject not in self.nzb.extraParSubjects:
+                    # Only download previously marked pars
+                    self.fileNeedsDownload = False
+                    extraMsg = ' (not on disk but wasn\'t previously marked as an extraParFile)'
+                elif self.nzb.parPrefix not in subject:
+                    # Previously marked par -- only download it if it pertains to the
+                    # particular par
+                    self.file.isSkippedPar = True
+                    extraMsg = ' (not on disk but no more par %s needed)' % \
+                        getParRecoveryName(nzb.parType)
+                    
             if not self.fileNeedsDownload:
-                debug('SKIPPING FILE: ' + self.file.getTempFileName() + ' subject: ' + \
-                      self.file.subject)
+                debug('SKIPPING FILE%s: %s subject: %s' % (extraMsg, self.file.getTempFileName(),
+                                                           self.file.subject))
 
             self.fileCount += 1
             self.file.number = self.fileCount

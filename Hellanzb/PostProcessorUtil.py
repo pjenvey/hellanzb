@@ -312,11 +312,10 @@ def getParRecoveryName(parType, describePar1 = True):
         return 'blocks'
     return 'unknown'
 
+DUPE_SUFFIX = re.compile(r'.*_hellanzb_dupe\d{1,3}$')
 def isDuplicate(fileName):
     """ Determine if the specified file is a duplicate """
-    if fileName.endswith('_duplicate') or re.match(r'.*_duplicate\d{0,4}', fileName):
-        return True
-    return False
+    return DUPE_SUFFIX.match(fileName) is not None
 
 def isRequiredFile(fileName):
     """ Given the specified of file name, determine if the file is required for the full
@@ -927,7 +926,6 @@ def cleanUpSkippedPars(dirName):
     """ The downloader may leave .segment0001 par files around, from par data it skipped
     downloading. Delete these orphaned segments """
     for file in os.listdir(dirName):
-        #if file.endswith(FIRST_SEGMENT_SUFFIX) and isPar(file[:-len(FIRST_SEGMENT_SUFFIX)]):
         if SEGMENT_RE.match(file) and isPar(file[:-SEGMENT_SUFFIX_LEN]):
             moveToProcessed(dirName + os.sep + file)
 

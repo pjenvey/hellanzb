@@ -143,7 +143,7 @@ def getParSize(filename):
         if filename != size:
             try:
                 return int(size)
-            except:
+            except ValueError:
                 pass
     return 0
 

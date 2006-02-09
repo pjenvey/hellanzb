@@ -286,8 +286,14 @@ class HellaXMLRPCServer(XMLRPC):
         currentNZBs = Hellanzb.queue.currentNZBs()
         if len(currentNZBs):
             currentNZB = currentNZBs[0]
-            s['percent_complete'] = int((float(currentNZB.totalReadBytes + currentNZB.totalSkippedBytes) / \
-                                         float(currentNZB.totalBytes)) * 100)
+            if currentNZB.totalBytes == 0:
+                # Probably hasn't been calculated yet
+                percentComplete = 0
+            else:
+                percentComplete = int((float(currentNZB.totalReadBytes + \
+                                             currentNZB.totalSkippedBytes) / \
+                                       float(currentNZB.totalBytes)) * 100)
+            s['percent_complete'] = percentComplete
             
         if Hellanzb.ht.readLimit == None or Hellanzb.ht.readLimit == 0:
             s['maxrate'] = 0

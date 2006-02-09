@@ -114,9 +114,6 @@ class NewzbinDownloader(object):
         self.nzbFilename = val
 
     def haveValidSession(self):
-        if NewzbinDownloader.cookies == None:
-            return False
-
         if NewzbinDownloader.cookies.has_key('PHPSESSID') and \
                 NewzbinDownloader.cookies.has_key('expires'):
             expireTime = NewzbinDownloader.cookies['expires']
@@ -204,9 +201,6 @@ class NewzbinDownloader(object):
     def errBack(self, reason):
         # FIXME:
         # os.remove(self.tempFilename)
-        if Hellanzb.SHUTDOWN:
-            return
-        
         if reason.check(TimeoutError):
             error('Unable to connect to www.newzbin.com: Connection timed out')
         elif reason.check(ConnectionRefusedError):

@@ -104,16 +104,16 @@ def segmentsNeedDownload(segmentList, overwriteZeroByteSegments = False):
                     # will mark nzbFiles as isSkippedPar (taken into account later during
                     # parseNZB) and print a 'Skipping par' message for those isSkippedPar
                     # nzbFiles
-                    dequeueIfExtraPar(segment, inMainThread = True)
+                    dequeueIfExtraPar(segment, readOnlyQueue = True)
                 
             onDiskSegments.append(segment)
             
-            # We only call segmentDone here to update the queue's onDiskSegments. The call
-            # shouldn't actually be decrementing the queue's totalQueuedBytes at this
-            # point. We call this so isBeingDownloaded (called from handleDupeNZBSegment)
-            # can identify orphaned segments on disk that technically aren't being
-            # downloaded, but need to be identified as so, so their parent NZBFile can be
-            # renamed
+            # Originally the main reason to call segmentDone here is to update the queue's
+            # onDiskSegments (so isBeingDownloaded can safely detect things on disk during
+            # Dupe renaming). However it's correct to call this here, it's as if hellanzb
+            # just finished downloading and decoding the segment. The only incorrect part
+            # about the call is the queue's totalQueuedBytes is decremented. That total is
+            # reset to zero just before it is recalculated at the end of parseNZB, however
             Hellanzb.queue.segmentDone(segment)
 
             # This segment was matched. Remove it from the list to avoid matching it again
@@ -136,7 +136,6 @@ class NZB(Archive):
         self.nzbFileName = nzbFileName
         self.archiveName = archiveName(self.nzbFileName) # pretty name
         self.nzbFileElements = []
-        #self.skippedParFiles = []
 
         # Where the nzb files will be downloaded
         self.destDir = Hellanzb.WORKING_DIR
@@ -165,7 +164,7 @@ class NZB(Archive):
         self.parType = None
         self.parPrefix = None
         self.extraParSubjects = None
-
+        
         self.isFinished = False
         
     def isCanceled(self):
@@ -300,6 +299,9 @@ class NZBFile:
         # we'll remove from this set everytime a segment is found completed (on the FS)
         # during NZB parsing, or later written to the FS
         self.todoNzbSegments = Set()
+
+        ## 
+        self.dequeuedSegments = Set()
 
         ## NZBFile statistics
         self.number = len(self.nzb.nzbFileElements)
@@ -438,7 +440,10 @@ class NZBFile:
         return 'hellanzb-tmp-' + self.nzb.archiveName + '.file' + str(self.number).zfill(4)
 
     def isAllSegmentsDecoded(self):
-        """ Determine whether all these file's segments have been decoded """
+        """ Determine whether all these file's segments have been decoded (nzbFile is ready to be
+        assembled) """
+        if self.isSkippedPar:
+            return not len(self.dequeuedSegments) and not len(self.todoNzbSegments)
         return not len(self.todoNzbSegments)
 
     #def __repr__(self):

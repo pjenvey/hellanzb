@@ -371,13 +371,23 @@ class PriorityQueue(Queue):
 
     def dequeueItems(self, items):
         """ Explicitly dequeue the specified items. Yes, this queue supports random access """
+        succeded = items[:]
+        self.mutex.acquire()
         for item in items:
             try:
                 self.queue.remove(item)
             except Exception:
+                succeded.remove(item)
                 pass
 
         heapify(self.queue)
+        
+        # python 2.3
+        if not hasattr(self, 'not_empty') and not len(self.queue):
+            self.esema.acquire()
+        self.mutex.release()
+        
+        return succeded
 
 def getLocalClassName(klass):
     """ Get the local name (no package/module information) of the specified class instance """

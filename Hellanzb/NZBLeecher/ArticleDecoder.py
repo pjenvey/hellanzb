@@ -46,13 +46,14 @@ def decode(segment):
     """ Decode the NZBSegment's articleData to it's destination. Toggle the NZBSegment
     instance as having been decoded, then assemble all the segments together if all their
     decoded segment filenames exist """
-    isDequeued = False
-    dequeuedCount = 0
-    if Hellanzb.SMART_PAR and segment.number == 1 and \
-            len(segment.nzbFile.nzbSegments) > 1:
+    if Hellanzb.SMART_PAR and segment.number == 1:
         from Hellanzb.SmartPar import dequeueIfExtraPar
-        isDequeued = True
-        dequeuedCount = dequeueIfExtraPar(segment)
+        # This will dequeue all of this segment's sibling segments that are still in the
+        # NZBSegmentQueue. Segments that aren't in the queue are either:
+        # o already decoded and on disk
+        # o currently downloading
+        # Segments currently downloading are left in segment.nzbFile.todoNzbSegments
+        dequeueIfExtraPar(segment)
     
     try:
         if segment.articleData is None:
@@ -82,15 +83,16 @@ def decode(segment):
     if handleCanceledSegment(segment):
         return
 
-    # Assemble the final file if all segments are decoded to disk. dequeued par nzbFiles
-    # always report isAllSegmentsDecoded as True -- in that case, only assemble if nothing
-    # was dequeued
-    if segment.nzbFile.isAllSegmentsDecoded() and (not isDequeued or dequeuedCount == 0):
+    if segment.nzbFile.isAllSegmentsDecoded():
         try:
             assembleNZBFile(segment.nzbFile)
+            # NOTE: exceptions here might cause Hellanzb.queue.fileDone() to not be
+            # called
         except OutOfDiskSpace:
             # Delete the partially assembled file, it will be re-assembled later
             nuke(segment.nzbFile.getDestination())
+            # FIXME: Who's going to re-trigger assembly when space is freed and the
+            # downloader 'continue's? I believe this also needs to be fixed in parseNZB
         except SystemExit, se:
             # checkShutdown() throws this, let the thread die
             pass
@@ -99,10 +101,12 @@ def decode(segment):
             # cleanup and return
             if not handleCanceledFile(segment.nzbFile):
                 raise
-    elif isDequeued and dequeuedCount > 0:
-        # A par file had segments dequeued so it doesnn't need assembly. However we're
-        # done with it and must to tryFinishNZB in case this is the final decode() called
-        # for the NZB
+    elif segment.nzbFile.isSkippedPar and not len(segment.nzbFile.todoNzbSegments):
+        # This skipped par file is done and didn't assemble, so manually tell the
+        # NZBSegmentQueue that it's finished
+        Hellanzb.queue.fileDone(segment.nzbFile)
+        
+        # It's possible that it was the final decode() called for this NZB
         tryFinishNZB(segment.nzbFile.nzb)
 
 def nuke(f):
@@ -309,10 +313,13 @@ def setRealFileName(nzbFile, filename, forceChange = False, settingSegmentNumber
     renameFilenames = {}
 
     if switchedReal:
+        notOnDisk = \
+            nzbSegment.nzbFile.todoNzbSegments.union(nzbSegment.nzbFile.dequeuedSegments)
+            
         # Get the original segment filenames via getDestination() (before we change it)
         renameSegments = [(nzbSegment, nzbSegment.getDestination()) for nzbSegment in
                            nzbFile.nzbSegments if nzbSegment not in
-                           nzbSegment.nzbFile.todoNzbSegments]
+                          notOnDisk]
 
     # Change the filename
     nzbFile.filename = filename
@@ -674,7 +681,7 @@ def assembleNZBFile(nzbFile, autoFinish = True):
             # exceptions.OSError: [Errno 2] No such file or directory: 
             if ose.errno != 2:
                 debug('Unexpected ERROR while removing segmentFile: ' + segmentFile)
-        
+
     Hellanzb.queue.fileDone(nzbFile)
     reactor.callFromThread(fileDone)
     

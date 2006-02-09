@@ -312,10 +312,14 @@ class NZBSegmentQueue(PriorityQueue):
 
     def dequeueSegments(self, nzbSegments):
         """ Explicitly dequeue the specified nzb segments """
-        self.dequeueItems([(nzbSegment.priority, nzbSegment) for nzbSegment in nzbSegments])
-        
-        for nzbSegment in nzbSegments:
-            self.segmentDone(nzbSegment, dequeued = True)
+        # ATOMIC:
+        dequeuedSegments = self.dequeueItems([(nzbSegment.priority, nzbSegment) \
+                                              for nzbSegment in nzbSegments])
+
+        for p, nzbSegment in dequeuedSegments:
+            self.segmentDone(nzbSegment, dequeue = True)
+            
+        return len(dequeuedSegments)
 
     def currentNZBs(self):
         """ Return a copy of the list of nzbs currently being downloaded """
@@ -415,7 +419,7 @@ class NZBSegmentQueue(PriorityQueue):
                 if nsf.serverPoolName not in requeuedSegment.failedServerPools:
                     nsf.fetchNextNZBSegment()
 
-    def fileDone(self, nzbFile, dequeued = False):
+    def fileDone(self, nzbFile):
         """ Notify the queue a file is done. This is called after assembling a file into it's
         final contents. Segments are really stored independantly of individual Files in
         the queue, hence this function """
@@ -424,31 +428,48 @@ class NZBSegmentQueue(PriorityQueue):
             self.nzbFiles.remove(nzbFile)
         self.nzbFilesLock.release()
 
-        if not dequeued:
+        if nzbFile.isAllSegmentsDecoded():
             for nzbSegment in nzbFile.nzbSegments:
                 if self.onDiskSegments.has_key(nzbSegment.getDestination()):
                     self.onDiskSegments.pop(nzbSegment.getDestination())
 
-    def segmentDone(self, nzbSegment, dequeued = False):
+            if nzbFile.isSkippedPar:
+                # If a skipped par file was actually assembled, it wasn't actually skipped
+                nzbFile.isSkippedPar = False
+
+    def segmentDone(self, nzbSegment, dequeue = False):
         """ Simply decrement the queued byte count and register this nzbSegment as finished
         downloading, unless the segment is part of a postponed download """
+        # NOTE: old code locked here: but this block should only contend with itself (only
+        # called from the ArticleDecoder) ArticleDecoder thread (only segmentDone() and
+        # isAllSegmentsDecoded() touches todoNzbSegments, dequeuedSegments,
+        # totalQueuedBytes?
         self.nzbsLock.acquire()
         if nzbSegment in nzbSegment.nzbFile.todoNzbSegments:
             nzbSegment.nzbFile.todoNzbSegments.remove(nzbSegment)
+            if dequeue:
+                nzbSegment.nzbFile.dequeuedSegments.add(nzbSegment)
+                debug('segmentDone: dequeued: %s %i' % (nzbSegment.nzbFile.subject,
+                                                        nzbSegment.number))
+            elif nzbSegment in nzbSegment.nzbFile.dequeuedSegments:
+                # NOTE: this should really never occur
+                # need this elif?
+                debug('*** segmentDone called on dequeued nzbSegment -- removing from nzbFile.dequeuedSegments!')
+                nzbSegment.nzbFile.dequeuedSegments.remove(nzbSegment)
             if nzbSegment.nzbFile.nzb in self.nzbs:
                 self.totalQueuedBytes -= nzbSegment.bytes
         self.nzbsLock.release()
         
-        if not len(nzbSegment.nzbFile.todoNzbSegments):
-            self.fileDone(nzbSegment.nzbFile)
-
-        if not dequeued:
+        if not dequeue:
+            # NOTE: currently don't have to lock -- only the ArticleDecoder thread (via
+            # ->handleDupeNZBSegment->isBeingDownloaded) reads onDiskSegments
             self.onDiskSegments[nzbSegment.getDestination()] = nzbSegment
 
     def isBeingDownloadedFile(self, segmentFilename):
         """ Whether or not the file on disk is currently in the middle of being
         downloaded/assembled. Return the NZBSegment representing the segment specified by
         the filename """
+        # see segmentDone
         segmentFilename = segmentFilename
         if self.onDiskSegments.has_key(segmentFilename):
             return self.onDiskSegments[segmentFilename]
@@ -518,10 +539,6 @@ class NZBSegmentQueue(PriorityQueue):
         # downloaded (in needDlFiles) simply need to be assembled
         for nzbFile in needWorkFiles:
             if nzbFile not in needDlFiles:
-                # if isSkippedPar -- it wasn't actually skipped. as if needsDownload =
-                # False were set by the NZBParser
-                nzbFile.isSkippedPar = False
-                
                 # Don't automatically 'finish' the NZB, we'll take care of that in this
                 # function if necessary
                 info(nzbFile.getFilename() + ': Assembling -- all segments were on disk')
@@ -532,6 +549,7 @@ class NZBSegmentQueue(PriorityQueue):
                     assembleNZBFile(nzbFile, autoFinish = False)
                 except OutOfDiskSpace:
                     self.nzbDone(nzb)
+                    # FIXME: Shouldn't exit here
                     error('Cannot assemble ' + nzb.getFileName() + ': No space left on device! Exiting..')
                     Hellanzb.Core.shutdown(True)
 

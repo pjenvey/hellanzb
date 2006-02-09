@@ -135,10 +135,8 @@ class LogOutputStream:
     def __init__(self, logFunction):
         self.write = logFunction
 
-    def flush(self):
-        pass
-    
-    def close(self): raise NotImplementedError()
+    def flush(self): pass
+    def close(self): pass
     def isatty(self): raise NotImplementedError()
     def next(self): raise NotImplementedError()
     def read(self, n = -1): raise NotImplementedError()

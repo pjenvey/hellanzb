@@ -14,7 +14,8 @@ from sets import Set
 from shutil import move
 from twisted.copyright import version as twistedVersion
 from twisted.internet import reactor
-from twisted.internet.error import ConnectionRefusedError, DNSLookupError, TimeoutError, UserError
+from twisted.internet.error import ConnectionDone, ConnectionLost, ConnectionRefusedError, \
+    DNSLookupError, TimeoutError, UserError
 from twisted.internet.protocol import ReconnectingClientFactory
 from twisted.protocols.basic import LineReceiver
 from twisted.protocols.policies import TimeoutMixin, ThrottlingFactory
@@ -290,6 +291,7 @@ class NZBLeecherFactory(ReconnectingClientFactory):
         if totalActiveClients == 0:
             endDownload()
 
+QUIET_CONNECTION_LOST_FAILURES = (ConnectionDone, ConnectionLost)
 class NZBLeecher(NNTPClient, TimeoutMixin):
     """ Extends twisted NNTPClient to download NZB segments from the queue, until the queue
     contents are exhausted """
@@ -445,8 +447,9 @@ class NZBLeecher(NNTPClient, TimeoutMixin):
                 # been closed by ensureSafePostponedLoad
                 self.currentSegment = None
         
-        # Continue being quiet about things if we're shutting down
-        if not Hellanzb.SHUTDOWN:
+        # Continue being quiet about things if we're shutting down. Don't bother plaguing
+        # the log with typical disconnection reasons
+        if not Hellanzb.SHUTDOWN and reason.type not in QUIET_CONNECTION_LOST_FAILURES:
             debug(str(self) + ' lost connection: ' + str(reason))
 
         self.activeGroups = []

@@ -64,6 +64,7 @@ def dequeueIfExtraPar(segment, readOnlyQueue = False):
     if not isQueuedRecoveryPar:
         # Extra par2 -- dequeue the rest of its segments
         segment.nzbFile.isSkippedPar = True
+        segment.nzbFile.nzb.totalSkippedBytes += segment.nzbFile.totalBytes
 
         dequeueSegments = segment.nzbFile.todoNzbSegments.copy()
         dequeueSegments.remove(segment)

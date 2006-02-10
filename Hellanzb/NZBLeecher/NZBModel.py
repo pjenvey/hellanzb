@@ -196,6 +196,15 @@ class NZB(Archive):
     def getName(self):
         return os.path.basename(self.archiveName)
 
+    def getPercentDownloaded(self):
+        """ Return the percentage of this NZB that has already been downloaded """
+        if self.totalBytes == 0:
+            # Probably hasn't been calculated yet
+            return 0
+        else:
+            return int((float(self.totalReadBytes + self.totalSkippedBytes) / \
+                                   float(self.totalBytes)) * 100)
+
     def getStateAttribs(self):
         """ Return attributes to be written out to the """
         attribs = Archive.getStateAttribs(self)

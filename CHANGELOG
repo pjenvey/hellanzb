@@ -4,9 +4,16 @@ NZBLeecher:
 
 o New feature: smartpar. hellanzb will now skip downloading extra par2/par1
 files. If the post processor finds the archive requires more par data for
-repair, hellanzb will automatically immediately force downloading of enough
-extra pars for repair
+repair, hellanzb will automatically force the download of a minimal amount of
+extra pars immediately
 
+Daemon:
+o New remote call: 'setrarpass'
+(From hellanzb.py --help)
+
+  setrarpass nzbid pass Set the rarPassword for the NZB with the specified ID
+
+o Rar passwords are now saved in between CTRL-Cs.
 
 v0.8:
 

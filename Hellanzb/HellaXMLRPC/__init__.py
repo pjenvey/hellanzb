@@ -237,7 +237,7 @@ class HellaXMLRPCServer(XMLRPC):
                                  ['struct', 'string', 'string'] ]
 
     def xmlrpc_setrarpass(self, nzbId, rarPassword):
-        """ Set the rarPassword for the specified NZB archive """
+        """ Set the rarPassword for the NZB with the specified ID """
         from Hellanzb.Daemon import setRarPassword
         setRarPassword(nzbId, rarPassword)
         return self.xmlrpc_status()
@@ -627,7 +627,7 @@ def initXMLRPCClient():
     r = RemoteCall('process', statusString)
     r.addRequiredArg('archivedir')
     r = RemoteCall('shutdown', resultMadeItBoolAndExit)
-    r = RemoteCall('setrarpass', statusString, published = False)
+    r = RemoteCall('setrarpass', statusString)
     r.addRequiredArg('nzbid')
     r.addRequiredArg('pass')
     r = RemoteCall('status', statusString)

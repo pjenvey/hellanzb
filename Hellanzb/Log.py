@@ -16,8 +16,8 @@ import logging, time, Hellanzb
 from socket import AF_INET, SOCK_DGRAM, socket, error as socket_error
 from threading import Lock
 from traceback import print_exc
-from Hellanzb.Logging import lockScrollableHandlers, prettyException, stdinEchoOff, stdinEchoOn, \
-    ScrollableHandler
+from Hellanzb.Logging import LogOutputStream, lockScrollableHandlers, prettyException, \
+    stdinEchoOff, stdinEchoOn, ScrollableHandler
 from Hellanzb.Growl import *
 from Hellanzb.Util import getLocalClassName, toUnicode, FatalError
 from StringIO import StringIO
@@ -149,6 +149,12 @@ def _scrollEnd():
 def scrollEnd():
     """ Let the logger know we're done scrolling """
     lockScrollableHandlers(_scrollEnd)
+
+def logStateXML(logFunction):
+    """ Print hellanzb's state xml via the specified log function """
+    buf = StringIO()
+    Hellanzb._writeStateXML(buf)
+    logFunction('%s%s' % ('hellanzb state xml:\n', buf.getvalue()))
 
 """
 /*

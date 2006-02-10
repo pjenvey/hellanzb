@@ -59,7 +59,7 @@ class Archive(object):
             val = getattr(self, attribName)
             # Only write to XML required values and values that do not match their defaults
             if default == Required or val != default:
-                if attribName == 'id':
+                if isinstance(val, int):
                     val = str(val)
                 attribs[attribName] = toUnicode(val)
         attribs['name'] = self.getName()
@@ -67,7 +67,7 @@ class Archive(object):
 
     def toStateXML(self, xmlWriter):
         """ Write a brief version of this object to an elementtree.SimpleXMLWriter.XMLWriter """
-        if self in Hellanzb.postProcessors:
+        if self.postProcessor in Hellanzb.postProcessors:
             # Plain Archive objects can only be in the 'processing' state
             xmlWriter.element('processing', None, self.getStateAttribs())
 

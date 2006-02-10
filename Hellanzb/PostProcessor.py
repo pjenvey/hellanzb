@@ -11,7 +11,7 @@ from os.path import join as pathjoin
 from shutil import move, rmtree
 from threading import Thread, Condition, Lock, RLock
 from Hellanzb.Log import *
-from Hellanzb.Logging import LogOutputStream, prettyException
+from Hellanzb.Logging import prettyException
 from Hellanzb.PostProcessorUtil import *
 from Hellanzb.Util import *
 
@@ -66,6 +66,7 @@ class PostProcessor(Thread):
 
         # Whether all par data for the NZB has not been downloaded. If this is True,
         # and par fails needing more data, we can trigger a download of extra par dat
+        self.hasMorePars = False
         if self.isNZBArchive() and self.archive.skippedParSubjects:
             self.hasMorePars = True
         
@@ -132,8 +133,7 @@ class PostProcessor(Thread):
             # Write the queue to disk unless we've been stopped by a killed Topen (via
             # CTRL-C)
             if not self.killed:
-                from Hellanzb.NZBQueue import writeStateXML # FIXME:
-                writeStateXML()
+                Hellanzb.writeStateXML()
 
         if self.forcedRecovery:
             return
@@ -188,8 +188,7 @@ class PostProcessor(Thread):
             Hellanzb.postProcessors.append(self)
             Hellanzb.postProcessorLock.release()
 
-            from Hellanzb.NZBQueue import writeStateXML # FIXME:
-            writeStateXML()
+            Hellanzb.writeStateXML()
         
         try:
             self.postProcess()
@@ -206,8 +205,7 @@ class PostProcessor(Thread):
         
         except FatalError, fe:
             # REACTOR STOPPED IF NOT BACKGROUND/SUBIDR
-            from Hellanzb.NZBQueue import writeStateXML # FIXME:
-            writeStateXML(LogOutputStream(debug))
+            logStateXML(debug)
             self.stop()
 
             # Propagate up to the original Post Processor
@@ -233,8 +231,7 @@ class PostProcessor(Thread):
         
         except Exception, e:
             # REACTOR STOPPED IF NOT BACKGROUND/SUBIDR
-            from Hellanzb.NZBQueue import writeStateXML # FIXME:
-            writeStateXML(LogOutputStream(debug))
+            logStateXML(debug)
             self.stop()
             
             # Propagate up to the original Post Processor

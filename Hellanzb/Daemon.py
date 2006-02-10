@@ -131,6 +131,7 @@ def endDownload():
     """ Finished downloading """
     elapsed = time.time() - Hellanzb.totalStartTime
     speed = Hellanzb.totalReadBytes / 1024.0 / elapsed
+    # FIXME: should be using nzb.totalReadBytes
     leeched = prettySize(Hellanzb.totalReadBytes)
     info('Transferred %s in %s at %.1fKB/s' % (leeched, prettyElapsed(elapsed), speed))
     

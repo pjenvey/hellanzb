@@ -16,8 +16,8 @@ from xml.sax.handler import ContentHandler, feature_external_ges, feature_namesp
 from Hellanzb.external.elementtree.SimpleXMLWriter import XMLWriter
 from Hellanzb.Log import *
 from Hellanzb.NewzbinDownloader import NewzbinDownloader
-from Hellanzb.Util import IDPool, archiveName, hellaRename, getFileExtension, toUnicode, \
-    validNZB
+from Hellanzb.Util import IDPool, archiveName, hellaRename, inMainThread, \
+    getFileExtension, toUnicode, validNZB
 
 __id__ = '$Id$'
 
@@ -252,12 +252,9 @@ def recoverStateFromDisk():
                 not NewzbinDownloader.cookies.get('PHPSESSID'):
             NewzbinDownloader.cookies['PHPSESSID'] = Hellanzb.recoveredState.newzbinSessId
 
-def writeStateXML(outFile = None):
+def _writeStateXML(outFile):
     """ Write portions of hellanzb's state to an XML file on disk. This includes queued NZBs
-    and their order in the queue, and smart par recovery information"""
-    if outFile is None:
-        outFile = open(Hellanzb.STATE_XML_FILE, 'w')
-
+    and their order in the queue, and smart par recovery information """
     writer = XMLWriter(outFile, 'utf-8', indent = 8)
     writer.declaration()
     
@@ -275,11 +272,27 @@ def writeStateXML(outFile = None):
     writer.close(h)
     #writer.comment('Generated @ %s' % time.strftime("%a, %d %b %Y %H:%M:%S %Z",
     #                                                time.localtime()))
-    outFile.close()
 
     # Delete the recoveredState data -- done with it
     Hellanzb.recoveredState = RecoveredState() 
-        
+Hellanzb._writeStateXML = _writeStateXML
+
+def writeStateXML():
+    """ Write hellanzb's state to the STATE_XML_FILE atomically """
+    file = Hellanzb.STATE_XML_FILE
+    def backupThenWrite():
+        if os.path.exists(file):
+            move(file, file + '.bak')
+            outFile = open(file, 'w')
+            _writeStateXML(outFile)
+            outFile.close()
+
+    if inMainThread():
+        backupThenWrite()
+    else:
+        reactor.callFromThread(backupThenWrite)
+Hellanzb.writeStateXML = writeStateXML
+    
 def parseNZB(nzb, notification = 'Downloading', quiet = False):
     """ Parse the NZB file into the Queue. Unless the NZB file is deemed already fully
     processed at the end of parseNZB, tell the factory to start downloading it """

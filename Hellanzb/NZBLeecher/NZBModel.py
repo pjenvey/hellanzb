@@ -220,7 +220,10 @@ class NZB(Archive):
         if self.isParRecovery:
             attribs['isParRecovery'] = 'True'
             for attrib in ('neededBlocks', 'parPrefix'):
-                attribs[attrib] = toUnicode(getattr(self, attrib))
+                val = getattr(self, attrib)
+                if isinstance(val, int):
+                    val = str(val)
+                attribs[attrib] = toUnicode(val)
             attribs['parType'] = getParName(self.parType)
 
         return attribs

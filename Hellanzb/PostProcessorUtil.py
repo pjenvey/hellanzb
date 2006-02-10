@@ -59,8 +59,7 @@ class Archive(object):
             val = getattr(self, attribName)
             # Only write to XML required values and values that do not match their defaults
             if default == Required or val != default:
-                #attribs[attribName] = str(val)
-                attribs[attribName] = unicode(val)
+                attribs[attribName] = toUnicode(val)
         attribs['name'] = self.getName()
         return attribs
 

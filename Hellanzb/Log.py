@@ -19,7 +19,7 @@ from traceback import print_exc
 from Hellanzb.Logging import lockScrollableHandlers, prettyException, stdinEchoOff, stdinEchoOn, \
     ScrollableHandler
 from Hellanzb.Growl import *
-from Hellanzb.Util import getLocalClassName, FatalError
+from Hellanzb.Util import getLocalClassName, toUnicode, FatalError
 from StringIO import StringIO
 
 __id__ = '$Id$'
@@ -113,8 +113,7 @@ def growlNotify(type, title, description, sticky = False):
     # to UTF-8 the description if it contains unusual characters. we also have to force
     # latin-1, otherwise converting to unicode can fail too
     # (e.g. 'SÃÂ£o_Paulo')
-    if not isinstance(description, unicode):
-        description = unicode(description, 'latin-1')
+    description = toUnicode(description)
     
     p = GrowlNotificationPacket(application="hellanzb",
                                 notification=type, title=title,

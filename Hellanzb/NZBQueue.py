@@ -96,7 +96,7 @@ class RecoveredState(object):
         queued) """
         typeDict = getattr(self, type)
 
-        archiveName = unicode(archiveName)
+        archiveName = toUnicode(archiveName)
         recoveredDict = None
         if archiveName in typeDict:
             recoveredDict = typeDict[archiveName]

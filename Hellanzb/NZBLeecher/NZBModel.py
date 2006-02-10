@@ -9,7 +9,8 @@ import os, re, Hellanzb
 from sets import Set
 from threading import Lock, RLock
 from Hellanzb.Log import *
-from Hellanzb.Util import archiveName, getFileExtension, isHellaTemp, nuke, IDPool
+from Hellanzb.Util import IDPool, archiveName, getFileExtension, isHellaTemp, nuke, \
+    toUnicode
 from Hellanzb.NZBLeecher.ArticleDecoder import parseArticleData, setRealFileName
 from Hellanzb.NZBLeecher.DupeHandler import handleDupeNZBFileNeedsDownload
 from Hellanzb.NZBLeecher.NZBLeecherUtil import validWorkingFile
@@ -203,7 +204,7 @@ class NZB(Archive):
         if self.isParRecovery:
             attribs['isParRecovery'] = 'True'
             for attrib in ('neededBlocks', 'parPrefix'):
-                attribs[attrib] = unicode(getattr(self, attrib))
+                attribs[attrib] = toUnicode(getattr(self, attrib))
             attribs['parType'] = getParName(self.parType)
 
         return attribs

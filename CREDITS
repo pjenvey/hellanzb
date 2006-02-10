@@ -43,7 +43,7 @@ o Hellanzb.Util.walk was written by Robin Parmar
   (http://aspn.activestate.com/ASPN/Cookbook/Python/Recipe/52664)
 
 o Hellanzb.external.elementtree.SimpleXMLWriter is from Fredrik Lundh's
-  elementtree-1.2.6
+  elementtree-1.2.6, with added support for writing indented XML
 
       ________________________
 o     \   |    /  ___/_   _  /

@@ -34,7 +34,7 @@ class PostProcessor(Thread):
 
     archiveAttrs = ('id', 'rarPassword', 'deleteProcessed', 'skipUnrar', 'toStateXML')
 
-    def __init__(self, archive, background = True, subDir = None, hasMorePars = False):
+    def __init__(self, archive, background = True, subDir = None):
         """ Ensure sanity of this instance before starting """
         # The archive to post process
         self.archive = archive
@@ -66,9 +66,8 @@ class PostProcessor(Thread):
 
         # Whether all par data for the NZB has not been downloaded. If this is True,
         # and par fails needing more data, we can trigger a download of extra par dat
-        # FIXME: should probably change this to looking at isNZBArchive() and
-        # self.archive.extraParSubjects
-        self.hasMorePars = hasMorePars
+        if self.isNZBArchive() and self.archive.extraParSubjects:
+            self.hasMorePars = True
         
         self.decompressionThreadPool = []
         self.decompressorLock = RLock()

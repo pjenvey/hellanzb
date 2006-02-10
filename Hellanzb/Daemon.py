@@ -96,9 +96,6 @@ def resumePostProcessors():
         
         archive = NZB.fromStateXML('processing', archiveDirName)
         troll = PostProcessor.PostProcessor(archive)
-        if isinstance(archive, NZB) and archive.extraParSubjects and \
-                len(archive.extraParSubjects):
-            troll.hasMorePars = True
 
         info('Resuming post processor: ' + archiveName(archiveDirName))
         troll.start()
@@ -180,12 +177,13 @@ def handleNZBDone(nzb):
     # This NZB could be requeued for download after PostProcessing -- clean some of its
     # download statistics
     nzb.cleanStats()
-        
-    hasMorePars = False
+
+    # The list of skipped pars is maintained in the state XML as only the subjects of the
+    # nzbFiles. PostProcessor only knows to look at the NZB.extraParSubjects list, which
+    # is created here
     extraParSubjects = []
     for nzbFile in nzb.nzbFileElements:
         if nzbFile.isSkippedPar and nzbFile.subject not in oldParSubjects:
-            hasMorePars = True
             extraParSubjects.append((nzbFile.totalBytes, nzbFile.subject))
     if extraParSubjects:
         # Ensure the list of pars is sorted by the par's number of bytes (so we pick off
@@ -195,7 +193,7 @@ def handleNZBDone(nzb):
 
     # Finally unarchive/process the directory in another thread, and continue
     # nzbing
-    troll = PostProcessor.PostProcessor(nzb, hasMorePars = hasMorePars)
+    troll = PostProcessor.PostProcessor(nzb)
 
     # Give NZBLeecher some time (another reactor loop) to killHistory() & scrollEnd()
     # without any logging interference from PostProcessor
@@ -496,6 +494,8 @@ def forceNZBParRecover(nzb):
         move(nzb.nzbFileName, new)
         nzb.nzbFileName = new
 
+        # FIXME: Would be nice to include the number of needed recovery blocks in the
+        # growl notification this triggers
         if Hellanzb.downloadScannerID is not None and \
                 not Hellanzb.downloadScannerID.cancelled and \
                 not Hellanzb.downloadScannerID.called:

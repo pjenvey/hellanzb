@@ -28,7 +28,7 @@ class HellanzbStateXMLParser(ContentHandler):
 
         self.currentTag = None
         self.currentAttrs = None
-        self.extraParContent = ''
+        self.skippedParContent = ''
         
     def startElement(self, name, attrs):
         self.currentTag = name
@@ -37,13 +37,13 @@ class HellanzbStateXMLParser(ContentHandler):
             Hellanzb.recoveredState.version = attrs.get('version')
             Hellanzb.recoveredState.newzbinSessId = attrs.get('newzbinSessId')
 
-        # <downloading id="10" isParRecovery="true">Archive 3</downloading>
-        #          <extraPar>Subject Line vol02+01.par2</extraPar>
-        # </downloading>
+        # <downloading id="10" isParRecovery="true" name="Archive 3"/>
         # <processing id="4" rarPassword="sup" deleteProcessed="true" skipUnrar="true"
         #    overwriteZeroByteFiles="true" keepDupes="true" destSubDir="?"
-        #    nzbFile="Archive_0.nzb">Archive 0</processing>
-        # <queued id="3" order="1">Archive 1</queued>
+        #    nzbFile="Archive_0.nzb" name="Archive 0"/>
+        #          <skippedPar>Subject Line vol02+01.par2</skippedPar>
+        # </processing>
+        # <queued id="3" name="Archive 1"/>
         elif name in ('downloading', 'processing', 'queued'):
             currentAttrs = dict(attrs.items())
 
@@ -63,19 +63,19 @@ class HellanzbStateXMLParser(ContentHandler):
             self.currentAttrs = currentAttrs
                 
         elif name == 'skippedPar':
-            if self.currentAttrs.has_key('extraParSubjects'):
-                self.extraParSubjects = self.currentAttrs['extraParSubjects']
+            if self.currentAttrs.has_key('skippedParSubjects'):
+                self.skippedParSubjects = self.currentAttrs['skippedParSubjects']
             else:
-                self.extraParSubjects = self.currentAttrs['extraParSubjects'] = []
+                self.skippedParSubjects = self.currentAttrs['skippedParSubjects'] = []
 
     def characters(self, content):
         if self.currentTag == 'skippedPar':
-            self.extraParContent += content
+            self.skippedParContent += content
 
     def endElement(self, name):
         if self.currentTag == 'skippedPar':
-            self.extraParSubjects.append(self.extraParContent)
-            self.extraParContent = ''
+            self.skippedParSubjects.append(self.skippedParContent)
+            self.skippedParContent = ''
         else:
             self.currentAttrs = None
         self.currentTag = None

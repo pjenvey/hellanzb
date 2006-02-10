@@ -221,6 +221,7 @@ class NZBSegmentQueue(PriorityQueue):
     """ priority fifo queue of segments to download. lower numbered segments are downloaded
     before higher ones """
     NZB_CONTENT_P = 100000 # normal nzb downloads
+    # FIXME: EXTRA_PAR2_P isn't actually used
     EXTRA_PAR2_P = 0 # par2 after-the-fact downloads are more important
 
     def __init__(self, fileName = None):
@@ -559,7 +560,7 @@ class NZBSegmentQueue(PriorityQueue):
             if not nzbSegment.nzbFile.isSkippedPar:
                 self.put((nzbSegment.priority, nzbSegment))
                 
-        if nzb.isParRecovery and nzb.extraParSubjects and len(nzb.extraParSubjects) and \
+        if nzb.isParRecovery and nzb.skippedParSubjects and len(nzb.skippedParSubjects) and \
                 not len(self):
             msg = 'Par recovery download: Not sure what specific pars are needed -- downloading all pars'
             if skippedPars:
@@ -656,10 +657,10 @@ class NZBParser(ContentHandler):
             # Special handling for par recovery downloads
             extraMsg = ''
             if Hellanzb.SMART_PAR and self.fileNeedsDownload and self.nzb.isParRecovery:
-                if subject not in self.nzb.extraParSubjects:
+                if subject not in self.nzb.skippedParSubjects:
                     # Only download previously marked pars
                     self.fileNeedsDownload = False
-                    extraMsg = ' (not on disk but wasn\'t previously marked as an extraParFile)'
+                    extraMsg = ' (not on disk but wasn\'t previously marked as an skippedParFile)'
                 elif self.nzb.parPrefix not in subject:
                     # Previously marked par -- only download it if it pertains to the
                     # particular par

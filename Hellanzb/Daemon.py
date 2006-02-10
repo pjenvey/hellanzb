@@ -171,25 +171,25 @@ def handleNZBDone(nzb):
 
     # Determine if this archive has more pars available for download before PostProcessing
     oldParSubjects = []
-    if nzb.extraParSubjects:
-        oldParSubjects = nzb.extraParSubjects[:]
+    if nzb.skippedParSubjects:
+        oldParSubjects = nzb.skippedParSubjects[:]
 
     # This NZB could be requeued for download after PostProcessing -- clean some of its
     # download statistics
     nzb.cleanStats()
 
     # The list of skipped pars is maintained in the state XML as only the subjects of the
-    # nzbFiles. PostProcessor only knows to look at the NZB.extraParSubjects list, which
+    # nzbFiles. PostProcessor only knows to look at the NZB.skippedParSubjects list, which
     # is created here
-    extraParSubjects = []
+    skippedParSubjects = []
     for nzbFile in nzb.nzbFileElements:
         if nzbFile.isSkippedPar and nzbFile.subject not in oldParSubjects:
-            extraParSubjects.append((nzbFile.totalBytes, nzbFile.subject))
-    if extraParSubjects:
+            skippedParSubjects.append((nzbFile.totalBytes, nzbFile.subject))
+    if skippedParSubjects:
         # Ensure the list of pars is sorted by the par's number of bytes (so we pick off
         # the smallest ones first when doing a par recovery download)
-        extraParSubjects.sort()
-        nzb.extraParSubjects = [subject for bytes, subject in extraParSubjects]
+        skippedParSubjects.sort()
+        nzb.skippedParSubjects = [subject for bytes, subject in skippedParSubjects]
 
     # Finally unarchive/process the directory in another thread, and continue
     # nzbing

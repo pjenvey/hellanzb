@@ -66,7 +66,7 @@ class PostProcessor(Thread):
 
         # Whether all par data for the NZB has not been downloaded. If this is True,
         # and par fails needing more data, we can trigger a download of extra par dat
-        if self.isNZBArchive() and self.archive.extraParSubjects:
+        if self.isNZBArchive() and self.archive.skippedParSubjects:
             self.hasMorePars = True
         
         self.decompressionThreadPool = []

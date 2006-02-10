@@ -19,6 +19,7 @@ from Hellanzb.SmartPar import dequeueIfExtraPar, identifyPar
 
 __id__ = '$Id$'
 
+# FIXME: move this function to the bottom of the file
 segmentEndRe = re.compile(r'^segment\d{4}$')
 def segmentsNeedDownload(segmentList, overwriteZeroByteSegments = False):
     """ Faster version of needsDownload for multiple segments that do not have their real file
@@ -138,7 +139,7 @@ class NZB(Archive):
         self.archiveName = archiveName(self.nzbFileName) # pretty name
         self.nzbFileElements = []
 
-        # Where the nzb files will be downloaded
+        ## Where the nzb files will be downloaded
         self.destDir = Hellanzb.WORKING_DIR
 
         ## A cancelled NZB is marked for death. ArticleDecoder will dispose of any
@@ -159,13 +160,19 @@ class NZB(Archive):
         ## size
         self.overwriteZeroByteFiles = True
 
-        ## Extra par subject names are kept here, in a list, during post processing
+        ## Whether or not this NZB is downloading in par recovery mode
         self.isParRecovery = False
+        ## Skipped par file's subjects are kept here, in a list, during post
+        ## processing. This list is arranged by the file's size
+        self.skippedParSubjects = None
+        ## The number of par blocks (or par files for par1 mode), the par version, and the
+        ## par prefix for the current par recovery download
         self.neededBlocks = 0
         self.parType = None
         self.parPrefix = None
-        self.extraParSubjects = None
         
+        ## Whether or not this NZB is considered as finished downloading/decoding (by
+        ## ArticleDecoder.tryFinishNZB)
         self.isFinished = False
         
     def isCanceled(self):
@@ -234,19 +241,19 @@ class NZB(Archive):
         
         xmlWriter.start(type, attribs)
         if type != 'downloading' or self.isParRecovery:
-            # Write 'skippedPar' tags describing the known extra par files that haven't
+            # Write 'skippedPar' tags describing the known skipped par files that haven't
             # been downloaded
-            if self.extraParSubjects is not None:
-                for nzbFileName in self.extraParSubjects:
+            if self.skippedParSubjects is not None:
+                for nzbFileName in self.skippedParSubjects:
                     xmlWriter.element('skippedPar', nzbFileName)
             else:
                 for nzbFile in self.nzbFileElements:
-                    extraParFiles = []
+                    skippedParFiles = []
                     if nzbFile.isExtraParFile:
-                        extraParFiles.append((nzbFile.totalBytes, nzbFile))
-                    extraParFiles.sort()
-                    for bytes, extraParFile in extraParFiles:
-                        xmlWriter.element('skippedPar', extraParFile.subject)
+                        skippedParFiles.append((nzbFile.totalBytes, nzbFile))
+                    skippedParFiles.sort()
+                    for bytes, skippedParFile in skippedParFiles:
+                        xmlWriter.element('skippedPar', skippedParFile.subject)
         xmlWriter.end(type)
 
     def fromStateXML(type, target):
@@ -314,7 +321,9 @@ class NZBFile:
         # during NZB parsing, or later written to the FS
         self.todoNzbSegments = Set()
 
-        ## 
+        ## Segments that have been dequeued on the fly (during download). These are kept
+        ## track of in the rare case that an nzb file is dequeued when all segments have
+        ## actually been downloaded
         self.dequeuedSegments = Set()
 
         ## NZBFile statistics
@@ -343,6 +352,10 @@ class NZBFile:
         self.showFilename = None
         self.showFilenameIsTemp = False
         
+        # Whether or not the filename was forcefully changed from the original by the
+        # DupeHandler
+        self.forcedChangedFilename = False
+        
         # direct pointer to the first segment of this file, when we have a tempFilename we
         # look at this segment frequently until we find the real file name
         # FIXME: this most likely doesn't optimize for shit.
@@ -357,8 +370,8 @@ class NZBFile:
         # NOTE: maybe just change nzbFile.filename via the reactor (callFromThread), and
         # remove the lock entirely?
 
-        self.forcedChangedFilename = False
-
+        ## Whether or not this is a par file, an extra par file
+        ## (e.g. archiveA.vol02+01.par2), and has been skipped by the downloader
         self.isParFile = False
         self.isExtraParFile = False
         self.isSkippedPar = False

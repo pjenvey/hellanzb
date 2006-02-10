@@ -59,6 +59,8 @@ class Archive(object):
             val = getattr(self, attribName)
             # Only write to XML required values and values that do not match their defaults
             if default == Required or val != default:
+                if attribName == 'id':
+                    val = str(val)
                 attribs[attribName] = toUnicode(val)
         attribs['name'] = self.getName()
         return attribs
@@ -196,8 +198,9 @@ class ParExpectsUnsplitFiles(Exception):
 
 class NeedMorePars(Exception):
     """ The PostProcessor throws this exception when an archive has more par chunks available
-    to download, and the par2 identified the archive as needing the specified size of par
-    chunks to repair """
+    to download, and the par2 function identified the archive as needing the specified
+    size of par chunks (of the specified type, for the par group with the specified
+    prefix) to repair """
     def __init__(self, size, parType, parPrefix):
         """ Construct with how many more blocks (par2) or par files (par1) are needed, the par
         type (constants PAR1 or PAR2) and the prefix (filename minus the extension) of the

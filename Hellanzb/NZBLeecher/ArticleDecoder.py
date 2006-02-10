@@ -46,15 +46,6 @@ def decode(segment):
     """ Decode the NZBSegment's articleData to it's destination. Toggle the NZBSegment
     instance as having been decoded, then assemble all the segments together if all their
     decoded segment filenames exist """
-    if Hellanzb.SMART_PAR and segment.number == 1:
-        from Hellanzb.SmartPar import dequeueIfExtraPar
-        # This will dequeue all of this segment's sibling segments that are still in the
-        # NZBSegmentQueue. Segments that aren't in the queue are either:
-        # o already decoded and on disk
-        # o currently downloading
-        # Segments currently downloading are left in segment.nzbFile.todoNzbSegments
-        dequeueIfExtraPar(segment)
-    
     try:
         if segment.articleData is None:
             segment.loadArticleDataFromDisk()
@@ -77,6 +68,14 @@ def decode(segment):
               ' a problem occurred during decoding', e)
         touch(segment.getDestination())
 
+    if Hellanzb.SMART_PAR and segment.number == 1:
+        # This will dequeue all of this segment's sibling segments that are still in the
+        # NZBSegmentQueue. Segments that aren't in the queue are either:
+        # o already decoded and on disk
+        # o currently downloading
+        # Segments currently downloading are left in segment.nzbFile.todoNzbSegments
+        segment.dequeueIfExtraPar()
+    
     Hellanzb.queue.segmentDone(segment)
     debug('Decoded segment: ' + segment.getDestination())
 
@@ -739,22 +738,6 @@ def tryFinishNZB(nzb):
         debug('tryFinishNZB: finished downloading NZB: ' + nzb.archiveName)
         
         nzb.isFinished = True
-
-        # Forcefully disconnect any skipped par segments that are still downloading
-        skippedParNZBFiles = []
-        for nzbFile in nzb.nzbFileElements:
-            if nzbFile.isSkippedPar:
-                skippedParNZBFiles.append(nzbFile)
-                
-        def stopDownloadingSkippedPars():
-            for nsf in Hellanzb.nsfs:
-                for client in nsf.activeClients.copy():
-                    if client.currentSegment.nzbFile in skippedParNZBFiles:
-                        client.transport.loseConnection()
-                        client.isLoggedIn = False
-                        client.deactivate()
-                        
-        reactor.callFromThread(stopDownloadingSkippedPars)
         reactor.callFromThread(handleNZBDone, nzb)
         
     #finish = time.time() - start

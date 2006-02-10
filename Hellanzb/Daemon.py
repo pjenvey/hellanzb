@@ -186,9 +186,12 @@ def handleNZBDone(nzb):
     for nzbFile in nzb.nzbFileElements:
         if nzbFile.isSkippedPar and nzbFile.subject not in oldParSubjects:
             hasMorePars = True
-            extraParSubjects.append(nzbFile.subject)
+            extraParSubjects.append((nzbFile.totalBytes, nzbFile.subject))
     if extraParSubjects:
-        nzb.extraParSubjects = extraParSubjects
+        # Ensure the list of pars is sorted by the par's number of bytes (so we pick off
+        # the smallest ones first when doing a par recovery download)
+        extraParSubjects.sort()
+        nzb.extraParSubjects = [subject for bytes, subject in extraParSubjects]
 
     # Finally unarchive/process the directory in another thread, and continue
     # nzbing

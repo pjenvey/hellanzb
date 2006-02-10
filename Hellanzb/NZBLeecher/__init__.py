@@ -774,7 +774,14 @@ class NZBLeecher(NNTPClient, TimeoutMixin):
                                                                        self.currentSegment.nzbFile.totalSkippedBytes) /
                                                                  max(1, self.currentSegment.nzbFile.totalBytes) * 100))
 
-        if self.currentSegment.nzbFile.downloadPercentage > oldPercentage:
+        # NOTE: we now look for the downloadPercentage to be zero. SmartPar made it so we
+        # download every first segment at the beginning of the download. For larger files,
+        # all those segments will have a percentage of 0. Since the percentage doesn't
+        # change, the logger would stall pretty much until all the first segments were
+        # done. The checks for 0 avoid that situation and hopefully doesn't cause too much
+        # logging
+        if self.currentSegment.nzbFile.downloadPercentage > oldPercentage or \
+                self.currentSegment.nzbFile.downloadPercentage == 0:
             elapsed = max(0.1, now - self.currentSegment.nzbFile.downloadStartTime)
             #elapsedSession = max(0.1, now - self.factory.sessionStartTime)
 
@@ -785,8 +792,11 @@ class NZBLeecher(NNTPClient, TimeoutMixin):
                 self.factory.sessionSpeed = self.factory.sessionReadBytes / max(0.1, elapsed) / 1024.0
                 self.factory.sessionReadBytes = 0
                 self.factory.sessionStartTime = now
+                if self.currentSegment.nzbFile.downloadPercentage == 0:
+                    Hellanzb.scroller.updateLog(logNow = True)
 
-            Hellanzb.scroller.updateLog()
+            if self.currentSegment.nzbFile.downloadPercentage != 0:
+                Hellanzb.scroller.updateLog()
 
     def antiIdleConnection(self):
         """ anti idle the connection """

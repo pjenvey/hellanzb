@@ -207,6 +207,8 @@ class PostProcessor(Thread):
         
         except FatalError, fe:
             # REACTOR STOPPED IF NOT BACKGROUND/SUBIDR
+            from Hellanzb.NZBQueue import writeStateXML # FIXME:
+            writeStateXML(LogOutputStream(debug))
             self.stop()
 
             # Propagate up to the original Post Processor
@@ -228,12 +230,12 @@ class PostProcessor(Thread):
             else:
                 error(archiveName(self.dirName) + ': A problem occurred: ' + pe)
 
-            from Hellanzb.NZBQueue import writeStateXML # FIXME:
-            writeStateXML(LogOutputStream(debug))
             return
         
         except Exception, e:
             # REACTOR STOPPED IF NOT BACKGROUND/SUBIDR
+            from Hellanzb.NZBQueue import writeStateXML # FIXME:
+            writeStateXML(LogOutputStream(debug))
             self.stop()
             
             # Propagate up to the original Post Processor
@@ -241,8 +243,6 @@ class PostProcessor(Thread):
                 raise
             
             error(archiveName(self.dirName) + ': An unexpected problem occurred', e)
-            from Hellanzb.NZBQueue import writeStateXML # FIXME:
-            writeStateXML(LogOutputStream(debug))
             return
 
         # REACTOR STOPPED IF NOT BACKGROUND/SUBIDR

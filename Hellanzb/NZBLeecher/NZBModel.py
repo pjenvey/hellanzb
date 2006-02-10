@@ -104,7 +104,7 @@ def segmentsNeedDownload(segmentList, overwriteZeroByteSegments = False):
                     # will mark nzbFiles as isSkippedPar (taken into account later during
                     # parseNZB) and print a 'Skipping par' message for those isSkippedPar
                     # nzbFiles
-                    dequeueIfExtraPar(segment, readOnlyQueue = True)
+                    segment.dequeueIfExtraPar(readOnlyQueue = True)
                 
             onDiskSegments.append(segment)
             
@@ -231,8 +231,12 @@ class NZB(Archive):
                     xmlWriter.element('skippedPar', nzbFileName)
             else:
                 for nzbFile in self.nzbFileElements:
+                    extraParFiles = []
                     if nzbFile.isExtraParFile:
-                        xmlWriter.element('skippedPar', nzbFile.subject)
+                        extraParFiles.append((nzbFile.totalBytes, nzbFile))
+                    extraParFiles.sort()
+                    for bytes, extraParFile in extraParFiles:
+                        xmlWriter.element('skippedPar', extraParFile.subject)
         xmlWriter.end(type)
 
     def fromStateXML(type, target):
@@ -524,6 +528,10 @@ class NZBSegment:
 
         # Delete the copy on disk ASAP
         nuke(Hellanzb.DOWNLOAD_TEMP_DIR + os.sep + self.getTempFileName() + '_ENC')
+
+    def dequeueIfExtraPar(self, readOnlyQueue = False):
+        """ Shortcut to the SmartPar function of the same name """
+        dequeueIfExtraPar(self, readOnlyQueue)
 
     #def __repr__(self):
     #    return 'segment: ' + os.path.basename(self.getDestination()) + ' number: ' + \

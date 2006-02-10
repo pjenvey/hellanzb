@@ -24,41 +24,12 @@ def dequeueIfExtraPar(segment, readOnlyQueue = False):
 
     It determines whether or not the segment's parent nzbFile is part of a par archive. If
     it is and is also an 'extra' par file ('extra' pars are pars other than the first
-    par. the first par nzbFiles should contain only verification data, and no recovery
-    data), this function will determine whether or not the rest of the nzbFile segments
-    need to be downloaded (dequeueing them necessary)
-
-    Optionally specifying tryFinishWhenSkipped will attempt to ArticleDecoder.tryFinishNZB
-    upon completition (completely stop the downloader loop when there are no files left to
-    download) """
+    par. The first par nzbFile should contain only verification data and little or no
+    recovery data), this function will determine whether or not the rest of the nzbFile
+    segments need to be downloaded (dequeueing them from the NZBSegmentQueue when
+    necessary, unless the readOnlyQueue is True) """
     if segment.number != 1:
         raise FatalError('dequeueIfExtraPar on number > 1')
-
-    if segment.nzbFile.filename is None or isHellaTemp(segment.nzbFile.filename):
-        segment.loadArticleDataFromDisk()
-        stripArticleData(segment.articleData)
-
-        # A stripped down version of the Article.parseArticleData loop: find the real
-        # filename in the downlaoded segment data as quickly as possible
-        index = -1
-        for line in segment.articleData:
-            index += 1
-
-            # Don't prolong the search
-            if index > 20:
-                break
-
-            if line.startswith('=ybegin'):
-                ybegin = ySplit(line)
-                setRealFileName(segment.nzbFile, ybegin['name'],
-                                settingSegmentNumber = segment.number)
-                break
-
-            elif line.startswith('begin '):
-                filename = line.rstrip().split(' ', 2)[2]
-                setRealFileName(segment.nzbFile, filename,
-                                settingSegmentNumber = segment.number)
-                break
 
     if segment.nzbFile.filename is None:
         # We can't do anything 'smart' without the filename
@@ -73,8 +44,8 @@ def dequeueIfExtraPar(segment, readOnlyQueue = False):
     if not segment.nzbFile.isParFile or not segment.nzbFile.isExtraParFile:
         return
 
-    isQueuedRecoveryPar = False
     nzb = segment.nzbFile.nzb
+    isQueuedRecoveryPar = False
     if nzb.isParRecovery and nzb.parPrefix in segment.nzbFile.subject and \
             nzb.neededBlocks > 0:
         isQueuedRecoveryPar = True
@@ -101,8 +72,12 @@ def dequeueIfExtraPar(segment, readOnlyQueue = False):
         if not readOnlyQueue:
             dequeuedCount = Hellanzb.queue.dequeueSegments(dequeueSegments)
             if dequeuedCount == 0:
-                debug('dequeueIfExtraPar: Would have skipped (nothing in the NZBSegmentQueue to dequeue): %s' % \
-                      segment.nzbFile.filename)
+                details = '(nothing in the NZBSegmentQueue to dequeue)'
+                debug('dequeueIfExtraPar: Would have skipped %s: %s' % (details,
+                      segment.nzbFile.filename))
+
+        # FIXME: It would be nice to take an account of how many actual bytes we just
+        # skipped, for printing out at the end of the download
 
         # Always print the skipped message if called from segmentsNeedDownload
         # (readOnlyQueue). Don't bother printing it if we didn't actually dequeue anything

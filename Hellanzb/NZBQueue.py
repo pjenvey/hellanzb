@@ -199,7 +199,11 @@ def scanQueueDir(firstRun = False, justScan = False):
         writeStateXML()
 
     if resuming:
-        parseNZB(nzb, 'Resuming')
+        if nzb.isParRecovery:
+            msg = 'Resuming par recovery download'
+        else:
+            msg = 'Resuming'
+        parseNZB(nzb, msg)
     elif displayNotification:
         parseNZB(nzb)
     else:
@@ -263,9 +267,12 @@ def _writeStateXML(outFile):
         hAttribs['newzbinSessId'] = NewzbinDownloader.cookies['PHPSESSID']
         
     h = writer.start('hellanzbState', hAttribs)
-    
-    for container in (Hellanzb.queue.currentNZBs(), Hellanzb.postProcessors,
-                      Hellanzb.queued_nzbs):
+
+    Hellanzb.postProcessorLock.acquire()
+    postProcessors = Hellanzb.postProcessors[:]
+    Hellanzb.postProcessorLock.release()
+
+    for container in (Hellanzb.queue.currentNZBs(), postProcessors, Hellanzb.queued_nzbs):
         for item in container:
             item.toStateXML(writer)
 
@@ -639,7 +646,8 @@ def listQueue(includeIds = True, convertToUnicode = True):
                 rarPassword = toUnicode(rarPassword)
                 
             member = {'id': nzb.id,
-                      'nzbName': name}
+                      'nzbName': name,
+                      'isParRecovery': nzb.isParRecovery}
             
             if rarPassword != None:
                 member['rarPassword'] = rarPassword

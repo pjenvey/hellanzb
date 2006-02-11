@@ -860,7 +860,7 @@ def parseParNeedsBlocksOutput(archive, output):
             logger('%s: %s: %s' % (archive, msg, file))
             spammed += 1
         else:
-            extraSpam.append(msg)
+            extraSpam.append('%s: %s: %s' % (archive, msg, file))
         return spammed
 
     for line in output:

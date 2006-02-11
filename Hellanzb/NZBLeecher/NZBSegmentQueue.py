@@ -15,7 +15,9 @@ from xml.sax import make_parser, SAXParseException
 from xml.sax.handler import ContentHandler, feature_external_ges, feature_namespaces
 from Hellanzb.Log import *
 from Hellanzb.Util import EmptyForThisPool, PoolsExhausted, PriorityQueue, OutOfDiskSpace, \
-    DUPE_SUFFIX
+    DUPE_SUFFIX, isHellaTemp
+from Hellanzb.PostProcessorUtil import getParRecoveryName
+from Hellanzb.SmartPar import getParSize
 from Hellanzb.NZBLeecher.ArticleDecoder import assembleNZBFile
 from Hellanzb.NZBLeecher.DupeHandler import handleDupeOnDisk
 from Hellanzb.NZBLeecher.NZBLeecherUtil import validWorkingFile
@@ -437,6 +439,9 @@ class NZBSegmentQueue(PriorityQueue):
             if nzbFile.isSkippedPar:
                 # If a skipped par file was actually assembled, it wasn't actually skipped
                 nzbFile.isSkippedPar = False
+                if nzbFile.nzb.skippedParSubjects is not None and \
+                        nzbFile.subject in nzbFile.nzb.skippedParSubjects:
+                    nzbFile.nzb.skippedParSubjects.remove(nzbFile.subject)
 
     def segmentDone(self, nzbSegment, dequeue = False):
         """ Simply decrement the queued byte count and register this nzbSegment as finished
@@ -511,9 +516,14 @@ class NZBSegmentQueue(PriorityQueue):
         e = time.time() - s
 
         skippedPars = 0
+        queuedParBlocks = 0
         for nzbFile in needDlFiles:
             if nzbFile.isSkippedPar:
                 skippedPars += 1
+            elif nzb.isParRecovery and nzbFile.isExtraParFile and \
+                    not nzbFile.isSkippedPar and len(nzbFile.todoNzbSegments) and \
+                    nzbFile.filename is not None and not isHellaTemp(nzbFile.filename):
+                queuedParBlocks += getParSize(nzbFile.filename)
 
         onDiskCount = nzbp.fileCount - len(needWorkFiles)
         msg = 'Parsed: %i posts (%i files' % (nzbp.segmentCount, nzbp.fileCount)
@@ -526,6 +536,11 @@ class NZBSegmentQueue(PriorityQueue):
                 msg = '%s & %s' % (msg, skippedParsMsg)
         elif skippedPars:
             msg = '%s, skipping %s' % (msg, skippedParsMsg)
+
+        if nzb.isParRecovery and queuedParBlocks:
+            if queuedParBlocks:
+                msg = '%s, recovering %i %s' % (msg, queuedParBlocks,
+                                                getParRecoveryName(nzb.parType))
         msg += ')'
         info(msg)
 

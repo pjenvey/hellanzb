@@ -156,8 +156,8 @@ class NZB(Archive):
         ## How many bytes have been downloaded for this NZB
         self.totalReadBytes = 0
 
-        ## Whether or not we should redownload NZBFile and NZBSegment files on disk that are 0 bytes in
-        ## size
+        ## Whether or not we should redownload NZBFile and NZBSegment files on disk that
+        ## are 0 bytes in size
         self.overwriteZeroByteFiles = True
 
         ## Whether or not this NZB is downloading in par recovery mode
@@ -199,6 +199,37 @@ class NZB(Archive):
             nzbFile.downloadPercentage = 0
             nzbFile.speed = 0
             nzbFile.downloadStartTime = None
+
+    def finalize(self, justClean = False):
+        """ Delete any potential cyclic references existing in this NZB, then garbage
+        collect. justClean will only clean/delete specific things, to prep the NZB for
+        another download """
+        # nzbFiles aren't needed for another download
+        for nzbFile in self.nzbFileElements:
+            del nzbFile.todoNzbSegments
+            del nzbFile.dequeuedSegments
+            del nzbFile.nzb
+            del nzbFile
+
+        if justClean:
+            self.nzbFileElements = []
+            self.postProcessor = None
+            self.cleanStats()
+            self.isFinished = False
+        else:
+            del self.nzbFileElements
+            del self.postProcessor
+
+    def getSkippedParSubjects(self):
+        """ Return a list of skipped par file's subjects, sorted by the size of the par """
+        skippedParSubjects = []
+        for nzbFile in self.nzbFileElements:
+            if nzbFile.isSkippedPar:
+                skippedParSubjects.append((nzbFile.totalBytes, nzbFile.subject))
+        # Ensure the list of pars is sorted by the par's number of bytes (so we pick off
+        # the smallest ones first when doing a par recovery download)
+        skippedParSubjects.sort()
+        return [subject for bytes, subject in skippedParSubjects]
 
     def getName(self):
         return os.path.basename(self.archiveName)
@@ -250,13 +281,8 @@ class NZB(Archive):
                 for nzbFileName in self.skippedParSubjects:
                     xmlWriter.element('skippedPar', nzbFileName)
             else:
-                for nzbFile in self.nzbFileElements:
-                    skippedParFiles = []
-                    if nzbFile.isExtraParFile:
-                        skippedParFiles.append((nzbFile.totalBytes, nzbFile))
-                    skippedParFiles.sort()
-                    for bytes, skippedParFile in skippedParFiles:
-                        xmlWriter.element('skippedPar', skippedParFile.subject)
+                for skippedParFileSubject in self.getSkippedParSubjects():
+                    xmlWriter.element('skippedPar', skippedParFileSubject)
         xmlWriter.end(type)
 
     def fromStateXML(type, target):

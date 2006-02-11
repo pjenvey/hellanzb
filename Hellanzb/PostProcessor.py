@@ -32,7 +32,8 @@ class PostProcessor(Thread):
     msgId = None
     nzbFile = None
 
-    archiveAttrs = ('id', 'rarPassword', 'deleteProcessed', 'skipUnrar', 'toStateXML')
+    archiveAttrs = ('id', 'isParRecovery', 'rarPassword', 'deleteProcessed', 'skipUnrar',
+                    'toStateXML')
 
     def __init__(self, archive, background = True, subDir = None):
         """ Ensure sanity of this instance before starting """
@@ -79,7 +80,11 @@ class PostProcessor(Thread):
         # Whether or not this PostProcessor's Topen processes were explicitly kill()'ed
         self.killed = False
 
+        # Whether or not this post processor will call back to the twisted thread to force
+        # a par recovery download
         self.forcedRecovery = False
+        # Function to call the twisted thread to force a par recovery download
+        self.callback = None
     
         Thread.__init__(self)
 
@@ -135,24 +140,22 @@ class PostProcessor(Thread):
             if not self.killed:
                 Hellanzb.writeStateXML()
 
-        if self.forcedRecovery:
-            return
+        # FIXME: This isn't the best place to GC. The best place would be when a download
+        # is finished (idle NZBLeecher) but with smartpar, finding an idle NZBLeecher is
+        # tricky
+        if not self.isSubDir and self.isNZBArchive():
+            self.archive.finalize(self.forcedRecovery)
+            if not self.forcedRecovery:
+                del self.archive
+            gc.collect()
+
+            if self.forcedRecovery:
+                self.callback()
+                return
             
         # When a Post Processor fails, we end up moving the destDir here
         self.moveDestDir() 
 
-        # FIXME: craptacular place to GC. Really need to push this out until after the
-        # next download if possible (not really possible if post processor/downloader are
-        # always busy though) Nudge GC
-        if not self.isSubDir and self.isNZBArchive():
-            for nzbFile in self.archive.nzbFileElements:
-                del nzbFile.todoNzbSegments
-                del nzbFile.nzb
-            del self.archive.nzbFileElements
-            del self.archive.postProcessor
-            del self.archive
-            gc.collect()
-            
         if not self.background and not self.isSubDir:
             # We're not running in the background of a downloader -- we're post processing
             # and then immeidately exiting (-Lp)
@@ -484,12 +487,15 @@ class PostProcessor(Thread):
                     info(archiveName(self.dirName) + \
                          ': More pars avaialble, forcing extra par download')
 
-                    from Hellanzb.Daemon import forceNZBParRecover # FIXME:
                     self.archive.neededBlocks, self.archive.parType, self.archive.parPrefix = \
                         nmp.size, nmp.parType, nmp.parPrefix
                     self.forcedRecovery = True
-                    from twisted.internet import reactor
-                    reactor.callFromThread(forceNZBParRecover, self.archive)
+
+                    def triggerRecovery():
+                        from twisted.internet import reactor
+                        from Hellanzb.Daemon import forceNZBParRecover # FIXME:
+                        reactor.callFromThread(forceNZBParRecover, self.archive)
+                    self.callback = triggerRecovery
                     return
                 else:
                     info(archiveName(self.dirName) + ': Failed par verify, requires ' + \

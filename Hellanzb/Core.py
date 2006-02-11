@@ -295,7 +295,8 @@ def shutdown(killPostProcessors = False):
         Topen.killAll()
 
     # stop the twisted reactor
-    reactor.stop()
+    if reactor.running:
+        reactor.stop()
 
     # Just in case we left it off
     stdinEchoOn()

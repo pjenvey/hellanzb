@@ -2,9 +2,10 @@ import time, unittest, Hellanzb
 from Hellanzb.test import HellanzbTestCase
 from Hellanzb.Log import *
 from Hellanzb.Util import PriorityQueue
-from Hellanzb.NZBLeecher.NZBModel import NZBQueue
+from Hellanzb.NZBLeecher.NZBSegmentQueue import NZBSegmentQueue
 
 class PriorityQueueTestCase(HellanzbTestCase):
+    skip = True
 
     def dtestBenchmark(self):
         """ Benchmark putting garbage into a normal priority queue """
@@ -19,12 +20,12 @@ class PriorityQueueTestCase(HellanzbTestCase):
         info('Large:')
         self.doPut(pq, largeItemCount)
 
-        #info('NZBQueue')
+        #info('NZBSegmentQueue')
 
     def testGetBenchmark(self):
         info('Putting NZB')
         start = time.time()
-        q = NZBQueue('/home/pjenvey/src/hellanzb/Hellanzb/test/testdata/test_get.nzb')
+        q = NZBSegmentQueue('/home/pjenvey/src/hellanzb/Hellanzb/test/testdata/test_get.nzb')
         elapsed = time.time() - start
         info('Took: ' + str(elapsed) + ' to load nzb file. Approx size: ' + str(q.qsize()))
 
@@ -42,7 +43,7 @@ class PriorityQueueTestCase(HellanzbTestCase):
 
         info('better statistics..')
         stats = []
-        q2 = NZBQueue('/home/pjenvey/src/hellanzb/Hellanzb/test/testdata/test_get.nzb')
+        q2 = NZBSegmentQueue('/home/pjenvey/src/hellanzb/Hellanzb/test/testdata/test_get.nzb')
         try:
             while 1:
                 start = time.time()
@@ -61,11 +62,11 @@ class PriorityQueueTestCase(HellanzbTestCase):
         info('Fastest: ' + str(stats[0]))
         info('Slowest: ' + str(stats[-1]))
 
-    def dtestNZBQueue(self):
-        """ Benchmark loading a typical NZB file into an NZBQueue via the parser, and also via a
+    def dtestNZBSegmentQueue(self):
+        """ Benchmark loading a typical NZB file into an NZBSegmentQueue via the parser, and also via a
         simple put() loop """
         start = time.time()
-        temp = NZBQueue('Hellanzb/test/testdata/msgid_1008115_Bring__Um_Young_#2.nzb')
+        temp = NZBSegmentQueue('Hellanzb/test/testdata/msgid_1008115_Bring__Um_Young_#2.nzb')
         
         list = temp.queue
         elapsed = time.time() - start
@@ -74,17 +75,17 @@ class PriorityQueueTestCase(HellanzbTestCase):
         start = time.time()
 
         del temp
-        nzbq = NZBQueue()
+        nzbq = NZBSegmentQueue()
         for i in list:
-            nzbq.put((NZBQueue.NZB_CONTENT_P, i))
+            nzbq.put((NZBSegmentQueue.NZB_CONTENT_P, i))
         
         elapsed = time.time() - start
-        info('Took: ' + str(elapsed) + ' to create NZBQueue')
+        info('Took: ' + str(elapsed) + ' to create NZBSegmentQueue')
 
     def dtestNZBSlurp(self):
         start = time.time()
         
-        Hellanzb.queue = NZBQueue('Hellanzb/test/testdata/msgid_1008115_Bring__Um_Young_#2.nzb')
+        Hellanzb.queue = NZBSegmentQueue('Hellanzb/test/testdata/msgid_1008115_Bring__Um_Young_#2.nzb')
         
         elapsed = time.time() - start
         info('Took: ' + str(elapsed) + ' to load nzb file')
@@ -104,10 +105,10 @@ class PriorityQueueTestCase(HellanzbTestCase):
         
         start = time.time()
         for i in xrange(count - parCount):
-            pq.put((NZBQueue.NZB_CONTENT_P, i))
+            pq.put((NZBSegmentQueue.NZB_CONTENT_P, i))
 
         for i in xrange(count):
-            pq.put((NZBQueue.EXTRA_PAR2_P, i))
+            pq.put((NZBSegmentQueue.EXTRA_PAR2_P, i))
             
         putElapsed = time.time() - start
 
@@ -137,8 +138,8 @@ class ReactorThread(threading.Thread):
         # create factory protocol and application
         nsf = NZBLeecherFactory()
     
-        #from Hellanzb.NZBLeecher.NZBModel import NZBQueue
-        #Hellanzb.queue = NZBQueue(sys.argv[1])
+        #from Hellanzb.NZBLeecher.NZBModel import NZBSegmentQueue
+        #Hellanzb.queue = NZBSegmentQueue(sys.argv[1])
     
         # connect factory to this host and port
         reactor.connectTCP('unlimited.newshosting.com', 9000, nsf)
@@ -153,7 +154,7 @@ class ReactorThread(threading.Thread):
 # ---------------------------------------------------------------------------
 
 if __name__ == '__main__3':
-    nzbq = NZBQueue()
+    nzbq = NZBSegmentQueue()
     print 'k'
     nzbq.parseNZB(sys.argv[1])
     while 1:

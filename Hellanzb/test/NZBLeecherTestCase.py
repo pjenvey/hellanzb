@@ -2,6 +2,7 @@ from Hellanzb.test import HellanzbTestCase
 from Hellanzb.NZBLeecher import *
 
 class NZBLeecherTestCase(HellanzbTestCase):
+    skip = True
 
     def testNZBLeecher(self):
         initNZBLeecher()

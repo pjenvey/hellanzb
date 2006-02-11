@@ -11,6 +11,8 @@ import Hellanzb.Core
 __id__ = '$Id$'
 
 class HellanzbTestCase(unittest.TestCase):
+    skip = False
+    
     def setUp(self):
         """ Initialize hellanzb core """
         #Hellanzb.Core.init()

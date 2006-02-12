@@ -677,10 +677,9 @@ class NZBParser(ContentHandler):
                     extraMsg = ' (not on disk but wasn\'t previously marked as an skippedParFile)'
                 elif self.nzb.parPrefix not in subject:
                     # Previously marked par -- only download it if it pertains to the
-                    # particular par
+                    # particular par. We keep it set to needsDownload here so it gets to
+                    # parseNZB -- parseNZB won't actually queue it
                     self.file.isSkippedPar = True
-                    extraMsg = ' (not on disk but no more par %s needed)' % \
-                        getParRecoveryName(nzb.parType)
                     
             if not self.fileNeedsDownload:
                 debug('SKIPPING FILE%s: %s subject: %s' % (extraMsg, self.file.getTempFileName(),

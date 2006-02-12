@@ -14,18 +14,19 @@ from sets import Set
 from shutil import move
 from twisted.copyright import version as twistedVersion
 from twisted.internet import reactor
-from twisted.internet.error import ConnectionRefusedError, DNSLookupError, TimeoutError, UserError
+from twisted.internet.error import ConnectionDone, ConnectionLost, ConnectionRefusedError, \
+    DNSLookupError, TimeoutError, UserError
 from twisted.internet.protocol import ReconnectingClientFactory
 from twisted.protocols.basic import LineReceiver
 from twisted.protocols.policies import TimeoutMixin, ThrottlingFactory
 from twisted.python import log
-from Hellanzb.Daemon import cancelCurrent, endDownload, scanQueueDir
+from Hellanzb.Daemon import cancelCurrent, endDownload
 from Hellanzb.Log import *
 from Hellanzb.Logging import LogOutputStream, NZBLeecherTicker
 from Hellanzb.Util import prettySize, rtruncate, truncateToMultiLine, EmptyForThisPool, PoolsExhausted
 from Hellanzb.NZBLeecher.nntp import NNTPClient, extractCode
 from Hellanzb.NZBLeecher.ArticleDecoder import decode
-from Hellanzb.NZBLeecher.NZBModel import NZBQueue
+from Hellanzb.NZBLeecher.NZBSegmentQueue import NZBSegmentQueue
 from Hellanzb.NZBLeecher.NZBLeecherUtil import HellaThrottler, HellaThrottlingFactory
 from Queue import Empty
 
@@ -41,13 +42,18 @@ def initNZBLeecher():
     debug(twistedVersionMsg)
     
     # Direct twisted log output to the debug level
+    twistedTimestampLen = len('2006/02/10 23:59 PST ')
     def debugNoLF(message):
+        # The twisted timestamp is pretty annoying and I don't want to implement a
+        # FileLogObserver at the moment
+        message = message[twistedTimestampLen:]
+        
         debug(message, appendLF = False)
     fileStream = LogOutputStream(debugNoLF)
     log.startLogging(fileStream)
 
     # Create the one and only download queue
-    Hellanzb.queue = NZBQueue()
+    Hellanzb.queue = NZBSegmentQueue()
 
     Hellanzb.totalReadBytes = 0
     Hellanzb.totalStartTime = None
@@ -64,6 +70,7 @@ def initNZBLeecher():
     Hellanzb.scroller = NZBLeecherTicker()
 
     Hellanzb.ht = HellaThrottler(Hellanzb.MAX_RATE * 1024)
+    Hellanzb.getCurrentRate = NZBLeecherFactory.getCurrentRate
 
     # loop to scan the queue dir during download
     Hellanzb.downloadScannerID = None
@@ -290,6 +297,16 @@ class NZBLeecherFactory(ReconnectingClientFactory):
         if totalActiveClients == 0:
             endDownload()
 
+    def getCurrentRate():
+        """ Return the current download rate """
+        totalSpeed = 0
+        for nsf in Hellanzb.nsfs:
+            totalSpeed += nsf.sessionSpeed
+        return totalSpeed
+    getCurrentRate = staticmethod(getCurrentRate)
+            
+
+QUIET_CONNECTION_LOST_FAILURES = (ConnectionDone, ConnectionLost)
 class NZBLeecher(NNTPClient, TimeoutMixin):
     """ Extends twisted NNTPClient to download NZB segments from the queue, until the queue
     contents are exhausted """
@@ -438,13 +455,16 @@ class NZBLeecher(NNTPClient, TimeoutMixin):
                 debug(str(self) + ' requeueing segment: ' + self.currentSegment.getDestination())
                 Hellanzb.queue.requeue(self.factory.serverPoolName, self.currentSegment)
 
+                self.resetCurrentSegment(removeEncFile = True)
             else:
                 debug(str(self) + ' DID NOT requeue existing segment: ' + self.currentSegment.getDestination())
-            
-            self.resetCurrentSegment(removeEncFile = True)
+                # Don't resetCurrentSegment -- the encodedData file would have already
+                # been closed by ensureSafePostponedLoad
+                self.currentSegment = None
         
-        # Continue being quiet about things if we're shutting down
-        if not Hellanzb.SHUTDOWN:
+        # Continue being quiet about things if we're shutting down. Don't bother plaguing
+        # the log with typical disconnection reasons
+        if not Hellanzb.SHUTDOWN and reason.type not in QUIET_CONNECTION_LOST_FAILURES:
             debug(str(self) + ' lost connection: ' + str(reason))
 
         self.activeGroups = []
@@ -609,7 +629,7 @@ class NZBLeecher(NNTPClient, TimeoutMixin):
     def fetchBody(self, index):
         debug(str(self) + ' getting BODY: <' + self.currentSegment.messageId + '> ' + \
               self.currentSegment.getDestination())
-        start = time.time()
+        start = Hellanzb.preReadTime
         if self.currentSegment.nzbFile.downloadStartTime == None:
             self.currentSegment.nzbFile.downloadStartTime = start
         
@@ -675,7 +695,7 @@ class NZBLeecher(NNTPClient, TimeoutMixin):
 
         segment = self.currentSegment
         self.resetCurrentSegment()
-        
+            
         self.deferSegmentDecode(segment)
 
         Hellanzb.totalSegmentsDownloaded += 1
@@ -684,7 +704,7 @@ class NZBLeecher(NNTPClient, TimeoutMixin):
     def deferSegmentDecode(self, segment):
         """ Decode the specified segment in a separate thread """
         reactor.callInThread(decode, segment)
-        
+
     def gotGroup(self, group):
         group = group[3]
         self.activeGroups.append(group)
@@ -769,9 +789,16 @@ class NZBLeecher(NNTPClient, TimeoutMixin):
                                                                        self.currentSegment.nzbFile.totalSkippedBytes) /
                                                                  max(1, self.currentSegment.nzbFile.totalBytes) * 100))
 
-        if self.currentSegment.nzbFile.downloadPercentage > oldPercentage:
+        # NOTE: we now look for the downloadPercentage to be zero. SmartPar made it so we
+        # download every first segment at the beginning of the download. For larger files,
+        # all those segments will have a percentage of 0. Since the percentage doesn't
+        # change, the logger would stall pretty much until all the first segments were
+        # done. The checks for 0 avoid that situation and hopefully doesn't cause too much
+        # logging
+        if self.currentSegment.nzbFile.downloadPercentage > oldPercentage or \
+                self.currentSegment.nzbFile.downloadPercentage == 0:
             elapsed = max(0.1, now - self.currentSegment.nzbFile.downloadStartTime)
-            elapsedSession = max(0.1, now - self.factory.sessionStartTime)
+            #elapsedSession = max(0.1, now - self.factory.sessionStartTime)
 
             self.currentSegment.nzbFile.speed = self.currentSegment.nzbFile.totalReadBytes / elapsed / 1024.0
             ##self.factory.sessionSpeed = self.factory.sessionReadBytes / elapsedSession / 1024.0
@@ -780,8 +807,11 @@ class NZBLeecher(NNTPClient, TimeoutMixin):
                 self.factory.sessionSpeed = self.factory.sessionReadBytes / max(0.1, elapsed) / 1024.0
                 self.factory.sessionReadBytes = 0
                 self.factory.sessionStartTime = now
-            
-            Hellanzb.scroller.updateLog()
+                if self.currentSegment.nzbFile.downloadPercentage == 0:
+                    Hellanzb.scroller.updateLog(logNow = True)
+
+            if self.currentSegment.nzbFile.downloadPercentage != 0:
+                Hellanzb.scroller.updateLog()
 
     def antiIdleConnection(self):
         """ anti idle the connection """

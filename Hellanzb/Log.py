@@ -16,10 +16,10 @@ import logging, time, Hellanzb
 from socket import AF_INET, SOCK_DGRAM, socket, error as socket_error
 from threading import Lock
 from traceback import print_exc
-from Hellanzb.Logging import lockScrollableHandlers, prettyException, stdinEchoOff, stdinEchoOn, \
-    ScrollableHandler
+from Hellanzb.Logging import LogOutputStream, lockScrollableHandlers, prettyException, \
+    stdinEchoOff, stdinEchoOn, ScrollableHandler
 from Hellanzb.Growl import *
-from Hellanzb.Util import getLocalClassName, FatalError
+from Hellanzb.Util import getLocalClassName, toUnicode, FatalError
 from StringIO import StringIO
 
 __id__ = '$Id$'
@@ -28,24 +28,24 @@ def warn(message):
     """ Log a message at the warning level """
     Hellanzb.recentLogs.append(logging.WARN, message)
     
-    Hellanzb.logger.warn(message + '\n')
+    Hellanzb.logger.warn('%s\n' % message)
 
 def error(message, exception = None):
     """ Log a message at the error level. Optionally log exception information """
     prettyEx = prettyException(exception)
     if prettyEx != '':
-        message += ': ' + prettyEx
+        message = '%s: %s' % (message, prettyEx)
         
     Hellanzb.recentLogs.append(logging.ERROR, message)
     
-    Hellanzb.logger.error(message + '\n')
+    Hellanzb.logger.error('%s\n' % message)
 
 def info(message, appendLF = True):
     """ Log a message at the info level """
     Hellanzb.recentLogs.append(logging.INFO, message)
     
     if appendLF:
-        message += '\n'
+        message = '%s\n' % message
     Hellanzb.logger.info(message)
 
 def debug(message, exception = None, appendLF = True):
@@ -54,9 +54,9 @@ def debug(message, exception = None, appendLF = True):
         if exception != None:
             prettyEx = prettyException(exception)
             if prettyEx != '':
-                message += ': ' + prettyEx
+                message = '%s: %s' % (message, prettyEx)
         if appendLF:
-            message += '\n'
+            message = '%s\n' % message
         Hellanzb.logger.debug(message)
 
 def scroll(message):
@@ -73,7 +73,7 @@ def logFile(message, exception = None):
     """ Log a message to only the log file (and not the console) """
     prettyEx = prettyException(exception)
     if prettyEx != '':
-        message += ': ' + prettyEx
+        message = '%s: %s' % (message, prettyEx)
     Hellanzb.logger.log(ScrollableHandler.LOGFILE, message)
 
 def noLogFile(message, appendLF = True):
@@ -81,7 +81,7 @@ def noLogFile(message, appendLF = True):
     Hellanzb.recentLogs.append(logging.INFO, message)
     
     if appendLF:
-        message += '\n'
+        message = '%s\n' % message
     Hellanzb.logger.log(ScrollableHandler.NOLOGFILE, message)
 
 def growlNotify(type, title, description, sticky = False):
@@ -113,7 +113,7 @@ def growlNotify(type, title, description, sticky = False):
     # to UTF-8 the description if it contains unusual characters. we also have to force
     # latin-1, otherwise converting to unicode can fail too
     # (e.g. 'SÃÂ£o_Paulo')
-    description = unicode(description, 'latin-1')
+    description = toUnicode(description)
     
     p = GrowlNotificationPacket(application="hellanzb",
                                 notification=type, title=title,
@@ -149,6 +149,15 @@ def _scrollEnd():
 def scrollEnd():
     """ Let the logger know we're done scrolling """
     lockScrollableHandlers(_scrollEnd)
+
+def logStateXML(logFunction, showHeader = True):
+    """ Print hellanzb's state xml via the specified log function """
+    buf = StringIO()
+    Hellanzb._writeStateXML(buf)
+    header = ''
+    if showHeader:
+        header = 'hellanzb state xml:\n'
+    logFunction('%s%s' % (header, buf.getvalue()))
 
 """
 /*

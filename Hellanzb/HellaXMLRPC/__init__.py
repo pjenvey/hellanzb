@@ -20,6 +20,7 @@ from Hellanzb.HellaXMLRPC.HtPasswdAuth import HtPasswdWrapper
 from Hellanzb.Logging import LogOutputStream
 from Hellanzb.Log import *
 from Hellanzb.PostProcessor import PostProcessor
+from Hellanzb.PostProcessorUtil import Archive
 from Hellanzb.Util import archiveName, cmHella, dupeName, flattenDoc, prettyEta, toUnicode, \
     truncateToMultiLine, IDPool
 
@@ -35,7 +36,7 @@ class HellaXMLRPCServer(XMLRPC):
         on, so this was needed. not exactly sure why """
         return self
 
-    def makeNZBStruct(self, id, name, rarPass):
+    def makeNZBStruct(self, id, name, rarPass, isParRecovery):
         """ Create a map (to be an XMLRPC struct) containing NZB meta data (nzb id, name, and
         optionally rarPassword if one exists. Convert potentially Evil(tm) strings to
         unicode """
@@ -43,7 +44,12 @@ class HellaXMLRPCServer(XMLRPC):
              'nzbName': toUnicode(name)}
         if rarPass != None:
             d['rarPassword'] = toUnicode(rarPass)
+        d['isParRecovery'] = isParRecovery
         return d
+
+    def cleanLog(self, logEntry):
+        """ Return a safe-for-xml version of the specified log entry string """
+        return toUnicode(logEntry.replace('\x08', ''))
 
     def xmlrpc_asciiart(self):
         """ Return a random ascii art """
@@ -87,7 +93,7 @@ class HellaXMLRPCServer(XMLRPC):
 
     def xmlrpc_dequeue(self, nzbId):
         """ Remove the NZB with specified ID from the queue """
-        from Hellanzb.Daemon import dequeueNZBs, listQueue
+        from Hellanzb.NZBQueue import dequeueNZBs, listQueue
         dequeueNZBs(nzbId)
         return listQueue()
 
@@ -97,7 +103,7 @@ class HellaXMLRPCServer(XMLRPC):
     def xmlrpc_down(self, nzbId, shift = 1):
         """ Move the NZB with the specified ID down in the queue. The optional second argument
         specifies the number of spaces to shift by (Default: 1) """
-        from Hellanzb.Daemon import listQueue, moveDown
+        from Hellanzb.NZBQueue import listQueue, moveDown
         moveDown(nzbId, shift)
         return listQueue()
 
@@ -108,7 +114,7 @@ class HellaXMLRPCServer(XMLRPC):
 
     def xmlrpc_enqueue(self, nzbFilename, nzbData = None):
         """ Add the specified NZB file to the end of the queue """
-        from Hellanzb.Daemon import enqueueNZBs, enqueueNZBStr
+        from Hellanzb.NZBQueue import enqueueNZBs, enqueueNZBStr
         if nzbData == None:
             # FIXME: this should really check for a valid nzb. if it's not valid, raise a
             # Fault (like the xmlrpc_process does)
@@ -126,13 +132,14 @@ class HellaXMLRPCServer(XMLRPC):
         """ Download the NZB with the specified NZB ID from www.newzbin.com, and enqueue it """
         from Hellanzb.NewzbinDownloader import NewzbinDownloader
         if not NewzbinDownloader.canDownload():
-            raise Fault(9001, 'Unable to enqueue NZB, Hellanzb.NEWZBIN_USERNAME and or Hellanzb.NEWZBIN_PASSWORD were not supplied in the conf file')
+            faultMsg = 'Unable to enqueue NZB, Hellanzb.NEWZBIN_USERNAME and or Hellanzb.NEWZBIN_PASSWORD were not supplied in the conf file'
+            raise Fault(9001, faultMsg)
         newzdl = NewzbinDownloader(str(nzbId))
         newzdl.download()
         return self.xmlrpc_status()
 
-    xmlrpc_enqueuenewzbin.signature = [ ['struct', 'string'] ]
-    xmlrpc_enqueuenewzbin.signature = [ ['struct', 'int'] ]
+    xmlrpc_enqueuenewzbin.signature = [ ['struct', 'string'],
+                                        ['struct', 'int'] ]
 
     def xmlrpc_force(self, nzbId):
         """ Force hellanzb to begin downloading the NZB with the specified ID immediately,
@@ -146,7 +153,7 @@ class HellaXMLRPCServer(XMLRPC):
 
     def xmlrpc_last(self, nzbId):
         """ Move the NZB with the specified ID to the end of the queue """
-        from Hellanzb.Daemon import lastNZB, listQueue
+        from Hellanzb.NZBQueue import lastNZB, listQueue
         lastNZB(nzbId)
         return listQueue()
 
@@ -156,7 +163,7 @@ class HellaXMLRPCServer(XMLRPC):
     def xmlrpc_list(self, excludeIds = False):
         """ List the NZBs in the queue, along with their NZB IDs. Specify True as the second
         argument to exclude the NZB ID in the listing """
-        from Hellanzb.Daemon import listQueue
+        from Hellanzb.NZBQueue import listQueue
         return listQueue(not excludeIds)
 
     xmlrpc_list.signature = [ ['list'],
@@ -178,7 +185,7 @@ class HellaXMLRPCServer(XMLRPC):
 
     def xmlrpc_move(self, nzbId, index):
         """ Move the NZB with the specified ID to the specified index in the queue """
-        from Hellanzb.Daemon import listQueue, moveNZB
+        from Hellanzb.NZBQueue import listQueue, moveNZB
         moveNZB(nzbId, index)
         return listQueue()
 
@@ -187,7 +194,7 @@ class HellaXMLRPCServer(XMLRPC):
     
     def xmlrpc_next(self, nzbId):
         """ Move the NZB with the specified ID to the beginning of the queue """
-        from Hellanzb.Daemon import listQueue, nextNZBId
+        from Hellanzb.NZBQueue import listQueue, nextNZBId
         nextNZBId(nzbId)
         return listQueue()
 
@@ -222,7 +229,8 @@ class HellaXMLRPCServer(XMLRPC):
             os.symlink(archiveDir, destDir)
             archiveDir = destDir
 
-        troll = PostProcessor(archiveDir, IDPool.getNextId(), rarPassword = rarPassword)
+        archive = Archive(archiveDir, rarPassword = rarPassword)
+        troll = PostProcessor(archive)
         troll.start()
         return self.xmlrpc_status()
 
@@ -230,7 +238,7 @@ class HellaXMLRPCServer(XMLRPC):
                                  ['struct', 'string', 'string'] ]
 
     def xmlrpc_setrarpass(self, nzbId, rarPassword):
-        """ Set the rarPassword for the specified NZB archive """
+        """ Set the rarPassword for the NZB with the specified ID """
         from Hellanzb.Daemon import setRarPassword
         setRarPassword(nzbId, rarPassword)
         return self.xmlrpc_status()
@@ -251,7 +259,7 @@ class HellaXMLRPCServer(XMLRPC):
         
     def xmlrpc_status(self):
         """ Return hellanzb's current status text """
-        from Hellanzb.Daemon import listQueue
+        from Hellanzb.NZBQueue import listQueue
         s = {}
     
         totalSpeed = 0
@@ -279,8 +287,7 @@ class HellaXMLRPCServer(XMLRPC):
         currentNZBs = Hellanzb.queue.currentNZBs()
         if len(currentNZBs):
             currentNZB = currentNZBs[0]
-            s['percent_complete'] = int((float(currentNZB.totalReadBytes + currentNZB.totalSkippedBytes) / \
-                                         float(currentNZB.totalBytes)) * 100)
+            s['percent_complete'] = currentNZB.getPercentDownloaded()
             
         if Hellanzb.ht.readLimit == None or Hellanzb.ht.readLimit == 0:
             s['maxrate'] = 0
@@ -293,17 +300,19 @@ class HellaXMLRPCServer(XMLRPC):
         s['total_dl_mb'] = Hellanzb.totalBytesDownloaded / 1024 / 1024
         s['version'] = Hellanzb.version
 
-        s['currently_downloading'] = [self.makeNZBStruct(nzb.id, nzb.archiveName, nzb.rarPassword) for \
+        s['currently_downloading'] = [self.makeNZBStruct(nzb.id, nzb.archiveName, nzb.rarPassword,
+                                                         nzb.isParRecovery) for \
                                       nzb in currentNZBs]
 
         Hellanzb.postProcessorLock.acquire()
         s['currently_processing'] = [self.makeNZBStruct(processor.id, archiveName(processor.dirName),
-                                                        processor.rarPassword) for processor in \
-                                     Hellanzb.postProcessors]
+                                                        processor.rarPassword, processor.isParRecovery) \
+                                     for processor in Hellanzb.postProcessors]
 
         Hellanzb.postProcessorLock.release()
         s['queued'] = listQueue()
-        s['log_entries'] = [{getLevelName(entry[0]): toUnicode(entry[1])} for entry in Hellanzb.recentLogs]
+        s['log_entries'] = [{getLevelName(entry[0]): self.cleanLog(entry[1])} \
+                            for entry in Hellanzb.recentLogs]
         
         return s
 
@@ -312,7 +321,7 @@ class HellaXMLRPCServer(XMLRPC):
     def xmlrpc_up(self, nzbId, shift = 1):
         """ Move the NZB with the specified ID up in the queue. The optional second argument
         specifies the number of spaces to shift by (Default: 1) """
-        from Hellanzb.Daemon import listQueue, moveUp
+        from Hellanzb.NZBQueue import listQueue, moveUp
         moveUp(nzbId, shift)
         return listQueue()
 
@@ -613,7 +622,7 @@ def initXMLRPCClient():
     r = RemoteCall('process', statusString)
     r.addRequiredArg('archivedir')
     r = RemoteCall('shutdown', resultMadeItBoolAndExit)
-    r = RemoteCall('setrarpass', statusString, published = False)
+    r = RemoteCall('setrarpass', statusString)
     r.addRequiredArg('nzbid')
     r.addRequiredArg('pass')
     r = RemoteCall('status', statusString)

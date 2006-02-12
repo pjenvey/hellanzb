@@ -9,12 +9,11 @@ people might want it so here it is -pjenvey
 (c) Copyright 2005 Philip Jenvey
 [See end of file]
 """
-import os, time
+import os, time, Hellanzb.NZBQueue
 from twisted.internet import reactor
 from twisted.internet.error import ConnectionRefusedError, DNSLookupError, TimeoutError
 from twisted.web.client import HTTPClientFactory, HTTPDownloader
 from urllib import splitattr, splitvalue
-from Hellanzb.Daemon import enqueueNZBs
 from Hellanzb.Log import *
 from Hellanzb.Util import tempFilename
 
@@ -65,9 +64,10 @@ class NewzbinDownloader(object):
     GET_NZB_URL = 'http://www.newzbin.com/browse/post/____ID____/msgids/msgidlist_post____ID____.nzb'
     TEMP_FILENAME_PREFIX = 'hellanzb-newzbin-download'
 
-    cookies = None
+    cookies = {}
     
     def __init__(self, msgId):
+        """ Initialize the downloader with the specified msgId string """
         self.msgId = msgId
 
         # Write the downloaded NZB here temporarily
@@ -76,10 +76,20 @@ class NewzbinDownloader(object):
         # The real NZB filename determined from HTTP headers
         self.nzbFilename = None
 
+    def getNZBURL(self):
+        if not self.msgId:
+            return ''
+        return self.GET_NZB_URL.replace('____ID____', self.msgId)
+
     def gotCookies(self, cookies):
         """ The downloader will feeds cookies via this function """
         # Grab the cookies for the PHPSESSID
+        newId = False
+        if NewzbinDownloader.cookies.get('PHPSESSID') != cookies.get('PHPSESSID'):
+            newId = True
         NewzbinDownloader.cookies = cookies
+        if newId:
+            Hellanzb.NZBQueue.writeStateXML()
         debug(str(self) + ' gotCookies: ' + str(NewzbinDownloader.cookies))
 
     def gotHeaders(self, headers):
@@ -104,9 +114,6 @@ class NewzbinDownloader(object):
         self.nzbFilename = val
 
     def haveValidSession(self):
-        if NewzbinDownloader.cookies == None:
-            return False
-
         if NewzbinDownloader.cookies.has_key('PHPSESSID') and \
                 NewzbinDownloader.cookies.has_key('expires'):
             expireTime = NewzbinDownloader.cookies['expires']
@@ -126,11 +133,12 @@ class NewzbinDownloader(object):
         
     def download(self):
         """ Start the NZB download process """
-        debug(str(self) + ' Downloading from www.newzbin.com..')
+        debug(str(self) + ' Downloading from newzbin.com..')
         if not NewzbinDownloader.canDownload():
             debug(str(self) + ' download: No www.newzbin.com login information')
             return
 
+        info('Downloading newzbin NZB: %s ' % self.msgId)
         if self.haveValidSession():
             # We have a good session (logged in). Proceed to getting the NZB
             debug(str(self) + ' have a valid newzbin session, downloading..')
@@ -167,7 +175,7 @@ class NewzbinDownloader(object):
         """ Download the NZB after successful login """
         debug(str(self) + ' handleNZBDownloadFromNewzbin')
                          
-        httpd = StoreHeadersHTTPDownloader(self.GET_NZB_URL.replace('____ID____', self.msgId),
+        httpd = StoreHeadersHTTPDownloader(self.getNZBURL(),
                                            self.tempFilename, headerListener = self,
                                            agent = self.AGENT)
         httpd.cookies = {'PHPSESSID' : NewzbinDownloader.cookies['PHPSESSID']}
@@ -188,7 +196,7 @@ class NewzbinDownloader(object):
         dest = os.path.dirname(self.tempFilename) + os.sep + self.nzbFilename
         os.rename(self.tempFilename, dest)
         
-        enqueueNZBs(dest)
+        Hellanzb.NZBQueue.enqueueNZBs(dest)
 
     def errBack(self, reason):
         # FIXME:
@@ -203,7 +211,7 @@ class NewzbinDownloader(object):
             error('Unable to download from www.newzbin.com: ' + str(reason))
 
     def __str__(self):
-        return 'NewzbinDownloader(%s):' % str(self.msgId)
+        return 'NewzbinDownloader(%s):' % self.msgId
 
     def canDownload():
         """ Whether or not the conf file supplied www.newzbin.com login info """

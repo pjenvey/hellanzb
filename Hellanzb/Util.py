@@ -7,7 +7,7 @@ Util - hellanzb misc functions
 """
 import os, popen2, pty, re, signal, string, thread, threading, time, Hellanzb
 from distutils import spawn
-from heapq import heappop, heappush
+from heapq import heapify, heappop, heappush
 from os.path import normpath
 from random import randint
 from shutil import move
@@ -19,6 +19,9 @@ from Queue import Empty, Queue
 from StringIO import StringIO
 
 __id__ = '$Id$'
+
+# Size of buffer for file i/o
+BUF_SIZE = 16 * 1024
 
 class FatalError(Exception):
     """ An error that will cause the program to exit """
@@ -41,11 +44,12 @@ class PoolsExhausted(Exception):
     
 class IDPool:
     """ Returns a unique identifier, used for keying NZBs and their archives """
-    
     nextId = 0
-    
+    skipIds = []
     def getNextId():
         """ Return a new unique identifier """
+        while IDPool.nextId in IDPool.skipIds:
+            IDPool.nextId += 1
         id = IDPool.nextId
         IDPool.nextId += 1
         return id
@@ -58,7 +62,7 @@ class Topen(protocol.ProcessProtocol):
 
     activePool = []
     
-    def __init__(self, cmd, captureStdErr = True):
+    def __init__(self, cmd, postProcessor, captureStdErr = True):
         # FIXME: seems like twisted just writes something to stderr if there was a
         # problem. this class should probably always capture stderr, optionally to another
         # stream
@@ -70,6 +74,7 @@ class Topen(protocol.ProcessProtocol):
         self.finished = Condition()
         self.returnCode = None
         self.isRunning = False
+        self.postProcessor = postProcessor
 
         self.threadIdent = thread.get_ident()
 
@@ -116,6 +121,8 @@ class Topen(protocol.ProcessProtocol):
                       ' process: ' + self.cmd, ose)
             except Exception, e:
                 debug('could not kill process: ' + self.cmd + ': ' + str(e))
+
+        self.postProcessor.killed = True
                 
         self.finished.acquire()
         self.finished.notify()
@@ -167,8 +174,10 @@ class Topen(protocol.ProcessProtocol):
         return output, self.returnCode
 
     def getPid(self):
-        # FIXME: this is for compat. w/ ptyopen
-        return self.transport.pid
+        """ Return the pid of the process if it exists """
+        if self.transport:
+            return self.transport.pid
+        return None
     
     def killAll():
         """ kill -9 all active topens """
@@ -360,6 +369,38 @@ class PriorityQueue(Queue):
             via heapq """
         return heappop(self.queue)
 
+    def dequeueItems(self, items):
+        """ Explicitly dequeue the specified items. Yes, this queue supports random access """
+        succeded = items[:]
+        self.mutex.acquire()
+        for item in items:
+            try:
+                self.queue.remove(item)
+            except ValueError:
+                succeded.remove(item)
+
+        heapify(self.queue)
+        
+        # python 2.3
+        if not hasattr(self, 'not_empty') and not len(self.queue):
+            self.esema.acquire()
+        self.mutex.release()
+        
+        return succeded
+
+class UnicodeList(list):
+    """ Ensure all contained objects are casted to unicode. Allows Nones """
+    def remove(self, value):
+        super(UnicodeList, self).remove(toUnicode(value))
+        
+    def append(self, value):
+        super(UnicodeList, self).append(toUnicode(value))
+
+    def extend(self, iterable):
+        super(UnicodeList, self).extend([toUnicode(value) for value in iterable])
+
+    def insert(self, index, value):
+        super(UnicodeList, self).insert(index, toUnicode(value))
 
 def getLocalClassName(klass):
     """ Get the local name (no package/module information) of the specified class instance """
@@ -407,22 +448,22 @@ def touch(fileName):
     os.close(fd)
     os.utime(fileName, None)
 
-def archiveName(dirName):
+def archiveName(dirName, unformatNewzbinNZB = True):
     """ Extract the name of the archive from the archive's absolute path, or its .nzb file
-    name """
+    name. Optionally remove newzbin 'msgid_99999' prefix and '.nzb' suffix from a newzbin
+    formatted .nzb filename """
     from Hellanzb.PostProcessorUtil import DirName
     # pop off separator and basename
     while dirName[len(dirName) - 1] == os.sep:
         dirName = dirName[0:len(dirName) - 1]
     if isinstance(dirName, DirName) and dirName.isSubDir():
-        from Hellanzb.Log import info
         name = os.path.basename(dirName.parentDir) + \
         normpath(dirName).replace(normpath(dirName.parentDir), '')
     else:
         name = os.path.basename(dirName)
 
     # Strip the msg_id and .nzb extension from an nzb file name
-    if len(name) > 3 and name[-3:].lower() == 'nzb':
+    if unformatNewzbinNZB and len(name) > 3 and name[-3:].lower() == 'nzb':
         name = re.sub(r'msgid_.*?_', r'', name)
         name = re.sub(r'\.nzb$', r'', name)
 
@@ -513,8 +554,19 @@ def hellaRename(filename):
 
 DUPE_SUFFIX = '_hellanzb_dupe'
 DUPE_SUFFIX_RE = re.compile('(.*)' + DUPE_SUFFIX + '(\d{1,4})$')
-def _nextDupeName(filename):
-    """ Return the next dupeName in the dupeName sequence """
+def cleanDupeName(filename):
+    """ For the given duplicate filename, return a tuple containing the non-duplicate
+    filename, and the duplicate filename index. Returns an index of -1 for non-duplicate
+    filenames.
+
+    e.g.:
+
+    cleanDupeName('/test/file') would return:
+    ('/test/file', -1)
+
+    cleanDupeName('/test/file_hellanzb_dupe0') would return:
+    ('/test/file', 0)
+    """
     i = -1
     dupeMatch = DUPE_SUFFIX_RE.match(filename)
     
@@ -522,6 +574,11 @@ def _nextDupeName(filename):
     if dupeMatch:
         filename = dupeMatch.group(1)
         i = int(dupeMatch.group(2))
+    return filename, i
+    
+def _nextDupeName(filename):
+    """ Return the next dupeName in the dupeName sequence """
+    filename, i = cleanDupeName(filename)
 
     # Increment dupeName sequence
     renamed = filename + DUPE_SUFFIX + str(i + 1)
@@ -684,7 +741,9 @@ def toUnicode(str):
     """ Convert the specified string to a unicode string """
     if str == None:
         return str
-    return unicode(str, 'latin-1')
+    elif not isinstance(str, unicode):
+        return unicode(str, 'latin-1')
+    return str
 
 def tempFilename(prefix = 'hellanzb-tmp'):
     """ Return a temp filename, prefixed with 'hellanzb-tmp' """
@@ -700,6 +759,23 @@ def prettySize(bytes):
             return '%dKB' % (bytes / 1024)
     else:
             return '%.1fMB' % (bytes / 1024.0 / 1024.0)
+
+def nuke(filename):
+    """ Delete the specified file on disk, ignoring any exceptions """
+    try:
+        os.remove(filename)
+    except Exception, e:
+        pass
+
+def validNZB(nzbfilename):
+    """ Return true if the specified filename is a valid NZB """
+    if nzbfilename == None or not os.path.isfile(nzbfilename):
+        error('Invalid NZB file: ' + str(nzbfilename))
+        return False
+    elif not os.access(nzbfilename, os.R_OK):
+        error('Unable to read NZB file: ' + str(nzbfilename))
+        return False
+    return True
 
 def ensureDirs(dirNames):
     """ Ensure the specified map of Hellanzb options to their required directory exist and are
@@ -728,6 +804,10 @@ def ensureDirs(dirNames):
             err += '\n' + dirName
             
         raise FatalError(err)
+
+def isHellaTemp(filename):
+    """ Determine whether or not the specified file is a 'hellanzb-tmp-' file """
+    return filename.find('hellanzb-tmp-') == 0
 
 Hellanzb.CMHELLA = \
 '''

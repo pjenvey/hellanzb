@@ -6,7 +6,7 @@ nzbget
 (c) Copyright 2005 Philip Jenvey, Ben Bangert
 [See end of file]
 """
-import os, re, sys, time, Hellanzb
+import gc, os, re, sys, time, Hellanzb
 from os.path import join as pathjoin
 from shutil import move, rmtree
 from threading import Thread, Condition, Lock, RLock
@@ -32,17 +32,31 @@ class PostProcessor(Thread):
     msgId = None
     nzbFile = None
 
-    def __init__(self, dirName, id, background = True, rarPassword = None, parentDir = None):
+    archiveAttrs = ('id', 'isParRecovery', 'rarPassword', 'deleteProcessed', 'skipUnrar',
+                    'toStateXML')
+
+    def __init__(self, archive, background = True, subDir = None):
         """ Ensure sanity of this instance before starting """
-        # abort if we lack required binaries
-        assertIsExe('par2')
+        # The archive to post process
+        self.archive = archive
+    
+        # DirName is a hack printing out the correct directory name when running nested
+        # post processors on sub directories
+        if subDir:
+            # Make a note of the parent directory the originating post process call
+            # started from
+            self.isSubDir = True
+            self.subDir = subDir
+            self.dirName = DirName(pathjoin(archive.archiveDir, self.subDir))
+            self.dirName.parentDir = archive.archiveDir
+        else:
+            self.isSubDir = False
+            self.dirName = DirName(archive.archiveDir)
+            self.archive.postProcessor = self
 
-         # DirName is a hack printing out the correct directory name when running nested
-         # post processors on sub directories
-        self.dirName = DirName(dirName)
-
-        # unique identifier
-        self.id = id
+        self.nzbFileName = None
+        if self.isNZBArchive():
+            self.nzbFileName = archive.nzbFileName
 
         # Whether or not this thread is the only thing happening in the app (-p mode)
         self.background = background
@@ -50,29 +64,52 @@ class PostProcessor(Thread):
         # If we're a background Post Processor, our MO is to move dirName to DEST_DIR when
         # finished (successfully or not)
         self.movedDestDir = False
+
+        # Whether all par data for the NZB has not been downloaded. If this is True,
+        # and par fails needing more data, we can trigger a download of extra par dat
+        self.hasMorePars = False
+        if self.isNZBArchive() and self.archive.skippedParSubjects:
+            self.hasMorePars = True
         
         self.decompressionThreadPool = []
         self.decompressorLock = RLock()
         self.decompressorCondition = Condition(self.decompressorLock)
 
-        self.rarPassword = rarPassword
-        if self.rarPassword != None:
-            rarPasswordFile = open(dirName + os.sep + '.hellanzb_rar_password', 'w')
-            rarPasswordFile.write(self.rarPassword)
-            rarPasswordFile.close()
-
-        # The parent directory we the originating post process call started from, if we
-        # are post processing a sub directory
-        self.isSubDir = False
-        self.parentDir = parentDir
-        if self.parentDir != None:
-            self.isSubDir = True
-            self.dirName.parentDir = self.parentDir
-            
         self.startTime = None
+
+        # Whether or not this PostProcessor's Topen processes were explicitly kill()'ed
+        self.killed = False
+
+        # Whether or not this post processor will call back to the twisted thread to force
+        # a par recovery download
+        self.forcedRecovery = False
+        # Function to call the twisted thread to force a par recovery download
+        self.callback = None
     
         Thread.__init__(self)
 
+    def __getattr__(self, name):
+        """ Forward specific attribute lookups to the Archive object """
+        if name in self.archiveAttrs:
+            return getattr(self.archive, name)
+        raise AttributeError, name
+
+    def __setattr__(self, name, value):
+        """ Forward specific attribute setting to the Archive object """
+        if name in self.archiveAttrs:
+            setattr(self.archive, name, value)
+        else:
+            self.__dict__[name] = value
+
+    def getName(self):
+        """ The name of the archive currently being post processed """
+        return os.path.basename(self.dirName)
+
+    def isNZBArchive(self):
+        """ Whether or not the current archive was downloaded from an NZB file """
+        from Hellanzb.NZBLeecher.NZBModel import NZB # FIXME:
+        return isinstance(self.archive, NZB)
+        
     def addDecompressor(self, decompressorThread):
         """ Add a decompressor thread to the pool and notify the caller """
         self.decompressorCondition.acquire()
@@ -89,16 +126,36 @@ class PostProcessor(Thread):
 
     def stop(self):
         """ Perform any cleanup and remove ourself from the pool before exiting """
-        cleanUp(self.dirName)
+        if not self.forcedRecovery:
+            cleanUp(self.dirName)
 
         if not self.isSubDir:
             Hellanzb.postProcessorLock.acquire()
             Hellanzb.postProcessors.remove(self)
+            self.archive.postProcessor = None
             Hellanzb.postProcessorLock.release()
+
+            # Write the queue to disk unless we've been stopped by a killed Topen (via
+            # CTRL-C)
+            if not self.killed:
+                Hellanzb.writeStateXML()
+
+        # FIXME: This isn't the best place to GC. The best place would be when a download
+        # is finished (idle NZBLeecher) but with smartpar, finding an idle NZBLeecher is
+        # tricky
+        if not self.isSubDir and self.isNZBArchive():
+            self.archive.finalize(self.forcedRecovery)
+            if not self.forcedRecovery:
+                del self.archive
+            gc.collect()
+
+            if self.forcedRecovery:
+                self.callback()
+                return
             
         # When a Post Processor fails, we end up moving the destDir here
         self.moveDestDir() 
-            
+
         if not self.background and not self.isSubDir:
             # We're not running in the background of a downloader -- we're post processing
             # and then immeidately exiting (-Lp)
@@ -106,6 +163,7 @@ class PostProcessor(Thread):
             reactor.callFromThread(reactor.stop)
 
     def moveDestDir(self):
+        """ Move the archive dir out of PROCESSING_DIR """
         if self.movedDestDir or Hellanzb.SHUTDOWN:
             return
         
@@ -132,6 +190,8 @@ class PostProcessor(Thread):
             # FIXME: could block if there are too many processors going
             Hellanzb.postProcessors.append(self)
             Hellanzb.postProcessorLock.release()
+
+            Hellanzb.writeStateXML()
         
         try:
             self.postProcess()
@@ -148,6 +208,7 @@ class PostProcessor(Thread):
         
         except FatalError, fe:
             # REACTOR STOPPED IF NOT BACKGROUND/SUBIDR
+            logStateXML(debug)
             self.stop()
 
             # Propagate up to the original Post Processor
@@ -173,6 +234,7 @@ class PostProcessor(Thread):
         
         except Exception, e:
             # REACTOR STOPPED IF NOT BACKGROUND/SUBIDR
+            logStateXML(debug)
             self.stop()
             
             # Propagate up to the original Post Processor
@@ -180,7 +242,6 @@ class PostProcessor(Thread):
                 raise
             
             error(archiveName(self.dirName) + ': An unexpected problem occurred', e)
-
             return
 
         # REACTOR STOPPED IF NOT BACKGROUND/SUBIDR
@@ -270,7 +331,7 @@ class PostProcessor(Thread):
         # Move other cruft out of the way
         deleteDuplicates(self.dirName)
         
-        if self.nzbFile != None:
+        if self.nzbFile is not None:
             if os.path.isfile(self.dirName + os.sep + self.nzbFile) and \
                     os.access(self.dirName + os.sep + self.nzbFile, os.R_OK):
                 move(self.dirName + os.sep + self.nzbFile,
@@ -285,7 +346,8 @@ class PostProcessor(Thread):
 
         for file in os.listdir(self.dirName):
             ext = getFileExtension(file)
-            if ext != None and len(ext) > 0 and ext.lower() not in Hellanzb.KEEP_FILE_TYPES and \
+            if ext is not None and len(ext) > 0 and \
+                    ext.lower() not in Hellanzb.KEEP_FILE_TYPES and \
                    ext.lower() in Hellanzb.NOT_REQUIRED_FILE_TYPES:
                 move(self.dirName + os.sep + file,
                      self.dirName + os.sep + Hellanzb.PROCESSED_SUBDIR + os.sep + file)
@@ -302,12 +364,6 @@ class PostProcessor(Thread):
         # Finally, nuke the processed dir. Hopefully the PostProcessor did its job and
         # there was absolutely no need for any of the files in the processed dir,
         # otherwise tough! (otherwise disable the option and redownload again)
-            
-        # Strip the parentDir name from the filename's full path
-        parentDir = self.dirName
-        if self.isSubDir:
-            parentDir = self.parentDir
-
         deleteDir = self.dirName + os.sep + Hellanzb.PROCESSED_SUBDIR
         deletedFiles = walk(deleteDir, 1, return_folders = 1)
         deletedFiles.sort()
@@ -411,15 +467,46 @@ class PostProcessor(Thread):
             
             checkShutdown()
             try:
-                processPars(self.dirName, needAssembly)
+                processPars(self, needAssembly)
             except ParExpectsUnsplitFiles:
                 info(archiveName(self.dirName) + ': This archive requires assembly before running par2')
                 assembleSplitFiles(self.dirName, needAssembly)
-                processPars(self.dirName, None)
+                processPars(self, None)
+                
+            except NeedMorePars, nmp:
+                if self.background and self.isNZBArchive() and self.hasMorePars:
+                    # Must download more pars. Move the archive to the postponed dir, and
+                    # triggere the special force call for par recoveries
+                    postponedDir = Hellanzb.POSTPONED_DIR + os.sep + \
+                        os.path.basename(self.dirName)
+                    move(self.dirName, postponedDir)
+                    self.archive.archiveDir = self.archive.destDir = postponedDir
+                    self.archive.nzbFileName = postponedDir + os.sep + \
+                        os.path.basename(self.archive.nzbFileName)
+
+                    info(archiveName(self.dirName) + \
+                         ': More pars avaialble, forcing extra par download')
+
+                    self.archive.neededBlocks, self.archive.parType, self.archive.parPrefix = \
+                        nmp.size, nmp.parType, nmp.parPrefix
+                    self.forcedRecovery = True
+
+                    def triggerRecovery():
+                        from twisted.internet import reactor
+                        from Hellanzb.Daemon import forceNZBParRecover # FIXME:
+                        reactor.callFromThread(forceNZBParRecover, self.archive)
+                    self.callback = triggerRecovery
+                    return
+                else:
+                    info(archiveName(self.dirName) + ': Failed par verify, requires ' + \
+                         nmp.neededBlocks + ' more recovery ' + \
+                         getParRecoveryName(nmp.parType))
+
+        cleanUpSkippedPars(self.dirName)
         
         if not Hellanzb.SKIP_UNRAR and dirHasRars(self.dirName):
             checkShutdown()
-            processRars(self.dirName, self.rarPassword)
+            processRars(self)
 
         if dirHasMusic(self.dirName):
             checkShutdown()
@@ -438,11 +525,10 @@ class PostProcessor(Thread):
             
             if os.path.isdir(pathjoin(self.dirName, file)):
                 if not self.isSubDir:
-                    troll = PostProcessor(pathjoin(self.dirName, file), id = self.id,
-                                          parentDir = self.dirName)
+                    troll = PostProcessor(self.archive, subDir = file)
                 else:
-                    troll = PostProcessor(pathjoin(self.dirName, file), id = self.id,
-                                          parentDir = self.parentDir)
+                    troll = PostProcessor(self.archive, subDir = pathjoin(self.subDir,
+                                                                          file))
                 troll.run()
                 trolled += 1
 

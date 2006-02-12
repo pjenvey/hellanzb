@@ -4,33 +4,28 @@
 test - Run all or a specific test
 
 """
-import unittest, Hellanzb.test
-from Hellanzb.Core import *
-        
+import os, unittest, Hellanzb.test
+from Hellanzb.Core import init
+
+TEST_DIR = os.path.join(os.path.dirname(__file__), 'Hellanzb/test/')
+
 def suite():
     s = unittest.TestSuite()
-    for package in dir(Hellanzb.test):
-        print 'e:' + package
-        for test in dir(package):
-            print 'hri:' + test
-            if isinstance(test, Hellanzb.test.HellanzbTestCase):
-                print 'hi:' + test
-                s.addTest(test)
+    for file in os.listdir(TEST_DIR):
+        if file.endswith('TestCase.py') and not file.startswith('.'):
+            packageName = file[:-3]
+            module = __import__('Hellanzb.test.' + packageName, globals(), locals(), packageName)
+            klass = getattr(module, packageName)
+            if klass.skip:
+                print 'Skipping test: %s' % packageName
+            else:
+                print 'Loading test: %s' % packageName
+                s.addTest(unittest.makeSuite(klass, 'test'))
     return s
 
 if __name__ == '__main__':
-    #unittest.TextTestRunner().run(suite())
+    Hellanzb.Core.init()
     try:
-        init()
-        #from Hellanzb.test.PriorityQueueTestCase import *
-        #from Hellanzb.test.NZBLeecherTestCase import *
-        from Hellanzb.test.DupeNameTestCase import *
-        s = unittest.TestSuite()
-        #s = suite()
-        s.addTest(unittest.makeSuite(DupeNameTestCase, 'test'))
-        #s.addTest(unittest.makeSuite(NZBLeecherTestCase, 'test'))
-        #result = []
-        #s.run(result)
-        unittest.TextTestRunner().run(s)
+        unittest.TextTestRunner().run(suite())
     finally:
-        shutdown()
+        Hellanzb.Core.shutdown()

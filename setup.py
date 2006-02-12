@@ -33,7 +33,8 @@ def runSetup():
                             "downloading, par-checking, un-raring, etc. is done automatically by "
                             "hellanzb."),
 
-        packages = [ 'Hellanzb', 'Hellanzb.NZBLeecher', 'Hellanzb.HellaXMLRPC' ],
+        packages = [ 'Hellanzb', 'Hellanzb.NZBLeecher', 'Hellanzb.HellaXMLRPC',
+                     'Hellanzb.external', 'Hellanzb.external.elementtree' ],
         scripts = [ 'hellanzb.py' ],
         data_files = [ ( 'etc', [ 'etc/hellanzb.conf.sample' ] ),
                        ( 'share/doc/hellanzb', [ 'CHANGELOG', 'CREDITS', 'README', 'LICENSE' ] ) ],

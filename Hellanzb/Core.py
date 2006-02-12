@@ -25,7 +25,7 @@ __id__ = '$Id$'
 
 def findAndLoadConfig(optionalConfigFile = None):
     """ Find and load the configuration file """
-    if optionalConfigFile != None:
+    if optionalConfigFile is not None:
         if loadConfig(optionalConfigFile):
             return
         else:
@@ -67,7 +67,7 @@ def loadConfig(fileName):
         # Cache this operation (whether or not we're in debug mode) for faster (hardly)
         # debug spamming (from NZBLeecher)
         Hellanzb.DEBUG_MODE_ENABLED = False
-        if hasattr(Hellanzb, 'DEBUG_MODE') and Hellanzb.DEBUG_MODE != None and \
+        if hasattr(Hellanzb, 'DEBUG_MODE') and Hellanzb.DEBUG_MODE is not None and \
                 Hellanzb.DEBUG_MODE != False:
             # Set this ASAP for sane logging. FIXME: You could possibly lose some debug
             # output during initialization if you're using the -d option
@@ -79,13 +79,16 @@ def loadConfig(fileName):
             lowerTypes = [ext.lower() for ext in types]
             setattr(Hellanzb, varName, lowerTypes)
 
-        if not hasattr(Hellanzb, 'MAX_RATE') or Hellanzb.MAX_RATE == None:
+        if not hasattr(Hellanzb, 'MAX_RATE') or Hellanzb.MAX_RATE is None:
             Hellanzb.MAX_RATE = 0
         else:
             Hellanzb.MAX_RATE = int(Hellanzb.MAX_RATE)
 
-        if not hasattr(Hellanzb, 'SKIP_UNRAR') or Hellanzb.SKIP_UNRAR == None:
+        if not hasattr(Hellanzb, 'SKIP_UNRAR') or Hellanzb.SKIP_UNRAR is None:
             Hellanzb.SKIP_UNRAR = False
+
+        if not hasattr(Hellanzb, 'SMART_PAR'):
+            Hellanzb.SMART_PAR = True
 
         if not hasattr(Hellanzb, 'OTHER_NZB_FILE_TYPES'):
             # By default, just match .nzb files in the queue dir
@@ -147,9 +150,13 @@ def signalHandler(signum, frame):
         if Hellanzb.stopSignalCount < 2:
             msg = 'Caught interrupt, waiting for these child processes to finish:\n'
             for topen in Topen.activePool:
+                pid = topen.getPid()
+                if pid is None:
+                    pid = 'Init'
+                else:
+                    pid = str(pid)
                 msg += truncateToMultiLine(topen.prettyCmd, length = 68,
-                                           prefix = str(topen.getPid()) + '  ',
-                                           indentPrefix = ' '*8) + '\n'
+                                           prefix = pid + '  ', indentPrefix = ' '*8) + '\n'
             msg += '(CTRL-C again within 5 seconds to kill them and exit immediately.\n' + \
                 'PostProcessors will automatically resume when hellanzb is restarted)'
             warn(msg)
@@ -220,14 +227,16 @@ def init(options = {}):
     except ImportError:
         Hellanzb.HAVE_C_YENC = False
 
+    # abort if we lack required binaries
     assertHasARar()
+    assertIsExe('par2')
 
     # Twisted will replace this with its own signal handler when initialized
     signal.signal(signal.SIGINT, signalHandler)
 
     outlineRequiredDirs() # before the config file is loaded
         
-    if hasattr(options, 'configFile') and options.configFile != None:
+    if hasattr(options, 'configFile') and options.configFile is not None:
         findAndLoadConfig(options.configFile)
     else:
         findAndLoadConfig()
@@ -238,7 +247,7 @@ def init(options = {}):
     for attr in ('logFile', 'debugLogFile'):
         # this is really: logFile = None
         setattr(sys.modules[__name__], attr, None)
-        if hasattr(options, attr) and getattr(options, attr) != None:
+        if hasattr(options, attr) and getattr(options, attr) is not None:
             setattr(sys.modules[__name__], attr, getattr(options, attr))
     Hellanzb.Logging.initLogFile(logFile = logFile, debugLogFile = debugLogFile)
 
@@ -246,8 +255,11 @@ def init(options = {}):
     for option, attr in { 'rpcServer': 'XMLRPC_SERVER',
                           'rpcPassword': 'XMLRPC_PASSWORD',
                           'rpcPort': 'XMLRPC_PORT' }.iteritems():
-        if hasattr(options, option) and getattr(options, option) != None:
+        if hasattr(options, option) and getattr(options, option) is not None:
             setattr(Hellanzb, attr, getattr(options, option))
+
+    if not hasattr(Hellanzb, 'DELETE_PROCESSED'):
+        Hellanzb.DELETE_PROCESSED = True
 
     if not hasattr(Hellanzb, 'GROWL_NOTIFY'):
         error('Required option not defined in config file: Hellanzb.GROWL_NOTIFY')
@@ -283,7 +295,8 @@ def shutdown(killPostProcessors = False):
         Topen.killAll()
 
     # stop the twisted reactor
-    reactor.callLater(0, reactor.stop)
+    if reactor.running:
+        reactor.stop()
 
     # Just in case we left it off
     stdinEchoOn()

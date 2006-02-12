@@ -5,15 +5,16 @@ ArticleDecoder - Decode and assemble files from usenet articles (nzbSegments)
 (c) Copyright 2005 Philip Jenvey
 [See end of file]
 """
-import binascii, gc, os, re, shutil, string, time, Hellanzb
+import binascii, os, re, shutil, string, time, Hellanzb
 from threading import Lock
 from twisted.internet import reactor
 from zlib import crc32
 from Hellanzb.Daemon import handleNZBDone, pauseCurrent
 from Hellanzb.Log import *
 from Hellanzb.Logging import prettyException
+from Hellanzb.Util import BUF_SIZE, checkShutdown, isHellaTemp, nuke, touch, \
+    OutOfDiskSpace
 from Hellanzb.NZBLeecher.DupeHandler import handleDupeNZBFile, handleDupeNZBSegment
-from Hellanzb.Util import checkShutdown, touch, OutOfDiskSpace
 if Hellanzb.HAVE_C_YENC: import _yenc
 
 __id__ = '$Id$'
@@ -46,15 +47,7 @@ def decode(segment):
     instance as having been decoded, then assemble all the segments together if all their
     decoded segment filenames exist """
     try:
-        # downloaded encodedData was written to disk by NZBLeecher
-        encodedData = open(Hellanzb.DOWNLOAD_TEMP_DIR + os.sep + segment.getTempFileName() + '_ENC')
-        # remove crlfs. FIXME: might be quicker to do this during a later loop
-        segment.articleData = [line[:-2] for line in encodedData.readlines()]
-        encodedData.close()
-
-        # Delete the copy on disk ASAP
-        nuke(Hellanzb.DOWNLOAD_TEMP_DIR + os.sep + segment.getTempFileName() + '_ENC')
-        
+        segment.loadArticleDataFromDisk()
         decodeArticleData(segment)
         
     except OutOfDiskSpace:
@@ -73,7 +66,14 @@ def decode(segment):
               ' a problem occurred during decoding', e)
         touch(segment.getDestination())
 
-    segment.nzbFile.todoNzbSegments.remove(segment) # FIXME: lock????
+    if Hellanzb.SMART_PAR and segment.number == 1:
+        # This will dequeue all of this segment's sibling segments that are still in the
+        # NZBSegmentQueue. Segments that aren't in the queue are either:
+        # o already decoded and on disk
+        # o currently downloading
+        # Segments currently downloading are left in segment.nzbFile.todoNzbSegments
+        segment.dequeueIfExtraPar()
+    
     Hellanzb.queue.segmentDone(segment)
     debug('Decoded segment: ' + segment.getDestination())
 
@@ -83,9 +83,13 @@ def decode(segment):
     if segment.nzbFile.isAllSegmentsDecoded():
         try:
             assembleNZBFile(segment.nzbFile)
+            # NOTE: exceptions here might cause Hellanzb.queue.fileDone() to not be
+            # called
         except OutOfDiskSpace:
             # Delete the partially assembled file, it will be re-assembled later
             nuke(segment.nzbFile.getDestination())
+            # FIXME: Who's going to re-trigger assembly when space is freed and the
+            # downloader 'continue's? I believe this also needs to be fixed in parseNZB
         except SystemExit, se:
             # checkShutdown() throws this, let the thread die
             pass
@@ -94,6 +98,13 @@ def decode(segment):
             # cleanup and return
             if not handleCanceledFile(segment.nzbFile):
                 raise
+    elif segment.nzbFile.isSkippedPar and not len(segment.nzbFile.todoNzbSegments):
+        # This skipped par file is done and didn't assemble, so manually tell the
+        # NZBSegmentQueue that it's finished
+        Hellanzb.queue.fileDone(segment.nzbFile)
+        
+        # It's possible that it was the final decode() called for this NZB
+        tryFinishNZB(segment.nzbFile.nzb)
 
 def nuke(f):
     try:
@@ -105,7 +116,7 @@ def handleCanceledSegment(nzbSegment):
     """ Return whether or not the specified NZBSegment has been canceled. If so, delete its
     associated decoded file on disk, if it exists """
     if nzbSegment.nzbFile.nzb.isCanceled():
-        nuke(nzbSegmentOrFile.getDestination())
+        nuke(nzbSegment.getDestination())
         return True
     return False
 
@@ -144,7 +155,7 @@ def yInt(object, message = None):
     try:
         return int(object)
     except ValueError:
-        if message != None:
+        if message is not None:
             error(message)
         return None
 
@@ -152,7 +163,7 @@ def parseArticleData(segment, justExtractFilename = False):
     """ Clean the specified segment's articleData, and get the article's filename from the
     articleData. If not justExtractFilename, also decode the articleData to the segment's
     destination """
-    if segment.articleData == None:
+    if segment.articleData is None:
         raise FatalError('Could not getFilenameFromArticleData')
 
     # First, clean it
@@ -182,7 +193,7 @@ def parseArticleData(segment, justExtractFilename = False):
 
             setRealFileName(segment.nzbFile, ybegin['name'],
                             settingSegmentNumber = segment.number)
-            if segment.nzbFile.ySize == None:
+            if segment.nzbFile.ySize is None:
                     segment.nzbFile.ySize = yInt(ybegin['size'],
                                                   '* Invalid =ybegin line in part %d!' % segment.number)
                     
@@ -256,17 +267,18 @@ def parseArticleData(segment, justExtractFilename = False):
 
     decodeSegmentToFile(segment, encodingType)
     del segment.articleData
-    segment.articleData = '' # We often check it for == None
+    segment.articleData = '' # We often check it for is None
 decodeArticleData=parseArticleData
 
 def setRealFileName(nzbFile, filename, forceChange = False, settingSegmentNumber = None):
     """ Set the actual filename of the segment's parent nzbFile. If the filename wasn't
     already previously set, set the actual filename atomically and also atomically rename
     known temporary files belonging to that nzbFile to use the new real filename """
-    # FIXME: remove locking
+    # FIXME: remove locking. actually, this function really needs to be locking when
+    # nzb.destDir is changing (when the archive dir is moved around)
     switchedReal = False
     if nzbFile.filename is not None and nzbFile.filename != filename and \
-            nzbFile.filename.find('hellanzb-tmp-') != 0:
+            not isHellaTemp(nzbFile.filename):
         # This NZBFile already had a real filename set, and now something has triggered it
         # be changed
         switchedReal = True
@@ -298,10 +310,10 @@ def setRealFileName(nzbFile, filename, forceChange = False, settingSegmentNumber
     renameFilenames = {}
 
     if switchedReal:
+        notOnDisk = nzbFile.todoNzbSegments.union(nzbFile.dequeuedSegments)
         # Get the original segment filenames via getDestination() (before we change it)
         renameSegments = [(nzbSegment, nzbSegment.getDestination()) for nzbSegment in
-                           nzbFile.nzbSegments if nzbSegment not in
-                           nzbSegment.nzbFile.todoNzbSegments]
+                           nzbFile.nzbSegments if nzbSegment not in notOnDisk]
 
     # Change the filename
     nzbFile.filename = filename
@@ -319,10 +331,10 @@ def setRealFileName(nzbFile, filename, forceChange = False, settingSegmentNumber
             os.path.basename(nzbSegment.getDestination())
                           
     # Rename all segments
-    for file in os.listdir(Hellanzb.WORKING_DIR):
+    for file in os.listdir(nzbFile.nzb.destDir):
         if file in renameFilenames:
-            orig = Hellanzb.WORKING_DIR + os.sep + file
-            new = Hellanzb.WORKING_DIR + os.sep + renameFilenames.get(file)
+            orig = nzbFile.nzb.destDir + os.sep + file
+            new = nzbFile.nzb.destDir + os.sep + renameFilenames.get(file)
             shutil.move(orig, new)
 
             # Keep the onDiskSegments map in sync
@@ -335,7 +347,7 @@ def setRealFileName(nzbFile, filename, forceChange = False, settingSegmentNumber
 def yDecodeCRCCheck(segment, decoded):
     """ Validate the CRC of the segment with the yencode keyword """
     passedCRC = False
-    if segment.yCrc == None:
+    if segment.yCrc is None:
         # FIXME: I've seen CRC errors at the end of archive cause logNow = True to
         # print I think after handleNZBDone appends a newline (looks like crap)
         error(segment.nzbFile.showFilename + ' segment: ' + str(segment.number) + \
@@ -356,7 +368,7 @@ def yDecodeCRCCheck(segment, decoded):
 
 def yDecodeFileSizeCheck(segment, size):
     """ Ensure the file size from the yencode keyword """
-    if segment.ySize != None and size != segment.ySize:
+    if segment.ySize is not None and size != segment.ySize:
         message = segment.nzbFile.showFilename + ' segment ' + str(segment.number) + \
             ': file size mismatch: actual: ' + str(size) + ' != ' + str(segment.ySize) + ' (expected)'
         warn(message)
@@ -398,7 +410,7 @@ def decodeSegmentToFile(segment, encodingType = YENCODE):
             decoded, crc, cruft = yDecode(segment.articleData)
             
             # CRC check. FIXME: use yDecodeCRCCheck for this!
-            if segment.yCrc == None:
+            if segment.yCrc is None:
                 passedCRC = False
                 # FIXME: I've seen CRC errors at the end of archive cause logNow = True to
                 # print I think after handleNZBDone appends a newline (looks like crap)
@@ -612,6 +624,7 @@ def assembleNZBFile(nzbFile, autoFinish = True):
         return
 
     file = open(nzbFile.getDestination(), 'wb')
+    write = file.write
 
     # Sort the segments incase they were out of order in the NZB file
     toAssembleSegments = nzbFile.nzbSegments[:]
@@ -619,12 +632,13 @@ def assembleNZBFile(nzbFile, autoFinish = True):
     
     for nzbSegment in toAssembleSegments:
         decodedSegmentFile = open(nzbSegment.getDestination(), 'rb')
+        read = decodedSegmentFile.read
         try:
-            for line in decodedSegmentFile:
-                if line == '':
+            while True:
+                buf = read(BUF_SIZE)
+                if not buf:
                     break
-
-                file.write(line)
+                write(buf)
 
         except IOError, ioe:
             file.close()
@@ -661,7 +675,7 @@ def assembleNZBFile(nzbFile, autoFinish = True):
             # exceptions.OSError: [Errno 2] No such file or directory: 
             if ose.errno != 2:
                 debug('Unexpected ERROR while removing segmentFile: ' + segmentFile)
-        
+
     Hellanzb.queue.fileDone(nzbFile)
     reactor.callFromThread(fileDone)
     
@@ -685,7 +699,7 @@ def tryFinishNZB(nzb):
     """ Determine if the NZB download/decode process is done for the specified NZB -- if it's
     done, trigger handleNZBDone. We'll call this check everytime we finish processing an
     nzbFile """
-    start = time.time()
+    #start = time.time()
     done = True
 
     # Simply check if there are any more nzbFiles in the queue that belong to this nzb
@@ -706,7 +720,7 @@ def tryFinishNZB(nzb):
         if nzbFile not in nzb.nzbFileElements:
             continue
         
-        debug('NOT DONE, file: ' + nzbFile.getDestination())
+        debug('tryFinishNZB: NOT DONE: ' + nzbFile.getDestination())
         done = False
         break
 
@@ -714,24 +728,10 @@ def tryFinishNZB(nzb):
         Hellanzb.queue.nzbDone(nzb)
         debug('tryFinishNZB: finished downloading NZB: ' + nzb.archiveName)
         
-        # nudge GC
-        nzbFileName = nzb.nzbFileName
-        for nzbFile in nzb.nzbFileElements:
-            del nzbFile.todoNzbSegments
-            del nzbFile.nzb
-        del nzb.nzbFileElements
+        reactor.callFromThread(handleNZBDone, nzb)
         
-        nzbId = nzb.id
-        rarPassword = nzb.rarPassword
-        del nzb
-        
-        gc.collect()
-
-        reactor.callFromThread(handleNZBDone, nzbFileName, nzbId,
-                               **{'rarPassword': rarPassword })
-        
-    finish = time.time() - start
-    debug('tryFinishNZB (' + str(done) + ') took: ' + str(finish) + ' seconds')
+    #finish = time.time() - start
+    #debug('tryFinishNZB (' + str(done) + ') took: ' + str(finish) + ' seconds')
     return done
         
 """

@@ -1,4 +1,3 @@
-#!/usr/bin/env python
 """
 
 DupeHandler - Functions for handling duplicate files in NZBs. Some NZBs contain multiple
@@ -58,6 +57,9 @@ def handleDupeNZBSegment(nzbSegment):
         if beingDownloadedNZBSegment is not None:
             debug('handleDupeNZBSegment: handling dupe: %s renaming to: %s' % \
                   (os.path.basename(dest), os.path.basename(dupeNZBFileName)))
+
+            # FIXME: should probably assert beingDownloadedNZBSegment.nzbFile.number !=
+            # nzbSegment.nzbFile.number here
             
             # Maintain the correct order when renaming -- the earliest (as they appear in
             # the NZB) clashing NZBFile gets renamed

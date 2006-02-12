@@ -5,25 +5,21 @@ NZBModel - Representations of the NZB file format in memory
 (c) Copyright 2005 Philip Jenvey
 [See end of file]
 """
-import gc, os, re, time, Hellanzb
+import os, re, Hellanzb
 from sets import Set
 from threading import Lock, RLock
-from twisted.internet import reactor
-from xml.sax import make_parser, SAXParseException
-from xml.sax.handler import ContentHandler, feature_external_ges, feature_namespaces
-from Hellanzb.Core import shutdown
-from Hellanzb.Daemon import handleNZBDone
 from Hellanzb.Log import *
-from Hellanzb.Util import archiveName, getFileExtension, IDPool, EmptyForThisPool, \
-    PoolsExhausted, PriorityQueue, OutOfDiskSpace, DUPE_SUFFIX
-from Hellanzb.NZBLeecher.ArticleDecoder import assembleNZBFile, parseArticleData, \
-    setRealFileName, tryFinishNZB
-from Hellanzb.NZBLeecher.DupeHandler import handleDupeNZBFileNeedsDownload, handleDupeOnDisk
+from Hellanzb.Util import IDPool, UnicodeList, archiveName, getFileExtension, \
+    isHellaTemp, nuke, toUnicode
+from Hellanzb.NZBLeecher.ArticleDecoder import parseArticleData, setRealFileName
+from Hellanzb.NZBLeecher.DupeHandler import handleDupeNZBFileNeedsDownload
 from Hellanzb.NZBLeecher.NZBLeecherUtil import validWorkingFile
-from Queue import Empty
+from Hellanzb.PostProcessorUtil import Archive, getParEnum, getParName
+from Hellanzb.SmartPar import dequeueIfExtraPar, identifyPar
 
 __id__ = '$Id$'
 
+# FIXME: move this function to the bottom of the file
 segmentEndRe = re.compile(r'^segment\d{4}$')
 def segmentsNeedDownload(segmentList, overwriteZeroByteSegments = False):
     """ Faster version of needsDownload for multiple segments that do not have their real file
@@ -54,7 +50,7 @@ def segmentsNeedDownload(segmentList, overwriteZeroByteSegments = False):
             continue
         
         ext = getFileExtension(file)
-        if ext != None and segmentEndRe.match(ext):
+        if ext is not None and segmentEndRe.match(ext):
             segmentNumber = int(ext[-4:])
             
             if onDiskSegmentsByNumber.has_key(segmentNumber):
@@ -80,7 +76,6 @@ def segmentsNeedDownload(segmentList, overwriteZeroByteSegments = False):
         
         foundFileName = None
         for segmentFileName in segmentFileNames:
-
             # We've matched to our on disk segment if we:
             # a) find that on disk segment's file name in our potential segment's subject
             # b) match that on disk segment's file name to our potential segment's temp
@@ -88,15 +83,13 @@ def segmentsNeedDownload(segmentList, overwriteZeroByteSegments = False):
             if segment.nzbFile.subject.find(segmentFileName) > -1 or \
                     segment.getTempFileName()[:-12] == segmentFileName:
                 foundFileName = segmentFileName
-                # make note that this segment doesn't have to be downloaded
-                segment.nzbFile.todoNzbSegments.remove(segment)
                 break
 
         if not foundFileName:
             needDlSegments.append(segment)
             needDlFiles.add(segment.nzbFile)
         else:
-            if foundFileName.find('hellanzb-tmp-') != 0 and \
+            if segment.number == 1 and not isHellaTemp(foundFileName) and \
                     segment.nzbFile.filename is None:
                 # HACK: filename is None. so we only have the temporary name in
                 # memory. since we didnt see the temporary name on the filesystem, but we
@@ -105,15 +98,24 @@ def segmentsNeedDownload(segmentList, overwriteZeroByteSegments = False):
                 # filename (hopefully!). Set it if it hasn't already been set
                 setRealFileName(segment.nzbFile, foundFileName,
                             settingSegmentNumber = segment.number)
+
+                if Hellanzb.SMART_PAR:
+                    # dequeueIfExtraPar won't actually 'dequeue' any of this segment's
+                    # nzbFile's segments (because there are no segments in the queue at
+                    # this point). It will identifyPar the segment AND more importantly it
+                    # will mark nzbFiles as isSkippedPar (taken into account later during
+                    # parseNZB) and print a 'Skipping par' message for those isSkippedPar
+                    # nzbFiles
+                    segment.dequeueIfExtraPar(readOnlyQueue = True)
                 
             onDiskSegments.append(segment)
             
-            # We only call segmentDone here to update the queue's onDiskSegments. The call
-            # shouldn't actually be decrementing the queue's totalQueuedBytes at this
-            # point. We call this so isBeingDownloaded (called from handleDupeNZBSegment)
-            # can identify orphaned segments on disk that technically aren't being
-            # downloaded, but need to be identified as so, so their parent NZBFile can be
-            # renamed
+            # Originally the main reason to call segmentDone here is to update the queue's
+            # onDiskSegments (so isBeingDownloaded can safely detect things on disk during
+            # Dupe renaming). However it's correct to call this here, it's as if hellanzb
+            # just finished downloading and decoding the segment. The only incorrect part
+            # about the call is the queue's totalQueuedBytes is decremented. That total is
+            # reset to zero just before it is recalculated at the end of parseNZB, however
             Hellanzb.queue.segmentDone(segment)
 
             # This segment was matched. Remove it from the list to avoid matching it again
@@ -126,18 +128,18 @@ def segmentsNeedDownload(segmentList, overwriteZeroByteSegments = False):
 
     return needDlFiles, needDlSegments, onDiskSegments
 
-class NZB:
+class NZB(Archive):
     """ Representation of an nzb file -- the root <nzb> tag """
     
-    def __init__(self, nzbFileName):
+    def __init__(self, nzbFileName, id = None, rarPassword = None, archiveDir = None):
+        Archive.__init__(self, archiveDir, id, None, rarPassword)
+            
         ## NZB file general information
         self.nzbFileName = nzbFileName
         self.archiveName = archiveName(self.nzbFileName) # pretty name
         self.nzbFileElements = []
-        
-        self.id = IDPool.getNextId()
 
-        # Where the nzb files will be downloaded
+        ## Where the nzb files will be downloaded
         self.destDir = Hellanzb.WORKING_DIR
 
         ## A cancelled NZB is marked for death. ArticleDecoder will dispose of any
@@ -154,12 +156,20 @@ class NZB:
         ## How many bytes have been downloaded for this NZB
         self.totalReadBytes = 0
 
-        # To be passed to the PostProcessor
-        self.rarPassword = None
-        
-        ## Whether or not we should redownload NZBFile and NZBSegment files on disk that are 0 bytes in
-        ## size
+        ## Whether or not we should redownload NZBFile and NZBSegment files on disk that
+        ## are 0 bytes in size
         self.overwriteZeroByteFiles = True
+
+        ## Whether or not this NZB is downloading in par recovery mode
+        self.isParRecovery = False
+        ## Skipped par file's subjects are kept here, in a list, during post
+        ## processing. This list is arranged by the file's size
+        self.skippedParSubjects = None
+        ## The number of par blocks (or par files for par1 mode), the par version, and the
+        ## par prefix for the current par recovery download
+        self.neededBlocks = 0
+        self.parType = None
+        self.parPrefix = None
         
     def isCanceled(self):
         """ Whether or not this NZB was cancelled """
@@ -175,6 +185,162 @@ class NZB:
         self.canceledLock.acquire()
         self.canceled = True
         self.canceledLock.release()
+
+    def cleanStats(self):
+        """ Reset downlaod statistics """
+        self.totalSkippedBytes = 0
+        for nzbFile in self.nzbFileElements:
+            nzbFile.totalSkippedBytes = 0
+            nzbFile.totalReadBytes = 0
+            nzbFile.downloadPercentage = 0
+            nzbFile.speed = 0
+            nzbFile.downloadStartTime = None
+
+    def finalize(self, justClean = False):
+        """ Delete any potential cyclic references existing in this NZB, then garbage
+        collect. justClean will only clean/delete specific things, to prep the NZB for
+        another download """
+        # nzbFiles aren't needed for another download
+        for nzbFile in self.nzbFileElements:
+            del nzbFile.todoNzbSegments
+            del nzbFile.dequeuedSegments
+            del nzbFile.nzb
+            del nzbFile
+
+        if justClean:
+            self.nzbFileElements = []
+            self.postProcessor = None
+            self.cleanStats()
+        else:
+            del self.nzbFileElements
+            del self.postProcessor
+
+    def getSkippedParSubjects(self):
+        """ Return a list of skipped par file's subjects, sorted by the size of the par """
+        unsorted = []
+        for nzbFile in self.nzbFileElements:
+            if nzbFile.isSkippedPar:
+                unsorted.append((nzbFile.totalBytes, nzbFile.subject))
+        # Ensure the list of pars is sorted by the par's number of bytes (so we pick off
+        # the smallest ones first when doing a par recovery download)
+        unsorted.sort()
+        sorted = UnicodeList()
+        for bytes, subject in unsorted:
+            sorted.append(subject)
+        return sorted
+
+    def isSkippedParSubject(self, subject):
+        """ Determine whether the specified subject is that of a known skipped par file """
+        if self.skippedParSubjects is None:
+            return False
+        return toUnicode(subject) in self.skippedParSubjects
+
+    def getName(self):
+        return os.path.basename(self.archiveName)
+
+    def getPercentDownloaded(self):
+        """ Return the percentage of this NZB that has already been downloaded """
+        if self.totalBytes == 0:
+            return 0
+        else:
+            # FIXME: there are two ways of getting this value, either from the NZB
+            # statistics or from the queue statistics. There should really only be one way..?
+            return int((float(self.totalReadBytes + self.totalSkippedBytes) / \
+                                   float(self.totalBytes)) * 100)
+
+    def getETA(self):
+        """ Return the amount of time needed to finish downloadling this NZB at the current rate
+        """
+        currentRate = Hellanzb.getCurrentRate()
+        if self.totalBytes == 0 or currentRate == 0:
+            return 0
+        else:
+            return int(((self.totalBytes - self.totalReadBytes - self.totalSkippedBytes) \
+                       / 1024) / currentRate)
+
+    def getStateAttribs(self):
+        """ Return attributes to be written out to the """
+        attribs = Archive.getStateAttribs(self)
+
+        # NZBs in isParRecovery mode need the par recovery state written
+        if self.isParRecovery:
+            attribs['isParRecovery'] = 'True'
+            for attrib in ('neededBlocks', 'parPrefix'):
+                val = getattr(self, attrib)
+                if isinstance(val, int):
+                    val = str(val)
+                attribs[attrib] = toUnicode(val)
+            attribs['parType'] = getParName(self.parType)
+
+        return attribs
+
+    def toStateXML(self, xmlWriter):
+        """ Write a brief version of this object to an elementtree.SimpleXMLWriter.XMLWriter """
+        attribs = self.getStateAttribs()
+        if self in Hellanzb.queue.currentNZBs():
+            type = 'downloading'
+        elif self.postProcessor is not None and \
+                self.postProcessor in Hellanzb.postProcessors:
+            type = 'processing'
+            attribs['nzbFileName'] = os.path.basename(self.nzbFileName)
+        elif self in Hellanzb.queued_nzbs:
+            type = 'queued'
+        else:
+            return
+        
+        xmlWriter.start(type, attribs)
+        if type != 'downloading' or self.isParRecovery:
+            # Write 'skippedPar' tags describing the known skipped par files that haven't
+            # been downloaded
+            if self.skippedParSubjects is not None:
+                for nzbFileName in self.skippedParSubjects:
+                    xmlWriter.element('skippedPar', nzbFileName)
+            else:
+                for skippedParFileSubject in self.getSkippedParSubjects():
+                    xmlWriter.element('skippedPar', skippedParFileSubject)
+        xmlWriter.end(type)
+
+    def fromStateXML(type, target):
+        """ Factory method, returns a new NZB object for the specified target, and recovers
+        the NZB state from the RecoveredState object if the target exists there for
+        the specified type (such as 'processing', 'downloading') """
+        if type == 'processing':
+            recoveredDict = Hellanzb.recoveredState.getRecoveredDict(type, target)
+            archiveDir = Hellanzb.PROCESSING_DIR + os.sep + target
+            if recoveredDict and recoveredDict.get('nzbFileName') is not None:
+                target = recoveredDict.get('nzbFileName')
+            else:
+                # If this is a processing recovery request, and we didn't recover any
+                # state information, we'll consider this a basic Archive object (it has no
+                # accompanying .NZB file to keep track of)
+                return Archive.fromStateXML(archiveDir, recoveredDict)
+        else:
+            recoveredDict = Hellanzb.recoveredState.getRecoveredDict(type,
+                                                                     archiveName(target))
+
+        # Pass the id in with the constructor (instead of setting it after the fact) --
+        # otherwise the constructor would unnecessarily incremenet the IDPool
+        nzbId = None
+        if recoveredDict:
+            nzbId = recoveredDict['id']
+
+        nzb = NZB(target, nzbId)
+        
+        if type == 'processing':
+            nzb.archiveDir = archiveDir
+        
+        if recoveredDict:
+            for key, value in recoveredDict.iteritems():
+                if key == 'id' or key == 'order':
+                    continue
+                if key == 'neededBlocks':
+                    value = int(value)
+                if key == 'parType':
+                    value = getParEnum(value)
+                setattr(nzb, key, value)
+
+        return nzb
+    fromStateXML = staticmethod(fromStateXML)
         
 class NZBFile:
     """ <nzb><file/><nzb> """
@@ -198,6 +364,11 @@ class NZBFile:
         # we'll remove from this set everytime a segment is found completed (on the FS)
         # during NZB parsing, or later written to the FS
         self.todoNzbSegments = Set()
+
+        ## Segments that have been dequeued on the fly (during download). These are kept
+        ## track of in the rare case that an nzb file is dequeued when all segments have
+        ## actually been downloaded
+        self.dequeuedSegments = Set()
 
         ## NZBFile statistics
         self.number = len(self.nzb.nzbFileElements)
@@ -225,6 +396,10 @@ class NZBFile:
         self.showFilename = None
         self.showFilenameIsTemp = False
         
+        # Whether or not the filename was forcefully changed from the original by the
+        # DupeHandler
+        self.forcedChangedFilename = False
+        
         # direct pointer to the first segment of this file, when we have a tempFilename we
         # look at this segment frequently until we find the real file name
         # FIXME: this most likely doesn't optimize for shit.
@@ -239,7 +414,11 @@ class NZBFile:
         # NOTE: maybe just change nzbFile.filename via the reactor (callFromThread), and
         # remove the lock entirely?
 
-        self.forcedChangedFilename = False
+        ## Whether or not this is a par file, an extra par file
+        ## (e.g. archiveA.vol02+01.par2), and has been skipped by the downloader
+        self.isParFile = False
+        self.isExtraParFile = False
+        self.isSkippedPar = False
 
     def getDestination(self):
         """ Return the full pathname of where this NZBFile should be written to on disk """
@@ -301,7 +480,16 @@ class NZBFile:
             # This block only handles matching temporary file names
             return False
 
-        elif self.filename == None:
+        elif self.filename is None:
+            # First, check if this is one of the dupe files on disk
+            isDupe, dupeNeedsDl = handleDupeNZBFileNeedsDownload(self, workingDirDupeMap)
+            if isDupe:
+                # NOTE: We should know this is a par, but probably don't care if it is.
+                # If there is a par file fully assembled on disk, we don't care about
+                # skipping it
+                identifyPar(self)
+                return dupeNeedsDl
+
 
             # First, check if this is one of the dupe files on disk
             isDupe, dupeNeedsDl = handleDupeNZBFileNeedsDownload(self, workingDirDupeMap)
@@ -311,9 +499,17 @@ class NZBFile:
             # We only know about the temp filename. In that case, fall back to matching
             # filenames in our subject line
             for file in workingDirListing:
-
                 # Whole file match
                 if self.subject.find(file) > -1:
+                    # No need for setRealFileName(self, file)'s extra work here
+                    self.filename = file
+
+                    if Hellanzb.SMART_PAR:
+                        identifyPar(self)
+                        if self.isParFile:
+                            debug('needsDownload: Found par on disk: %s isExtraParFile: %s' % \
+                                  (file, str(self.isExtraParFile)))
+                        
                     return False
     
         return True
@@ -324,12 +520,15 @@ class NZBFile:
         return 'hellanzb-tmp-' + self.nzb.archiveName + '.file' + str(self.number).zfill(4)
 
     def isAllSegmentsDecoded(self):
-        """ Determine whether all these file's segments have been decoded """
+        """ Determine whether all these file's segments have been decoded (nzbFile is ready to be
+        assembled) """
+        if self.isSkippedPar:
+            return not len(self.dequeuedSegments) and not len(self.todoNzbSegments)
         return not len(self.todoNzbSegments)
 
     #def __repr__(self):
     #    msg = 'nzbFile: ' + os.path.basename(self.getDestination())
-    #    if self.filename != None:
+    #    if self.filename is not None:
     #        msg += ' tempFileName: ' + self.getTempFileName()
     #    msg += ' number: ' + str(self.number) + ' subject: ' + \
     #           self.subject
@@ -390,653 +589,30 @@ class NZBSegment:
         """ Determine the segment's filename via the articleData """
         parseArticleData(self, justExtractFilename = True)
         
-        if self.nzbFile.filename == None and self.nzbFile.tempFilename == None:
+        if self.nzbFile.filename is None and self.nzbFile.tempFilename is None:
             raise FatalError('Could not getFilenameFromArticleData, file:' + str(self.nzbFile) +
                              ' segment: ' + str(self))
+
+    def loadArticleDataFromDisk(self):
+        """ Load the previously downloaded article BODY from disk, as a list to the .articleData
+        variable. Removes the on disk version upon loading """
+        # downloaded encodedData was written to disk by NZBLeecher
+        encodedData = open(Hellanzb.DOWNLOAD_TEMP_DIR + os.sep + self.getTempFileName() + '_ENC')
+        # remove crlfs. FIXME: might be quicker to do this during a later loop
+        self.articleData = [line[:-2] for line in encodedData.readlines()]
+        encodedData.close()
+
+        # Delete the copy on disk ASAP
+        nuke(Hellanzb.DOWNLOAD_TEMP_DIR + os.sep + self.getTempFileName() + '_ENC')
+
+    def dequeueIfExtraPar(self, readOnlyQueue = False):
+        """ Shortcut to the SmartPar function of the same name """
+        dequeueIfExtraPar(self, readOnlyQueue)
 
     #def __repr__(self):
     #    return 'segment: ' + os.path.basename(self.getDestination()) + ' number: ' + \
     #           str(self.number) + ' subject: ' + self.nzbFile.subject
 
-class RetryQueue:
-    """ Maintains various PriorityQueues for requeued segments. Each PriorityQueue maintained
-    is keyed by a string describing what serverPools previously failed to download that
-    queue's segments """
-    def __init__(self):
-        # all the known pool names
-        self.serverPoolNames = []
-        
-        # dict to lookup the priority by name -- the name describes which serverPools
-        # should NOT look into that particular queue. Example: 'not1not2not4'
-        self.poolQueues = {}
-
-        # map of serverPoolNames to their list of valid retry queue names
-        self.nameIndex = {}
-
-        # A list of all queue names
-        self.allNotNames = []
-
-    def clear(self):
-        """ Clear all the queues """
-        for queue in self.poolQueues.itervalues():
-            queue.clear()
-
-    def addServerPool(self, serverPoolName):
-        """ Add an additional serverPool. This does not create any associated PriorityQueues, that
-        work is done by createQueues """
-        self.serverPoolNames.append(serverPoolName)
-
-    def removeServerPool(self, serverPoolName):
-        """ Remove a serverPool. FIXME: probably never needed, so not implemented """
-        raise NotImplementedError()
-
-    def requeue(self, serverPoolName, segment):
-        """ Requeue the segment (which failed to download on the specified serverPool) for later
-        retry by another serverPool
-
-        The segment is requeued by adding it to the correct PriorityQueue -- dictated by
-        which serverPools have previously failed to download the specified segment. A
-        PoolsExhausted exception is thrown when all serverPools have failed to download
-        the segment """
-        # All serverPools we know about failed to download this segment
-        if len(segment.failedServerPools) == len(self.serverPoolNames):
-            raise PoolsExhausted()
-
-        # Figure out the correct queue by looking at the previously failed serverPool
-        # names
-        notName = ''
-        i = 0
-        for poolName in self.serverPoolNames:
-            i += 1
-            if poolName in segment.failedServerPools:
-                notName += 'not' + str(i)
-
-        # Requeued for later
-        self.poolQueues[notName].put((segment.priority, segment))
-    
-    def get(self, serverPoolName):
-        """ Return the next segment for the specified serverPool that is queued to be retried """
-        # Loop through all the valid priority queues for the specified serverPool
-        valids = self.nameIndex[serverPoolName]
-        for queueName in valids:
-            queue = self.poolQueues[queueName]
-
-            # Found a segment waiting to be retried
-            if len(queue):
-                return queue.get_nowait()
-
-        raise Empty()
-
-    def __len__(self):
-        length = 0
-        for queue in self.poolQueues.itervalues():
-            length += len(queue)
-        return length
-
-    def createQueues(self):
-        """ Create the retry PriorityQueues for all known serverPools
-
-        This is a hairy way to do this. It's not likely to scale for more than probably
-        4-5 serverPools. However it is functionally ideal for a reasonable number of
-        serverPools
-
-        The idea is you want your downloaders to always be busy. Without the RetryQueue,
-        they would simply always pull the next available segment out of the main
-        NZBQueue. Once the NZBQueue was empty, all downloaders knew they were done
-
-        Now that we desire the ability to requeue a segment that failed on a particular
-        serverPool, the downloaders need to exclude the segments they've previously failed
-        to download, when pulling segments out of the NZBQueue
-
-        If we continue keeping all queued (and now requeued) segments in the same queue,
-        the potentially many downloaders could easily end up going through the entire
-        queue seeking a segment they haven't already tried. This is unacceptable when our
-        queues commonly hold over 60K items
-
-        The best way I can currently see to support the downloaders being able to quickly
-        lookup the 'actual' next segment they want to download is to have multiple queues,
-        indexed by what serverPool(s) have previously failed on those segments
-
-        If we have 3 serverPools (1, 2, and 3) we end up with a dict looking like:
-
-        not1     -> q
-        not2     -> q
-        not3     -> q
-        not1not2 -> q
-        not1not3 -> q
-        not2not3 -> q
-
-        I didn't quite figure out the exact equation to gather the number of Queues in
-        regard to the number of serverPools, but (if my math is right) it seems to grow
-        pretty quickly (is quadratic)
-
-        Every serverPool avoids certain queues. In the previous example, serverPool 1 only
-        needs to look at all the Queues that are not tagged as having already failed on 1
-        (not2, not3, and not2not3) -- only half of the queues
-
-        The numbers:
-
-        serverPools    totalQueues    onlyQueues
-
-        2              2              1
-        3              6              3
-        4              14             7
-        5              30             15
-        6              62             31
-        7              126            63
-
-        The RetryQueue.get() algorithim simply checks all queues for emptyness until it
-        finds one with items in it. The > 5 is worrysome. That means for 6 serverPools,
-        the worst case scenario (which could be very common in normal use) would be to
-        make 31 array len() calls. With a segment size of 340KB, downloading at 1360KB/s,
-        (and multiple connections) we could be doing those 31 len() calls on average of 4
-        times a second. And with multiple connections, this could easily spurt to near
-        your max connection count, per second (4, 10, even 30 connections?)
-
-        Luckily len() calls are as quick as can be and who the hell uses 6 different
-        usenet providers anyway? =]
-        """
-        # Go through all the serverPools and create the initial 'not1' 'not2'
-        # queues
-        # FIXME: could probably let the recursive function take care of this
-        for i in range(len(self.serverPoolNames)):
-            notName = 'not' + str(i + 1)
-            self.poolQueues[notName] = PriorityQueue()
-
-            self._recurseCreateQueues([i], i, len(self.serverPoolNames))
-
-        # Finished creating all the pools. Now index every pool's list of valid retry
-        # queues they need to check.  (using the above docstring, serverPool 1 would have
-        # a list of 'not2', 'not3', and 'not2not3' in its nameIndex
-        i = 0
-        for name in self.serverPoolNames:
-            i += 1
-            
-            valids = []
-            for notName in self.poolQueues.keys():
-                if notName.find('not' + str(i)) > -1:
-                    continue
-                valids.append(notName)
-            self.nameIndex[name] = valids
-
-    def _recurseCreateQueues(self, currentList, currentIndex, totalCount):
-        """ Recurse through, creating the matrix of 'not1not2not3not4not5' etc and all its
-        variants. Avoid creating duplicates """
-        # Build the original notName
-        notName = ''
-        for i in currentList:
-            notName += 'not' + str(i + 1)
-
-        if len(currentList) >= totalCount - 1:
-            # We've reached the end
-            return
-
-        for x in range(totalCount):
-            if x == currentIndex or x in currentList:
-                # We've already not'd x, skip it
-                continue
-
-            newList = currentList[:]
-            newList.append(x)
-            newList.sort()
-
-            if newList in self.allNotNames:
-                # this notName == an already generated notName, skip it
-                continue
-
-            self.allNotNames.append(newList)
-
-            newNotName = notName + 'not' + str(x + 1)
-            self.poolQueues[newNotName] = PriorityQueue()
-            self._recurseCreateQueues(newList, x, totalCount)
-
-class NZBQueue(PriorityQueue):
-    """ priority fifo queue of segments to download. lower numbered segments are downloaded
-    before higher ones """
-    NZB_CONTENT_P = 100000 # normal nzb downloads
-    EXTRA_PAR2_P = 0 # par2 after-the-fact downloads are more important
-
-    def __init__(self, fileName = None):
-        PriorityQueue.__init__(self)
-
-        # Maintain a collection of the known nzbFiles belonging to the segments in this
-        # queue. Set is much faster for _put & __contains__
-        self.nzbFiles = Set()
-        self.postponedNzbFiles = Set()
-        self.nzbFilesLock = Lock()
-
-        self.nzbs = []
-        self.nzbsLock = Lock()
-
-        self.totalQueuedBytes = 0
-
-        # Segments curently on disk
-        self.onDiskSegments = {}
-
-        self.retryQueueEnabled = False
-        self.rQueue = RetryQueue()
-
-        if fileName is not None:
-            self.parseNZB(fileName)
-
-    def cancel(self):
-        self.postpone(cancel = True)
-
-    def clear(self):
-        """ Clear the queue of all its contents"""
-        if self.retryQueueEnabled is not None:
-            self.rQueue.clear()
-        PriorityQueue.clear(self)
-
-        self.nzbs = []
-        
-        self.onDiskSegments.clear()
-
-    def postpone(self, cancel = False):
-        """ Postpone the current download """
-        self.clear()
-
-        self.nzbsLock.acquire()
-        self.nzbFilesLock.acquire()
-
-        if not cancel:
-            self.postponedNzbFiles.union_update(self.nzbFiles)
-        self.nzbFiles.clear()
-        
-        self.nzbFilesLock.release()
-        self.nzbsLock.release()
-
-        self.totalQueuedBytes = 0
-
-    def _put(self, item):
-        """ Add a segment to the queue """
-        priority, item = item
-
-        # Support adding NZBFiles to the queue. Just adds all the NZBFile's NZBSegments
-        if isinstance(item, NZBFile):
-            offset = 0
-            for nzbSegment in item.nzbSegments:
-                PriorityQueue._put(self, (priority + offset, nzbSegment))
-                offset += 1
-        else:
-            # Assume segment, add to list
-            if item.nzbFile not in self.nzbFiles:
-                self.nzbFiles.add(item.nzbFile)
-            PriorityQueue._put(self, (priority, item))
-
-    def calculateTotalQueuedBytes(self):
-        """ Calculate how many bytes are queued to be downloaded in this queue """
-        # NOTE: we don't maintain this calculation all the time, too much CPU work for
-        # _put
-        self.nzbFilesLock.acquire()
-        files = self.nzbFiles.copy()
-        self.nzbFilesLock.release()
-        for nzbFile in files:
-            self.totalQueuedBytes += nzbFile.totalBytes
-
-    def currentNZBs(self):
-        """ Return a copy of the list of nzbs currently being downloaded """
-        self.nzbsLock.acquire()
-        nzbs = self.nzbs[:]
-        self.nzbsLock.release()
-        return nzbs
-
-    def nzbAdd(self, nzb):
-        """ Denote this nzb as currently being downloaded """
-        self.nzbsLock.acquire()
-        self.nzbs.append(nzb)
-        self.nzbsLock.release()
-        
-    def nzbDone(self, nzb):
-        """ NZB finished """
-        self.nzbsLock.acquire()
-        try:
-            self.nzbs.remove(nzb)
-        except ValueError:
-            # NZB might have been canceled
-            pass
-        self.nzbsLock.release()
-
-    def serverAdd(self, serverPoolName):
-        """ Add the specified server pool, for use by the RetryQueue """
-        self.rQueue.addServerPool(serverPoolName)
-
-    def initRetryQueue(self):
-        """ Initialize and enable use of the RetryQueue """
-        self.retryQueueEnabled = True
-        self.rQueue.createQueues()
-
-    def serverRemove(self, serverPoolName):
-        """ Remove the specified server pool """
-        self.rQueue.removeServerPool(serverPoolName)
-            
-    def getSmart(self, serverPoolName):
-        """ Get the next available segment in the queue. The 'smart'ness first checks for segments
-        in the RetryQueue, otherwise it falls back to the main queue """
-        # Don't bother w/ retryQueue nonsense unless it's enabled (meaning there are
-        # multiple serverPools)
-        if self.retryQueueEnabled:
-            try:
-                return self.rQueue.get(serverPoolName)
-            except:
-                # All retry queues for this serverPool are empty. fall through
-                pass
-
-            if not len(self) and len(self.rQueue):
-                # Catch the special case where both the main NZBQueue is empty, all the retry
-                # queues for the serverPool are empty, but there is still more left to
-                # download in the retry queue (scheduled for retry by other serverPools)
-                raise EmptyForThisPool()
-            
-        return PriorityQueue.get_nowait(self)
-    
-    def requeue(self, serverPoolName, segment):
-        """ Requeue the segment for download. This differs from requeueMissing as it's for
-        downloads that failed for reasons other than the file or group missing from the
-        server (such as a connection timeout) """
-        # This segment only needs to go back into the retry queue if the retry queue is
-        # enabled AND the segment was previously requeueMissing()'d
-        if self.retryQueueEnabled and len(segment.failedServerPools):
-            self.rQueue.requeue(serverPoolName, segment)
-        else:
-            self.put((segment.priority, segment))
-
-        # There's a funny case where other NZBLeechers in the calling NZBLeecher's factory
-        # received Empty from the queue, then afterwards the connection is lost (say the
-        # connection timed out), causing the requeue. Find and reactivate them because
-        # they now have work to do
-        self.nudgeIdleNZBLeechers(segment)
-
-    def requeueMissing(self, serverPoolName, segment):
-        """ Requeue a missing segment. This segment will be added to the RetryQueue (if enabled),
-        where other serverPools will find it and reattempt the download """
-        # This serverPool has just failed the download
-        assert(serverPoolName not in segment.failedServerPools)
-        segment.failedServerPools.append(serverPoolName)
-
-        if self.retryQueueEnabled:
-            self.rQueue.requeue(serverPoolName, segment)
-
-            # We might have just requeued a segment onto an idle server pool. Reactivate
-            # any idle connections pertaining to this segment
-            self.nudgeIdleNZBLeechers(segment)
-        else:
-            raise PoolsExhausted()
-
-    def nudgeIdleNZBLeechers(self, requeuedSegment):
-        """ Activate any idle NZBLeechers that might need to download the specified requeued
-        segment """
-        if not Hellanzb.downloadPaused and not requeuedSegment.nzbFile.nzb.canceled:
-            for nsf in Hellanzb.nsfs:
-                if nsf.serverPoolName not in requeuedSegment.failedServerPools:
-                    nsf.fetchNextNZBSegment()
-
-    def fileDone(self, nzbFile):
-        """ Notify the queue a file is done. This is called after assembling a file into it's
-        final contents. Segments are really stored independantly of individual Files in
-        the queue, hence this function """
-        self.nzbFilesLock.acquire()
-        if nzbFile in self.nzbFiles:
-            self.nzbFiles.remove(nzbFile)
-        self.nzbFilesLock.release()
-
-        for nzbSegment in nzbFile.nzbSegments:
-            if self.onDiskSegments.has_key(nzbSegment.getDestination()):
-                self.onDiskSegments.pop(nzbSegment.getDestination())
-
-    def segmentDone(self, nzbSegment):
-        """ Simply decrement the queued byte count, unless the segment is part of a postponed
-        download """
-        self.nzbsLock.acquire()
-        if nzbSegment.nzbFile.nzb in self.nzbs and self.totalQueuedBytes > 0:
-            self.totalQueuedBytes -= nzbSegment.bytes
-        self.nzbsLock.release()
-
-        self.onDiskSegments[nzbSegment.getDestination()] = nzbSegment
-
-    def isBeingDownloadedFile(self, segmentFilename):
-        """ Whether or not the file on disk is currently in the middle of being
-        downloaded/assembled. Return the NZBSegment representing the segment specified by
-        the filename """
-        segmentFilename = segmentFilename
-        if self.onDiskSegments.has_key(segmentFilename):
-            return self.onDiskSegments[segmentFilename]
-
-    def parseNZB(self, nzb):
-        """ Initialize the queue from the specified nzb file """
-        # Create a parser
-        parser = make_parser()
-        
-        # No XML namespaces here
-        parser.setFeature(feature_namespaces, 0)
-        parser.setFeature(feature_external_ges, 0)
-
-        # Create the handler
-        fileName = nzb.nzbFileName
-        self.nzbAdd(nzb)
-        needWorkFiles = []
-        needWorkSegments = []
-        dh = NZBParser(nzb, needWorkFiles, needWorkSegments)
-        
-        # Tell the parser to use it
-        parser.setContentHandler(dh)
-
-        # Parse the input
-        try:
-            parser.parse(fileName)
-        except SAXParseException, saxpe:
-            self.nzbDone(nzb)
-            raise FatalError('Unable to parse Invalid NZB file: ' + os.path.basename(fileName))
-
-        s = time.time()
-        # The parser will add all the segments of all the NZBFiles that have not already
-        # been downloaded. After the parsing, we'll check if each of those segments have
-        # already been downloaded. it's faster to check all segments at one time
-        needDlFiles, needDlSegments, onDiskSegments = segmentsNeedDownload(needWorkSegments,
-                                                                           overwriteZeroByteSegments = \
-                                                                           nzb.overwriteZeroByteFiles)
-        e = time.time() - s
-
-        onDiskCount = dh.fileCount - len(needWorkFiles)
-        if onDiskCount:
-            info('Parsed: ' + str(dh.segmentCount) + ' posts (' + str(dh.fileCount) + ' files, skipping ' + \
-                 str(onDiskCount) + ' on disk files)')
-        else:
-            info('Parsed: ' + str(dh.segmentCount) + ' posts (' + str(dh.fileCount) + ' files)')
-
-        # Tally what was skipped for correct percentages in the UI
-        for nzbSegment in onDiskSegments:
-            nzbSegment.nzbFile.totalSkippedBytes += nzbSegment.bytes
-            nzbSegment.nzbFile.nzb.totalSkippedBytes += nzbSegment.bytes
-
-        # The needWorkFiles will tell us what nzbFiles are missing from the
-        # FS. segmentsNeedDownload will further tell us what files need to be
-        # downloaded. files missing from the FS (needWorkFiles) but not needing to be
-        # downloaded (in needDlFiles) simply need to be assembled
-        for nzbFile in needWorkFiles:
-            if nzbFile not in needDlFiles:
-                # Don't automatically 'finish' the NZB, we'll take care of that in this
-                # function if necessary
-                info(nzbFile.getFilename() + ': Assembling -- all segments were on disk')
-                
-                # NOTE: this function is destructive to the passed in nzbFile! And is only
-                # called on occasion (might bite you in the ass one day)
-                try:
-                    assembleNZBFile(nzbFile, autoFinish = False)
-                except OutOfDiskSpace:
-                    self.nzbDone(nzb)
-                    error('Cannot assemble ' + nzb.getFileName() + ': No space left on device! Exiting..')
-                    shutdown(True)
-
-        if not len(needDlSegments):
-            # FIXME: this block of code is the end of tryFinishNZB. there should be a
-            # separate function
-            # nudge GC
-            nzbFileName = nzb.nzbFileName
-            self.nzbDone(nzb)
-            info(nzb.archiveName + ': Assembled archive!')
-            for nzbFile in nzb.nzbFileElements:
-                del nzbFile.todoNzbSegments
-                del nzbFile.nzb
-            del nzb.nzbFileElements
-            
-            # FIXME: put the above dels in NZB.__del__ (that's where collect can go if needed too)
-            nzbId = nzb.id
-            rarPassword = nzb.rarPassword
-            del nzb
-            
-            gc.collect()
-
-            reactor.callLater(0, handleNZBDone, nzbFileName, nzbId, **{'rarPassword': rarPassword })
-
-            # True == the archive is complete
-            return True
-
-        for nzbSegment in needDlSegments:
-            self.put((nzbSegment.priority, nzbSegment))
-
-        # NOTE: This doesn't take into account the orphaned on disk segments. The block
-        # below handles decrementing the total queued byte count to the correct value
-        self.calculateTotalQueuedBytes()
-
-        # Finally, figure out what on disk segments are part of partially downloaded
-        # files. adjust the queued byte count to not include these aleady downloaded
-        # segments. phew
-        for nzbFile in needDlFiles:
-            if len(nzbFile.todoNzbSegments) != len(nzbFile.nzbSegments):
-                for segment in nzbFile.nzbSegments:
-                    if segment not in nzbFile.todoNzbSegments:
-                        self.segmentDone(segment)
-
-        # Archive not complete
-        return False
-
-DUPE_SEGMENT_RE = re.compile('.*%s\d{1,4}.segment\d{4}$' % DUPE_SUFFIX)
-class NZBParser(ContentHandler):
-    """ Parse an NZB 1.0 file into an NZBQueue
-    http://www.newzbin.com/DTD/nzb/nzb-1.0.dtd """
-    def __init__(self, nzb, needWorkFiles, needWorkSegments):
-        # nzb file to parse
-        self.nzb = nzb
-
-        # to be populated with the files that either need to be downloaded or simply
-        # assembled, and their segments
-        self.needWorkFiles = needWorkFiles
-        self.needWorkSegments = needWorkSegments
-
-        # parsing variables
-        self.file = None
-        self.bytes = None
-        self.number = None
-        self.chars = None
-        self.fileNeedsDownload = None
-        
-        self.fileCount = 0
-        self.segmentCount = 0
-
-        # Current listing of existing files in the WORKING_DIR
-        self.workingDirListing = []
-        
-        # Map of duplicate filenames -- @see DupeHandler.handleDupeOnDisk
-        self.workingDirDupeMap = {}
-        
-        files = os.listdir(Hellanzb.WORKING_DIR)
-        files.sort()
-        for file in files:
-
-            if DUPE_SEGMENT_RE.match(file):
-                # Sorry duplicate file segments, handling dupes is a pain enough as it is
-                # without segments coming into the mix
-                os.remove(Hellanzb.WORKING_DIR + os.sep + file)
-                continue
-
-            # Add an entry to the self.workingDirDupeMap if this file looks like a
-            # duplicate, and also skip adding it to self.workingDirListing (dupes are
-            # handled specially so we don't care for them there)
-            if handleDupeOnDisk(file, self.workingDirDupeMap):
-                continue
-            
-            if not validWorkingFile(Hellanzb.WORKING_DIR + os.sep + file,
-                                    self.nzb.overwriteZeroByteFiles):
-                continue
-
-            self.workingDirListing.append(file)
-            
-    def startElement(self, name, attrs):
-        if name == 'file':
-            subject = self.parseUnicode(attrs.get('subject'))
-            poster = self.parseUnicode(attrs.get('poster'))
-
-            self.file = NZBFile(subject, attrs.get('date'), poster, self.nzb)
-            
-            self.fileNeedsDownload = \
-              self.file.needsDownload(workingDirListing = self.workingDirListing,
-                                      workingDirDupeMap = self.workingDirDupeMap)
-              
-            if not self.fileNeedsDownload:
-                debug('SKIPPING FILE: ' + self.file.getTempFileName() + ' subject: ' + \
-                      self.file.subject)
-
-            self.fileCount += 1
-            self.file.number = self.fileCount
-                
-        elif name == 'group':
-            self.chars = []
-                        
-        elif name == 'segment':
-            self.bytes = int(attrs.get('bytes'))
-            self.number = int(attrs.get('number'))
-                        
-            self.chars = []
-        
-    def characters(self, content):
-        if self.chars is not None:
-            self.chars.append(content)
-        
-    def endElement(self, name):
-        if name == 'file':
-            if self.fileNeedsDownload:
-                self.needWorkFiles.append(self.file)
-            else:
-                # done adding all child segments to this NZBFile. make note that none of
-                # them need to be downloaded
-                self.file.nzb.totalSkippedBytes += self.file.totalBytes
-                self.file.todoNzbSegments.clear()
-            
-            self.file = None
-            self.fileNeedsDownload = None
-                
-        elif name == 'group':
-            newsgroup = self.parseUnicode(''.join(self.chars))
-            self.file.groups.append(newsgroup)
-                        
-            self.chars = None
-                
-        elif name == 'segment':
-            self.segmentCount += 1
-
-            messageId = self.parseUnicode(''.join(self.chars))
-            nzbs = NZBSegment(self.bytes, self.number, messageId, self.file)
-            if self.number == 1:
-                self.file.firstSegment = nzbs
-
-            if self.fileNeedsDownload:
-                # HACK: Maintain the order in which we encountered the segments by adding
-                # segmentCount to the priority. lame afterthought -- after realizing
-                # heapqs aren't ordered. NZB_CONTENT_P must now be large enough so that it
-                # won't ever clash with EXTRA_PAR2_P + i
-                nzbs.priority = NZBQueue.NZB_CONTENT_P + self.segmentCount
-                self.needWorkSegments.append(nzbs)
-
-            self.chars = None
-            self.number = None
-            self.bytes = None    
-
-    def parseUnicode(self, unicodeOrStr):
-        if isinstance(unicodeOrStr, unicode):
-            return unicodeOrStr.encode('latin-1')
-        return unicodeOrStr
-        
 """
 /*
  * Copyright (c) 2005 Philip Jenvey <pjenvey@groovie.org>

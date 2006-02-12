@@ -6,6 +6,7 @@ PostProcessorUtil - support functions for the PostProcessor
 [See end of file]
 """
 import os, re, sys, time, Hellanzb
+from os.path import join as pathjoin
 from shutil import move
 from threading import Thread
 from time import time
@@ -14,9 +15,81 @@ from Hellanzb.Util import *
 
 __id__ = '$Id$'
 
+# par types enum
+UNKNOWN, PAR1, PAR2, = range(3)
+
+class Archive(object):
+    """ Representation of an archive that can be post processed """
+    def __init__(self, archiveDir, id = None, rarPassword = None, deleteProcessed = None,
+                 skipUnrar = None):
+        self.archiveDir, self.rarPassword = archiveDir, rarPassword
+        
+        if id is None:
+            self.id = IDPool.getNextId()
+        else:
+            self.id = id
+
+        # Set the default (application level) settings for an Archive, unless they are
+        # explicitly overrridden
+        # FIXME: these aren't used yet
+        for attr, default in {'deleteProcessed': Hellanzb.DELETE_PROCESSED,
+                              'skipUnrar': Hellanzb.SKIP_UNRAR}.iteritems():
+            val = locals()[attr]
+            if val is None:
+                setattr(self, attr, default)
+            else:
+                setattr(self, attr, val)
+
+        # Reference to a post processor if post processing the archive
+        self.postProcessor = None
+
+        # isParRecovery is always False for normal Archives
+        self.isParRecovery = False
+        
+    def getName(self):
+        """ Return the name of this archive for display """
+        return os.path.basename(self.archiveDir)
+
+    def getStateAttribs(self):
+        """ Return a dict of attributes to be written to the on disk state XML. Takes into account
+        the attribute defaults """
+        class Required: pass
+        # All queue attributes and their defaults
+        QUEUE_ATTRIBS = {'rarPassword': None,
+                         'id': Required}
+        
+        attribs = {}
+        for attribName, default in QUEUE_ATTRIBS.iteritems():
+            val = getattr(self, attribName)
+            # Only write to XML required values and values that do not match their defaults
+            if default == Required or val != default:
+                if isinstance(val, int):
+                    val = str(val)
+                attribs[attribName] = toUnicode(val)
+        attribs['name'] = self.getName()
+        return attribs
+
+    def toStateXML(self, xmlWriter):
+        """ Write a brief version of this object to an elementtree.SimpleXMLWriter.XMLWriter """
+        if self.postProcessor in Hellanzb.postProcessors:
+            # Plain Archive objects can only be in the 'processing' state
+            xmlWriter.element('processing', None, self.getStateAttribs())
+
+    def fromStateXML(archiveDir, recoveredDict = None):
+        """ Returns a new Archive (assumed to be in the processing state) for the specified
+        archiveDir, and recovers its state from the RecoveredState object if the
+        archiveDir exists there """
+        if recoveredDict == None:
+            recoveredDict = Hellanzb.recoveredState.getRecoveredDict('processing', archiveDir)
+        if recoveredDict:
+            return Archive(archiveDir, recoveredDict['id'])
+        else:
+            return Archive(archiveDir)
+    fromStateXML = staticmethod(fromStateXML)
+
 # FIXME: this class should be a KnownFileType class, or something. file types other than
 # music might want to be decompressed
-class MusicType:
+class MusicType(object):
     """ Defines a music file type, and whether or not this program should attempt to
     decompress the music (to wav, generally) if it comes across this type of file """
     extension = None
@@ -65,7 +138,7 @@ class DecompressionThread(Thread):
         # Catch exceptions here just in case, to ensure notify() will finally be called
         archive = archiveName(self.dirName)
         try:
-            decompressMusicFile(self.file, self.type, archive)
+            decompressMusicFile(self.parent, self.file, self.type, archive)
 
         except SystemExit, se:
             # Shutdown, stop what we're doing
@@ -126,6 +199,18 @@ class ParExpectsUnsplitFiles(Exception):
     Otherwise we simply do the assembly afterwards
     """
     pass
+
+class NeedMorePars(Exception):
+    """ The PostProcessor throws this exception when an archive has more par chunks available
+    to download, and the par2 function identified the archive as needing the specified
+    size of par chunks (of the specified type, for the par group with the specified
+    prefix) to repair """
+    def __init__(self, size, parType, parPrefix):
+        """ Construct with how many more blocks (par2) or par files (par1) are needed, the par
+        type (constants PAR1 or PAR2) and the prefix (filename minus the extension) of the
+        original par file that requested more pars"""
+        self.args = [size, parType, parPrefix]
+        self.size, self.parType, self.parPrefix = int(size), parType, parPrefix
 
 def dirHasRars(dirName):
     """ Determine if the specified directory contains rar files """
@@ -201,11 +286,42 @@ def isPar1(fileName):
 
     return False
 
+def getParName(parType):
+    """ Return the name of the given parType """
+    if parType == PAR1:
+        return 'par1'
+    elif parType == PAR2:
+        return 'par2'
+    return 'unknown'
+
+def getParEnum(parName):
+    """ Return the ENUM value representing the specified parName (PAR1, PAR2,
+    UNKNOWN). Opposite of getParName """
+    if parName == 'par1':
+        return PAR1
+    elif parName == 'par2':
+        return PAR2
+    return UNKNOWN
+
+def getParRecoveryName(parType, describePar1 = True):
+    """ Return the term used to to describe the particular parType's (a par type enum value)
+    recovery data.
+    Par1: files
+    Par2: blocks
+    """
+    if parType == PAR1:
+        name = 'files'
+        if describePar1:
+            name += ' (%s)' % getParName(parType)
+        return name
+    elif parType == PAR2:
+        return 'blocks'
+    return 'unknown'
+
+DUPE_SUFFIX = re.compile(r'.*_hellanzb_dupe\d{1,3}$')
 def isDuplicate(fileName):
     """ Determine if the specified file is a duplicate """
-    if fileName.endswith('_duplicate') or re.match(r'.*_duplicate\d{0,4}', fileName):
-        return True
-    return False
+    return DUPE_SUFFIX.match(fileName) is not None
 
 def isRequiredFile(fileName):
     """ Given the specified of file name, determine if the file is required for the full
@@ -271,7 +387,7 @@ def getMusicType(fileName):
             return musicType
     return False
 
-def decompressMusicFile(fileName, musicType, archive = None):
+def decompressMusicFile(postProcessor, fileName, musicType, archive = None):
     """ Decompress the specified file according to its musicType """
     cmd = musicType.decompressor.replace('<FILE>', '"' + fileName + '"')
 
@@ -285,7 +401,7 @@ def decompressMusicFile(fileName, musicType, archive = None):
          os.path.basename(fileName))
     cmd = cmd.replace('<DESTFILE>', '"' + destFileName + '"')
 
-    t = Topen(cmd)
+    t = Topen(cmd, postProcessor)
     output, returnCode = t.readlinesAndWait()
 
     if returnCode == 0:
@@ -314,21 +430,21 @@ def dotRarFirstCmp(x, y):
 
     return cmp(x, y)
         
-def processRars(dirName, rarPassword):
+def processRars(postProcessor):
     """ If the specified directory contains rars, unrar them. """
-    if not isFreshState(dirName, 'rar'):
+    if not isFreshState(postProcessor.dirName, 'rar'):
         return
 
     # loop through a sorted list of the files until we find the first
     # rar, then unrar it. skip over any files we know unrar() has
     # already processed, and repeat
     processedRars = []
-    files = os.listdir(dirName)
+    files = os.listdir(postProcessor.dirName)
     files.sort(dotRarFirstCmp) # .rars come first
     start = time.time()
     unrared = 0
     for file in files:
-        absPath = os.path.normpath(dirName + os.sep + file)
+        absPath = os.path.normpath(postProcessor.dirName + os.sep + file)
         
         if absPath not in processedRars and not os.path.isdir(absPath) and \
                 isRar(absPath) and not isDuplicate(absPath) and \
@@ -337,7 +453,7 @@ def processRars(dirName, rarPassword):
             # unless there is a .rar file. However, rar seems to be smart enough to look
             # for a .rar file if we specify this incorrect first file anyway
             
-            justProcessedRars = unrar(dirName, file, rarPassword)
+            justProcessedRars = unrar(postProcessor, file)
             processedRars.extend(justProcessedRars)
 
             # Move the processed rars out of the way immediately
@@ -346,13 +462,13 @@ def processRars(dirName, rarPassword):
                 
             unrared += 1
 
-    processComplete(dirName, 'rar', lambda file : os.path.isfile(file) and isRar(file))
+    processComplete(postProcessor.dirName, 'rar', lambda file : os.path.isfile(file) and isRar(file))
     
     rarTxt = 'rar group'
     if unrared > 1:
         rarTxt += 's'
     e = time.time() - start
-    info('%s: Finished unraring (%i %s, took: %s)' % (archiveName(dirName), unrared,
+    info('%s: Finished unraring (%i %s, took: %s)' % (archiveName(postProcessor.dirName), unrared,
                                                       rarTxt, prettyElapsed(e)))
 
 """
@@ -363,30 +479,30 @@ def processRars(dirName, rarPassword):
 enum { SUCCESS,WARNING,FATAL_ERROR,CRC_ERROR,LOCK_ERROR,WRITE_ERROR,
        OPEN_ERROR,USER_ERROR,MEMORY_ERROR,CREATE_ERROR,USER_BREAK=255};
 """
-def unrar(dirName, fileName, rarPassword = None, pathToExtract = None):
+def unrar(postProcessor, fileName, pathToExtract = None):
     """ Unrar the specified file. Returns all the rar files we extracted from """
-    fileName = os.path.normpath(dirName + os.sep + fileName)
+    fileName = os.path.normpath(postProcessor.dirName + os.sep + fileName)
 
     # By default extract to the file's dir
     if pathToExtract == None:
-        pathToExtract = dirName
+        pathToExtract = postProcessor.dirName
 
     # First, list the contents of the rar, if any filenames are preceeded with *, the rar
     # is passworded
-    if rarPassword != None:
+    if postProcessor.rarPassword != None:
         # Specify the password during the listing, in the case that the data AND headers
         # are passworded
-        listCmd = '%s l -y "-p%s" -- "%s"' % (Hellanzb.UNRAR_CMD, rarPassword, fileName)
+        listCmd = '%s l -y "-p%s" -- "%s"' % (Hellanzb.UNRAR_CMD, postProcessor.rarPassword, fileName)
     else:
         listCmd = '%s l -y -p- -- "%s"' % (Hellanzb.UNRAR_CMD, fileName)
-    t = Topen(listCmd)
+    t = Topen(listCmd, postProcessor)
     output, listReturnCode = t.readlinesAndWait()
 
-    if rarPassword == None and listReturnCode == 3:
+    if postProcessor.rarPassword == None and listReturnCode == 3:
         # For CRC_ERROR (password failed) example:
         # Encrypted file:  CRC failed in h.rar (password incorrect ?)
         # FIXME: only sticky this growl if we're a background processor
-        growlNotify('Archive Error', 'hellanzb requires password', archiveName(dirName) + \
+        growlNotify('Archive Error', 'hellanzb requires password', archiveName(postProcessor.dirName) + \
                     ' requires a rar password for extraction', True)
         raise FatalError('Cannot continue, this archive requires a RAR password. Run ' + sys.argv[0] + \
                          ' -p on the archive directory with the -P option to specify a password')
@@ -420,20 +536,23 @@ def unrar(dirName, fileName, rarPassword = None, pathToExtract = None):
         elif len(line) >= 79 and line[0:80] == '-'*79:
             withinFiles = True
 
-    if isPassworded and rarPassword == None:
+    if isPassworded and postProcessor.rarPassword == None:
         # FIXME: only sticky this growl if we're a background processor
-        growlNotify('Archive Error', 'hellanzb requires password', archiveName(dirName) + \
+        growlNotify('Archive Error', 'hellanzb requires password',
+                    archiveName(postProcessor.dirName) + \
                     ' requires a rar password for extraction', True)
-        raise FatalError('Cannot continue, this archive requires a RAR password. Run ' + sys.argv[0] + \
+        raise FatalError('Cannot continue, this archive requires a RAR password. Run ' + \
+                         sys.argv[0] + \
                          ' -p on the archive directory with the -P option to specify a password')
 
     if isPassworded:
-        cmd = '%s x -y "-p%s" -- "%s" "%s"' % (Hellanzb.UNRAR_CMD, rarPassword, fileName, pathToExtract)
+        cmd = '%s x -y "-p%s" -- "%s" "%s"' % (Hellanzb.UNRAR_CMD, postProcessor.rarPassword,
+                                               fileName, pathToExtract)
     else:
         cmd = '%s x -y -p- -- "%s" "%s"' % (Hellanzb.UNRAR_CMD, fileName, pathToExtract)
     
-    info(archiveName(dirName) + ': Unraring ' + os.path.basename(fileName) + '..')
-    t = Topen(cmd)
+    info(archiveName(postProcessor.dirName) + ': Unraring ' + os.path.basename(fileName) + '..')
+    t = Topen(cmd, postProcessor)
     output, unrarReturnCode = t.readlinesAndWait()
 
     if unrarReturnCode > 0:
@@ -559,19 +678,19 @@ def flattenPar1Name(file):
     # Removing the file extension reveals the group
     return file[:-len(getFileExtension(file))] + '*'
 
-def processPars(dirName, needAssembly = None):
+def processPars(postProcessor, needAssembly = None):
     """ Verify (and repair) the integrity of the files in the specified directory via par2
     (which supports both par1 and par2 files). If files need repair and there are not
     enough recovery blocks, raise a fatal exception. Each different grouping of pars will
     have their own explicit par2 process ran on the grouping's files """
     # Just incase we're running the program again, and we already successfully processed
     # the pars, don't bother doing it again
+    dirName = postProcessor.dirName
     if not isFreshState(dirName, 'par'):
         info(archiveName(dirName) + ': Skipping par processing')
         return
 
     start = time.time()
-    dirName = DirName(dirName + os.sep)
 
     # Remove any .1 files after succesful par2 that weren't previously there (aren't in
     # this list)
@@ -581,11 +700,11 @@ def processPars(dirName, needAssembly = None):
     for wildcard in parGroupOrder:
         parFiles = parGroups[wildcard]
         
-        par2(dirName, parFiles, wildcard, needAssembly)
+        par2(postProcessor, parFiles, wildcard, needAssembly)
         
         # Successful par2, move them out of the way
         for parFile in parFiles:
-            moveToProcessed(dirName + parFile)
+            moveToProcessed(dirName + os.sep + parFile)
 
     processComplete(dirName, 'par', lambda file : isPar(file) or \
                     (file[-2:] == '.1' and file not in dotOneFiles))
@@ -631,18 +750,19 @@ typedef enum Result
 
 } Result;
 """
-def par2(dirName, parFiles, wildcard, needAssembly = None):
+def par2(postProcessor, parFiles, wildcard, needAssembly = None):
     """ Verify (and repair) the integrity of the files in the specified directory via par2. If
     files need repair and there are not enough recovery blocks, raise a fatal exception """
+    dirName = postProcessor.dirName
     info(archiveName(dirName) + ': Verifying via par group: ' + wildcard + '..')
     if needAssembly == None:
         needAssembly = {}
         
     repairCmd = 'par2 r --'
     for parFile in parFiles:
-        repairCmd += ' "%s%s"' % (dirName, parFile)
+        repairCmd += ' "%s"' % (pathjoin(dirName, parFile))
         
-    t = Topen(repairCmd)
+    t = Topen(repairCmd, postProcessor)
     output, returnCode = t.readlinesAndWait()
 
     if returnCode == 0:
@@ -658,14 +778,35 @@ def par2(dirName, parFiles, wildcard, needAssembly = None):
         # Verified
         return
 
+    elif returnCode == 2 and postProcessor.hasMorePars:
+        # Damaged data, more par data is needed that hasn't been downloaded yet
+        damagedAndRequired, missingFiles, targetsFound, neededBlocks, parType = \
+            parseParNeedsBlocksOutput(archiveName(dirName), output)
+        
+        #growlNotify('Error', archiveName(dirName) + '\nNeed ' + neededBlocks + \
+        #            ' more recovery ' + needType, True)
+        warn(archiveName(dirName) + ': Failed par verify, requires ' + neededBlocks + \
+             ' more recovery ' + getParRecoveryName(parType))
+
+        parPrefix = None
+        if parType == PAR1:
+            # Remove '.*' from the wildcard of pattern: Data.part01.*
+            parPrefix = wildcard[:-2]
+        elif parType == PAR2:
+            # Remove '*.{par2,PAR2}' from the wildcard of pattern: dataGroupA*.{par2,PAR2}
+            parPrefix = wildcard[:-13]
+        
+        raise NeedMorePars(neededBlocks, parType, parPrefix)
+        
     elif returnCode == 2:
         # Repair required and impossible
 
         # First, if the repair is not possible, double check the output for what files are
         # missing or damaged (a missing file is considered as damaged in this case). they
         # may be unimportant
-        damagedAndRequired, missingFiles, targetsFound, neededBlocks, isPar1Archive = \
+        damagedAndRequired, missingFiles, targetsFound, neededBlocks, parType = \
             parseParNeedsBlocksOutput(archiveName(dirName), output)
+        needType = getParRecoveryName(parType)
 
         for file in missingFiles:
             if needAssembly.has_key(file):
@@ -673,14 +814,9 @@ def par2(dirName, parFiles, wildcard, needAssembly = None):
                 # that work, we'll run par2 again later
                 raise ParExpectsUnsplitFiles('')
 
-        needType = 'blocks'
-        if isPar1Archive:
-            needType = 'files (par1)'
-
         # par did not find any valid 'Target:' files, and more blocks are needed. This is
         # probably a bad archive
         if targetsFound == 0 and neededBlocks > 0:
-            # FIXME: download more pars and try again
             raise FatalError('Unable to par repair: archive requires ' + neededBlocks + \
                              ' more recovery ' + needType + \
                              ' for repair. No valid files found (bad archive?)')
@@ -689,10 +825,8 @@ def par2(dirName, parFiles, wildcard, needAssembly = None):
         if len(damagedAndRequired) > 0:
             growlNotify('Error', 'hellanzb Cannot par repair:', archiveName(dirName) + \
                         '\nNeed ' + neededBlocks + ' more recovery ' + needType, True)
-            # FIXME: download more pars and try again
             raise FatalError('Unable to par repair: archive requires ' + neededBlocks + \
                              ' more recovery ' + needType + ' for repair')
-            # otherwise processComplete here (failed)
 
     else:
         # Abnormal behavior -- let the user deal with it
@@ -700,6 +834,8 @@ def par2(dirName, parFiles, wildcard, needAssembly = None):
                          '. Please run par2 manually for more information, par2 cmd: ' + \
                          repairCmd)
 
+RAR_NOT_FOUND_RE = re.compile(r'.*File:\ "(.*)"\ -\ no\ data\ found\..*')
+RAR_DAMAGED_RE = re.compile(r'"\ -\ damaged\.\ Found\ \d+\ of\ \d+\ data\ blocks\.')
 def parseParNeedsBlocksOutput(archive, output):
     """ Return a list of broken or damaged required files from par2 v output, and the
     required blocks needed. Will also log warn the user when it finds either of these
@@ -707,18 +843,40 @@ def parseParNeedsBlocksOutput(archive, output):
     damagedAndRequired = []
     missingFiles = []
     neededBlocks = None
-    damagedRE = re.compile(r'"\ -\ damaged\.\ Found\ \d+\ of\ \d+\ data\ blocks\.')
-    isPar1Archive = False
+    parType = UNKNOWN
 
     targetsFound = 0
     maxSpam = 4 # only spam this many lines (before truncating)
     spammed = 0
     extraSpam = []
+    def checkRequired(file, errMsgs, spammed):
+        if isRequiredFile(file):
+            damagedAndRequired.append(file)
+            logger = error
+            msg = errMsgs[error]
+        else:
+            logger = warn
+            msg = errMsgs[warn]
+            
+        if spammed <= maxSpam:
+            # FIXME: Could queue up these messages for later processing (return them in
+            # this function)
+            logger('%s: %s: %s' % (archive, msg, file))
+            spammed += 1
+        else:
+            extraSpam.append('%s: %s: %s' % (archive, msg, file))
+        return spammed
+
     for line in output:
         line = line.rstrip()
-            
+
         index = line.find('Target:')
-        if index > -1 and line.endswith('missing.') or damagedRE.search(line):
+        isTargetLine = index > -1
+        
+        if isTargetLine:
+            targetsFound += 1
+            
+        if isTargetLine and line.endswith('missing.') or RAR_DAMAGED_RE.search(line):
             targetsFound += 1
             
             # Strip any preceeding curses junk
@@ -729,30 +887,15 @@ def parseParNeedsBlocksOutput(archive, output):
 
             if line.endswith('missing.'):
                 file = line[:-len('" - missing.')]
-                # FIXME: Could queue up these messages for later processing (return them
-                # in this function)
-                errMsg = archive + ': Archive missing required file: ' + file
-                warnMsg = archive + ': Archive missing non-required file: ' + file
+                errMsgs = {error: 'Archive missing required file',
+                           warn: 'Archive missing non-required file'}
                 missingFiles.append(file)
             else:
-                file = damagedRE.sub('', line)
-                errMsg = archive + ': Archive has damaged, required file: ' + file
-                warnMsg = archive + ': Archive has damaged, non-required file: ' + file
+                file = RAR_DAMAGED_RE.sub('', line)
+                errMsgs = {error: 'Archive has damaged, required file',
+                           warn: 'Archive has damaged, non-required file'}
 
-            if isRequiredFile(file):
-                if spammed <= maxSpam:
-                    error(errMsg)
-                    spammed += 1
-                else:
-                    extraSpam.append(errMsg)
-                    
-                damagedAndRequired.append(file)
-            else:
-                if spammed <= maxSpam:
-                    warn(warnMsg)
-                    spammed += 1
-                else:
-                    extraSpam.append(errMsg)
+            spammed = checkRequired(file, errMsgs, spammed)
 
         elif line[0:len('You need ')] == 'You need ' and \
             line.endswith(' to be able to repair.'):
@@ -760,23 +903,39 @@ def parseParNeedsBlocksOutput(archive, output):
             
             if line.find(' more recovery files ') > -1:
                 # Par 1 format
-                isPar1Archive = True
+                parType = PAR1
                 neededBlocks = line[:-len(' more recovery files to be able to repair.')]
             else:
                 # Par 2
+                parType = PAR2
                 neededBlocks = line[:-len(' more recovery blocks to be able to repair.')]
+                
+        elif RAR_NOT_FOUND_RE.match(line):
+            file = RAR_NOT_FOUND_RE.sub(r'\1', line)
+            errMsgs =  {error: 'Archive has damaged, required file',
+                        warn: 'Archive has damaged, non-required file'}
+            spammed = checkRequired(file, errMsgs, spammed)
 
     if spammed > maxSpam and len(extraSpam):
         error(' <hellanzb truncated the missing/damaged listing, see the log for full output>')
         
-        # Hi I'm lame. Why do I even bother enforcing warn() usage anyway
+        # Enforce usage of warn() on non-required messages. sigh
         lastMsg = extraSpam[-1]
-        if lastMsg.find('non-required') > 1:
+        if lastMsg.find('non-required') > -1:
             warn(lastMsg)
         else:
             error(lastMsg)
             
-    return damagedAndRequired, missingFiles, targetsFound, neededBlocks, isPar1Archive
+    return damagedAndRequired, missingFiles, targetsFound, neededBlocks, parType
+
+SEGMENT_SUFFIX_LEN = len('.segmentXXXX')
+SEGMENT_RE = re.compile('.*\.segment\d{4}$')
+def cleanUpSkippedPars(dirName):
+    """ The downloader may leave .segmentXXXX par files around, from par data it skipped
+    downloading. Delete these orphaned segments """
+    for file in os.listdir(dirName):
+        if SEGMENT_RE.match(file) and isPar(file[:-SEGMENT_SUFFIX_LEN]):
+            moveToProcessed(dirName + os.sep + file)
 
 SPLIT_RE = re.compile(r'.*\.\d{2,4}$')
 SPLIT_TS_RE = re.compile(r'.*\.\d{3,4}\.ts$', re.I)
@@ -830,7 +989,7 @@ def findSplitFiles(dirName):
             toAssemble.pop(key)
             
     return toAssemble
-    
+
 def assembleSplitFiles(dirName, toAssemble):
     """ Assemble files previously found to be split in the common split formats. This could be
     a lengthy process, so this function will abort the attempt when a shutdown occurs """
@@ -849,12 +1008,16 @@ def assembleSplitFiles(dirName, toAssemble):
         debug(msg + ' ' + str(parts))
         
         assembledFile = open(dirName + os.sep + key, 'w')
-
+        write = assembledFile.write
+        
         for file in parts:
             partFile = open(dirName + os.sep + file)
-            for line in partFile:
-                assembledFile.write(line)
-            partFile.close()
+            read = partFile.read
+            while True:
+                buf = read(BUF_SIZE)
+                if not buf:
+                    break
+                write(buf)
             
             try:
                 checkShutdown()

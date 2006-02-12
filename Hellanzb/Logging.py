@@ -76,7 +76,7 @@ class ScrollableHandler(StreamHandlerNoLF):
             if record.levelno == ScrollableHandler.SCROLL:
                 self.emitSynchronized(record)
             elif record.levelno == ScrollableHandler.SHUTDOWN:
-                record.msg = '\n\n\n' + record.msg + '\n'
+                record.msg = '\n\n\n%s\n' % record.msg
                 self.emitSynchronized(record)
             else:
                 self.scrollLock.acquire()
@@ -135,10 +135,8 @@ class LogOutputStream:
     def __init__(self, logFunction):
         self.write = logFunction
 
-    def flush(self):
-        pass
-    
-    def close(self): raise NotImplementedError()
+    def flush(self): pass
+    def close(self): pass
     def isatty(self): raise NotImplementedError()
     def next(self): raise NotImplementedError()
     def read(self, n = -1): raise NotImplementedError()
@@ -178,9 +176,9 @@ class ASCIICodes:
     def __getattr__(self, name):
         val = self.map[name]
         if name != 'ESCAPE':
-            val = self.map['ESCAPE'] + '[' + val
+            val = '%s[%s' % (self.map['ESCAPE'], val)
             if name != 'KILL_LINE':
-                val += 'm'
+                val = '%sm' % val
         return val
 
 NEWLINE_RE = re.compile('\n')
@@ -220,6 +218,9 @@ class NZBLeecherTicker:
         self.segments.remove((segment.priority, segment))
 
     def scrollHeader(self, message):
+        if Hellanzb.SHUTDOWN:
+            return
+        
         # Even if passed multiple lines, ensure all lines are max 80 chars
         lines = message.split('\n')
         for line in lines:
@@ -229,10 +230,10 @@ class NZBLeecherTicker:
     def killHistory(self):
         """ clear scroll off the screen """
         if not self.killedHistory and self.started:
-            msg = '\r\033[' + str(self.maxCount + 1) + 'A'
+            msg = '\r\033[%iA' % (self.maxCount + 1)
             for i in range(self.maxCount + 1):
-                msg += '\n\r' + Hellanzb.ACODE.KILL_LINE
-            msg += '\r\033[' + str(self.maxCount + 1) + 'A'
+                msg = '%s\n\r%s' % (msg, Hellanzb.ACODE.KILL_LINE)
+            msg = '%s\r\033[%iA' % (msg, self.maxCount + 1)
             
             if not Hellanzb.DAEMONIZE:
                 self.logger(msg)
@@ -262,7 +263,7 @@ class NZBLeecherTicker:
         currentLog = self.currentLog
         if self.currentLog != None:
             # Kill previous lines,
-            self.currentLog = '\r\033[' + str(self.maxCount) + 'A'
+            self.currentLog = '\r\033[%iA' % self.maxCount
         else:
             # unless we have just began logging. and in that case, explicitly log the
             # first message
@@ -274,9 +275,9 @@ class NZBLeecherTicker:
             scrollHeader = ''
             for message in self.scrollHeaders:
                 message = NEWLINE_RE.sub(ACODE.KILL_LINE + '\n', message)
-                scrollHeader += message + ACODE.KILL_LINE + '\n'
+                scrollHeader = '%s%s%s\n' % (scrollHeader, message, ACODE.KILL_LINE)
                 
-            self.currentLog += scrollHeader
+            self.currentLog = '%s%s' % (self.currentLog, scrollHeader)
 
         # listing sorted via heapq
         heap = self.segments[:]
@@ -308,20 +309,21 @@ class NZBLeecherTicker:
                 debug('ATTRIBUTE ERROR: ' + str(ae) + ' num: ' + str(segment.number) + \
                       ' duh: ' + str(segment.articleData))
                 pass
-                
+
+            prefix = self.connectionPrefix % prettyId
             if lastSegment != None and lastSegment.nzbFile == segment.nzbFile:
-                line = self.connectionPrefix + ' %s' + ACODE.KILL_LINE
                 # 57 line width -- approximately 80 - 5 (prefix) - 18 (max suffix)
-                self.currentLog += line % (prettyId,
-                                           rtruncate(segment.nzbFile.showFilename, length = 57))
+                self.currentLog = '%s%s %s%s' % (self.currentLog, prefix,
+                                                 rtruncate(segment.nzbFile.showFilename,
+                                                           length = 57), ACODE.KILL_LINE)
             else:
-                line = self.connectionPrefix + ' %s - ' + ACODE.F_DGREEN + '%2d%%' + ACODE.RESET + \
-                       ACODE.F_DBLUE + ' @ ' + ACODE.RESET + ACODE.F_DRED + '%.1fKB/s' + ACODE.KILL_LINE
-                self.currentLog += line % (prettyId,
-                                           rtruncate(segment.nzbFile.showFilename, length = 57),
-                                           segment.nzbFile.downloadPercentage, segment.nzbFile.speed)
-                
-            self.currentLog += '\n\r'
+                self.currentLog = '%s%s %s - %s%2d%%%s%s @ %s%s%.1fKB/s%s' % \
+                    (self.currentLog, prefix, rtruncate(segment.nzbFile.showFilename,
+                                                        length = 57), ACODE.F_DGREEN,
+                     segment.nzbFile.downloadPercentage, ACODE.RESET, ACODE.F_DBLUE,
+                     ACODE.RESET, ACODE.F_DRED, segment.nzbFile.speed, ACODE.KILL_LINE)
+
+            self.currentLog = '%s\n\r' % self.currentLog
 
             lastSegment = segment
                 
@@ -330,16 +332,13 @@ class NZBLeecherTicker:
                 prettyId = str(fill).zfill(2)
             else:
                 prettyId = str(fill)
-            self.currentLog += (self.connectionPrefix + ACODE.KILL_LINE) % (prettyId)
-            self.currentLog += '\n\r'
+            prefix = self.connectionPrefix % prettyId
+            self.currentLog = '%s%s%s\n\r' % (self.currentLog, prefix, ACODE.KILL_LINE)
 
-        line = self.connectionPrefix + ACODE.F_DRED + ' %.1fKB/s' + ACODE.RESET + \
-               ', ' + ACODE.F_DGREEN + '%d MB' + ACODE.RESET + ' queued, ETA: ' + \
-               ACODE.F_YELLOW + '%s' + ACODE.RESET
+        paused = ''
         if Hellanzb.downloadPaused:
-            line+= ACODE.F_DCYAN + ' [Paused]' + ACODE.RESET
-        line += ACODE.KILL_LINE
-        
+            paused = '%s [Paused]%s' % (ACODE.F_DCYAN, ACODE.RESET)
+
         totalSpeed = 0
         for nsf in Hellanzb.nsfs:
             totalSpeed += nsf.sessionSpeed
@@ -348,10 +347,13 @@ class NZBLeecherTicker:
             eta = '00:00:00'
         else:
             eta = prettyEta((Hellanzb.queue.totalQueuedBytes / 1024) / totalSpeed)
-            
-        self.currentLog += line % ('Total', totalSpeed,
-                                   Hellanzb.queue.totalQueuedBytes / 1024 / 1024,
-                                   eta)
+
+        prefix = self.connectionPrefix % 'Total'
+
+        self.currentLog = '%s%s%s %.1fKB/s%s, %s%i MB%s queued, ETA: %s%s%s%s%s' % \
+            (self.currentLog, prefix, ACODE.F_DRED, totalSpeed, ACODE.RESET,
+             ACODE.F_DGREEN, Hellanzb.queue.totalQueuedBytes / 1024 / 1024, ACODE.RESET,
+             ACODE.F_YELLOW, eta, ACODE.RESET, paused, ACODE.KILL_LINE)
 
         if logNow or self.currentLog != currentLog:
             self.logger(self.currentLog)
@@ -412,7 +414,7 @@ def prettyException(exception):
                 stackTrace = StringIO()
                 print_exc(file=stackTrace)
                 stackTrace = stackTrace.getvalue()
-                message += '\n' + stackTrace
+                message = '%s\n%s' % (message, stackTrace)
     return message
 
 def lockScrollableHandlers(func, *args, **kwargs):

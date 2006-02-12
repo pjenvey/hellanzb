@@ -74,9 +74,10 @@ Hellanzb.PROCESSING_DIR = Hellanzb.PREFIX_DIR + 'nzb/daemon.processing/'
 # Temp storage
 Hellanzb.TEMP_DIR = Hellanzb.PREFIX_DIR + 'nzb/daemon.temp/'
 
-# List storing the order of the queued .nzb files in the QUEUE_DIR. hellanzb
-# will update this file intermittently
-Hellanzb.QUEUE_LIST = Hellanzb.PREFIX_DIR + 'nzb/QUEUE_LIST'
+# Filename to store hellanzb state in between CTRL-Cs. The state (includes the
+# order of the queue, and smart par recovery information) is intermittently
+# written out as XML to this file
+Hellanzb.STATE_XML_FILE = Hellanzb.PREFIX_DIR + 'nzb/hellanzbState.xml'
 
 
 # _Sub directory within the nzb archive dir_ to move processed files to
@@ -86,6 +87,9 @@ Hellanzb.PROCESSED_SUBDIR = 'processed'
 # Warning: The normal Hellanzb.LOG_FILE should be enabled with this option --
 # for a record of what hellanzb deletes
 Hellanzb.DELETE_PROCESSED = True
+
+# Disable SMART_PAR (download all PAR files)
+#Hellanzb.SMART_PAR = False
 
 # Skip unraring during post processing
 #Hellanzb.SKIP_UNRAR = False

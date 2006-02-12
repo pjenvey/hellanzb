@@ -7,7 +7,7 @@ DupeNameTestCase - Tests for the dupeName/getNextDupeName functions
 import os, shutil, tempfile, time, unittest, Hellanzb
 from Hellanzb.test import HellanzbTestCase
 from Hellanzb.Log import *
-from Hellanzb.Util import nextDupeName, dupeName, touch
+from Hellanzb.Util import cleanDupeName, dupeName, nextDupeName, touch
 
 __id__ = '$Id$'
 
@@ -20,6 +20,13 @@ class DupeNameTestCase(HellanzbTestCase):
     def tearDown(self):
         HellanzbTestCase.tearDown(self)
         shutil.rmtree(self.tempDir)
+
+    def testCleanDupeName(self):
+        """ Test the cleanDupeName functionality. """ + cleanDupeName.__doc__
+        testFile = self.tempDir + os.sep + 'file'
+        testFile0 = self.tempDir + os.sep + 'file_hellanzb_dupe0'
+        self.assertEqual(cleanDupeName(testFile), (testFile, -1))
+        self.assertEqual(cleanDupeName(testFile0), (testFile, 0))
 
     def testDupeName(self):
         """ Test the dupeName functionality. """ + dupeName.__doc__

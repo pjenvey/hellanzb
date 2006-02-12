@@ -47,9 +47,7 @@ def decode(segment):
     instance as having been decoded, then assemble all the segments together if all their
     decoded segment filenames exist """
     try:
-        if segment.articleData is None:
-            segment.loadArticleDataFromDisk()
-
+        segment.loadArticleDataFromDisk()
         decodeArticleData(segment)
         
     except OutOfDiskSpace:
@@ -701,10 +699,6 @@ def tryFinishNZB(nzb):
     """ Determine if the NZB download/decode process is done for the specified NZB -- if it's
     done, trigger handleNZBDone. We'll call this check everytime we finish processing an
     nzbFile """
-    # NZB was already marked as being finished
-    if nzb.isFinished:
-        return
-    
     #start = time.time()
     done = True
 
@@ -734,7 +728,6 @@ def tryFinishNZB(nzb):
         Hellanzb.queue.nzbDone(nzb)
         debug('tryFinishNZB: finished downloading NZB: ' + nzb.archiveName)
         
-        nzb.isFinished = True
         reactor.callFromThread(handleNZBDone, nzb)
         
     #finish = time.time() - start

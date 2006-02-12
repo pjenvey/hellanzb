@@ -171,10 +171,6 @@ class NZB(Archive):
         self.parType = None
         self.parPrefix = None
         
-        ## Whether or not this NZB is considered as finished downloading/decoding (by
-        ## ArticleDecoder.tryFinishNZB)
-        self.isFinished = False
-        
     def isCanceled(self):
         """ Whether or not this NZB was cancelled """
         # FIXME: this doesn't need locks
@@ -215,7 +211,6 @@ class NZB(Archive):
             self.nzbFileElements = []
             self.postProcessor = None
             self.cleanStats()
-            self.isFinished = False
         else:
             del self.nzbFileElements
             del self.postProcessor

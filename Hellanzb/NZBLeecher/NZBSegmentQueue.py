@@ -439,8 +439,7 @@ class NZBSegmentQueue(PriorityQueue):
             if nzbFile.isSkippedPar:
                 # If a skipped par file was actually assembled, it wasn't actually skipped
                 nzbFile.isSkippedPar = False
-                if nzbFile.nzb.skippedParSubjects is not None and \
-                        nzbFile.subject in nzbFile.nzb.skippedParSubjects:
+                if nzbFile.nzb.isSkippedParSubject(nzbFile.subject):
                     nzbFile.nzb.skippedParSubjects.remove(nzbFile.subject)
 
     def segmentDone(self, nzbSegment, dequeue = False):
@@ -672,7 +671,7 @@ class NZBParser(ContentHandler):
             # Special handling for par recovery downloads
             extraMsg = ''
             if Hellanzb.SMART_PAR and self.fileNeedsDownload and self.nzb.isParRecovery:
-                if subject not in self.nzb.skippedParSubjects:
+                if not self.nzb.isSkippedParSubject(subject):
                     # Only download previously marked pars
                     self.fileNeedsDownload = False
                     extraMsg = ' (not on disk but wasn\'t previously marked as an skippedParFile)'

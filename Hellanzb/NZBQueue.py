@@ -16,7 +16,7 @@ from xml.sax.handler import ContentHandler, feature_external_ges, feature_namesp
 from Hellanzb.external.elementtree.SimpleXMLWriter import XMLWriter
 from Hellanzb.Log import *
 from Hellanzb.NewzbinDownloader import NewzbinDownloader
-from Hellanzb.Util import IDPool, archiveName, hellaRename, inMainThread, \
+from Hellanzb.Util import IDPool, UnicodeList, archiveName, hellaRename, inMainThread, \
     getFileExtension, toUnicode, validNZB
 
 __id__ = '$Id$'
@@ -66,7 +66,8 @@ class HellanzbStateXMLParser(ContentHandler):
             if self.currentAttrs.has_key('skippedParSubjects'):
                 self.skippedParSubjects = self.currentAttrs['skippedParSubjects']
             else:
-                self.skippedParSubjects = self.currentAttrs['skippedParSubjects'] = []
+                self.skippedParSubjects = \
+                    self.currentAttrs['skippedParSubjects'] = UnicodeList()
 
     def characters(self, content):
         if self.currentTag == 'skippedPar':
@@ -154,11 +155,11 @@ def scanQueueDir(firstRun = False, justScan = False):
     if justScan:
         # Done scanning -- don't bother loading a new NZB
         #debug('Ziplick scanQueueDir (justScan): ' + Hellanzb.QUEUE_DIR + ' TOOK: ' + str(e))
-        debug('Ziplick scanQueueDir (justScan): ' + Hellanzb.QUEUE_DIR)
+        #debug('Ziplick scanQueueDir (justScan): ' + Hellanzb.QUEUE_DIR)
         Hellanzb.downloadScannerID = reactor.callLater(7, scanQueueDir, False, True)
         return
-    else:
-        debug('Ziplick scanQueueDir: ' + Hellanzb.QUEUE_DIR)
+    #else:
+    #    debug('Ziplick scanQueueDir: ' + Hellanzb.QUEUE_DIR)
 
     if not current_nzbs:
         if not Hellanzb.queued_nzbs or Hellanzb.downloadPaused:
@@ -229,10 +230,12 @@ def sortQueueFromRecoveredState(queuedRecoveredState):
     for nzb in unsorted:
         Hellanzb.queued_nzbs.append(nzb)
             
-def recoverStateFromDisk():
+def recoverStateFromDisk(filename = None):
     """ Load hellanzb state from the on disk XML """
+    if filename == None:
+        filename = Hellanzb.STATE_XML_FILE
     Hellanzb.recoveredState = RecoveredState()
-    if os.path.isfile(Hellanzb.STATE_XML_FILE):
+    if os.path.isfile(filename):
         # Create a parser
         parser = make_parser()
 
@@ -245,10 +248,11 @@ def recoverStateFromDisk():
 
         # Parse the input
         try:
-            parser.parse(Hellanzb.STATE_XML_FILE)
+            parser.parse(filename)
         except SAXParseException, saxpe:
-            debug('Unable to parse Invalid NZB QUEUE LIST: ' + Hellanzb.STATE_XML_FILE)
-            return None
+            debug('Error while parsing STATE_XML_FILE: %s: %s: exception: %s' %
+                  (filename, saxpe.getMessage(), saxpe.getException()))
+            return
         
         debug('recoverStateFromDisk recovered: %s' % str(Hellanzb.recoveredState))
 

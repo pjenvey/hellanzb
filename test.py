@@ -12,7 +12,7 @@ TEST_DIR = os.path.join(os.path.dirname(__file__), 'Hellanzb/test/')
 def suite():
     s = unittest.TestSuite()
     for file in os.listdir(TEST_DIR):
-        if file.endswith('TestCase.py'):
+        if file.endswith('TestCase.py') and not file.startswith('.'):
             packageName = file[:-3]
             module = __import__('Hellanzb.test.' + packageName, globals(), locals(), packageName)
             klass = getattr(module, packageName)

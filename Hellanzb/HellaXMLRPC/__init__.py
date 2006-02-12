@@ -138,8 +138,8 @@ class HellaXMLRPCServer(XMLRPC):
         newzdl.download()
         return self.xmlrpc_status()
 
-    xmlrpc_enqueuenewzbin.signature = [ ['struct', 'string'] ]
-    xmlrpc_enqueuenewzbin.signature = [ ['struct', 'int'] ]
+    xmlrpc_enqueuenewzbin.signature = [ ['struct', 'string'],
+                                        ['struct', 'int'] ]
 
     def xmlrpc_force(self, nzbId):
         """ Force hellanzb to begin downloading the NZB with the specified ID immediately,

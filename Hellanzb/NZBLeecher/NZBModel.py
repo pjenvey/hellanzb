@@ -9,8 +9,8 @@ import os, re, Hellanzb
 from sets import Set
 from threading import Lock, RLock
 from Hellanzb.Log import *
-from Hellanzb.Util import IDPool, archiveName, getFileExtension, isHellaTemp, nuke, \
-    toUnicode
+from Hellanzb.Util import IDPool, UnicodeList, archiveName, getFileExtension, \
+    isHellaTemp, nuke, toUnicode
 from Hellanzb.NZBLeecher.ArticleDecoder import parseArticleData, setRealFileName
 from Hellanzb.NZBLeecher.DupeHandler import handleDupeNZBFileNeedsDownload
 from Hellanzb.NZBLeecher.NZBLeecherUtil import validWorkingFile
@@ -222,14 +222,23 @@ class NZB(Archive):
 
     def getSkippedParSubjects(self):
         """ Return a list of skipped par file's subjects, sorted by the size of the par """
-        skippedParSubjects = []
+        unsorted = []
         for nzbFile in self.nzbFileElements:
             if nzbFile.isSkippedPar:
-                skippedParSubjects.append((nzbFile.totalBytes, nzbFile.subject))
+                unsorted.append((nzbFile.totalBytes, nzbFile.subject))
         # Ensure the list of pars is sorted by the par's number of bytes (so we pick off
         # the smallest ones first when doing a par recovery download)
-        skippedParSubjects.sort()
-        return [subject for bytes, subject in skippedParSubjects]
+        unsorted.sort()
+        sorted = UnicodeList()
+        for bytes, subject in unsorted:
+            sorted.append(subject)
+        return sorted
+
+    def isSkippedParSubject(self, subject):
+        """ Determine whether the specified subject is that of a known skipped par file """
+        if self.skippedParSubjects is None:
+            return False
+        return toUnicode(subject) in self.skippedParSubjects
 
     def getName(self):
         return os.path.basename(self.archiveName)
@@ -237,11 +246,22 @@ class NZB(Archive):
     def getPercentDownloaded(self):
         """ Return the percentage of this NZB that has already been downloaded """
         if self.totalBytes == 0:
-            # Probably hasn't been calculated yet
             return 0
         else:
+            # FIXME: there are two ways of getting this value, either from the NZB
+            # statistics or from the queue statistics. There should really only be one way..?
             return int((float(self.totalReadBytes + self.totalSkippedBytes) / \
                                    float(self.totalBytes)) * 100)
+
+    def getETA(self):
+        """ Return the amount of time needed to finish downloadling this NZB at the current rate
+        """
+        currentRate = Hellanzb.getCurrentRate()
+        if self.totalBytes == 0 or currentRate == 0:
+            return 0
+        else:
+            return int(((self.totalBytes - self.totalReadBytes - self.totalSkippedBytes) \
+                       / 1024) / currentRate)
 
     def getStateAttribs(self):
         """ Return attributes to be written out to the """

@@ -389,6 +389,20 @@ class PriorityQueue(Queue):
         
         return succeded
 
+class UnicodeList(list):
+    """ Ensure all contained objects are casted to unicode. Allows Nones """
+    def remove(self, value):
+        super(UnicodeList, self).remove(toUnicode(value))
+        
+    def append(self, value):
+        super(UnicodeList, self).append(toUnicode(value))
+
+    def extend(self, iterable):
+        super(UnicodeList, self).extend([toUnicode(value) for value in iterable])
+
+    def insert(self, index, value):
+        super(UnicodeList, self).insert(index, toUnicode(value))
+
 def getLocalClassName(klass):
     """ Get the local name (no package/module information) of the specified class instance """
     klass = str(klass)

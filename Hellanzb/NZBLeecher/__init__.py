@@ -42,7 +42,12 @@ def initNZBLeecher():
     debug(twistedVersionMsg)
     
     # Direct twisted log output to the debug level
+    twistedTimestampLen = len('2006/02/10 23:59 PST ')
     def debugNoLF(message):
+        # The twisted timestamp is pretty annoying and I don't want to implement a
+        # FileLogObserver at the moment
+        message = message[twistedTimestampLen:]
+        
         debug(message, appendLF = False)
     fileStream = LogOutputStream(debugNoLF)
     log.startLogging(fileStream)
@@ -65,6 +70,7 @@ def initNZBLeecher():
     Hellanzb.scroller = NZBLeecherTicker()
 
     Hellanzb.ht = HellaThrottler(Hellanzb.MAX_RATE * 1024)
+    Hellanzb.getCurrentRate = NZBLeecherFactory.getCurrentRate
 
     # loop to scan the queue dir during download
     Hellanzb.downloadScannerID = None
@@ -290,6 +296,15 @@ class NZBLeecherFactory(ReconnectingClientFactory):
             
         if totalActiveClients == 0:
             endDownload()
+
+    def getCurrentRate():
+        """ Return the current download rate """
+        totalSpeed = 0
+        for nsf in Hellanzb.nsfs:
+            totalSpeed += nsf.sessionSpeed
+        return totalSpeed
+    getCurrentRate = staticmethod(getCurrentRate)
+            
 
 QUIET_CONNECTION_LOST_FAILURES = (ConnectionDone, ConnectionLost)
 class NZBLeecher(NNTPClient, TimeoutMixin):

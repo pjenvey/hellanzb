@@ -484,7 +484,10 @@ class NZBFile:
             # First, check if this is one of the dupe files on disk
             isDupe, dupeNeedsDl = handleDupeNZBFileNeedsDownload(self, workingDirDupeMap)
             if isDupe:
-                # FIXME: do we need to identifyPar here?
+                # NOTE: We should know this is a par, but probably don't care if it is.
+                # If there is a par file fully assembled on disk, we don't care about
+                # skipping it
+                identifyPar(self)
                 return dupeNeedsDl
 
             # We only know about the temp filename. In that case, fall back to matching

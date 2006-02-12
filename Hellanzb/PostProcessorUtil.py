@@ -31,6 +31,7 @@ class Archive(object):
 
         # Set the default (application level) settings for an Archive, unless they are
         # explicitly overrridden
+        # FIXME: these aren't used yet
         for attr, default in {'deleteProcessed': Hellanzb.DELETE_PROCESSED,
                               'skipUnrar': Hellanzb.SKIP_UNRAR}.iteritems():
             val = locals()[attr]
@@ -928,7 +929,7 @@ def parseParNeedsBlocksOutput(archive, output):
 SEGMENT_SUFFIX_LEN = len('.segmentXXXX')
 SEGMENT_RE = re.compile('.*\.segment\d{4}$')
 def cleanUpSkippedPars(dirName):
-    """ The downloader may leave .segment0001 par files around, from par data it skipped
+    """ The downloader may leave .segmentXXXX par files around, from par data it skipped
     downloading. Delete these orphaned segments """
     for file in os.listdir(dirName):
         if SEGMENT_RE.match(file) and isPar(file[:-SEGMENT_SUFFIX_LEN]):

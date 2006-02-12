@@ -376,9 +376,8 @@ class PriorityQueue(Queue):
         for item in items:
             try:
                 self.queue.remove(item)
-            except Exception:
+            except ValueError:
                 succeded.remove(item)
-                pass
 
         heapify(self.queue)
         

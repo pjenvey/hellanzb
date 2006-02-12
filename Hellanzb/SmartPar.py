@@ -13,7 +13,7 @@ from xml.sax.handler import ContentHandler, feature_external_ges, feature_namesp
 from Hellanzb.Log import *
 from Hellanzb.PostProcessorUtil import getParName, getParRecoveryName, isPar, isPar1, \
     isPar2, PAR1, PAR2
-from Hellanzb.Util import isHellaTemp, FatalError
+from Hellanzb.Util import cleanDupeName, isHellaTemp, FatalError
 from Hellanzb.NZBLeecher.ArticleDecoder import setRealFileName, stripArticleData, \
     tryFinishNZB, ySplit
 
@@ -93,16 +93,17 @@ PAR2_VOL_RE = re.compile(r'(.*)\.vol(\d*)\+(\d*)\.par2', re.I)
 def identifyPar(nzbFile):
     """ Determine if this nzbFile is a par by its filename. Marks the nzbFile object as
     isParFile, and if so, also mark its parType and isExtraParFile vars """
-    if isPar(nzbFile.filename):
+    filename = cleanDupeName(nzbFile.filename)[0]
+    if isPar(filename):
         nzbFile.isParFile = True
     
-        if isPar2(nzbFile.filename):
+        if isPar2(filename):
             nzbFile.parType = PAR2
-            if not PAR2_VOL_RE.match(nzbFile.filename):
+            if not PAR2_VOL_RE.match(filename):
                 return
-        elif isPar1(nzbFile.filename):
+        elif isPar1(filename):
             nzbFile.parType = PAR1
-            if nzbFile.filename.lower().endswith('.par'):
+            if filename.lower().endswith('.par'):
                 return
 
         # This is a 'non-essential' par file

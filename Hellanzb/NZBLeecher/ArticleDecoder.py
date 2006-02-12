@@ -312,13 +312,10 @@ def setRealFileName(nzbFile, filename, forceChange = False, settingSegmentNumber
     renameFilenames = {}
 
     if switchedReal:
-        notOnDisk = \
-            nzbSegment.nzbFile.todoNzbSegments.union(nzbSegment.nzbFile.dequeuedSegments)
-            
+        notOnDisk = nzbFile.todoNzbSegments.union(nzbFile.dequeuedSegments)
         # Get the original segment filenames via getDestination() (before we change it)
         renameSegments = [(nzbSegment, nzbSegment.getDestination()) for nzbSegment in
-                           nzbFile.nzbSegments if nzbSegment not in
-                          notOnDisk]
+                           nzbFile.nzbSegments if nzbSegment not in notOnDisk]
 
     # Change the filename
     nzbFile.filename = filename

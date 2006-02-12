@@ -42,6 +42,9 @@ class Archive(object):
         # Reference to a post processor if post processing the archive
         self.postProcessor = None
 
+        # isParRecovery is always False for normal Archives
+        self.isParRecovery = False
+        
     def getName(self):
         """ Return the name of this archive for display """
         return os.path.basename(self.archiveDir)

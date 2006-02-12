@@ -91,8 +91,8 @@ def dequeueIfExtraPar(segment, readOnlyQueue = False):
 
 PAR2_VOL_RE = re.compile(r'(.*)\.vol(\d*)\+(\d*)\.par2', re.I)
 def identifyPar(nzbFile):
-    """ Mark the nzbFile object as isParFile, and if so, also mark its parType and
-    isExtraParFile vars """
+    """ Determine if this nzbFile is a par by its filename. Marks the nzbFile object as
+    isParFile, and if so, also mark its parType and isExtraParFile vars """
     if isPar(nzbFile.filename):
         nzbFile.isParFile = True
     

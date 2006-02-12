@@ -150,11 +150,14 @@ def scrollEnd():
     """ Let the logger know we're done scrolling """
     lockScrollableHandlers(_scrollEnd)
 
-def logStateXML(logFunction):
+def logStateXML(logFunction, showHeader = True):
     """ Print hellanzb's state xml via the specified log function """
     buf = StringIO()
     Hellanzb._writeStateXML(buf)
-    logFunction('%s%s' % ('hellanzb state xml:\n', buf.getvalue()))
+    header = ''
+    if showHeader:
+        header = 'hellanzb state xml:\n'
+    logFunction('%s%s' % (header, buf.getvalue()))
 
 """
 /*

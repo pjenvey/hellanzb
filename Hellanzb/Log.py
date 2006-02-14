@@ -50,7 +50,7 @@ def info(message, appendLF = True):
 
 def debug(message, exception = None, appendLF = True):
     """ Log a message at the debug level """
-    if hasattr(Hellanzb, 'DEBUG_MODE_ENABLED') and Hellanzb.DEBUG_MODE_ENABLED:
+    if Hellanzb.DEBUG_MODE_ENABLED:
         if exception != None:
             prettyEx = prettyException(exception)
             if prettyEx != '':

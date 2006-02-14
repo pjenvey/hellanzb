@@ -66,7 +66,6 @@ def loadConfig(fileName):
         
         # Cache this operation (whether or not we're in debug mode) for faster (hardly)
         # debug spamming (from NZBLeecher)
-        Hellanzb.DEBUG_MODE_ENABLED = False
         if hasattr(Hellanzb, 'DEBUG_MODE') and Hellanzb.DEBUG_MODE is not None and \
                 Hellanzb.DEBUG_MODE != False:
             # Set this ASAP for sane logging. FIXME: You could possibly lose some debug
@@ -215,6 +214,9 @@ def init(options = {}):
     # Whether or not the queue daemon is running as a daemon process (forked)
     Hellanzb.DAEMONIZE = False
 
+    # Whether or not debug logging is enabled
+    Hellanzb.DEBUG_MODE_ENABLED = False
+        
     # How many times CTRL-C has been pressed
     Hellanzb.stopSignalCount = 0
     # When the first CTRL-C was pressed

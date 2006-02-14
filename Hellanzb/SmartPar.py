@@ -64,18 +64,24 @@ def dequeueIfExtraPar(segment, readOnlyQueue = False):
     if not isQueuedRecoveryPar:
         # Extra par2 -- dequeue the rest of its segments
         segment.nzbFile.isSkippedPar = True
-        segment.nzbFile.nzb.totalSkippedBytes += segment.nzbFile.totalBytes
 
         dequeueSegments = segment.nzbFile.todoNzbSegments.copy()
         dequeueSegments.remove(segment)
 
         dequeuedCount = 0
         if not readOnlyQueue:
-            dequeuedCount = Hellanzb.queue.dequeueSegments(dequeueSegments)
+            dequeued = Hellanzb.queue.dequeueSegments(dequeueSegments)
+            dequeuedCount = len(dequeued)
+            
+            for dequeuedSegment in dequeued:
+                segment.nzbFile.nzb.totalSkippedBytes += dequeuedSegment.bytes
+            
             if dequeuedCount == 0:
                 details = '(nothing in the NZBSegmentQueue to dequeue)'
                 debug('dequeueIfExtraPar: Would have skipped %s: %s' % (details,
                       segment.nzbFile.filename))
+        else:
+            segment.nzbFile.nzb.totalSkippedBytes += segment.nzbFile.totalBytes
 
         # FIXME: It would be nice to take an account of how many actual bytes we just
         # skipped, for printing out at the end of the download

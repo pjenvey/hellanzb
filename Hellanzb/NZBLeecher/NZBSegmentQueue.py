@@ -6,7 +6,6 @@ downloading NZB
 (c) Copyright 2005 Philip Jenvey
 [See end of file]
 """
-#import gc, os, re, time, Hellanzb, Hellanzb.Core, Hellanzb.Daemon
 import os, re, time, Hellanzb, Hellanzb.Core, Hellanzb.Daemon
 from sets import Set
 from threading import Lock
@@ -81,6 +80,15 @@ class RetryQueue:
 
         # Requeued for later
         self.poolQueues[notName].put((segment.priority, segment))
+
+    def dequeueSegments(self, segments):
+        """ Dequeue the specified nzb segments """
+        dequeued = []
+        for queueName, queue in self.poolQueues:
+            poolDequeued = queue.dequeueItems([(segment.priority, segment) for segment \
+                                               in segments])
+            dequeued.extend([segment for priority, segment in poolDequeued])
+        return dequeued
     
     def get(self, serverPoolName):
         """ Return the next segment for the specified serverPool that is queued to be retried """
@@ -316,13 +324,16 @@ class NZBSegmentQueue(PriorityQueue):
     def dequeueSegments(self, nzbSegments):
         """ Explicitly dequeue the specified nzb segments """
         # ATOMIC:
-        dequeuedSegments = self.dequeueItems([(nzbSegment.priority, nzbSegment) \
-                                              for nzbSegment in nzbSegments])
+        dequeued = self.dequeueItems([(nzbSegment.priority, nzbSegment) for nzbSegment in \
+                                      nzbSegments])
+        dequeuedSegments = [segment for priority, segment in dequeued]
+        if self.retryQueueEnabled:
+            dequeuedSegments.extend(self.rQueue.dequeueSegments(nzbSegments))
 
-        for p, nzbSegment in dequeuedSegments:
+        for nzbSegment in dequeuedSegments:
             self.segmentDone(nzbSegment, dequeue = True)
             
-        return len(dequeuedSegments)
+        return dequeuedSegments
 
     def currentNZBs(self):
         """ Return a copy of the list of nzbs currently being downloaded """

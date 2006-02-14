@@ -46,9 +46,10 @@ def decode(segment):
     """ Decode the NZBSegment's articleData to it's destination. Toggle the NZBSegment
     instance as having been decoded, then assemble all the segments together if all their
     decoded segment filenames exist """
+    encoding = UNKNOWN
     try:
         segment.loadArticleDataFromDisk()
-        decodeArticleData(segment)
+        encoding = decodeArticleData(segment)
         
     except OutOfDiskSpace:
         # Ran out of disk space and the download was paused! Easiest way out of this
@@ -75,7 +76,14 @@ def decode(segment):
         segment.dequeueIfExtraPar()
     
     Hellanzb.queue.segmentDone(segment)
-    debug('Decoded segment: ' + segment.getDestination())
+    if Hellanzb.DEBUG_MODE_ENABLED:
+        # FIXME: need a better enum
+        encodingName = 'UNKNOWN'
+        if encoding == 1:
+            encodingName = 'YENC'
+        elif encoding == 2:
+            encodingName = 'UUENCODE'
+        debug('Decoded (encoding: %s): %s' % (encodingName, segment.getDestination()))
 
     if handleCanceledSegment(segment):
         return
@@ -265,7 +273,7 @@ def parseArticleData(segment, justExtractFilename = False):
     if justExtractFilename:
         return
 
-    decodeSegmentToFile(segment, encodingType)
+    return decodeSegmentToFile(segment, encodingType)
     del segment.articleData
     segment.articleData = '' # We often check it for is None
 decodeArticleData=parseArticleData
@@ -436,7 +444,7 @@ def decodeSegmentToFile(segment, encodingType = YENCODE):
         # Handle dupes if they exist
         handleDupeNZBSegment(segment)
         if handleCanceledSegment(segment):
-            return
+            return YENCODE
         
         out = open(segment.getDestination(), 'wb')
         try:
@@ -452,7 +460,7 @@ def decodeSegmentToFile(segment, encodingType = YENCODE):
             # likely fail as well, so we skip it
             yDecodeFileSizeCheck(segment, size)
 
-        debug('YDecoded articleData to file: ' + segment.getDestination())
+        return YENCODE
 
     elif encodingType == UUENCODE:
         decodedLines = []
@@ -466,15 +474,16 @@ def decodeSegmentToFile(segment, encodingType = YENCODE):
 
         handleDupeNZBSegment(segment)
         if handleCanceledSegment(segment):
-            return
+            return UUENCODE
         
         # Write the decoded segment to disk
         writeLines(segment.getDestination(), decodedLines)
 
-        debug('UUDecoded articleData to file: ' + segment.getDestination())
+        return UUENCODE
 
     elif segment.articleData == '':
-        debug('NO articleData, touching file: ' + segment.getDestination())
+        if Hellanzb.DEBUG_MODE_ENABLED:
+            debug('NO articleData, touching file: ' + segment.getDestination())
 
         handleDupeNZBSegment(segment)
         if handleCanceledSegment(segment):
@@ -486,42 +495,15 @@ def decodeSegmentToFile(segment, encodingType = YENCODE):
         # FIXME: should this be an info instead of debug? Should probably change the
         # above: articleData == '' check to articleData.strip() == ''. that block would
         # cover all null articleData and would be safer to always info() about
-        debug('Mysterious data, did not YY/UDecode!! Touching file: ' + segment.getDestination())
+        if Hellanzb.DEBUG_MODE_ENABLED:
+            debug('Mysterious data, did not YY/UDecode!! Touching file: ' + \
+                  segment.getDestination())
 
         handleDupeNZBSegment(segment)
         if handleCanceledSegment(segment):
             return
 
         touch(segment.getDestination())
-
-## This yDecoder is verified to be 100% correct. We have reverted back to our older one,
-## though. It had bugs, which seemed to now be fixed. Not 100% sure of that yet though
-# From effbot.org/zone/yenc-decoder.htm -- does not suffer from yDecodeOLD's bug -pjenvey
-yenc42 = string.join(map(lambda x: chr((x-42) & 255), range(256)), '')
-yenc64 = string.join(map(lambda x: chr((x-64) & 255), range(256)), '')
-def yDecode_SAFE(dataList):
-    """ yDecode the specified list of data, returning results as a list """
-    buffer = []
-    index = -1
-    for line in dataList:
-        index += 1
-        if index <= 5 and (line[:7] == '=ybegin' or line[:6] == '=ypart'):
-            continue
-        elif not line or line[:5] == '=yend':
-            break
-
-        data = string.split(line, '=')
-        buffer.append(string.translate(data[0], yenc42))
-        for data in data[1:]:
-            if not data:
-                #error('Bad yEncoded data, file: %s (part number: %d)' % \
-                #      (segment.getDestination(), segment.number))
-                continue
-            data = string.translate(data, yenc42)
-            buffer.append(string.translate(data[0], yenc64))
-            buffer.append(data[1:])
-
-    return buffer
 
 # Build the yEnc decode table
 YDEC_TRANS = ''.join([chr((i + 256 - 42) % 256) for i in range(256)])
@@ -540,7 +522,7 @@ def yDecode(dataList):
 
     if Hellanzb.HAVE_C_YENC:
         return _yenc.decode_string(data)
-    
+
     # unescape NUL, TAB, LF, CR, 'ESC', ' ', ., =
     # NOTE: The yencode standard dictates these characters as 'critical' and are required
     # to be escaped, EXCEPT for the ESCAPE CHAR. It is included here because it has been
@@ -554,7 +536,6 @@ def yDecode(dataList):
     for i in (0, 9, 10, 13, 27, 32, 46, 61):
         j = '=%c' % (i + 64)
         data = data.replace(j, chr(i))
-        
     return data.translate(YDEC_TRANS)
                
 YSPLIT_RE = re.compile(r'(\S+)=')

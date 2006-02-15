@@ -419,7 +419,7 @@ def forceNZB(nzbfilename, notification = 'Forcing download'):
     # postpone the current NZB download
     for nzb in Hellanzb.queue.currentNZBs():
         try:
-            postponed = Hellanzb.POSTPONED_DIR + nzb.archiveName
+            postponed = Hellanzb.POSTPONED_DIR + os.sep + nzb.archiveName
             hellaRename(postponed)
             os.mkdir(postponed)
             nzb.destDir = postponed

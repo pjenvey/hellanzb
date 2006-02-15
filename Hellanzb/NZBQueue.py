@@ -314,6 +314,7 @@ def parseNZB(nzb, notification = 'Downloading', quiet = False):
 
     try:
         findAndLoadPostponedDir(nzb)
+        nzb.finalize(justClean = True)
         
         info('Parsing: ' + os.path.basename(nzb.nzbFileName) + '...')
         if not Hellanzb.queue.parseNZB(nzb):
@@ -550,7 +551,6 @@ def enqueueNZBs(nzbFileOrFiles, next = False, writeQueue = True):
             from Hellanzb.NZBLeecher.NZBModel import NZB
             name = os.path.basename(nzbFile)
             nzb = NZB.fromStateXML('queued', nzbFile)
-            
             if not next:
                 Hellanzb.queued_nzbs.append(nzb)
             else:

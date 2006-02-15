@@ -204,7 +204,11 @@ class NZB(Archive):
         for nzbFile in self.nzbFileElements:
             del nzbFile.todoNzbSegments
             del nzbFile.dequeuedSegments
-            del nzbFile.nzb
+            if not justClean:
+                # This could be a postponed download, which would need the nzbFile. The
+                # actual nzbFile here will be available, it will just have a reference
+                # count decremented by del
+                del nzbFile.nzb
             del nzbFile
 
         if justClean:

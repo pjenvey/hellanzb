@@ -928,13 +928,14 @@ def parseParNeedsBlocksOutput(archive, output):
             
     return damagedAndRequired, missingFiles, targetsFound, neededBlocks, parType
 
-SEGMENT_SUFFIX_LEN = len('.segmentXXXX')
-SEGMENT_RE = re.compile('.*\.segment\d{4}$')
+# segment files on disk
+SEGMENT_SUFFIX_RE = re.compile(r'\.segment\d{4}$')
 def cleanUpSkippedPars(dirName):
     """ The downloader may leave .segmentXXXX par files around, from par data it skipped
     downloading. Delete these orphaned segments """
     for file in os.listdir(dirName):
-        if SEGMENT_RE.match(file) and isPar(file[:-SEGMENT_SUFFIX_LEN]):
+        if SEGMENT_SUFFIX_RE.search(file) and \
+                isPar(cleanDupeName(SEGMENT_SUFFIX_RE.sub('', file))):
             moveToProcessed(dirName + os.sep + file)
 
 SPLIT_RE = re.compile(r'.*\.\d{2,4}$')

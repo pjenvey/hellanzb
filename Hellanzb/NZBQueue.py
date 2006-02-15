@@ -8,7 +8,7 @@ Hellanzb.queued_nzbs
 (c) Copyright 2005 Philip Jenvey
 [See end of file]
 """
-import os, re, time, Hellanzb, Hellanzb.Daemon
+import gc, os, re, time, Hellanzb, Hellanzb.Daemon
 from shutil import copy, move, rmtree
 from twisted.internet import reactor
 from xml.sax import make_parser, SAXParseException
@@ -315,6 +315,7 @@ def parseNZB(nzb, notification = 'Downloading', quiet = False):
     try:
         findAndLoadPostponedDir(nzb)
         nzb.finalize(justClean = True)
+        gc.collect()
         
         info('Parsing: ' + os.path.basename(nzb.nzbFileName) + '...')
         if not Hellanzb.queue.parseNZB(nzb):

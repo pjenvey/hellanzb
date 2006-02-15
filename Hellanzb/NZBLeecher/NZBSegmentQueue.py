@@ -84,7 +84,7 @@ class RetryQueue:
     def dequeueSegments(self, segments):
         """ Dequeue the specified nzb segments """
         dequeued = []
-        for queueName, queue in self.poolQueues:
+        for queue in self.poolQueues.itervalues():
             poolDequeued = queue.dequeueItems([(segment.priority, segment) for segment \
                                                in segments])
             dequeued.extend([segment for priority, segment in poolDequeued])

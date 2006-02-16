@@ -298,6 +298,8 @@ def setRealFileName(nzbFile, filename, forceChange = False, settingSegmentNumber
                       ' has incorrect filename header!: ' + filename + ' should be: ' + \
                       nzbFile.showFilename)
             return
+    elif nzbFile.filename == filename:
+        return
      
     # We might have been using a tempFileName previously, and just succesfully found
     # the real filename in the articleData. Immediately rename any files that were

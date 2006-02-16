@@ -19,115 +19,6 @@ from Hellanzb.SmartPar import smartDequeue, smartRequeue, identifyPar
 
 __id__ = '$Id$'
 
-# FIXME: move this function to the bottom of the file
-segmentEndRe = re.compile(r'^segment\d{4}$')
-def segmentsNeedDownload(segmentList, overwriteZeroByteSegments = False):
-    """ Faster version of needsDownload for multiple segments that do not have their real file
-    name (for use by the Queue).
-
-    When an NZB is loaded and parsed, NZB<file>s not found on disk at the time of parsing
-    are marked as needing to be downloaded. (An easy first pass of figuring out exactly
-    what needs to be downloaded).
-
-    This function is the second pass. It takes all of those NZBFiles that need to be
-    downloaded's child NZBSegments and scans the disk, detecting which segments are
-    already on disk and can be skipped
-    """
-    # Arrange all WORKING_DIR segment's filenames in a list. Key this list by segment
-    # number in a map. Loop through the specified segmentList, doing a subject.find for
-    # each segment filename with a matching segment number
-
-    onDiskSegmentsByNumber = {}
-    
-    needDlFiles = Set() # for speed while iterating
-    needDlSegments = []
-    onDiskSegments = []
-
-    # Cache all WORKING_DIR segment filenames in a map of lists
-    for file in os.listdir(Hellanzb.WORKING_DIR):
-        if not validWorkingFile(Hellanzb.WORKING_DIR + os.sep + file,
-                                overwriteZeroByteSegments):
-            continue
-        
-        ext = getFileExtension(file)
-        if ext is not None and segmentEndRe.match(ext):
-            segmentNumber = int(ext[-4:])
-            
-            if onDiskSegmentsByNumber.has_key(segmentNumber):
-                segmentFileNames = onDiskSegmentsByNumber[segmentNumber]
-            else:
-                segmentFileNames = []
-                onDiskSegmentsByNumber[segmentNumber] = segmentFileNames
-
-            # cut off .segmentXXXX
-            fileNoExt = file[:-12]
-            segmentFileNames.append(fileNoExt)
-
-    # Determine if each segment needs to be downloaded
-    for segment in segmentList:
-
-        if not onDiskSegmentsByNumber.has_key(segment.number):
-            # No matching segment numbers, obviously needs to be downloaded
-            needDlSegments.append(segment)
-            needDlFiles.add(segment.nzbFile)
-            continue
-
-        segmentFileNames = onDiskSegmentsByNumber[segment.number]
-        
-        foundFileName = None
-        for segmentFileName in segmentFileNames:
-            # We've matched to our on disk segment if we:
-            # a) find that on disk segment's file name in our potential segment's subject
-            # b) match that on disk segment's file name to our potential segment's temp
-            # file name (w/ .segmentXXXX cutoff)
-            if segment.nzbFile.subject.find(segmentFileName) > -1 or \
-                    segment.getTempFileName()[:-12] == segmentFileName:
-                foundFileName = segmentFileName
-                break
-
-        if not foundFileName:
-            needDlSegments.append(segment)
-            needDlFiles.add(segment.nzbFile)
-        else:
-            if segment.number == 1 and not isHellaTemp(foundFileName) and \
-                    segment.nzbFile.filename is None:
-                # HACK: filename is None. so we only have the temporary name in
-                # memory. since we didnt see the temporary name on the filesystem, but we
-                # found a subject match, that means we have the real name on the
-                # filesystem. In the case where this happens we've figured out the real
-                # filename (hopefully!). Set it if it hasn't already been set
-                setRealFileName(segment.nzbFile, foundFileName,
-                            settingSegmentNumber = segment.number)
-
-                if Hellanzb.SMART_PAR:
-                    # smartDequeue won't actually 'dequeue' any of this segment's
-                    # nzbFile's segments (because there are no segments in the queue at
-                    # this point). It will identifyPar the segment AND more importantly it
-                    # will mark nzbFiles as isSkippedPar (taken into account later during
-                    # parseNZB) and print a 'Skipping par' message for those isSkippedPar
-                    # nzbFiles
-                    segment.smartDequeue(readOnlyQueue = True)
-                
-            onDiskSegments.append(segment)
-            
-            # Originally the main reason to call segmentDone here is to update the queue's
-            # onDiskSegments (so isBeingDownloaded can safely detect things on disk during
-            # Dupe renaming). However it's correct to call this here, it's as if hellanzb
-            # just finished downloading and decoding the segment. The only incorrect part
-            # about the call is the queue's totalQueuedBytes is decremented. That total is
-            # reset to zero just before it is recalculated at the end of parseNZB, however
-            Hellanzb.queue.segmentDone(segment)
-
-            # This segment was matched. Remove it from the list to avoid matching it again
-            # later (dupes)
-            segmentFileNames.remove(foundFileName)
-
-        #else:
-        #    debug('SKIPPING SEGMENT: ' + segment.getTempFileName() + ' subject: ' + \
-        #          segment.nzbFile.subject)
-
-    return needDlFiles, needDlSegments, onDiskSegments
-
 class NZB(Archive):
     """ Representation of an nzb file -- the root <nzb> tag """
     
@@ -665,6 +556,114 @@ class NZBSegment:
     #def __repr__(self):
     #    return 'segment: ' + os.path.basename(self.getDestination()) + ' number: ' + \
     #           str(self.number) + ' subject: ' + self.nzbFile.subject
+
+segmentEndRe = re.compile(r'^segment\d{4}$')
+def segmentsNeedDownload(segmentList, overwriteZeroByteSegments = False):
+    """ Faster version of needsDownload for multiple segments that do not have their real file
+    name (for use by the Queue).
+
+    When an NZB is loaded and parsed, NZB<file>s not found on disk at the time of parsing
+    are marked as needing to be downloaded. (An easy first pass of figuring out exactly
+    what needs to be downloaded).
+
+    This function is the second pass. It takes all of those NZBFiles that need to be
+    downloaded's child NZBSegments and scans the disk, detecting which segments are
+    already on disk and can be skipped
+    """
+    # Arrange all WORKING_DIR segment's filenames in a list. Key this list by segment
+    # number in a map. Loop through the specified segmentList, doing a subject.find for
+    # each segment filename with a matching segment number
+
+    onDiskSegmentsByNumber = {}
+    
+    needDlFiles = Set() # for speed while iterating
+    needDlSegments = []
+    onDiskSegments = []
+
+    # Cache all WORKING_DIR segment filenames in a map of lists
+    for file in os.listdir(Hellanzb.WORKING_DIR):
+        if not validWorkingFile(Hellanzb.WORKING_DIR + os.sep + file,
+                                overwriteZeroByteSegments):
+            continue
+        
+        ext = getFileExtension(file)
+        if ext is not None and segmentEndRe.match(ext):
+            segmentNumber = int(ext[-4:])
+            
+            if onDiskSegmentsByNumber.has_key(segmentNumber):
+                segmentFileNames = onDiskSegmentsByNumber[segmentNumber]
+            else:
+                segmentFileNames = []
+                onDiskSegmentsByNumber[segmentNumber] = segmentFileNames
+
+            # cut off .segmentXXXX
+            fileNoExt = file[:-12]
+            segmentFileNames.append(fileNoExt)
+
+    # Determine if each segment needs to be downloaded
+    for segment in segmentList:
+
+        if not onDiskSegmentsByNumber.has_key(segment.number):
+            # No matching segment numbers, obviously needs to be downloaded
+            needDlSegments.append(segment)
+            needDlFiles.add(segment.nzbFile)
+            continue
+
+        segmentFileNames = onDiskSegmentsByNumber[segment.number]
+        
+        foundFileName = None
+        for segmentFileName in segmentFileNames:
+            # We've matched to our on disk segment if we:
+            # a) find that on disk segment's file name in our potential segment's subject
+            # b) match that on disk segment's file name to our potential segment's temp
+            # file name (w/ .segmentXXXX cutoff)
+            if segment.nzbFile.subject.find(segmentFileName) > -1 or \
+                    segment.getTempFileName()[:-12] == segmentFileName:
+                foundFileName = segmentFileName
+                break
+
+        if not foundFileName:
+            needDlSegments.append(segment)
+            needDlFiles.add(segment.nzbFile)
+        else:
+            if segment.number == 1 and not isHellaTemp(foundFileName) and \
+                    segment.nzbFile.filename is None:
+                # HACK: filename is None. so we only have the temporary name in
+                # memory. since we didnt see the temporary name on the filesystem, but we
+                # found a subject match, that means we have the real name on the
+                # filesystem. In the case where this happens we've figured out the real
+                # filename (hopefully!). Set it if it hasn't already been set
+                setRealFileName(segment.nzbFile, foundFileName,
+                            settingSegmentNumber = segment.number)
+
+                if Hellanzb.SMART_PAR:
+                    # smartDequeue won't actually 'dequeue' any of this segment's
+                    # nzbFile's segments (because there are no segments in the queue at
+                    # this point). It will identifyPar the segment AND more importantly it
+                    # will mark nzbFiles as isSkippedPar (taken into account later during
+                    # parseNZB) and print a 'Skipping par' message for those isSkippedPar
+                    # nzbFiles
+                    segment.smartDequeue(readOnlyQueue = True)
+                
+            onDiskSegments.append(segment)
+            
+            # Originally the main reason to call segmentDone here is to update the queue's
+            # onDiskSegments (so isBeingDownloaded can safely detect things on disk during
+            # Dupe renaming). However it's correct to call this here, it's as if hellanzb
+            # just finished downloading and decoding the segment. The only incorrect part
+            # about the call is the queue's totalQueuedBytes is decremented. That total is
+            # reset to zero just before it is recalculated at the end of parseNZB, however
+            Hellanzb.queue.segmentDone(segment)
+
+            # This segment was matched. Remove it from the list to avoid matching it again
+            # later (dupes)
+            segmentFileNames.remove(foundFileName)
+
+        #else:
+        #    debug('SKIPPING SEGMENT: ' + segment.getTempFileName() + ' subject: ' + \
+        #          segment.nzbFile.subject)
+
+    return needDlFiles, needDlSegments, onDiskSegments
 
 """
 /*

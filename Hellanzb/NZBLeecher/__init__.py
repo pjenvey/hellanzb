@@ -32,139 +32,6 @@ from Queue import Empty
 
 __id__ = '$Id$'
 
-def initNZBLeecher():
-    """ Init """
-    # Note what version of twisted is being used
-    twistedVersionMsg = 'Using: Twisted-%s' % twistedVersion
-    if twistedVersion >= '2.0.0':
-        from twisted.web import __version__ as twistedWebVersion
-        twistedVersionMsg += ', TwistedWeb-%s' % twistedWebVersion
-    debug(twistedVersionMsg)
-    
-    # Direct twisted log output to the debug level
-    twistedTimestampLen = len('2006/02/10 23:59 PST ')
-    def debugNoLF(message):
-        # The twisted timestamp is pretty annoying and I don't want to implement a
-        # FileLogObserver at the moment
-        message = message[twistedTimestampLen:]
-        
-        debug(message, appendLF = False)
-    fileStream = LogOutputStream(debugNoLF)
-    log.startLogging(fileStream)
-
-    # Create the one and only download queue
-    Hellanzb.queue = NZBSegmentQueue()
-
-    Hellanzb.totalReadBytes = 0
-    Hellanzb.totalStartTime = None
-    
-    # The NZBLeecherFactories
-    Hellanzb.nsfs = []
-    Hellanzb.totalSpeed = 0
-    Hellanzb.totalArchivesDownloaded = 0
-    Hellanzb.totalFilesDownloaded = 0
-    Hellanzb.totalSegmentsDownloaded = 0
-    Hellanzb.totalBytesDownloaded = 0
-
-    # this class handles updating statistics via the SCROLL level (the UI)
-    Hellanzb.scroller = NZBLeecherTicker()
-
-    Hellanzb.ht = HellaThrottler(Hellanzb.MAX_RATE * 1024)
-    Hellanzb.getCurrentRate = NZBLeecherFactory.getCurrentRate
-
-    # loop to scan the queue dir during download
-    Hellanzb.downloadScannerID = None
-
-    startNZBLeecher()
-
-def setWithDefault(dict, key, default):
-    """ Return value for the specified key set via the config file. Use the default when the
-    value is blank or doesn't exist """
-    value = dict.get(key, default)
-    if value != None and value != '':
-        return value
-    
-    return default
-
-def connectServer(serverName, serverDict, defaultAntiIdle, defaultIdleTimeout):
-    """ Establish connections to the specified server according to the server information dict
-    (constructed from the config file). Returns the number of connections that were attempted
-    to be made """
-    connectionCount = 0
-    hosts = serverDict['hosts']
-    connections = int(serverDict['connections'])
-    info('(' + serverName + ') ', appendLF = False)
-
-    for host in hosts:
-        antiIdle = int(setWithDefault(serverDict, 'antiIdle', defaultAntiIdle))
-        idleTimeout = int(setWithDefault(serverDict, 'idleTimeout', defaultIdleTimeout))
-
-        nsf = NZBLeecherFactory(serverDict['username'], serverDict['password'],
-                                idleTimeout, antiIdle, host,
-                                serverName)
-        Hellanzb.nsfs.append(nsf)
-
-        # FIXME: pass this to the factory constructor
-        split = host.split(':')
-        host = split[0]
-        if len(split) == 2:
-            port = int(split[1])
-        else:
-            port = 119
-        nsf.host, nsf.port = host, port
-
-        preWrappedNsf = nsf
-        nsf = HellaThrottlingFactory(nsf)
-
-        for connection in range(connections):
-            if serverDict.has_key('bindTo') and serverDict['bindTo'] != None and \
-                    serverDict['bindTo'] != '':
-                reactor.connectTCP(host, port, nsf,
-                                   bindAddress = serverDict['bindTo'])
-            else:
-                reactor.connectTCP(host, port, nsf)
-            connectionCount += 1
-        preWrappedNsf.setConnectionCount(connectionCount)
-
-    if connectionCount == 1:
-        info('Opening ' + str(connectionCount) + ' connection...')
-    else:
-        info('Opening ' + str(connectionCount) + ' connections...')
-
-    # Let the queue know about this new serverPool
-    Hellanzb.queue.serverAdd(serverName)
-        
-    return connectionCount
-
-def startNZBLeecher():
-    """ gogogo """
-    defaultAntiIdle = int(4.5 * 60) # 4.5 minutes
-    defaultIdleTimeout = 30
-    
-    totalCount = 0
-    for serverId, serverDict in Hellanzb.SERVERS.iteritems():
-        if not serverDict.get('enabled') is False:
-            totalCount += connectServer(serverId, serverDict, defaultAntiIdle, defaultIdleTimeout)
-
-    if len(Hellanzb.SERVERS) > 1:
-        # Initialize the retry queue. It contains multiple sub-queues that work within the
-        # NZBQueue, for queueing segments that failed to download on particular
-        # serverPools. Obviously there's no need for this unless we're using multiple
-        # serverPools
-        Hellanzb.queue.initRetryQueue()
-
-    # How large the scroll ticker should be
-    Hellanzb.scroller.maxCount = totalCount
-
-    # Allocate only one thread, just for decoding
-    reactor.suggestThreadPoolSize(1)
-
-    # Well, there's egg and bacon; egg sausage and bacon; egg and spam; egg bacon and
-    # spam; egg bacon sausage and spam; spam bacon sausage and spam; spam egg spam spam
-    # bacon and spam; spam sausage spam spam bacon spam tomato and spam;
-    reactor.run()
-    # Spam! Spam! Spam! Spam! Lovely spam! Spam! Spam!
-
 PHI = 1.6180339887498948 # (1 + math.sqrt(5)) / 2
 class NZBLeecherFactory(ReconnectingClientFactory):
 
@@ -989,6 +856,139 @@ class NZBLeecher(NNTPClient, TimeoutMixin):
     def __str__(self):
         """ Return the name of this NZBLeecher instance """
         return self.factory.serverPoolName + '[' + str(self.id) + ']'
+
+def initNZBLeecher():
+    """ Init """
+    # Note what version of twisted is being used
+    twistedVersionMsg = 'Using: Twisted-%s' % twistedVersion
+    if twistedVersion >= '2.0.0':
+        from twisted.web import __version__ as twistedWebVersion
+        twistedVersionMsg += ', TwistedWeb-%s' % twistedWebVersion
+    debug(twistedVersionMsg)
+    
+    # Direct twisted log output to the debug level
+    twistedTimestampLen = len('2006/02/10 23:59 PST ')
+    def debugNoLF(message):
+        # The twisted timestamp is pretty annoying and I don't want to implement a
+        # FileLogObserver at the moment
+        message = message[twistedTimestampLen:]
+        
+        debug(message, appendLF = False)
+    fileStream = LogOutputStream(debugNoLF)
+    log.startLogging(fileStream)
+
+    # Create the one and only download queue
+    Hellanzb.queue = NZBSegmentQueue()
+
+    Hellanzb.totalReadBytes = 0
+    Hellanzb.totalStartTime = None
+    
+    # The NZBLeecherFactories
+    Hellanzb.nsfs = []
+    Hellanzb.totalSpeed = 0
+    Hellanzb.totalArchivesDownloaded = 0
+    Hellanzb.totalFilesDownloaded = 0
+    Hellanzb.totalSegmentsDownloaded = 0
+    Hellanzb.totalBytesDownloaded = 0
+
+    # this class handles updating statistics via the SCROLL level (the UI)
+    Hellanzb.scroller = NZBLeecherTicker()
+
+    Hellanzb.ht = HellaThrottler(Hellanzb.MAX_RATE * 1024)
+    Hellanzb.getCurrentRate = NZBLeecherFactory.getCurrentRate
+
+    # loop to scan the queue dir during download
+    Hellanzb.downloadScannerID = None
+
+    startNZBLeecher()
+
+def setWithDefault(dict, key, default):
+    """ Return value for the specified key set via the config file. Use the default when the
+    value is blank or doesn't exist """
+    value = dict.get(key, default)
+    if value != None and value != '':
+        return value
+    
+    return default
+
+def connectServer(serverName, serverDict, defaultAntiIdle, defaultIdleTimeout):
+    """ Establish connections to the specified server according to the server information dict
+    (constructed from the config file). Returns the number of connections that were attempted
+    to be made """
+    connectionCount = 0
+    hosts = serverDict['hosts']
+    connections = int(serverDict['connections'])
+    info('(' + serverName + ') ', appendLF = False)
+
+    for host in hosts:
+        antiIdle = int(setWithDefault(serverDict, 'antiIdle', defaultAntiIdle))
+        idleTimeout = int(setWithDefault(serverDict, 'idleTimeout', defaultIdleTimeout))
+
+        nsf = NZBLeecherFactory(serverDict['username'], serverDict['password'],
+                                idleTimeout, antiIdle, host,
+                                serverName)
+        Hellanzb.nsfs.append(nsf)
+
+        # FIXME: pass this to the factory constructor
+        split = host.split(':')
+        host = split[0]
+        if len(split) == 2:
+            port = int(split[1])
+        else:
+            port = 119
+        nsf.host, nsf.port = host, port
+
+        preWrappedNsf = nsf
+        nsf = HellaThrottlingFactory(nsf)
+
+        for connection in range(connections):
+            if serverDict.has_key('bindTo') and serverDict['bindTo'] != None and \
+                    serverDict['bindTo'] != '':
+                reactor.connectTCP(host, port, nsf,
+                                   bindAddress = serverDict['bindTo'])
+            else:
+                reactor.connectTCP(host, port, nsf)
+            connectionCount += 1
+        preWrappedNsf.setConnectionCount(connectionCount)
+
+    if connectionCount == 1:
+        info('Opening ' + str(connectionCount) + ' connection...')
+    else:
+        info('Opening ' + str(connectionCount) + ' connections...')
+
+    # Let the queue know about this new serverPool
+    Hellanzb.queue.serverAdd(serverName)
+        
+    return connectionCount
+
+def startNZBLeecher():
+    """ gogogo """
+    defaultAntiIdle = int(4.5 * 60) # 4.5 minutes
+    defaultIdleTimeout = 30
+    
+    totalCount = 0
+    for serverId, serverDict in Hellanzb.SERVERS.iteritems():
+        if not serverDict.get('enabled') is False:
+            totalCount += connectServer(serverId, serverDict, defaultAntiIdle, defaultIdleTimeout)
+
+    if len(Hellanzb.SERVERS) > 1:
+        # Initialize the retry queue. It contains multiple sub-queues that work within the
+        # NZBQueue, for queueing segments that failed to download on particular
+        # serverPools. Obviously there's no need for this unless we're using multiple
+        # serverPools
+        Hellanzb.queue.initRetryQueue()
+
+    # How large the scroll ticker should be
+    Hellanzb.scroller.maxCount = totalCount
+
+    # Allocate only one thread, just for decoding
+    reactor.suggestThreadPoolSize(1)
+
+    # Well, there's egg and bacon; egg sausage and bacon; egg and spam; egg bacon and
+    # spam; egg bacon sausage and spam; spam bacon sausage and spam; spam egg spam spam
+    # bacon and spam; spam sausage spam spam bacon spam tomato and spam;
+    reactor.run()
+    # Spam! Spam! Spam! Spam! Lovely spam! Spam! Spam!
     
 """
 /*

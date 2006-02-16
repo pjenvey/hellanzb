@@ -254,7 +254,7 @@ class NZBLeecherFactory(ReconnectingClientFactory):
 
         for p in self.clients:
             if p.isLoggedIn and not p.activated and p.idle:
-                reactor.callLater(0, p.fetchNextNZBSegment)
+                p.fetchNextNZBSegment()
 
     def beginDownload(self):
         """ Start the download """
@@ -440,6 +440,7 @@ class NZBLeecher(NNTPClient, TimeoutMixin):
         # we'll quiet it by canceling it
         if Hellanzb.SHUTDOWN:
             self.factory.stopTrying()
+            return
 
         NNTPClient.connectionLost(self) # calls self.factory.clientConnectionLost(self, reason)
 

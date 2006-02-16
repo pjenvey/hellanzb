@@ -22,26 +22,6 @@ __id__ = '$Id$'
 # Decode types enum
 UNKNOWN, YENCODE, UUENCODE = range(3)
 
-class ArticleAssemblyGCDelay:
-    """ Run gc after every 5 files have been downloaded (shouldGC calls) """
-    decodeGCDelay = 5
-    decodeGCWait = 0
-    decodeGCWaitLock = Lock()
-    
-    def shouldGC():
-        should = False
-        ArticleAssemblyGCDelay.decodeGCWaitLock.acquire()
-
-        ArticleAssemblyGCDelay.decodeGCWait += 1
-        if ArticleAssemblyGCDelay.decodeGCWait >= ArticleAssemblyGCDelay.decodeGCDelay:
-            should = True
-            ArticleAssemblyGCDelay.decodeGCWait = 0
-
-        ArticleAssemblyGCDelay.decodeGCWaitLock.release()
-        return should
-    shouldGC = staticmethod(shouldGC)
-GCDelay = ArticleAssemblyGCDelay
-
 def decode(segment):
     """ Decode the NZBSegment's articleData to it's destination. Toggle the NZBSegment
     instance as having been decoded, then assemble all the segments together if all their
@@ -73,7 +53,7 @@ def decode(segment):
         # o already decoded and on disk
         # o currently downloading
         # Segments currently downloading are left in segment.nzbFile.todoNzbSegments
-        segment.dequeueIfExtraPar()
+        segment.smartDequeue()
     
     Hellanzb.queue.segmentDone(segment)
     if Hellanzb.DEBUG_MODE_ENABLED:
@@ -88,6 +68,12 @@ def decode(segment):
 
     if handleCanceledSegment(segment):
         return
+
+    if segment.number == 1 and segment.nzbFile.nzb.firstSegmentsDownloaded == \
+                len(segment.nzbFile.nzb.nzbFiles):
+        # Done downloading all first segments. Check for a few special situations that
+        # warrant requeueing of files
+        segment.smartRequeue()
 
     if segment.nzbFile.isAllSegmentsDecoded():
         try:

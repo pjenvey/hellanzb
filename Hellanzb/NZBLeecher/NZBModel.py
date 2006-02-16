@@ -15,7 +15,7 @@ from Hellanzb.NZBLeecher.ArticleDecoder import parseArticleData, setRealFileName
 from Hellanzb.NZBLeecher.DupeHandler import handleDupeNZBFileNeedsDownload
 from Hellanzb.NZBLeecher.NZBLeecherUtil import validWorkingFile
 from Hellanzb.PostProcessorUtil import Archive, getParEnum, getParName
-from Hellanzb.SmartPar import dequeueIfExtraPar, identifyPar
+from Hellanzb.SmartPar import smartDequeue, smartRequeue, identifyPar
 
 __id__ = '$Id$'
 
@@ -100,13 +100,13 @@ def segmentsNeedDownload(segmentList, overwriteZeroByteSegments = False):
                             settingSegmentNumber = segment.number)
 
                 if Hellanzb.SMART_PAR:
-                    # dequeueIfExtraPar won't actually 'dequeue' any of this segment's
+                    # smartDequeue won't actually 'dequeue' any of this segment's
                     # nzbFile's segments (because there are no segments in the queue at
                     # this point). It will identifyPar the segment AND more importantly it
                     # will mark nzbFiles as isSkippedPar (taken into account later during
                     # parseNZB) and print a 'Skipping par' message for those isSkippedPar
                     # nzbFiles
-                    segment.dequeueIfExtraPar(readOnlyQueue = True)
+                    segment.smartDequeue(readOnlyQueue = True)
                 
             onDiskSegments.append(segment)
             
@@ -138,6 +138,7 @@ class NZB(Archive):
         self.nzbFileName = nzbFileName
         self.archiveName = archiveName(self.nzbFileName) # pretty name
         self.nzbFiles = []
+        self.skippedParFiles = []
 
         ## Where the nzb files will be downloaded
         self.destDir = Hellanzb.WORKING_DIR
@@ -160,8 +161,14 @@ class NZB(Archive):
         ## are 0 bytes in size
         self.overwriteZeroByteFiles = True
 
+        # All segment0001s are downloaded first. Every time we successfully decode a
+        # segment0001, we add to this number
+        self.firstSegmentsDownloaded = 0
+
         ## Whether or not this NZB is downloading in par recovery mode
         self.isParRecovery = False
+        ## Whether or not this is an NZB that contains all par files
+        self.allParsMode = False
         ## Skipped par file's subjects are kept here, in a list, during post
         ## processing. This list is arranged by the file's size
         self.skippedParSubjects = None
@@ -186,8 +193,44 @@ class NZB(Archive):
         self.canceled = True
         self.canceledLock.release()
 
+    def isAllPars(self):
+        """ Determine whether or not all nzbFiles in this archive are par files. An NZB only
+        containing par files needs to be specially handled (all its nzbFiles should be
+        downloaded, instead of skipped) -- otherwise, no downloading would occur. This
+        situation isn't applicable to isParRecovery downloads
+
+        All nzbFiles in this NZB should have their real filename for the results of this
+        function to be accurate
+
+        newzbin.com will always add the .nfo file to an NZB if it exists (even if you
+        didn't select it for download) -- this function attempts to take that into account
+        """
+        if self.isParRecovery:
+            return False
+
+        skippedLen = len(self.skippedParFiles)
+        nzbFilesLen = len(self.nzbFiles)
+        
+        if skippedLen == nzbFilesLen:
+            return True
+
+        if (skippedLen > 0 and skippedLen == nzbFilesLen - 1) or \
+                (skippedLen > 1 and skippedLen == nzbFilesLen - 2):
+            # We only queued 1 or 2 files for download. If both are either a main par file
+            # or a .nfo file, this is an all par archive
+            queuedFiles = [nzbFile for nzbFile in self.nzbFiles if nzbFile not \
+                           in self.skippedParFiles]
+            for queuedFile in queuedFiles[:]:
+                if queuedFile.filename.lower().endswith('.nfo') or queuedFile.isPar:
+                    queuedFiles.remove(queuedFile)
+                    
+            return not len(queuedFiles)
+
+        return False
+
     def cleanStats(self):
         """ Reset downlaod statistics """
+        self.allParsMode = False
         self.totalSkippedBytes = 0
         for nzbFile in self.nzbFiles:
             nzbFile.totalSkippedBytes = 0
@@ -213,10 +256,12 @@ class NZB(Archive):
 
         if justClean:
             self.nzbFiles = []
+            self.skippedParFiles = []
             self.postProcessor = None
             self.cleanStats()
         else:
             del self.nzbFiles
+            del self.skippedParFiles
             del self.postProcessor
 
     def getSkippedParSubjects(self):
@@ -609,9 +654,13 @@ class NZBSegment:
         # Delete the copy on disk ASAP
         nuke(Hellanzb.DOWNLOAD_TEMP_DIR + os.sep + self.getTempFileName() + '_ENC')
 
-    def dequeueIfExtraPar(self, readOnlyQueue = False):
+    def smartDequeue(self, readOnlyQueue = False):
         """ Shortcut to the SmartPar function of the same name """
-        dequeueIfExtraPar(self, readOnlyQueue)
+        smartDequeue(self, readOnlyQueue)
+
+    def smartRequeue(self):
+        """ Shortcut to the SmartPar function of the same name """
+        smartRequeue(self.nzbFile.nzb)
 
     #def __repr__(self):
     #    return 'segment: ' + os.path.basename(self.getDestination()) + ' number: ' + \

@@ -16,7 +16,7 @@ from Hellanzb.Log import *
 from Hellanzb.Util import EmptyForThisPool, PoolsExhausted, PriorityQueue, OutOfDiskSpace, \
     DUPE_SUFFIX, isHellaTemp
 from Hellanzb.PostProcessorUtil import getParRecoveryName
-from Hellanzb.SmartPar import getParSize
+from Hellanzb.SmartPar import getParSize, smartRequeue
 from Hellanzb.NZBLeecher.ArticleDecoder import assembleNZBFile
 from Hellanzb.NZBLeecher.DupeHandler import handleDupeOnDisk
 from Hellanzb.NZBLeecher.NZBLeecherUtil import validWorkingFile
@@ -450,6 +450,8 @@ class NZBSegmentQueue(PriorityQueue):
             if nzbFile.isSkippedPar:
                 # If a skipped par file was actually assembled, it wasn't actually skipped
                 nzbFile.isSkippedPar = False
+                if nzbFile in nzbFile.nzb.skippedParFiles:
+                    nzbFile.nzb.skippedParFiles.remove(nzbFile)
                 if nzbFile.nzb.isSkippedParSubject(nzbFile.subject):
                     nzbFile.nzb.skippedParSubjects.remove(nzbFile.subject)
 
@@ -480,6 +482,9 @@ class NZBSegmentQueue(PriorityQueue):
             # NOTE: currently don't have to lock -- only the ArticleDecoder thread (via
             # ->handleDupeNZBSegment->isBeingDownloaded) reads onDiskSegments
             self.onDiskSegments[nzbSegment.getDestination()] = nzbSegment
+            
+            if nzbSegment.number == 1:
+                nzbSegment.nzbFile.nzb.firstSegmentsDownloaded += 1
 
     def isBeingDownloadedFile(self, segmentFilename):
         """ Whether or not the file on disk is currently in the middle of being
@@ -580,10 +585,18 @@ class NZBSegmentQueue(PriorityQueue):
                     Hellanzb.Core.shutdown(True)
 
         for nzbSegment in needDlSegments:
-            # dequeueIfExtraPar called from segmentsNeedDownload would have set
+            # smartDequeue called from segmentsNeedDownload would have set
             # isSkippedParFile for us
             if not nzbSegment.nzbFile.isSkippedPar:
                 self.put((nzbSegment.priority, nzbSegment))
+            else:
+                # This would need to be downloaded if we didn't skip the segment, they are
+                # officially dequeued, and can be requeued later
+                nzbSegment.nzbFile.dequeuedSegments.add(nzbSegment)
+                
+        if len(nzb.skippedParFiles):
+            # Requeue files in certain situations
+            smartRequeue(nzb)
                 
         if nzb.isParRecovery and nzb.skippedParSubjects and len(nzb.skippedParSubjects) and \
                 not len(self):

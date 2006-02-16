@@ -8,18 +8,14 @@ SmartPar - Functions for identifying potential par files from their their real f
 """
 import re, Hellanzb
 from twisted.internet import reactor
-from xml.sax import make_parser, SAXParseException
-from xml.sax.handler import ContentHandler, feature_external_ges, feature_namespaces
 from Hellanzb.Log import *
 from Hellanzb.PostProcessorUtil import getParName, getParRecoveryName, isPar, isPar1, \
     isPar2, PAR1, PAR2
-from Hellanzb.Util import cleanDupeName, isHellaTemp, FatalError
-from Hellanzb.NZBLeecher.ArticleDecoder import setRealFileName, stripArticleData, \
-    tryFinishNZB, ySplit
+from Hellanzb.Util import cleanDupeName, inMainThread, isHellaTemp, FatalError
 
 __id__ = '$Id$'
 
-def dequeueIfExtraPar(segment, readOnlyQueue = False):
+def smartDequeue(segment, readOnlyQueue = False):
     """ This function is called after downloading the first segment of every nzbFile
 
     It determines whether or not the segment's parent nzbFile is part of a par archive. If
@@ -29,7 +25,7 @@ def dequeueIfExtraPar(segment, readOnlyQueue = False):
     segments need to be downloaded (dequeueing them from the NZBSegmentQueue when
     necessary, unless the readOnlyQueue is True) """
     if segment.number != 1:
-        raise FatalError('dequeueIfExtraPar on number > 1')
+        raise FatalError('smartDequeue on number > 1')
 
     if segment.nzbFile.filename is None:
         # We can't do anything 'smart' without the filename
@@ -64,6 +60,7 @@ def dequeueIfExtraPar(segment, readOnlyQueue = False):
     if not isQueuedRecoveryPar:
         # Extra par2 -- dequeue the rest of its segments
         segment.nzbFile.isSkippedPar = True
+        segment.nzbFile.nzb.skippedParFiles.append(segment.nzbFile)
 
         dequeueSegments = segment.nzbFile.todoNzbSegments.copy()
         dequeueSegments.remove(segment)
@@ -78,8 +75,8 @@ def dequeueIfExtraPar(segment, readOnlyQueue = False):
             
             if dequeuedCount == 0:
                 details = '(nothing in the NZBSegmentQueue to dequeue)'
-                debug('dequeueIfExtraPar: Would have skipped %s: %s' % (details,
-                      segment.nzbFile.filename))
+                debug('smartDequeue: Would have skipped %s: %s' % \
+                      (details, segment.nzbFile.filename))
         else:
             segment.nzbFile.nzb.totalSkippedBytes += segment.nzbFile.totalBytes
 
@@ -94,6 +91,39 @@ def dequeueIfExtraPar(segment, readOnlyQueue = False):
         info('Queued %s: %s (%iMB, %i %s)' % (parTypeName, segment.nzbFile.filename,
                                               size, getParSize(segment.nzbFile.filename),
                                               getParRecoveryName(segment.nzbFile.parType)))
+
+def smartRequeue(nzb):
+    """ Certain situations warrant requeueing of previously dequeued files:
+    o an NZB archive is determined to be only par files
+    
+    o an NZB archive with pars does not contain a normally named main par verification
+    file (causing hellanzb to skip ALL pars)
+    """
+    if not nzb.allParsMode and nzb.isAllPars():
+        # We were going to skip all the pars, because the NZB contained only pars. Requeue
+        # everything for download instead
+        nzb.allParsMode = True
+        requeueSkippedPars(nzb.skippedParFiles[:])
+        info('%s: Par only archive: requeueing all pars for download' % \
+             nzb.archiveName)
+        
+    elif not nzb.isParRecovery and len(nzb.skippedParFiles):
+        foundVerificationPar = False
+        for nzbFile in nzb.nzbFiles:
+            if nzbFile.isPar and not nzbFile.isExtraPar and not nzbFile.isSkippedPar:
+                # OR len(dequeued is 0 and len todo is 0?)
+                foundVerificationPar = True
+                
+        if not foundVerificationPar:
+            # There are pars but didn't download any of them. Requeue the smallest par
+            # available
+            parFiles = [(getParSize(parFile.filename), parFile) for parFile in \
+                        nzb.skippedParFiles]
+            parFiles.sort()
+            firstPar = parFiles[0][1]
+            info('%s: didn\'t find a main par file, requeueing extra par: %s' % \
+                 (nzb.archiveName, firstPar.filename))
+            requeueSkippedPars([firstPar])
 
 PAR2_VOL_RE = re.compile(r'(.*)\.vol(\d*)\+(\d*)\.par2', re.I)
 def identifyPar(nzbFile):
@@ -114,6 +144,26 @@ def identifyPar(nzbFile):
 
         # This is a 'non-essential' par file
         nzbFile.isExtraPar = True
+
+def requeueSkippedPars(skippedParFiles):
+    """ Requeue previously skipped par NZBFiles """
+    for nzbFile in skippedParFiles:
+        nzbFile.isSkippedPar = False
+        nzbFile.nzb.skippedParFiles.remove(nzbFile)
+        
+        # Requeue only segments that were actually dequeued
+        for nzbSegment in nzbFile.dequeuedSegments:
+            nzbFile.todoNzbSegments.add(nzbSegment)
+            Hellanzb.queue.put((nzbSegment.priority, nzbSegment))
+            Hellanzb.queue.totalQueuedBytes += nzbSegment.bytes
+
+            # In case we have idle NZBLeechers, turn them back on
+            if inMainThread():
+                Hellanzb.queue.nudgeIdleNZBLeechers(nzbSegment)
+            else:
+                reactor.callFromThread(Hellanzb.queue.nudgeIdleNZBLeechers, nzbSegment)
+
+        nzbFile.dequeuedSegments.clear()
 
 GET_PAR2_SIZE_RE = re.compile(r'(?i).*\.vol\d{1,8}\+(\d{1,8}).par2$')
 def getParSize(filename):

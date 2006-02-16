@@ -218,13 +218,13 @@ class NZBLeecherTicker:
         self.segments.remove((segment.priority, segment))
 
     def scrollHeader(self, message):
-        if Hellanzb.SHUTDOWN:
-            return
-        
         # Even if passed multiple lines, ensure all lines are max 80 chars
         lines = message.split('\n')
         for line in lines:
             self.scrollHeaders.append(truncateToMultiLine(line, length = 80))
+
+        if Hellanzb.SHUTDOWN:
+            return
         self.updateLog(True)
 
     def killHistory(self):

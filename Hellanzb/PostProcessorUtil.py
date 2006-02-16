@@ -935,7 +935,7 @@ def cleanUpSkippedPars(dirName):
     downloading. Delete these orphaned segments """
     for file in os.listdir(dirName):
         if SEGMENT_SUFFIX_RE.search(file) and \
-                isPar(cleanDupeName(SEGMENT_SUFFIX_RE.sub('', file))):
+                isPar(cleanDupeName(SEGMENT_SUFFIX_RE.sub('', file))[0]):
             moveToProcessed(dirName + os.sep + file)
 
 SPLIT_RE = re.compile(r'.*\.\d{2,4}$')

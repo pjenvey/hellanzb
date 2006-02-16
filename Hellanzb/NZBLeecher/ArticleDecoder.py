@@ -78,11 +78,12 @@ def decode(segment):
     Hellanzb.queue.segmentDone(segment)
     if Hellanzb.DEBUG_MODE_ENABLED:
         # FIXME: need a better enum
-        encodingName = 'UNKNOWN'
         if encoding == 1:
             encodingName = 'YENC'
         elif encoding == 2:
             encodingName = 'UUENCODE'
+        else:
+            encodingName = 'UNKNOWN'
         debug('Decoded (encoding: %s): %s' % (encodingName, segment.getDestination()))
 
     if handleCanceledSegment(segment):
@@ -273,9 +274,10 @@ def parseArticleData(segment, justExtractFilename = False):
     if justExtractFilename:
         return
 
-    return decodeSegmentToFile(segment, encodingType)
+    encodingType = decodeSegmentToFile(segment, encodingType)
     del segment.articleData
     segment.articleData = '' # We often check it for is None
+    return encodingType
 decodeArticleData=parseArticleData
 
 def setRealFileName(nzbFile, filename, forceChange = False, settingSegmentNumber = None):

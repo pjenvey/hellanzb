@@ -27,7 +27,7 @@ def knownRealNZBFilenames():
     downloading NZB """
     filenames = []
     for nzb in Hellanzb.queue.nzbs:
-        for nzbFile in nzb.nzbFileElements:
+        for nzbFile in nzb.nzbFiles:
             if nzbFile.filename != None:
                 filenames.append(nzb.destDir + os.sep + nzbFile.filename)
     return filenames

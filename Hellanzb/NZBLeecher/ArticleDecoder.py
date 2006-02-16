@@ -700,7 +700,7 @@ def tryFinishNZB(nzb):
     Hellanzb.queue.nzbFilesLock.release()
 
     for nzbFile in queueFilesCopy:
-        if nzbFile not in nzb.nzbFileElements:
+        if nzbFile not in nzb.nzbFiles:
             continue
         
         debug('tryFinishNZB: NOT DONE: ' + nzbFile.getDestination())

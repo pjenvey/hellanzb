@@ -137,7 +137,7 @@ class NZB(Archive):
         ## NZB file general information
         self.nzbFileName = nzbFileName
         self.archiveName = archiveName(self.nzbFileName) # pretty name
-        self.nzbFileElements = []
+        self.nzbFiles = []
 
         ## Where the nzb files will be downloaded
         self.destDir = Hellanzb.WORKING_DIR
@@ -189,7 +189,7 @@ class NZB(Archive):
     def cleanStats(self):
         """ Reset downlaod statistics """
         self.totalSkippedBytes = 0
-        for nzbFile in self.nzbFileElements:
+        for nzbFile in self.nzbFiles:
             nzbFile.totalSkippedBytes = 0
             nzbFile.totalReadBytes = 0
             nzbFile.downloadPercentage = 0
@@ -201,7 +201,7 @@ class NZB(Archive):
         collect. justClean will only clean/delete specific things, to prep the NZB for
         another download """
         # nzbFiles aren't needed for another download
-        for nzbFile in self.nzbFileElements:
+        for nzbFile in self.nzbFiles:
             del nzbFile.todoNzbSegments
             del nzbFile.dequeuedSegments
             if not justClean:
@@ -212,17 +212,17 @@ class NZB(Archive):
             del nzbFile
 
         if justClean:
-            self.nzbFileElements = []
+            self.nzbFiles = []
             self.postProcessor = None
             self.cleanStats()
         else:
-            del self.nzbFileElements
+            del self.nzbFiles
             del self.postProcessor
 
     def getSkippedParSubjects(self):
         """ Return a list of skipped par file's subjects, sorted by the size of the par """
         unsorted = []
-        for nzbFile in self.nzbFileElements:
+        for nzbFile in self.nzbFiles:
             if nzbFile.isSkippedPar:
                 unsorted.append((nzbFile.totalBytes, nzbFile.subject))
         # Ensure the list of pars is sorted by the par's number of bytes (so we pick off
@@ -359,7 +359,7 @@ class NZBFile:
         # Parent NZB
         self.nzb = nzb
         # FIXME: thread safety?
-        self.nzb.nzbFileElements.append(self)
+        self.nzb.nzbFiles.append(self)
         
         self.groups = []
         self.nzbSegments = []
@@ -375,7 +375,7 @@ class NZBFile:
         self.dequeuedSegments = Set()
 
         ## NZBFile statistics
-        self.number = len(self.nzb.nzbFileElements)
+        self.number = len(self.nzb.nzbFiles)
         self.totalBytes = 0
         self.totalSkippedBytes = 0
         self.totalReadBytes = 0
@@ -420,8 +420,8 @@ class NZBFile:
 
         ## Whether or not this is a par file, an extra par file
         ## (e.g. archiveA.vol02+01.par2), and has been skipped by the downloader
-        self.isParFile = False
-        self.isExtraParFile = False
+        self.isPar = False
+        self.isExtraPar = False
         self.isSkippedPar = False
 
     def getDestination(self):
@@ -510,9 +510,9 @@ class NZBFile:
 
                     if Hellanzb.SMART_PAR:
                         identifyPar(self)
-                        if self.isParFile:
-                            debug('needsDownload: Found par on disk: %s isExtraParFile: %s' % \
-                                  (file, str(self.isExtraParFile)))
+                        if self.isPar:
+                            debug('needsDownload: Found par on disk: %s isExtraPar: %s' % \
+                                  (file, str(self.isExtraPar)))
                         
                     return False
     

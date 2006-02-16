@@ -40,8 +40,8 @@ def dequeueIfExtraPar(segment, readOnlyQueue = False):
     # NOTE: pars that aren't extra pars will need to use this block of code when we start
     # looking for requeue cases (branches/smartpar-requeue). And don't allow them to fall
     # through to the isSkippedPar block
-    #if not segment.nzbFile.isParFile:
-    if not segment.nzbFile.isParFile or not segment.nzbFile.isExtraParFile:
+    #if not segment.nzbFile.isPar:
+    if not segment.nzbFile.isPar or not segment.nzbFile.isExtraPar:
         return
 
     nzb = segment.nzbFile.nzb
@@ -98,10 +98,10 @@ def dequeueIfExtraPar(segment, readOnlyQueue = False):
 PAR2_VOL_RE = re.compile(r'(.*)\.vol(\d*)\+(\d*)\.par2', re.I)
 def identifyPar(nzbFile):
     """ Determine if this nzbFile is a par by its filename. Marks the nzbFile object as
-    isParFile, and if so, also mark its parType and isExtraParFile vars """
+    isPar, and if so, also mark its parType and isExtraPar vars """
     filename = cleanDupeName(nzbFile.filename)[0]
     if isPar(filename):
-        nzbFile.isParFile = True
+        nzbFile.isPar = True
     
         if isPar2(filename):
             nzbFile.parType = PAR2
@@ -113,7 +113,7 @@ def identifyPar(nzbFile):
                 return
 
         # This is a 'non-essential' par file
-        nzbFile.isExtraParFile = True
+        nzbFile.isExtraPar = True
 
 GET_PAR2_SIZE_RE = re.compile(r'(?i).*\.vol\d{1,8}\+(\d{1,8}).par2$')
 def getParSize(filename):

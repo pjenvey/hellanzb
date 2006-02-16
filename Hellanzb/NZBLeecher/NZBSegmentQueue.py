@@ -530,7 +530,7 @@ class NZBSegmentQueue(PriorityQueue):
         for nzbFile in needDlFiles:
             if nzbFile.isSkippedPar:
                 skippedPars += 1
-            elif nzb.isParRecovery and nzbFile.isExtraParFile and \
+            elif nzb.isParRecovery and nzbFile.isExtraPar and \
                     not nzbFile.isSkippedPar and len(nzbFile.todoNzbSegments) and \
                     nzbFile.filename is not None and not isHellaTemp(nzbFile.filename):
                 queuedParBlocks += getParSize(nzbFile.filename)

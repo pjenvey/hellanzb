@@ -143,7 +143,8 @@ def startNZBLeecher():
     
     totalCount = 0
     for serverId, serverDict in Hellanzb.SERVERS.iteritems():
-        totalCount += connectServer(serverId, serverDict, defaultAntiIdle, defaultIdleTimeout)
+        if not serverDict.get('enabled') is False:
+            totalCount += connectServer(serverId, serverDict, defaultAntiIdle, defaultIdleTimeout)
 
     if len(Hellanzb.SERVERS) > 1:
         # Initialize the retry queue. It contains multiple sub-queues that work within the

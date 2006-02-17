@@ -259,9 +259,6 @@ def cancelCurrent():
     writeStateXML()
     reactor.callLater(0, scanQueueDir)
     
-    if Hellanzb.downloadPaused:
-        endDownload()
-        
     return canceled
 
 def pauseCurrent():

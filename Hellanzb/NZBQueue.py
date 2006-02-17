@@ -162,7 +162,7 @@ def scanQueueDir(firstRun = False, justScan = False):
     #    debug('Ziplick scanQueueDir: ' + Hellanzb.QUEUE_DIR)
 
     if not current_nzbs:
-        if not Hellanzb.queued_nzbs or Hellanzb.downloadPaused:
+        if not Hellanzb.queued_nzbs:
             if firstRun:
                 writeStateXML()
 

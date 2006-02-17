@@ -216,11 +216,8 @@ def postProcess(options, isQueueDaemon = False):
 
 def isActive():
     """ Whether or not we're actively downloading """
-    activeCount = 0
-    for nsf in Hellanzb.nsfs:
-        activeCount += len(nsf.activeClients)
-    return activeCount > 0
-
+    return len(Hellanzb.queue.currentNZBs()) > 0
+    
 def cancelCurrent():
     """ Cancel the current d/l, remove the nzb. return False if there was nothing to cancel
     """
@@ -261,6 +258,9 @@ def cancelCurrent():
             
     writeStateXML()
     reactor.callLater(0, scanQueueDir)
+    
+    if Hellanzb.downloadPaused:
+        endDownload()
         
     return canceled
 

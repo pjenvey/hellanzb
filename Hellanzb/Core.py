@@ -27,6 +27,7 @@ def findAndLoadConfig(optionalConfigFile = None):
     """ Find and load the configuration file """
     if optionalConfigFile is not None:
         if loadConfig(optionalConfigFile):
+            Hellanzb.CONFIG_FILENAME = optionalConfigFile
             return
         else:
             error('Unable to load specified config file: ' + optionalConfigFile)
@@ -46,6 +47,7 @@ def findAndLoadConfig(optionalConfigFile = None):
         file = dir + os.sep + 'hellanzb.conf'
         
         if loadConfig(file):
+            Hellanzb.CONFIG_FILENAME = file
             return
         
     error('Could not find configuration file in the following dirs: ' + str(confDirs))
@@ -222,6 +224,9 @@ def init(options = {}):
     # When the first CTRL-C was pressed
     Hellanzb.firstSignal = None
 
+    # The name of the loaded config file
+    Hellanzb.CONFIG_FILENAME = None
+
     # Whether or not the C yenc module is installed
     try:
         import _yenc
@@ -320,24 +325,23 @@ def marquee():
     info('')
     msg = 'hellanzb v' + Hellanzb.version
 
-    options = []
+    options = ['config = %s' % Hellanzb.CONFIG_FILENAME]
     if Hellanzb.DAEMONIZE:
         options.append('daemonized')
     if Hellanzb.HAVE_C_YENC:
         options.append('C yenc module')
 
     optionLen = len(options)
-    if optionLen:
-        msg += ' ('
+    msg += ' ('
 
-        i = 0
-        for option in options:
-            msg += option
-            i += 1
-            if i < optionLen:
-                msg += ', '
-        msg += ')'
-        
+    i = 0
+    for option in options:
+        msg += option
+        i += 1
+        if i < optionLen:
+            msg += ', '
+    msg += ')'
+
     info(msg)
     debug(msg)
 

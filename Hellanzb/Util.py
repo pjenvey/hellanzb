@@ -747,7 +747,7 @@ def toUnicode(str):
 
 def tempFilename(prefix = 'hellanzb-tmp'):
     """ Return a temp filename, prefixed with 'hellanzb-tmp' """
-    return prefix + str(randint(10000000, 99999999)) + '.nzb'
+    return prefix + str(randint(10000000, 99999999))
 
 def prettySize(bytes):
     """ format a byte count for pretty display """

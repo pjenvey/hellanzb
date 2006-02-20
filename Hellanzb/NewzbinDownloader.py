@@ -201,6 +201,9 @@ class NewzbinDownloader(object):
     def errBack(self, reason):
         # FIXME:
         # os.remove(self.tempFilename)
+        if Hellanzb.SHUTDOWN:
+           return
+       
         if reason.check(TimeoutError):
             error('Unable to connect to www.newzbin.com: Connection timed out')
         elif reason.check(ConnectionRefusedError):

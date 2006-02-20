@@ -58,7 +58,7 @@ class PostProcessor(Thread):
         if self.isNZBArchive():
             self.nzbFileName = archive.nzbFileName
 
-        # Whether or not this thread is the only thing happening in the app (-p mode)
+        # Whether or not this thread is the only thing happening in the app (-Lp mode)
         self.background = background
         
         # If we're a background Post Processor, our MO is to move dirName to DEST_DIR when
@@ -137,7 +137,7 @@ class PostProcessor(Thread):
 
             # Write the queue to disk unless we've been stopped by a killed Topen (via
             # CTRL-C)
-            if not self.killed:
+            if not self.killed and self.background:
                 Hellanzb.writeStateXML()
 
         # FIXME: This isn't the best place to GC. The best place would be when a download
@@ -191,7 +191,8 @@ class PostProcessor(Thread):
             Hellanzb.postProcessors.append(self)
             Hellanzb.postProcessorLock.release()
 
-            Hellanzb.writeStateXML()
+            if self.background:
+                Hellanzb.writeStateXML()
         
         try:
             self.postProcess()
@@ -208,7 +209,8 @@ class PostProcessor(Thread):
         
         except FatalError, fe:
             # REACTOR STOPPED IF NOT BACKGROUND/SUBIDR
-            logStateXML(debug)
+            if self.background:
+                logStateXML(debug)
             self.stop()
 
             # Propagate up to the original Post Processor
@@ -234,7 +236,8 @@ class PostProcessor(Thread):
         
         except Exception, e:
             # REACTOR STOPPED IF NOT BACKGROUND/SUBIDR
-            logStateXML(debug)
+            if self.background:
+                logStateXML(debug)
             self.stop()
             
             # Propagate up to the original Post Processor

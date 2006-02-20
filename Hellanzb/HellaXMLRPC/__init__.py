@@ -728,7 +728,7 @@ def statusString(remoteCall, result):
     else:
         threePrefix += ' '*len(one)
         
-    three = threePrefix + """(%i MB)\n""" % \
+    three = threePrefix + """(%i MB)""" % \
         (totalMb)
     
     msg = one + two + three

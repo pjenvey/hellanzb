@@ -313,6 +313,8 @@ def shutdown(killPostProcessors = False):
         # shut down prematurely (like can't bind to specific port -- maybe another
         # hellanzb is running?) should unset this var so this doesn't get called
         rmtree(Hellanzb.DOWNLOAD_TEMP_DIR)
+    if hasattr(Hellanzb, 'DEQUEUED_NZBS_DIR'):
+        rmtree(Hellanzb.DEQUEUED_NZBS_DIR)
     
 def shutdownAndExit(returnCode = 0):
     """ Shutdown hellanzb's twisted reactor, AND call sys.exit """

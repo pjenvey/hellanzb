@@ -15,6 +15,9 @@ o New remote call: 'setrarpass'
 
 o Rar passwords are now saved in between CTRL-Cs.
 
+o No longer leaving enqueuednewzbin and dequeued NZBs in the TEMP_DIR
+
+
 v0.8:
 
 Daemon:

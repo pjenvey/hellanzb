@@ -41,26 +41,34 @@ def ensureDaemonDirs():
     elif os.path.isfile(Hellanzb.STATE_XML_FILE) and not os.access(Hellanzb.STATE_XML_FILE, os.W_OK):
         raise FatalError('hellanzb does not have write access to the Hellanzb.STATE_XML_FILE file')
 
-def ensureDownloadTempDir():
-    """ This must be called just prior to starting the daemon, thus it's separated from
-    ensureDaemonDirs(). We don't want to touch/nuke the download temp dir until we know we
-    are the only queue daemon running (if we aren't, initXMLRPCServer will throw an
-    exception) """
-    # Clear out the old download temp dir (where encoded files are stored) and create a
-    # fresh one
-    Hellanzb.DOWNLOAD_TEMP_DIR = Hellanzb.TEMP_DIR + os.sep + 'download-tmp'
-    if os.path.exists(Hellanzb.DOWNLOAD_TEMP_DIR):
-        if not os.access(Hellanzb.DOWNLOAD_TEMP_DIR, os.W_OK):
-            dirName = Hellanzb.DOWNLOAD_TEMP_DIR
-            # del the var so Core.shutdown() does not attempt to rmtree() the dir
-            del Hellanzb.DOWNLOAD_TEMP_DIR
+def ensureCleanDir(dirName):
+    """ Nuke and recreate the specified directory """
+    # Clear out the old dir and create a fresh one
+    if os.path.exists(dirName):
+        if not os.access(dirName, os.W_OK):
             raise FatalError('Cannot continue: hellanzb needs write access to ' + dirName)
         
-        rmtree(Hellanzb.DOWNLOAD_TEMP_DIR)
+        rmtree(dirName)
 
     # ensureDaemonDirs already guaranteed us write access to the parent TEMP_DIR
-    os.makedirs(Hellanzb.DOWNLOAD_TEMP_DIR)
-            
+    os.makedirs(dirName)
+
+def ensureCleanDirs():
+    """ This must be called just after the XMLRPCServer initialization, thus it's separated
+    from ensureDaemonDirs(). We don't want to touch/nuke these kinds of dirs until we know
+    we are the only queue daemon running (if we aren't, initXMLRPCServer will throw an
+    exception) """
+    for var, dirName in {'DOWNLOAD_TEMP_DIR': 'download-tmp',
+                         'DEQUEUED_NZBS_DIR': 'dequeued-nzbs'}.iteritems():
+        fullPath = Hellanzb.TEMP_DIR + os.sep + dirName
+        setattr(Hellanzb, var, fullPath)
+        try:
+            ensureCleanDir(fullPath)
+        except FatalError:
+            # del the var so Core.shutdown() does not attempt to rmtree() the dir
+            delattr(Hellanzb, var)
+            raise
+
 def initDaemon():
     """ Start the daemon """
     Hellanzb.queued_nzbs = []
@@ -68,7 +76,7 @@ def initDaemon():
     try:
         ensureDaemonDirs()
         initXMLRPCServer()
-        ensureDownloadTempDir() # needs to be called AFTER initXMLRPCServer
+        ensureCleanDirs() # needs to be called AFTER initXMLRPCServer
     except FatalError, fe:
         error('Exiting', fe)
         from Hellanzb.Core import shutdownAndExit
@@ -306,6 +314,15 @@ def continueCurrent():
         info('Continuing downloader (%i connections were reset)' % resetConnections)
     else:
         info('Continuing downloader')
+
+    def redoAssembly(nzbFile):
+        nzbFile.tryAssemble()
+        nzbFile.interruptedAssembly = False
+        
+    for nzb in Hellanzb.queue.currentNZBs():
+        for nzbFile in nzb.nzbFiles:
+            if nzbFile.interruptedAssembly:
+                reactor.callInThread(redoAssembly, nzbFile)
     return True
 
 def clearCurrent(andCancel):

@@ -500,7 +500,8 @@ def dequeueNZBs(nzbIdOrIds, quiet = False):
             warn(msg)
         elif not quiet:
             info(msg)
-        move(nzb.nzbFileName, Hellanzb.TEMP_DIR + os.sep + os.path.basename(nzb.nzbFileName))
+        move(nzb.nzbFileName, Hellanzb.DEQUEUED_NZBS_DIR + os.sep + \
+             os.path.basename(nzb.nzbFileName))
         Hellanzb.queued_nzbs.remove(nzb)
         
     writeStateXML()

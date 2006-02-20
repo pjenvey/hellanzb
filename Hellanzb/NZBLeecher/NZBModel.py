@@ -11,7 +11,7 @@ from threading import Lock, RLock
 from Hellanzb.Log import *
 from Hellanzb.Util import IDPool, UnicodeList, archiveName, getFileExtension, \
     isHellaTemp, nuke, toUnicode
-from Hellanzb.NZBLeecher.ArticleDecoder import parseArticleData, setRealFileName
+from Hellanzb.NZBLeecher.ArticleDecoder import parseArticleData, setRealFileName, tryAssemble
 from Hellanzb.NZBLeecher.DupeHandler import handleDupeNZBFileNeedsDownload
 from Hellanzb.NZBLeecher.NZBLeecherUtil import validWorkingFile
 from Hellanzb.PostProcessorUtil import Archive, getParEnum, getParName
@@ -354,6 +354,10 @@ class NZBFile:
         # NOTE: maybe just change nzbFile.filename via the reactor (callFromThread), and
         # remove the lock entirely?
 
+        # Toggled to True when this nzbFile's assembly was interrupted during an
+        # OutOfDiskSpace exception
+        self.interruptedAssembly = False
+        
         ## Whether or not this is a par file, an extra par file
         ## (e.g. archiveA.vol02+01.par2), and has been skipped by the downloader
         self.isPar = False
@@ -465,6 +469,10 @@ class NZBFile:
         if self.isSkippedPar:
             return not len(self.dequeuedSegments) and not len(self.todoNzbSegments)
         return not len(self.todoNzbSegments)
+    
+    def tryAssemble(self):
+        """ Call the ArticleDecoder function of the same name """
+        tryAssemble(self)
 
     #def __repr__(self):
     #    msg = 'nzbFile: ' + os.path.basename(self.getDestination())

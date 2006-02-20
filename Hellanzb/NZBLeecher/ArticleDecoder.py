@@ -35,6 +35,8 @@ def decode(segment):
         # Ran out of disk space and the download was paused! Easiest way out of this
         # sticky situation is to requeue the segment
         nuke(segment.getDestination())
+        segment.nzbFile.totalReadBytes -= segment.bytes
+        segment.nzbFile.nzb.totalReadBytes -= segment.bytes
         reactor.callFromThread(Hellanzb.queue.put, (segment.priority, segment))
         return
     except Exception, e:
@@ -75,31 +77,35 @@ def decode(segment):
         # warrant requeueing of files
         segment.smartRequeue()
 
-    if segment.nzbFile.isAllSegmentsDecoded():
+    tryAssemble(segment.nzbFile)
+
+def tryAssemble(nzbFile):
+    """ Assemble the specified NZBFile if all its segments have been downloaded """
+    if nzbFile.isAllSegmentsDecoded():
         try:
-            assembleNZBFile(segment.nzbFile)
+            assembleNZBFile(nzbFile)
             # NOTE: exceptions here might cause Hellanzb.queue.fileDone() to not be
             # called
         except OutOfDiskSpace:
-            # Delete the partially assembled file, it will be re-assembled later
-            nuke(segment.nzbFile.getDestination())
-            # FIXME: Who's going to re-trigger assembly when space is freed and the
-            # downloader 'continue's? I believe this also needs to be fixed in parseNZB
+            # Delete the partially assembled file. It will be re-assembled later when the
+            # downloader becomes unpaused
+            nuke(nzbFile.getDestination())
+            nzbFile.interruptedAssembly = True
         except SystemExit, se:
             # checkShutdown() throws this, let the thread die
             pass
         except Exception, e:
             # Cancelled NZBs could potentially cause IOErrors during writes -- just handle
             # cleanup and return
-            if not handleCanceledFile(segment.nzbFile):
+            if not handleCanceledFile(nzbFile):
                 raise
-    elif segment.nzbFile.isSkippedPar and not len(segment.nzbFile.todoNzbSegments):
+    elif nzbFile.isSkippedPar and not len(nzbFile.todoNzbSegments):
         # This skipped par file is done and didn't assemble, so manually tell the
         # NZBSegmentQueue that it's finished
-        Hellanzb.queue.fileDone(segment.nzbFile)
+        Hellanzb.queue.fileDone(nzbFile)
         
         # It's possible that it was the final decode() called for this NZB
-        tryFinishNZB(segment.nzbFile.nzb)
+        tryFinishNZB(nzbFile.nzb)
 
 def nuke(f):
     try:

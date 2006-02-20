@@ -198,9 +198,12 @@ class NewzbinDownloader(object):
         
         Hellanzb.NZBQueue.enqueueNZBs(dest)
 
+        os.remove(dest)
+        
     def errBack(self, reason):
-        # FIXME:
-        # os.remove(self.tempFilename)
+        if os.path.isfile(self.tempFilename):
+            os.remove(self.tempFilename)
+            
         if Hellanzb.SHUTDOWN:
            return
        

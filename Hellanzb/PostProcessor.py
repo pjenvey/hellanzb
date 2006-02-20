@@ -505,7 +505,12 @@ class PostProcessor(Thread):
                          nmp.neededBlocks + ' more recovery ' + \
                          getParRecoveryName(nmp.parType))
 
-        cleanUpSkippedPars(self.dirName)
+        cleanSkippedPars(self.dirName)
+
+        if self.background and not self.isSubDir and \
+                os.path.isfile(self.dirName + os.sep + Hellanzb.PROCESSED_SUBDIR + \
+                               os.sep + '.par_done'):
+            cleanHellanzbTmpFiles(self.dirName)
         
         if not Hellanzb.SKIP_UNRAR and dirHasRars(self.dirName):
             checkShutdown()

@@ -931,16 +931,6 @@ def parseParNeedsBlocksOutput(archive, output):
             
     return damagedAndRequired, missingFiles, targetsFound, neededBlocks, parType
 
-# segment files on disk
-SEGMENT_SUFFIX_RE = re.compile(r'\.segment\d{4}$')
-def cleanUpSkippedPars(dirName):
-    """ The downloader may leave .segmentXXXX par files around, from par data it skipped
-    downloading. Delete these orphaned segments """
-    for file in os.listdir(dirName):
-        if SEGMENT_SUFFIX_RE.search(file) and \
-                isPar(cleanDupeName(SEGMENT_SUFFIX_RE.sub('', file))[0]):
-            moveToProcessed(dirName + os.sep + file)
-
 SPLIT_RE = re.compile(r'.*\.\d{2,4}$')
 SPLIT_TS_RE = re.compile(r'.*\.\d{2,4}\.ts$', re.I)
 def findSplitFiles(dirName):
@@ -1039,6 +1029,22 @@ def assembleSplitFiles(dirName, toAssemble):
 
         for part in parts:
             moveToProcessed(dirName + os.sep + part)
+
+# segment files on disk
+SEGMENT_SUFFIX_RE = re.compile(r'\.segment\d{4}$')
+def cleanSkippedPars(dirName):
+    """ The downloader may leave .segmentXXXX par files around, from par data it skipped
+    downloading. Delete these orphaned segments """
+    for file in os.listdir(dirName):
+        if SEGMENT_SUFFIX_RE.search(file) and \
+                isPar(cleanDupeName(SEGMENT_SUFFIX_RE.sub('', file))[0]):
+            moveToProcessed(dirName + os.sep + file)
+
+def cleanHellanzbTmpFiles(dirName):
+    """ Remove any 'hellanzb-tmp' files. This should be done after a successful par2 """
+    for file in os.listdir(dirName):
+        if isHellaTemp(file):
+            moveToProcessed(dirName + os.sep + file)
 
 def cleanDupeFiles(dirName):
     """ Remove any files marked as duplicates """

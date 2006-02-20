@@ -32,11 +32,12 @@ class HellanzbStateXMLParser(ContentHandler):
         
     def startElement(self, name, attrs):
         self.currentTag = name
-        # <hellanzbState newzbinSessId="8f9c7badc62a5d5f776d810f0498cde1" version="0.9-trunk">
+        # <hellanzbState version="0.9-trunk">
         if name == 'hellanzbState':
             Hellanzb.recoveredState.version = attrs.get('version')
-            Hellanzb.recoveredState.newzbinSessId = attrs.get('newzbinSessId')
-
+        # <newzbinCookie PHPSESSID="564b919d81" expires="Sun, 08-Aug-2004 08:57:42 GMT" />
+        elif name == 'newzbinCookie':
+            Hellanzb.recoveredState.newzbinCookie = dict(attrs.items())
         # <downloading id="10" isParRecovery="true" name="Archive 3"/>
         # <processing id="4" rarPassword="sup" deleteProcessed="true" skipUnrar="true"
         #    overwriteZeroByteFiles="true" keepDupes="true" destSubDir="?"
@@ -86,10 +87,9 @@ class RecoveredState(object):
     def __init__(self):
         # These are maps of the archive name (the XML tag's content) to their
         # attributes. These will later be resynced to their associated objects
-        self.downloading, self.processing, self.queued = {}, {}, {}
+        self.downloading, self.processing, self.queued, self.newzbinCookie = {}, {}, {}, {}
         
         self.version = None
-        self.newzbinSessId = None
 
     def getRecoveredDict(self, type, archiveName):
         """ Attempt to recover attributes (dict) from the STATE_XML_FILE read from disk for the
@@ -106,9 +106,9 @@ class RecoveredState(object):
         return recoveredDict
 
     def __str__(self):
-        data = 'RecoveredState: version: %s newzbinSessId %s\ndownloading: %s\n' + \
+        data = 'RecoveredState: version: %s newzbinCookie: %s\ndownloading: %s\n' + \
             'processing: %s\nqueued: %s'
-        data = data % (self.version, self.newzbinSessId, str(self.downloading),
+        data = data % (self.version, self.newzbinCookie, str(self.downloading),
              str(self.processing), str(self.queued))
         return data
         
@@ -256,9 +256,9 @@ def recoverStateFromDisk(filename = None):
         
         debug('recoverStateFromDisk recovered: %s' % str(Hellanzb.recoveredState))
 
-        if Hellanzb.recoveredState.newzbinSessId is not None and \
-                not NewzbinDownloader.cookies.get('PHPSESSID'):
-            NewzbinDownloader.cookies['PHPSESSID'] = Hellanzb.recoveredState.newzbinSessId
+        if len(Hellanzb.recoveredState.newzbinCookie):
+            NewzbinDownloader.cookies = dict([(str(key), str(val)) for key, val in \
+                                              Hellanzb.recoveredState.newzbinCookie.items()])
 
 def _writeStateXML(outFile):
     """ Write portions of hellanzb's state to an XML file on disk. This includes queued NZBs
@@ -266,11 +266,16 @@ def _writeStateXML(outFile):
     writer = XMLWriter(outFile, 'utf-8', indent = 8)
     writer.declaration()
     
-    hAttribs = {'version': Hellanzb.version}
-    if NewzbinDownloader.cookies.get('PHPSESSID') is not None:
-        hAttribs['newzbinSessId'] = NewzbinDownloader.cookies['PHPSESSID']
-        
-    h = writer.start('hellanzbState', hAttribs)
+    h = writer.start('hellanzbState', {'version': Hellanzb.version})
+
+    filteredCookie = {}
+    for cookieKey in ('PHPSESSID', 'expires'):
+        val = NewzbinDownloader.cookies.get(cookieKey)
+        if val is not None:
+            filteredCookie[cookieKey] = val
+
+    if len(filteredCookie):
+        writer.element('newzbinCookie', None, filteredCookie)
 
     Hellanzb.postProcessorLock.acquire()
     postProcessors = Hellanzb.postProcessors[:]

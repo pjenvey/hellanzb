@@ -581,7 +581,7 @@ class NZBSegmentQueue(PriorityQueue):
                 except OutOfDiskSpace:
                     self.nzbDone(nzb)
                     # FIXME: Shouldn't exit here
-                    error('Cannot assemble ' + nzb.getFileName() + ': No space left on device! Exiting..')
+                    error('Cannot assemble ' + nzb.getFilename() + ': No space left on device! Exiting..')
                     Hellanzb.Core.shutdown(True)
 
         for nzbSegment in needDlSegments:

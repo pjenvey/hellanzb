@@ -36,7 +36,7 @@ PHI = 1.6180339887498948 # (1 + math.sqrt(5)) / 2
 class NZBLeecherFactory(ReconnectingClientFactory):
 
     def __init__(self, username, password, activeTimeout, antiIdleTimeout, hostname,
-                 serverPoolName):
+                 serverPoolName, skipGroupCmd):
         self.username = username
         self.password = password
         self.antiIdleTimeout = antiIdleTimeout
@@ -71,6 +71,9 @@ class NZBLeecherFactory(ReconnectingClientFactory):
         # factor than e
         self.factor = PHI # (Phi is acceptable for use as a factor if e is too large for
                           # your application.)
+
+        # Whether or not we should skip sending GROUP cmds to this nntp server
+        self.skipGroupCmd = skipGroupCmd
 
         # FIXME: after too many disconnections and or no established
         # connections, info('Unable to connect!: + str(error)')
@@ -450,41 +453,45 @@ class NZBLeecher(NNTPClient, TimeoutMixin):
                 self.deactivate()
                 return
 
-        # Change group
-        for group in self.currentSegment.nzbFile.groups:
+        if not self.factory.skipGroupCmd:
+            # Change group
+            for group in self.currentSegment.nzbFile.groups:
 
-            # NOTE: we could get away with activating only one of the groups instead of
-            # all
-            if group not in self.activeGroups and group not in self.failedGroups:
-                debug(str(self) + ' getting GROUP: ' + group)
-                self.fetchGroup(group)
-                return
+                # NOTE: we could get away with activating only one of the groups instead
+                # of all
+                if group not in self.activeGroups and group not in self.failedGroups:
+                    debug(str(self) + ' getting GROUP: ' + group)
+                    self.fetchGroup(group)
+                    return
 
-            # We only need to get the groups once during the lifetime of this
-            # NZBLeecher. Once we've ensured all groups have been attempted to be
-            # retrieved (the above block of code), check that we haven't failed finding
-            # all groups (if so, punt) here instead of getGroupFailed
-            elif self.allGroupsFailed(self.currentSegment.nzbFile.groups):
-                try:
-                    Hellanzb.queue.requeueMissing(self.factory.serverPoolName, self.currentSegment)
-                    debug(str(self) + ' All groups failed, requeueing to another pool!')
-                    self.resetCurrentSegment(removeEncFile = True)
-                    self.fetchNextNZBSegment()
-                
-                except PoolsExhausted:
-                    error('Unable to retrieve *any* groups for file (subject: ' + \
-                          self.currentSegment.nzbFile.subject + ')')
-                    msg = 'Groups:'
-                    for group in self.currentSegment.nzbFile.groups:
-                        msg += ' ' + group
-                    error(msg)
-                    error('Cancelling NZB download: ' + self.currentSegment.nzbFile.nzb.archiveName)
+                # We only need to get the groups once during the lifetime of this
+                # NZBLeecher. Once we've ensured all groups have been attempted to be
+                # retrieved (the above block of code), check that we haven't failed
+                # finding all groups (if so, punt) here instead of getGroupFailed
+                elif self.allGroupsFailed(self.currentSegment.nzbFile.groups):
+                    try:
+                        Hellanzb.queue.requeueMissing(self.factory.serverPoolName,
+                                                      self.currentSegment)
+                        debug(str(self) + \
+                              ' All groups failed, requeueing to another pool!')
+                        self.resetCurrentSegment(removeEncFile = True)
+                        self.fetchNextNZBSegment()
 
-                    # cancelCurrent will deactivate, kill the connections (and
-                    # connectionLost will take care of closing file handles etc)
-                    cancelCurrent()
+                    except PoolsExhausted:
+                        error('Unable to retrieve *any* groups for file (subject: ' + \
+                              self.currentSegment.nzbFile.subject + ')')
+                        msg = 'Groups:'
+                        for group in self.currentSegment.nzbFile.groups:
+                            msg += ' ' + group
+                        error(msg)
+                        error('Cancelling NZB download: ' + \
+                              self.currentSegment.nzbFile.nzb.archiveName)
 
-                return
+                        # cancelCurrent will deactivate, kill the connections (and
+                        # connectionLost will take care of closing file handles etc)
+                        cancelCurrent()
+
+                    return
             
         # Don't call later here -- we could be disconnected and lose our currentSegment
         # before it even happens!
@@ -923,10 +930,10 @@ def connectServer(serverName, serverDict, defaultAntiIdle, defaultIdleTimeout):
     for host in hosts:
         antiIdle = int(setWithDefault(serverDict, 'antiIdle', defaultAntiIdle))
         idleTimeout = int(setWithDefault(serverDict, 'idleTimeout', defaultIdleTimeout))
+        skipGroupCmd = setWithDefault(serverDict, 'skipGroupCmd', False)
 
         nsf = NZBLeecherFactory(serverDict['username'], serverDict['password'],
-                                idleTimeout, antiIdle, host,
-                                serverName)
+                                idleTimeout, antiIdle, host, serverName, skipGroupCmd)
         Hellanzb.nsfs.append(nsf)
 
         # FIXME: pass this to the factory constructor
@@ -944,8 +951,7 @@ def connectServer(serverName, serverDict, defaultAntiIdle, defaultIdleTimeout):
         for connection in range(connections):
             if serverDict.has_key('bindTo') and serverDict['bindTo'] != None and \
                     serverDict['bindTo'] != '':
-                reactor.connectTCP(host, port, nsf,
-                                   bindAddress = serverDict['bindTo'])
+                reactor.connectTCP(host, port, nsf, bindAddress = serverDict['bindTo'])
             else:
                 reactor.connectTCP(host, port, nsf)
             connectionCount += 1

@@ -237,7 +237,7 @@ def cancelCurrent():
         # FIXME: should GC here
         canceled = True
         nzb.cancel()
-        move(nzb.nzbFileName, Hellanzb.TEMP_DIR + os.sep + os.path.basename(nzb.nzbFileName))
+        os.remove(nzb.nzbFileName)
         info('Canceling download: ' + nzb.archiveName)
     Hellanzb.queue.cancel()
     try:

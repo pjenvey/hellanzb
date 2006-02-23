@@ -168,6 +168,10 @@ def scanQueueDir(firstRun = False, justScan = False):
 
             # Nothing to do, lets wait 5 seconds and start over
             Hellanzb.downloadScannerID = reactor.callLater(5, scanQueueDir)
+
+            if not firstRun and not justScan and not Hellanzb.loggedIdleMessage:
+                growlNotify('Queue', 'hellanzb', 'No more nzbs left to download', False)
+                Hellanzb.loggedIdleMessage = True
             return
 
         # Start the next download

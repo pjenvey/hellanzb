@@ -72,6 +72,7 @@ def ensureCleanDirs():
 def initDaemon():
     """ Start the daemon """
     Hellanzb.queued_nzbs = []
+    Hellanzb.loggedIdleMessage = True
 
     try:
         ensureDaemonDirs()
@@ -111,6 +112,7 @@ def resumePostProcessors():
 def beginDownload():
     """ Initialize the download. Notify the downloaders to begin their work, etc """
     # BEGIN
+    Hellanzb.loggedIdleMessage = False
     writeStateXML()
     now = time.time()
     Hellanzb.totalReadBytes = 0

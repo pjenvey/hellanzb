@@ -19,6 +19,7 @@ else:
     from twisted.internet.default import _NO_FILEDESC
 
 from twisted.internet.main import installReactor
+from twisted.protocols.policies import ThrottlingProtocol
 from twisted.python import log, failure
 from Hellanzb.Log import *
 
@@ -75,6 +76,24 @@ class HellaReactor(SelectReactor):
                 why = _NO_FILENO
             elif handfn() == -1:
                 why = _NO_FILEDESC
+        except IOError, ioe:
+            # Handle OutOfDiskSpace exceptions. Piggybacking this check into the reactor
+            # here uses less CPU than try: excepting in NZBLeecher.dataReceived
+            if selectable.protocol.__class__ is ThrottlingProtocol:
+                from Hellanzb.Util import OutOfDiskSpace
+                from Hellanzb.NZBLeecher.ArticleDecoder import handleIOError
+                try:
+                    handleIOError(ioe)
+                except OutOfDiskSpace:
+                    # handleIOError would have just paused the downloader for us
+                    selectable.protocol.wrappedProtocol.transport.loseConnection()
+                    selectable.protocol.wrappedProtocol.isLoggedIn = False
+                    selectable.protocol.wrappedProtocol.deactivate()
+                    return
+                except:
+                    pass
+            why = sys.exc_info()[1]
+            log.err()
         except:
             why = sys.exc_info()[1]
             log.err()

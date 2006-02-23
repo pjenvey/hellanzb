@@ -297,11 +297,20 @@ def writeStateXML():
     """ Write hellanzb's state to the STATE_XML_FILE atomically """
     file = Hellanzb.STATE_XML_FILE
     def backupThenWrite():
+        backedUp = False
         if os.path.exists(file):
             move(file, file + '.bak')
-            outFile = open(file, 'w')
-            _writeStateXML(outFile)
+            backedUp = True
+
+        outFile = open(file, 'w')
+        _writeStateXML(outFile)
+        try:
             outFile.close()
+        except IOError, ioe:
+            if ioe.errno == 28:
+                error('Unable to write STATE_XML_FILE: No space left on device')
+                if backedUp:
+                    move(file + '.bak', file)
 
     if inMainThread():
         backupThenWrite()

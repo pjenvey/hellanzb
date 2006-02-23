@@ -65,6 +65,7 @@ class ScrollableHandler(StreamHandlerNoLF):
     
     def __init__(self, *args, **kwargs):
         self.scrollLock = RLock()
+        self.scrollFlag = False
         StreamHandlerNoLF.__init__(self, *args, **kwargs)
 
     def handle(self, record):

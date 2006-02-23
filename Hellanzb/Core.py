@@ -42,7 +42,6 @@ def findAndLoadConfig(optionalConfigFile = None):
     if sysname == "Darwin":
         confDirs[0] = '/opt/local/etc'
 
-    foundConfig = False
     for dir in confDirs:
         file = dir + os.sep + 'hellanzb.conf'
         
@@ -422,7 +421,7 @@ def processArgs(options, args):
     else:
         try:
             hellaRemote(options, args)
-        except SystemExit, se:
+        except SystemExit:
             # sys.exit throws this, let it go
             raise
         except FatalError, fe:
@@ -440,7 +439,7 @@ def main():
     try:
         init(options)
     
-    except SystemExit, se:
+    except SystemExit:
         # sys.exit throws this, let it go
         raise
     except FatalError, fe:

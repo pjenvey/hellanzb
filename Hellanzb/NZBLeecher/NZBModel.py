@@ -19,6 +19,7 @@ from Hellanzb.SmartPar import smartDequeue, smartRequeue, identifyPar
 
 __id__ = '$Id$'
 
+NEWZBIN_FILENAME_RE = re.compile(r'^msgid_(\d*)_.*\.nzb$', re.I)
 class NZB(Archive):
     """ Representation of an nzb file -- the root <nzb> tag """
     
@@ -28,6 +29,13 @@ class NZB(Archive):
         ## NZB file general information
         self.nzbFileName = nzbFileName
         self.archiveName = archiveName(self.nzbFileName) # pretty name
+        self.msgid = None
+        filename = os.path.basename(nzbFileName)
+        if NEWZBIN_FILENAME_RE.match(filename):
+            try:
+                self.msgid = int(NEWZBIN_FILENAME_RE.sub(r'\1', filename))
+            except ValueError:
+                pass
         self.nzbFiles = []
         self.skippedParFiles = []
 

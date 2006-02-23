@@ -667,10 +667,12 @@ def listQueue(includeIds = True, convertToUnicode = True):
                 
             member = {'id': nzb.id,
                       'nzbName': name,
-                      'isParRecovery': nzb.isParRecovery}
+                      'is_par_recovery': nzb.isParRecovery}
             
-            if rarPassword != None:
+            if rarPassword is not None:
                 member['rarPassword'] = rarPassword
+            if nzb.msgid is not None:
+                member['msgid'] = nzb.msgid
         else:
             member = os.path.basename(nzb.nzbFileName)
         members.append(member)

@@ -33,7 +33,7 @@ class PostProcessor(Thread):
     nzbFile = None
 
     archiveAttrs = ('id', 'isParRecovery', 'rarPassword', 'deleteProcessed', 'skipUnrar',
-                    'toStateXML')
+                    'toStateXML', 'msgid')
 
     def __init__(self, archive, background = True, subDir = None):
         """ Ensure sanity of this instance before starting """

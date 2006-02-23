@@ -36,15 +36,17 @@ class HellaXMLRPCServer(XMLRPC):
         on, so this was needed. not exactly sure why """
         return self
 
-    def makeNZBStruct(self, id, name, rarPass, isParRecovery):
+    def makeNZBStruct(self, id, name, rarPass, isParRecovery, msgid):
         """ Create a map (to be an XMLRPC struct) containing NZB meta data (nzb id, name, and
         optionally rarPassword if one exists. Convert potentially Evil(tm) strings to
         unicode """
         d = {'id': id,
              'nzbName': toUnicode(name)}
-        if rarPass != None:
+        if rarPass is not None:
             d['rarPassword'] = toUnicode(rarPass)
-        d['isParRecovery'] = isParRecovery
+        if msgid is not None:
+            d['msgid'] = msgid
+        d['is_par_recovery'] = isParRecovery
         return d
 
     def cleanLog(self, logEntry):
@@ -301,12 +303,13 @@ class HellaXMLRPCServer(XMLRPC):
         s['version'] = Hellanzb.version
 
         s['currently_downloading'] = [self.makeNZBStruct(nzb.id, nzb.archiveName, nzb.rarPassword,
-                                                         nzb.isParRecovery) for \
+                                                         nzb.isParRecovery, nzb.msgid) for \
                                       nzb in currentNZBs]
 
         Hellanzb.postProcessorLock.acquire()
         s['currently_processing'] = [self.makeNZBStruct(processor.id, archiveName(processor.dirName),
-                                                        processor.rarPassword, processor.isParRecovery) \
+                                                        processor.rarPassword, processor.isParRecovery,
+                                                        processor.msgid) \
                                      for processor in Hellanzb.postProcessors]
 
         Hellanzb.postProcessorLock.release()

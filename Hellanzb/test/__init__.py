@@ -12,6 +12,7 @@ __id__ = '$Id$'
 
 class HellanzbTestCase(unittest.TestCase):
     skip = False
+    verbose = False
     
     def setUp(self):
         """ Initialize hellanzb core """

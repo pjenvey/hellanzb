@@ -18,7 +18,8 @@ from Hellanzb.Util import toUnicode
 __id__ = '$Id$'
 
 EVIL_STRINGS = ('SÃÂ£o_Paulo', 'Zappa_–_', '_Les_Rivières_Pourpres',
-                '_SkandalÃ¶s_-_Ficken_Auf_Der_Strasse')
+                '_SkandalÃ¶s_-_Ficken_Auf_Der_Strasse', 'test\xb4s  file.test',
+                'é composed char', '\u00e9 escaped composed', '\u0065\u0301 escaped decomposed')
                 
 class StateXMLTestCase(HellanzbTestCase):
     verbose = False

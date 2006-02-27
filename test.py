@@ -27,7 +27,6 @@ def suite(testName = None):
 if __name__ == '__main__':
     Hellanzb.Core.init()
     try:
-        
         if len(sys.argv) > 1:
             unittest.TextTestRunner().run(suite(sys.argv[1]))
         else:

@@ -4,15 +4,16 @@
 test - Run all or a specific test
 
 """
-import os, unittest, Hellanzb.test
+import os, sys, unittest, Hellanzb.test
 from Hellanzb.Core import init
 
 TEST_DIR = os.path.join(os.path.dirname(__file__), 'Hellanzb/test/')
 
-def suite():
+def suite(testName = None):
     s = unittest.TestSuite()
     for file in os.listdir(TEST_DIR):
-        if file.endswith('TestCase.py') and not file.startswith('.'):
+        if file.endswith('TestCase.py') and not file.startswith('.') and \
+                (not testName or file.startswith(testName)):
             packageName = file[:-3]
             module = __import__('Hellanzb.test.' + packageName, globals(), locals(), packageName)
             klass = getattr(module, packageName)
@@ -26,6 +27,10 @@ def suite():
 if __name__ == '__main__':
     Hellanzb.Core.init()
     try:
-        unittest.TextTestRunner().run(suite())
+        
+        if len(sys.argv) > 1:
+            unittest.TextTestRunner().run(suite(sys.argv[1]))
+        else:
+            unittest.TextTestRunner().run(suite())
     finally:
         Hellanzb.Core.shutdown()

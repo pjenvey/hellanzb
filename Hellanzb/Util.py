@@ -742,7 +742,8 @@ def toUnicode(str):
     if str == None:
         return str
     elif not isinstance(str, unicode):
-        return unicode(str, 'latin-1')
+        # iso-8859-1 aka latin-1
+        return unicode(str, 'iso-8859-1')
     return str
 
 def tempFilename(prefix = 'hellanzb-tmp'):
@@ -804,6 +805,12 @@ def ensureDirs(dirNames):
             err += '\n' + dirName
             
         raise FatalError(err)
+
+def uopen(filename, *args, **kwargs):
+    """ Open a file. Unicode filenames are specially handled on certain platforms (OS X) """
+    if Hellanzb.SYSNAME == "Darwin":
+        filename = toUnicode(filename)
+    return open(filename, *args, **kwargs)
 
 def isHellaTemp(filename):
     """ Determine whether or not the specified file is a 'hellanzb-tmp-' file """

@@ -907,8 +907,6 @@ def initNZBLeecher():
     # loop to scan the queue dir during download
     Hellanzb.downloadScannerID = None
 
-    startNZBLeecher()
-
 def setWithDefault(dict, key, default):
     """ Return value for the specified key set via the config file. Use the default when the
     value is blank or doesn't exist """
@@ -977,15 +975,15 @@ def startNZBLeecher():
         if not serverDict.get('enabled') is False:
             totalCount += connectServer(serverId, serverDict, defaultAntiIdle, defaultIdleTimeout)
 
+    # How large the scroll ticker should be
+    Hellanzb.scroller.maxCount = totalCount
+
     if len(Hellanzb.SERVERS) > 1:
         # Initialize the retry queue. It contains multiple sub-queues that work within the
         # NZBQueue, for queueing segments that failed to download on particular
         # serverPools. Obviously there's no need for this unless we're using multiple
         # serverPools
         Hellanzb.queue.initRetryQueue()
-
-    # How large the scroll ticker should be
-    Hellanzb.scroller.maxCount = totalCount
 
     # Allocate only one thread, just for decoding
     reactor.suggestThreadPoolSize(1)

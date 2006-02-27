@@ -11,4 +11,5 @@ class NZBLeecherTestCase(HellanzbTestCase):
         if len(sys.argv) > 1:
             info('Loading: ' + sys.argv[1])
             Hellanzb.queue.parseNZB(sys.argv[1])
+            initNZBLeecher()
             startNZBLeecher()

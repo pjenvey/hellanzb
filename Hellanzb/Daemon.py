@@ -92,8 +92,9 @@ def initDaemon():
     if Hellanzb.DAEMONIZE:
         daemonize()
     
-    from Hellanzb.NZBLeecher import initNZBLeecher
+    from Hellanzb.NZBLeecher import initNZBLeecher, startNZBLeecher
     initNZBLeecher()
+    startNZBLeecher()
 
 def resumePostProcessors():
     """ Pickup left off Post Processors that were cancelled via CTRL-C """

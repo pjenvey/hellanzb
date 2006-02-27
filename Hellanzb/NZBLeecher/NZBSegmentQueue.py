@@ -495,7 +495,7 @@ class NZBSegmentQueue(PriorityQueue):
         if self.onDiskSegments.has_key(segmentFilename):
             return self.onDiskSegments[segmentFilename]
 
-    def parseNZB(self, nzb):
+    def parseNZB(self, nzb, verbose = True):
         """ Initialize the queue from the specified nzb file """
         # Create a parser
         parser = make_parser()
@@ -557,7 +557,8 @@ class NZBSegmentQueue(PriorityQueue):
                 msg = '%s, recovering %i %s' % (msg, queuedParBlocks,
                                                 getParRecoveryName(nzb.parType))
         msg += ')'
-        info(msg)
+        if verbose:
+            info(msg)
 
         # Tally what was skipped for correct percentages in the UI
         for nzbSegment in onDiskSegments:
@@ -572,7 +573,8 @@ class NZBSegmentQueue(PriorityQueue):
             if nzbFile not in needDlFiles:
                 # Don't automatically 'finish' the NZB, we'll take care of that in this
                 # function if necessary
-                info(nzbFile.getFilename() + ': Assembling -- all segments were on disk')
+                if verbose:
+                    info(nzbFile.getFilename() + ': Assembling -- all segments were on disk')
                 
                 # NOTE: this function is destructive to the passed in nzbFile! And is only
                 # called on occasion (might bite you in the ass one day)
@@ -603,7 +605,8 @@ class NZBSegmentQueue(PriorityQueue):
             msg = 'Par recovery download: Not sure what specific pars are needed -- downloading all pars'
             if skippedPars:
                 msg = '%s (%s)' % (msg, skippedParsMsg)
-            info(msg)
+            if verbose:
+                info(msg)
             nzb.isParRecovery = False
             for nzbSegment in needDlSegments:
                 if nzbSegment.nzbFile.isSkippedPar:
@@ -617,7 +620,8 @@ class NZBSegmentQueue(PriorityQueue):
                     
         if not len(self):
             self.nzbDone(nzb)
-            info(nzb.archiveName + ': Assembled archive!')
+            if verbose:
+                info(nzb.archiveName + ': Assembled archive!')
             
             reactor.callLater(0, Hellanzb.Daemon.handleNZBDone, nzb)
 

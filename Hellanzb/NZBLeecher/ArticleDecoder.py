@@ -483,7 +483,7 @@ def decodeSegmentToFile(segment, encodingType = YENCODE):
 
         handleDupeNZBSegment(segment)
         if handleCanceledSegment(segment):
-            return
+            return UNKNOWN
 
         touch(segment.getDestination())
 
@@ -497,9 +497,11 @@ def decodeSegmentToFile(segment, encodingType = YENCODE):
 
         handleDupeNZBSegment(segment)
         if handleCanceledSegment(segment):
-            return
+            return UNKNOWN
 
         touch(segment.getDestination())
+
+    return UNKNOWN
 
 # Build the yEnc decode table
 YDEC_TRANS = ''.join([chr((i + 256 - 42) % 256) for i in range(256)])

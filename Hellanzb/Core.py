@@ -38,8 +38,7 @@ def findAndLoadConfig(optionalConfigFile = None):
 
     # hard coding preferred Darwin config file location, kind of lame. but I'd rather do
     # this then make an etc dir in os x's Python.framework directory
-    (sysname, nodename, release, version, machine) = os.uname()
-    if sysname == "Darwin":
+    if Hellanzb.SYSNAME == "Darwin":
         confDirs[0] = '/opt/local/etc'
 
     for dir in confDirs:
@@ -225,6 +224,10 @@ def init(options = {}):
 
     # The name of the loaded config file
     Hellanzb.CONFIG_FILENAME = None
+
+    (sysname, nodename, release, version, machine) = os.uname()
+    # The OS in use
+    Hellanzb.SYSNAME = sysname
 
     # Whether or not the C yenc module is installed
     try:

@@ -663,7 +663,7 @@ class NZBParser(ContentHandler):
         # Map of duplicate filenames -- @see DupeHandler.handleDupeOnDisk
         self.workingDirDupeMap = {}
 
-        files = [unorm(file) for file in os.listdir(toUnicode(Hellanzb.WORKING_DIR))]
+        files = [fromUnicode(unorm(file)) for file in os.listdir(toUnicode(Hellanzb.WORKING_DIR))]
         files.sort()
         for file in files:
 
@@ -687,12 +687,10 @@ class NZBParser(ContentHandler):
             
     def startElement(self, name, attrs):
         if name == 'file':
-            uSubject = unorm(attrs.get('subject'))
-            subject = fromUnicode(uSubject)
+            subject = fromUnicode(unorm(attrs.get('subject')))
             poster = fromUnicode(attrs.get('poster'))
 
             self.file = NZBFile(subject, attrs.get('date'), poster, self.nzb)
-            self.file.uSubject = uSubject
 
             self.fileNeedsDownload = \
                 self.file.needsDownload(workingDirListing = self.workingDirListing,

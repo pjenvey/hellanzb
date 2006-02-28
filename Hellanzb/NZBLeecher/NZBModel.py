@@ -308,8 +308,6 @@ class NZBFile:
         self.groups = []
         self.nzbSegments = []
 
-        self.uSubject = None
-
         ## TO download segments --
         # we'll remove from this set everytime a segment is found completed (on the FS)
         # during NZB parsing, or later written to the FS
@@ -460,7 +458,7 @@ class NZBFile:
             # filenames in our subject line
             for file in workingDirListing:
                 # Whole file match
-                if self.uSubject.find(file) > -1:
+                if self.subject.find(file) > -1:
                     # No need for setRealFileName(self, file)'s extra work here
                     self.filename = file
 
@@ -606,7 +604,7 @@ def segmentsNeedDownload(segmentList, overwriteZeroByteSegments = False):
 
     # Cache all WORKING_DIR segment filenames in a map of lists
     for file in os.listdir(toUnicode(Hellanzb.WORKING_DIR)):
-        file = unorm(file)
+        file = fromUnicode(unorm(file))
         if not validWorkingFile(Hellanzb.WORKING_DIR + os.sep + file,
                                 overwriteZeroByteSegments):
             continue
@@ -642,7 +640,7 @@ def segmentsNeedDownload(segmentList, overwriteZeroByteSegments = False):
             # a) find that on disk segment's file name in our potential segment's subject
             # b) match that on disk segment's file name to our potential segment's temp
             # file name (w/ .segmentXXXX cutoff)
-            if segment.nzbFile.uSubject.find(segmentFileName) > -1 or \
+            if segment.nzbFile.subject.find(segmentFileName) > -1 or \
                     segment.getTempFileName()[:-12] == segmentFileName:
                 foundFileName = segmentFileName
                 break

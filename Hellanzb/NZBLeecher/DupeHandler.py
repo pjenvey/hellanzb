@@ -189,7 +189,7 @@ def handleDupeNZBFileNeedsDownload(nzbFile, workingDirDupeMap):
     isDupe = False
     # Search the dupes on disk for a match
     for file in workingDirDupeMap.iterkeys():
-        if nzbFile.uSubject.find(file) > -1:
+        if nzbFile.subject.find(file) > -1:
             isDupe = True
 
             debug('handleDupeNeedsDownload: handling dupe: %s' % file)

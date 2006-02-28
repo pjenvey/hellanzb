@@ -5,7 +5,7 @@ DupeNameTestCase - Tests for the dupeName/getNextDupeName functions
 [See end of file]
 """
 import os, shutil, tempfile, time, unittest, Hellanzb
-from Hellanzb.test import HellanzbTestCase
+from Hellanzb.test import HellanzbTestCase, EVIL_STRINGS
 from Hellanzb.Log import *
 from Hellanzb.Util import cleanDupeName, dupeName, nextDupeName, touch
 
@@ -21,19 +21,19 @@ class DupeNameTestCase(HellanzbTestCase):
         HellanzbTestCase.tearDown(self)
         shutil.rmtree(self.tempDir)
 
-    def testCleanDupeName(self):
+    def testCleanDupeName(self, prefix = 'file'):
         """ Test the cleanDupeName functionality. """ + cleanDupeName.__doc__
-        testFile = self.tempDir + os.sep + 'file'
-        testFile0 = self.tempDir + os.sep + 'file_hellanzb_dupe0'
+        testFile = self.tempDir + os.sep + prefix
+        testFile0 = self.tempDir + os.sep + prefix + '_hellanzb_dupe0'
         self.assertEqual(cleanDupeName(testFile), (testFile, -1))
         self.assertEqual(cleanDupeName(testFile0), (testFile, 0))
 
-    def testDupeName(self):
+    def testDupeName(self, prefix = 'file'):
         """ Test the dupeName functionality. """ + dupeName.__doc__
-        testFile = self.tempDir + os.sep + 'file'
-        testFile0 = self.tempDir + os.sep + 'file_hellanzb_dupe0'
-        testFile1 = self.tempDir + os.sep + 'file_hellanzb_dupe1'
-        testFile2 = self.tempDir + os.sep + 'file_hellanzb_dupe2'
+        testFile = self.tempDir + os.sep + prefix
+        testFile0 = self.tempDir + os.sep + prefix + '_hellanzb_dupe0'
+        testFile1 = self.tempDir + os.sep + prefix + '_hellanzb_dupe1'
+        testFile2 = self.tempDir + os.sep + prefix + '_hellanzb_dupe2'
         
         self.assertEqual(dupeName(testFile), testFile)
         self.assertEqual(dupeName(testFile, eschewNames = (testFile)), testFile0)
@@ -48,12 +48,12 @@ class DupeNameTestCase(HellanzbTestCase):
         self.assertEqual(dupeName(testFile, checkOnDisk = False, minIteration = 0),
                          testFile)
 
-    def testNextDupeName(self):
+    def testNextDupeName(self, prefix = 'file'):
         """ Test the nextDupeName functionality. """ + nextDupeName.__doc__
-        testFile = self.tempDir + os.sep + 'file'
-        testFile0 = self.tempDir + os.sep + 'file_hellanzb_dupe0'
-        testFile1 = self.tempDir + os.sep + 'file_hellanzb_dupe1'
-        testFile2 = self.tempDir + os.sep + 'file_hellanzb_dupe2'
+        testFile = self.tempDir + os.sep + prefix
+        testFile0 = self.tempDir + os.sep + prefix + '_hellanzb_dupe0'
+        testFile1 = self.tempDir + os.sep + prefix + '_hellanzb_dupe1'
+        testFile2 = self.tempDir + os.sep + prefix + '_hellanzb_dupe2'
         
         self.assertEqual(nextDupeName(testFile), testFile0)
         self.assertEqual(nextDupeName(testFile, eschewNames = (testFile0)), testFile1)
@@ -69,7 +69,15 @@ class DupeNameTestCase(HellanzbTestCase):
         # checkOnDisk = False, minIteration = 0 should do nothing
         self.assertEqual(nextDupeName(testFile, checkOnDisk = False, minIteration = 0),
                          testFile)
-        
+
+    def _test(self, test):
+        for testString in EVIL_STRINGS:
+            test(testString)
+
+    def testCleanDupeNameU(self): self._test(self.testCleanDupeName)
+    def testDupeNameU(self): self._test(self.testDupeName)
+    def testNextDupeNameU(self): self._test(self.testNextDupeName)
+
 """
 Copyright (c) 2005 Philip Jenvey <pjenvey@groovie.org>
 All rights reserved.

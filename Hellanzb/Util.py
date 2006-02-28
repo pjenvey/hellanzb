@@ -444,11 +444,9 @@ def getFileExtension(filename):
 def touch(filename):
     """ Set the access/modified times of this file to the current time. Create the file if
     it does not exist """
-    if Hellanzb.SYSNAME == "Darwin":
-        filename = toUnicode(filename)
-    fd = os.open(filename, os.O_WRONLY | os.O_CREAT, 0666)
+    fd = os.open(ufilename(filename), os.O_WRONLY | os.O_CREAT, 0666)
     os.close(fd)
-    os.utime(filename, None)
+    os.utime(ufilename(filename), None)
 
 def archiveName(dirName, unformatNewzbinNZB = True):
     """ Extract the name of the archive from the archive's absolute path, or its .nzb file
@@ -613,14 +611,14 @@ def dupeName(filename, checkOnDisk = True, eschewNames = [], minIteration = 0):
     dupeName('/test/file', eschewNames = ('/test/file_hellanzb_dupe1')) would return:
     '/test/file_hellanzb_dupe2'
     """
-    if (not checkOnDisk or not os.path.exists(filename)) and minIteration == 0 and \
-            filename not in eschewNames:
+    if (not checkOnDisk or not os.path.exists(ufilename(filename))) and \
+            minIteration == 0 and filename not in eschewNames:
         return filename
     
     def onDisk(filename):
         if not checkOnDisk:
             return False
-        return os.path.exists(filename)
+        return os.path.exists(ufilename(filename))
         
     i = 0
     while True:
@@ -777,7 +775,7 @@ def prettySize(bytes):
 def nuke(filename):
     """ Delete the specified file on disk, ignoring any exceptions """
     try:
-        os.remove(filename)
+        uremove(filename)
     except Exception, e:
         pass
 
@@ -821,9 +819,21 @@ def ensureDirs(dirNames):
 
 def uopen(filename, *args, **kwargs):
     """ Open a file. Unicode filenames are specially handled on certain platforms (OS X) """
+    return open(ufilename(filename), *args, **kwargs)
+
+def ufilename(filename):
+    """ cast filenames to unicode on certain platforms """
     if Hellanzb.SYSNAME == "Darwin":
         filename = toUnicode(filename)
-    return open(filename, *args, **kwargs)
+    return filename
+
+def uremove(filename):
+    """ cast filenames to unicode on certain platforms """
+    os.remove(ufilename(filename))
+
+def urename(orig, dest):
+    """ cast filenames to unicode on certain platforms """
+    os.rename(ufilename(orig), ufilename(dest))
 
 def isHellaTemp(filename):
     """ Determine whether or not the specified file is a 'hellanzb-tmp-' file """

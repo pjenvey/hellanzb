@@ -10,14 +10,35 @@ import os, shutil, tempfile
 from unicodedata import normalize
 from Hellanzb.test import HellanzbTestCase, EVIL_STRINGS
 from Hellanzb.Log import *
-from Hellanzb.Util import toUnicode, uopen
+from Hellanzb.Util import isDupeName, toUnicode, ufilename, uopen
 from Hellanzb.NZBLeecher import initNZBLeecher
 from Hellanzb.NZBLeecher.ArticleDecoder import assembleNZBFile, decodeArticleData
 from Hellanzb.NZBLeecher.NZBModel import NZB
 
 __id__ = '$Id: UnicodeFilenameTestCase.py 665 2006-02-16 23:27:52Z pjenvey $'
 
+NZB_S = """<?xml version="1.0" encoding="iso-8859-1" ?>
+<!DOCTYPE nzb PUBLIC "-//newzBin//DTD NZB 1.0//EN" "http://www.newzbin.com/DTD/nzb/nzb-1.0.dtd">
+<nzb xmlns="http://www.newzbin.com/DTD/2003/nzb">
+
+%s
+
+</nzb>
+"""
+FILE_S = """        <file subject="&#34;%s&#34; (1/1) yEnc - 001 of 107" date="1140771628" poster="&#34;test&#34; &lt;test-user@alt.binaries.test&gt;">
+                <groups>
+                        <group>alt.binaries.test</group>
+                </groups>
+
+                <segments>
+                        <segment bytes="75778" number="1">43feb2a$$544bf67a60@news.test.com</segment>
+                        <segment bytes="75778" number="2">43feb2a$$544bf67a60@news.test.com</segment>
+                </segments>
+        </file>
+"""
+
 class UnicodeFilenameTestCase(HellanzbTestCase):
+    #verbose = True
 
     def setUp(self):
         HellanzbTestCase.setUp(self)
@@ -28,9 +49,12 @@ class UnicodeFilenameTestCase(HellanzbTestCase):
         HellanzbTestCase.tearDown(self)
         shutil.rmtree(self.tempDir)
 
-    def cleanUp(self):
+    def cleanUp(self, eschew = None):
+        if eschew is None:
+            eschew = []
         for file in os.listdir(toUnicode(self.tempDir)):
-            os.remove(self.tempDir + os.sep + file)
+            if file not in eschew:
+                os.remove(self.tempDir + os.sep + file)
 
     def testBasicSubjectMatching(self):
         """ Test basic subject matching -- uopen, and matching the filename """
@@ -59,10 +83,7 @@ class UnicodeFilenameTestCase(HellanzbTestCase):
         self.assertEquals(normalize('NFC', toUnicode(filename)),
                           normalize('NFC', toUnicode(onDiskFilename)))
 
-        if Hellanzb.SYSNAME == 'Darwin':
-            self.assertEquals(True, os.path.isfile(toUnicode(self.tempDir + os.sep + filename)))
-        else:
-            self.assertEquals(True, os.path.isfile(self.tempDir + os.sep + filename))
+        self.assertEquals(True, os.path.isfile(ufilename(self.tempDir + os.sep + filename)))
 
         self.cleanUp()
         
@@ -71,33 +92,44 @@ class UnicodeFilenameTestCase(HellanzbTestCase):
         accomplishing the subject matching on its own """
         for test in EVIL_STRINGS:
             self.assertInvolvedSubjectMatch(test)
-        
-    def assertInvolvedSubjectMatch(self, filename):
-        nzbStr = """<?xml version="1.0" encoding="iso-8859-1" ?>
-<!DOCTYPE nzb PUBLIC "-//newzBin//DTD NZB 1.0//EN" "http://www.newzbin.com/DTD/nzb/nzb-1.0.dtd">
-<nzb xmlns="http://www.newzbin.com/DTD/2003/nzb">
 
-        <file subject="&#34;%s&#34; (1/1) yEnc - 001 of 107" date="1140771628" poster="&#34;test&#34; &lt;test-user@alt.binaries.test&gt;">
-                <groups>
-                        <group>alt.binaries.test</group>
-                </groups>
+    def testDupeSubjectMatch(self):
+        if self.verbose:
+            info('testDupeSubjectMatch..')
+            
+        for test in EVIL_STRINGS:
+            self.assertInvolvedSubjectMatch(test, testDupe = True)
 
-                <segments>
-                        <segment bytes="75778" number="1">43feb2a$$544bf67a60@news.test.com</segment>
-                        <segment bytes="75778" number="2">43feb2a$$544bf67a60@news.test.com</segment>
-                </segments>
-        </file>
-</nzb>
-        """ % filename
-
+    def decode(self, nzbSegment):
         yencodedTest = """=ybegin line=256 size=5 crc32=3bb935c6 name=%s
 žž4
-=yend size=5 crc32=3bb935c6""" % filename
+=yend size=5 crc32=3bb935c6""" % self.filename
+        nzbSegment.articleData = yencodedTest.splitlines()
+        encoding = decodeArticleData(nzbSegment)
+
+        # Ensure it was ydecoded
+        self.assertEquals(1, encoding)
+        if self.verbose:
+            info('involved: decoded: file: %i segment: %i (%s)' % \
+                 (nzbSegment.nzbFile.number, nzbSegment.number,
+                  nzbSegment.nzbFile.filename))
+
+    def assertInvolvedSubjectMatch(self, filename, testDupe = False):
+        self.filename = filename
+        
+        # Decode the next segment in the queue
+        d = lambda: self.decode(Hellanzb.queue.getSmart('test')[1])
+                                
+        files = FILE_S % filename
+        if testDupe:
+            nzbs = NZB_S % (files + files)
+        else:
+            nzbs = NZB_S % files
 
         # Create an NZB file with a couple segments
         nzbFilename = self.tempDir + os.sep + 'test.nzb'
         t = open(nzbFilename, 'wb')
-        t.write(nzbStr)
+        t.write(nzbs)
         t.close()
 
         n = NZB(nzbFilename)
@@ -108,39 +140,89 @@ class UnicodeFilenameTestCase(HellanzbTestCase):
 
         # Parse the NZB, ensure the two segments
         Hellanzb.queue.parseNZB(n, verbose = False)
-        self.assertEquals(2, len(Hellanzb.queue))
+        if testDupe:
+            self.assertEquals(4, len(Hellanzb.queue))
+        else:
+            self.assertEquals(2, len(Hellanzb.queue))
 
         # Decode the first segment to disk
-        p, nzbSegment = Hellanzb.queue.getSmart('test')
-        nzbSegment.articleData = yencodedTest.splitlines()
-        encoding = decodeArticleData(nzbSegment)
+        d()
 
-        # Ensure it was ydecoded
-        self.assertEquals(1, encoding)
-        
         if self.verbose:
             info('involved: created dir listing: %s ' % str(os.listdir(self.tempDir)))
 
         # Re-init (clean) the queue, reparse
+        n.finalize(justClean = True)
         initNZBLeecher()
         Hellanzb.queue.parseNZB(n, verbose = False)
 
         # Ensure the parser has skipped a (the first) segment
-        self.assertEquals(1, len(Hellanzb.queue))
+        if testDupe:
+            self.assertEquals(3, len(Hellanzb.queue))
+        else:
+            self.assertEquals(1, len(Hellanzb.queue))
+
+        if testDupe:
+            p, nzbSegment = Hellanzb.queue.getSmart('test')
+
+            nzbFileOne = Hellanzb.queue.getSmart('test')[1].nzbFile
+            self.assertEquals(1, nzbFileOne.number)
+
+            # Decoding two segment 1s should result in the still being processed
+            # nzbFileOne being renamed to a dupe name
+            self.decode(nzbSegment)
+            self.assertEquals(True, isDupeName(nzbFileOne.filename))
+            if self.verbose:
+                info('involved: found dupeName: ' + nzbFileOne.filename)
+
+            self.cleanUp(['test.nzb'])
+            
+            n.finalize(justClean = True)
+            initNZBLeecher()
+            Hellanzb.queue.parseNZB(n, verbose = False)
+            
+            p, firstSegment = Hellanzb.queue.getSmart('test') # skip file two segment one
+            p, nextSegment = Hellanzb.queue.getSmart('test') # skip file two segment one
+            
+            # Decode file one segment one
+            if firstSegment.nzbFile.number == 1:
+                fileOne = firstSegment.nzbFile
+                self.decode(firstSegment)
+                fileTwoSegmentOne = nextSegment
+            else:
+                fileOne = nextSegment.nzbFile
+                self.decode(nextSegment)
+                fileTwoSegmentOne = firstSegment
+            self.assertEquals(1, fileOne.number)
+            
+            # Decode file one segment two and assemble file one
+            p, nzbSegment = Hellanzb.queue.getSmart('test')
+            self.decode(nzbSegment)
+            self.assertEquals(1, nzbSegment.nzbFile.number)
+            assembleNZBFile(fileOne)
+            
+            self.decode(fileTwoSegmentOne) # decode file two segment one
+            self.assertEquals(False, isDupeName(fileOne.filename))
+
+            d() # decode file two segment two
+            # assembling file two should result in one dupe in the dir. NOTE: the
+            # nzbFile.filename isn't renamed because this nzbFile is no longer in use
+            # (fully assembled)
+            assembleNZBFile(fileTwoSegmentOne.nzbFile)
+            dupes = [file for file in os.listdir(self.tempDir) if isDupeName(file)]
+            self.assertEquals(1, len(dupes))
+            return
 
         # Decode the second segment to disk
         p, nzbSegment = Hellanzb.queue.getSmart('test')
-        nzbSegment.articleData = yencodedTest.splitlines()
-        encoding = decodeArticleData(nzbSegment)
-
-        # Ensure it was ydecoded
-        self.assertEquals(1, encoding)
+        self.decode(nzbSegment)
 
         # Assemble the file
         assembleNZBFile(nzbSegment.nzbFile)
 
         # Re-init (clean) the queue AGAIN, reparse, now ensure the assembled file's
         # filename was matched (skipped)
+        n.finalize(justClean = True)
         initNZBLeecher()
         Hellanzb.queue.parseNZB(n, verbose = False)
         self.assertEquals(0, len(Hellanzb.queue))

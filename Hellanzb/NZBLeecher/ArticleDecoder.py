@@ -13,7 +13,7 @@ from Hellanzb.Daemon import handleNZBDone, pauseCurrent
 from Hellanzb.Log import *
 from Hellanzb.Logging import prettyException
 from Hellanzb.Util import BUF_SIZE, checkShutdown, fromUnicode, isHellaTemp, nuke, touch, \
-    uopen, OutOfDiskSpace
+    uopen, uremove, OutOfDiskSpace
 from Hellanzb.NZBLeecher.DupeHandler import handleDupeNZBFile, handleDupeNZBSegment
 if Hellanzb.HAVE_C_YENC: import _yenc
 
@@ -106,12 +106,6 @@ def tryAssemble(nzbFile):
         
         # It's possible that it was the final decode() called for this NZB
         tryFinishNZB(nzbFile.nzb)
-
-def nuke(f):
-    try:
-        os.remove(f)
-    except Exception, e:
-        pass
 
 def handleCanceledSegment(nzbSegment): 
     """ Return whether or not the specified NZBSegment has been canceled. If so, delete its
@@ -637,7 +631,7 @@ def assembleNZBFile(nzbFile, autoFinish = True):
             debug('(CTRL-C) Removing unfinished file: ' + nzbFile.getDestination())
             file.close()
             try:
-                os.remove(nzbFile.getDestination())
+                uremove(nzbFile.getDestination())
             except OSError, ose:
                 # postponement might have moved the file we just wrote to:
                 # exceptions.OSError: [Errno 2] No such file or directory: 
@@ -650,7 +644,7 @@ def assembleNZBFile(nzbFile, autoFinish = True):
     # Finally, delete all the segment files when finished
     for nzbSegment in toAssembleSegments:
         try:
-            os.remove(nzbSegment.getDestination())
+            uremove(nzbSegment.getDestination())
         except OSError, ose:
             # postponement might have moved the file we just wrote to:
             # exceptions.OSError: [Errno 2] No such file or directory: 

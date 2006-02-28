@@ -17,7 +17,7 @@ downloaded
 """
 import os, ArticleDecoder, Hellanzb
 from Hellanzb.Log import *
-from Hellanzb.Util import dupeName, getFileExtension, nextDupeName, DUPE_SUFFIX_RE
+from Hellanzb.Util import dupeName, getFileExtension, nextDupeName, urename, DUPE_SUFFIX_RE
 from Hellanzb.NZBLeecher.NZBLeecherUtil import validWorkingFile
 
 __id__ = '$Id$'
@@ -77,7 +77,7 @@ def handleDupeNZBSegment(nzbSegment):
             debug('handleDupeNZBSegment: handling dupe (not ' + \
                   'beingDownloadedNZBSegment!?): %s renaming to: %s' % \
                   (os.path.basename(dest), os.path.basename(dupeNZBFileName)))
-            os.rename(dest, dupeNZBFileName + segmentNumStr)
+            urename(dest, dupeNZBFileName + segmentNumStr)
 
 def handleDupeNZBFile(nzbFile):
     """ Handle a duplicate NZBFile file on disk (prior to writing a new one), if one exists
@@ -98,7 +98,7 @@ def handleDupeNZBFile(nzbFile):
         debug('handleDupeNZBFile: renaming: %s to %s' % (os.path.basename(dest),
                                                         os.path.basename(dupeNZBFileName)))
 
-        os.rename(dest, dupeNZBFileName)
+        urename(dest, dupeNZBFileName)
 
 def handleDupeOnDisk(filename, workingDirDupeMap):
     """ Determine if the specified filename on disk (in the WORKING_DIR) is a duplicate

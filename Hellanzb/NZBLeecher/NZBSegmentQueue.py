@@ -15,7 +15,7 @@ from xml.sax import make_parser, SAXParseException
 from xml.sax.handler import ContentHandler, feature_external_ges, feature_namespaces
 from Hellanzb.Log import *
 from Hellanzb.Util import EmptyForThisPool, PoolsExhausted, PriorityQueue, OutOfDiskSpace, \
-    DUPE_SUFFIX, fromUnicode, isHellaTemp
+    DUPE_SUFFIX, fromUnicode, isHellaTemp, uremove
 from Hellanzb.PostProcessorUtil import getParRecoveryName
 from Hellanzb.SmartPar import getParSize, smartRequeue
 from Hellanzb.NZBLeecher.ArticleDecoder import assembleNZBFile
@@ -671,7 +671,7 @@ class NZBParser(ContentHandler):
             if DUPE_SEGMENT_RE.match(file):
                 # Sorry duplicate file segments, handling dupes is a pain enough as it is
                 # without segments coming into the mix
-                os.remove(Hellanzb.WORKING_DIR + os.sep + file)
+                uremove(Hellanzb.WORKING_DIR + os.sep + file)
                 continue
 
             # Add an entry to the self.workingDirDupeMap if this file looks like a

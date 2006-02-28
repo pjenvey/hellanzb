@@ -27,7 +27,7 @@ class StateXMLTestCase(HellanzbTestCase):
 
     def setUpEnv(self):
         self.stateXMLFileName = self.tempDir + os.sep + 'testState.xml'
-        self.stateXMLFile = open(self.stateXMLFileName, 'w+')
+        self.stateXMLFile = open(self.stateXMLFileName, 'w')
         Hellanzb.queue = NZBSegmentQueue()
         Hellanzb.postProcessors = []
         Hellanzb.queued_nzbs = []

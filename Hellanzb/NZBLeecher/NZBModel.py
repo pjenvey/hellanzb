@@ -8,10 +8,9 @@ NZBModel - Representations of the NZB file format in memory
 import os, re, Hellanzb
 from sets import Set
 from threading import Lock, RLock
-from unicodedata import normalize
 from Hellanzb.Log import *
 from Hellanzb.Util import IDPool, UnicodeList, archiveName, fromUnicode, \
-    getFileExtension, isHellaTemp, nuke, toUnicode
+    getFileExtension, isHellaTemp, nuke, toUnicode, unorm
 from Hellanzb.NZBLeecher.ArticleDecoder import parseArticleData, setRealFileName, tryAssemble
 from Hellanzb.NZBLeecher.DupeHandler import handleDupeNZBFileNeedsDownload
 from Hellanzb.NZBLeecher.NZBLeecherUtil import validWorkingFile
@@ -607,7 +606,7 @@ def segmentsNeedDownload(segmentList, overwriteZeroByteSegments = False):
 
     # Cache all WORKING_DIR segment filenames in a map of lists
     for file in os.listdir(toUnicode(Hellanzb.WORKING_DIR)):
-        file = normalize('NFC', toUnicode(file))
+        file = unorm(file)
         if not validWorkingFile(Hellanzb.WORKING_DIR + os.sep + file,
                                 overwriteZeroByteSegments):
             continue

@@ -13,7 +13,7 @@ from Hellanzb.Daemon import handleNZBDone, pauseCurrent
 from Hellanzb.Log import *
 from Hellanzb.Logging import prettyException
 from Hellanzb.Util import BUF_SIZE, checkShutdown, fromUnicode, isHellaTemp, nuke, touch, \
-    uopen, uremove, OutOfDiskSpace
+    ufilename, unorm, uopen, uremove, OutOfDiskSpace
 from Hellanzb.NZBLeecher.DupeHandler import handleDupeNZBFile, handleDupeNZBSegment
 if Hellanzb.HAVE_C_YENC: import _yenc
 
@@ -320,21 +320,21 @@ def setRealFileName(nzbFile, filename, forceChange = False, settingSegmentNumber
     if switchedReal:
         # Now get the new filenames via getDestination()
         for (renameSegment, oldName) in renameSegments:
-            renameFilenames[os.path.basename(oldName)] = \
+            renameFilenames[unorm(os.path.basename(oldName))] = \
                 os.path.basename(renameSegment.getDestination())
 
     # We also need a mapping of temp filenames to the new filename, incase we just found
     # the real file name (filename is None or filename was previously set to a temp name)
     for nzbSegment in nzbFile.nzbSegments:
-        renameFilenames[nzbSegment.getTempFileName()] = \
+        renameFilenames[unorm(nzbSegment.getTempFileName())] = \
             os.path.basename(nzbSegment.getDestination())
                           
     # Rename all segments
     for file in os.listdir(nzbFile.nzb.destDir):
         if file in renameFilenames:
             orig = nzbFile.nzb.destDir + os.sep + file
-            new = nzbFile.nzb.destDir + os.sep + renameFilenames.get(file)
-            shutil.move(orig, new)
+            new = nzbFile.nzb.destDir + os.sep + renameFilenames.get(unorm(file))
+            shutil.move(ufilename(orig), ufilename(new))
 
             # Keep the onDiskSegments map in sync
             if Hellanzb.queue.onDiskSegments.has_key(orig):

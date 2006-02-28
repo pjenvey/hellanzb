@@ -14,6 +14,7 @@ from shutil import move
 from threading import Condition
 from traceback import print_stack
 from twisted.internet import protocol, utils
+from unicodedata import normalize
 from Hellanzb.Log import *
 from Queue import Empty, Queue
 from StringIO import StringIO
@@ -834,6 +835,10 @@ def uremove(filename):
 def urename(orig, dest):
     """ cast filenames to unicode on certain platforms """
     os.rename(ufilename(orig), ufilename(dest))
+
+def unorm(filename):
+    """ Return the filename as normalized unicode string """
+    return normalize('NFC', toUnicode(filename))
 
 def isHellaTemp(filename):
     """ Determine whether or not the specified file is a 'hellanzb-tmp-' file """

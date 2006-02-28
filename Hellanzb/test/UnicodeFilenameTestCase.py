@@ -7,10 +7,9 @@ them later recognized in the directory listing
 [See end of file]
 """
 import os, shutil, tempfile
-from unicodedata import normalize
 from Hellanzb.test import HellanzbTestCase, EVIL_STRINGS
 from Hellanzb.Log import *
-from Hellanzb.Util import isDupeName, toUnicode, ufilename, uopen
+from Hellanzb.Util import isDupeName, toUnicode, ufilename, unorm, uopen
 from Hellanzb.NZBLeecher import initNZBLeecher
 from Hellanzb.NZBLeecher.ArticleDecoder import assembleNZBFile, decodeArticleData
 from Hellanzb.NZBLeecher.NZBModel import NZB
@@ -80,11 +79,9 @@ class UnicodeFilenameTestCase(HellanzbTestCase):
         # decomposed unicode characters (See:
         # http://lists.gnu.org/archive/html/rdiff-backup-users/2005-10/msg00125.html). So
         # we must normalize them
-        self.assertEquals(normalize('NFC', toUnicode(filename)),
-                          normalize('NFC', toUnicode(onDiskFilename)))
+        self.assertEquals(unorm(filename), unorm(onDiskFilename))
 
         self.assertEquals(True, os.path.isfile(ufilename(self.tempDir + os.sep + filename)))
-
         self.cleanUp()
         
     def testInvolvedSubjectMatch(self):

@@ -17,7 +17,8 @@ downloaded
 """
 import os, ArticleDecoder, Hellanzb
 from Hellanzb.Log import *
-from Hellanzb.Util import dupeName, getFileExtension, nextDupeName, urename, DUPE_SUFFIX_RE
+from Hellanzb.Util import dupeName, getFileExtension, nextDupeName, ufilename, urename, \
+    DUPE_SUFFIX_RE
 from Hellanzb.NZBLeecher.NZBLeecherUtil import validWorkingFile
 
 __id__ = '$Id$'
@@ -211,7 +212,7 @@ def handleDupeNZBFileNeedsDownload(nzbFile, workingDirDupeMap):
 
                     # Now that we have the correct filename we can determine if this dupe
                     # needs to be downloaded
-                    if os.path.isfile(dupeFilename):
+                    if os.path.isfile(ufilename(dupeFilename)):
                         debug('handleDupeNeedsDownload: dupeName: %s needsDownload: False' \
                               % nzbFile.filename)
                         return isDupe, False

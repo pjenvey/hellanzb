@@ -10,12 +10,11 @@ import os, re, time, Hellanzb, Hellanzb.Core, Hellanzb.Daemon
 from sets import Set
 from threading import Lock
 from twisted.internet import reactor
-from unicodedata import normalize
 from xml.sax import make_parser, SAXParseException
 from xml.sax.handler import ContentHandler, feature_external_ges, feature_namespaces
 from Hellanzb.Log import *
 from Hellanzb.Util import EmptyForThisPool, PoolsExhausted, PriorityQueue, OutOfDiskSpace, \
-    DUPE_SUFFIX, fromUnicode, isHellaTemp, uremove
+    DUPE_SUFFIX, fromUnicode, isHellaTemp, unorm, uremove
 from Hellanzb.PostProcessorUtil import getParRecoveryName
 from Hellanzb.SmartPar import getParSize, smartRequeue
 from Hellanzb.NZBLeecher.ArticleDecoder import assembleNZBFile
@@ -664,7 +663,7 @@ class NZBParser(ContentHandler):
         # Map of duplicate filenames -- @see DupeHandler.handleDupeOnDisk
         self.workingDirDupeMap = {}
 
-        files = [normalize('NFC', toUnicode(file)) for file in os.listdir(toUnicode(Hellanzb.WORKING_DIR))]
+        files = [unorm(file) for file in os.listdir(toUnicode(Hellanzb.WORKING_DIR))]
         files.sort()
         for file in files:
 
@@ -688,7 +687,7 @@ class NZBParser(ContentHandler):
             
     def startElement(self, name, attrs):
         if name == 'file':
-            uSubject = normalize('NFC', toUnicode(attrs.get('subject')))
+            uSubject = unorm(attrs.get('subject'))
             subject = fromUnicode(uSubject)
             poster = fromUnicode(attrs.get('poster'))
 

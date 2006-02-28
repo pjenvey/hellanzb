@@ -12,8 +12,8 @@ from zlib import crc32
 from Hellanzb.Daemon import handleNZBDone, pauseCurrent
 from Hellanzb.Log import *
 from Hellanzb.Logging import prettyException
-from Hellanzb.Util import BUF_SIZE, checkShutdown, isHellaTemp, nuke, touch, \
-    OutOfDiskSpace
+from Hellanzb.Util import BUF_SIZE, checkShutdown, fromUnicode, isHellaTemp, nuke, touch, \
+    uopen, OutOfDiskSpace
 from Hellanzb.NZBLeecher.DupeHandler import handleDupeNZBFile, handleDupeNZBSegment
 if Hellanzb.HAVE_C_YENC: import _yenc
 
@@ -276,6 +276,7 @@ def setRealFileName(nzbFile, filename, forceChange = False, settingSegmentNumber
     """ Set the actual filename of the segment's parent nzbFile. If the filename wasn't
     already previously set, set the actual filename atomically and also atomically rename
     known temporary files belonging to that nzbFile to use the new real filename """
+    filename = fromUnicode(filename)
     # FIXME: remove locking. actually, this function really needs to be locking when
     # nzb.destDir is changing (when the archive dir is moved around)
     switchedReal = False
@@ -390,7 +391,7 @@ def handleIOError(ioe):
 def writeLines(dest, lines):
     """ Write the lines out to the destination. Return the size of the file """
     size = 0
-    out = open(dest, 'wb')
+    out = uopen(dest, 'wb')
     try:
         for line in lines:
             size += len(line)
@@ -442,7 +443,7 @@ def decodeSegmentToFile(segment, encodingType = YENCODE):
         if handleCanceledSegment(segment):
             return YENCODE
         
-        out = open(segment.getDestination(), 'wb')
+        out = uopen(segment.getDestination(), 'wb')
         try:
             out.write(decoded)
         except IOError, ioe:
@@ -602,7 +603,7 @@ def assembleNZBFile(nzbFile, autoFinish = True):
     if handleCanceledFile(nzbFile):
         return
 
-    file = open(nzbFile.getDestination(), 'wb')
+    file = uopen(nzbFile.getDestination(), 'wb')
     write = file.write
 
     # Sort the segments incase they were out of order in the NZB file
@@ -610,7 +611,7 @@ def assembleNZBFile(nzbFile, autoFinish = True):
     toAssembleSegments.sort(lambda x, y : cmp(x.number, y.number))
     
     for nzbSegment in toAssembleSegments:
-        decodedSegmentFile = open(nzbSegment.getDestination(), 'rb')
+        decodedSegmentFile = uopen(nzbSegment.getDestination(), 'rb')
         read = decodedSegmentFile.read
         try:
             while True:
@@ -641,7 +642,8 @@ def assembleNZBFile(nzbFile, autoFinish = True):
                 # postponement might have moved the file we just wrote to:
                 # exceptions.OSError: [Errno 2] No such file or directory: 
                 if ose.errno != 2:
-                    debug('Unexpected ERROR while removing nzbFile: ' + nzbFile.getDestination())
+                    debug('Unexpected ERROR while removing nzbFile: ' + \
+                          nzbFile.getDestination(), ose)
             raise
 
     file.close()
@@ -653,7 +655,8 @@ def assembleNZBFile(nzbFile, autoFinish = True):
             # postponement might have moved the file we just wrote to:
             # exceptions.OSError: [Errno 2] No such file or directory: 
             if ose.errno != 2:
-                debug('Unexpected ERROR while removing segmentFile: ' + segmentFile)
+                debug('Unexpected ERROR while removing nzbSegment: ' + \
+                      nzbSegment.getDestination(), ose)
 
     Hellanzb.queue.fileDone(nzbFile)
     reactor.callFromThread(fileDone)

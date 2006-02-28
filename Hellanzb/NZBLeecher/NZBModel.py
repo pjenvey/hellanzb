@@ -8,9 +8,10 @@ NZBModel - Representations of the NZB file format in memory
 import os, re, Hellanzb
 from sets import Set
 from threading import Lock, RLock
+from unicodedata import normalize
 from Hellanzb.Log import *
-from Hellanzb.Util import IDPool, UnicodeList, archiveName, getFileExtension, \
-    isHellaTemp, nuke, toUnicode
+from Hellanzb.Util import IDPool, UnicodeList, archiveName, fromUnicode, \
+    getFileExtension, isHellaTemp, nuke, toUnicode
 from Hellanzb.NZBLeecher.ArticleDecoder import parseArticleData, setRealFileName, tryAssemble
 from Hellanzb.NZBLeecher.DupeHandler import handleDupeNZBFileNeedsDownload
 from Hellanzb.NZBLeecher.NZBLeecherUtil import validWorkingFile
@@ -308,6 +309,8 @@ class NZBFile:
         self.groups = []
         self.nzbSegments = []
 
+        self.uSubject = None
+
         ## TO download segments --
         # we'll remove from this set everytime a segment is found completed (on the FS)
         # during NZB parsing, or later written to the FS
@@ -371,6 +374,12 @@ class NZBFile:
         self.isPar = False
         self.isExtraPar = False
         self.isSkippedPar = False
+
+    def __setattr__(self, name, value):
+        """ Ensure filenames are iso-8859-1 strings """
+        if name == 'filename':
+            value = fromUnicode(value)
+        self.__dict__[name] = value
 
     def getDestination(self):
         """ Return the full pathname of where this NZBFile should be written to on disk """
@@ -452,7 +461,7 @@ class NZBFile:
             # filenames in our subject line
             for file in workingDirListing:
                 # Whole file match
-                if self.subject.find(file) > -1:
+                if self.uSubject.find(file) > -1:
                     # No need for setRealFileName(self, file)'s extra work here
                     self.filename = file
 
@@ -597,7 +606,8 @@ def segmentsNeedDownload(segmentList, overwriteZeroByteSegments = False):
     onDiskSegments = []
 
     # Cache all WORKING_DIR segment filenames in a map of lists
-    for file in os.listdir(Hellanzb.WORKING_DIR):
+    for file in os.listdir(toUnicode(Hellanzb.WORKING_DIR)):
+        file = normalize('NFC', file)
         if not validWorkingFile(Hellanzb.WORKING_DIR + os.sep + file,
                                 overwriteZeroByteSegments):
             continue
@@ -633,7 +643,7 @@ def segmentsNeedDownload(segmentList, overwriteZeroByteSegments = False):
             # a) find that on disk segment's file name in our potential segment's subject
             # b) match that on disk segment's file name to our potential segment's temp
             # file name (w/ .segmentXXXX cutoff)
-            if segment.nzbFile.subject.find(segmentFileName) > -1 or \
+            if segment.nzbFile.uSubject.find(segmentFileName) > -1 or \
                     segment.getTempFileName()[:-12] == segmentFileName:
                 foundFileName = segmentFileName
                 break

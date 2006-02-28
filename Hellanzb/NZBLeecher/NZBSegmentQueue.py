@@ -10,11 +10,12 @@ import os, re, time, Hellanzb, Hellanzb.Core, Hellanzb.Daemon
 from sets import Set
 from threading import Lock
 from twisted.internet import reactor
+from unicodedata import normalize
 from xml.sax import make_parser, SAXParseException
 from xml.sax.handler import ContentHandler, feature_external_ges, feature_namespaces
 from Hellanzb.Log import *
 from Hellanzb.Util import EmptyForThisPool, PoolsExhausted, PriorityQueue, OutOfDiskSpace, \
-    DUPE_SUFFIX, isHellaTemp
+    DUPE_SUFFIX, fromUnicode, isHellaTemp
 from Hellanzb.PostProcessorUtil import getParRecoveryName
 from Hellanzb.SmartPar import getParSize, smartRequeue
 from Hellanzb.NZBLeecher.ArticleDecoder import assembleNZBFile
@@ -663,7 +664,7 @@ class NZBParser(ContentHandler):
         # Map of duplicate filenames -- @see DupeHandler.handleDupeOnDisk
         self.workingDirDupeMap = {}
         
-        files = os.listdir(Hellanzb.WORKING_DIR)
+        files = [normalize('NFC', file) for file in os.listdir(toUnicode(Hellanzb.WORKING_DIR))]
         files.sort()
         for file in files:
 
@@ -687,10 +688,12 @@ class NZBParser(ContentHandler):
             
     def startElement(self, name, attrs):
         if name == 'file':
-            subject = self.parseUnicode(attrs.get('subject'))
-            poster = self.parseUnicode(attrs.get('poster'))
+            uSubject = normalize('NFC', toUnicode(attrs.get('subject')))
+            subject = fromUnicode(uSubject)
+            poster = fromUnicode(attrs.get('poster'))
 
             self.file = NZBFile(subject, attrs.get('date'), poster, self.nzb)
+            self.file.uSubject = uSubject
 
             self.fileNeedsDownload = \
                 self.file.needsDownload(workingDirListing = self.workingDirListing,
@@ -743,7 +746,7 @@ class NZBParser(ContentHandler):
             self.fileNeedsDownload = None
                 
         elif name == 'group':
-            newsgroup = self.parseUnicode(''.join(self.chars))
+            newsgroup = fromUnicode(''.join(self.chars))
             self.file.groups.append(newsgroup)
                         
             self.chars = None
@@ -751,7 +754,7 @@ class NZBParser(ContentHandler):
         elif name == 'segment':
             self.segmentCount += 1
 
-            messageId = self.parseUnicode(''.join(self.chars))
+            messageId = fromUnicode(''.join(self.chars))
             nzbs = NZBSegment(self.bytes, self.number, messageId, self.file)
             if self.number == 1:
                 self.file.firstSegment = nzbs
@@ -769,11 +772,6 @@ class NZBParser(ContentHandler):
             self.chars = None
             self.number = None
             self.bytes = None    
-
-    def parseUnicode(self, unicodeOrStr):
-        if isinstance(unicodeOrStr, unicode):
-            return unicodeOrStr.encode('latin-1')
-        return unicodeOrStr
     
 """
 Copyright (c) 2005 Philip Jenvey <pjenvey@groovie.org>

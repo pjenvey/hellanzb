@@ -28,7 +28,7 @@ def knownRealNZBFilenames():
     filenames = []
     for nzb in Hellanzb.queue.nzbs:
         for nzbFile in nzb.nzbFiles:
-            if nzbFile.filename != None:
+            if nzbFile.filename is not None:
                 filenames.append(nzb.destDir + os.sep + nzbFile.filename)
     return filenames
 
@@ -188,7 +188,7 @@ def handleDupeNZBFileNeedsDownload(nzbFile, workingDirDupeMap):
     isDupe = False
     # Search the dupes on disk for a match
     for file in workingDirDupeMap.iterkeys():
-        if nzbFile.subject.find(file) > -1:
+        if nzbFile.uSubject.find(file) > -1:
             isDupe = True
 
             debug('handleDupeNeedsDownload: handling dupe: %s' % file)

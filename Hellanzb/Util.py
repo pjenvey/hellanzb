@@ -436,17 +436,19 @@ def dirHasFileTypes(dirName, fileExtensionList):
                     return True
     return False
 
-def getFileExtension(fileName):
+def getFileExtension(filename):
     """ Return the extenion of the specified file name, in lowercase """
-    if len(fileName) > 1 and fileName.find('.') > -1:
-        return string.lower(os.path.splitext(fileName)[1][1:])
+    if len(filename) > 1 and filename.find('.') > -1:
+        return string.lower(os.path.splitext(filename)[1][1:])
 
-def touch(fileName):
+def touch(filename):
     """ Set the access/modified times of this file to the current time. Create the file if
     it does not exist """
-    fd = os.open(fileName, os.O_WRONLY | os.O_CREAT, 0666)
+    if Hellanzb.SYSNAME == "Darwin":
+        filename = toUnicode(filename)
+    fd = os.open(filename, os.O_WRONLY | os.O_CREAT, 0666)
     os.close(fd)
-    os.utime(fileName, None)
+    os.utime(filename, None)
 
 def archiveName(dirName, unformatNewzbinNZB = True):
     """ Extract the name of the archive from the archive's absolute path, or its .nzb file
@@ -737,14 +739,21 @@ def prettyElapsed(seconds):
     else:
         return shiftTo(seconds, 60 * 60, 'h')
 
-def toUnicode(str):
+def fromUnicode(unicodeOrStr, encoding = 'iso-8859-1'):
+    """ Encode the unicode value into an iso-8859-1 (aka latin-1) string """
+    if unicodeOrStr is None:
+        return unicodeOrStr
+    elif isinstance(unicodeOrStr, unicode):
+        return unicodeOrStr.encode(encoding)
+    return unicodeOrStr
+
+def toUnicode(unicodeOrStr, encoding = 'iso-8859-1'):
     """ Convert the specified string to a unicode string """
-    if str == None:
-        return str
-    elif not isinstance(str, unicode):
-        # iso-8859-1 aka latin-1
-        return unicode(str, 'iso-8859-1')
-    return str
+    if unicodeOrStr is None:
+        return unicodeOrStr
+    elif not isinstance(unicodeOrStr, unicode):
+        return unicode(unicodeOrStr, encoding)
+    return unicodeOrStr
 
 def tempFilename(prefix = 'hellanzb-tmp'):
     """ Return a temp filename, prefixed with 'hellanzb-tmp' """

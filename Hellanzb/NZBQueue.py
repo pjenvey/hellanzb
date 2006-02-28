@@ -17,7 +17,7 @@ from Hellanzb.external.elementtree.SimpleXMLWriter import XMLWriter
 from Hellanzb.Log import *
 from Hellanzb.NewzbinDownloader import NewzbinDownloader
 from Hellanzb.Util import IDPool, UnicodeList, archiveName, hellaRename, inMainThread, \
-    getFileExtension, toUnicode, validNZB
+    getFileExtension, toUnicode, uopen, validNZB
 
 __id__ = '$Id$'
 
@@ -536,7 +536,7 @@ def enqueueNZBStr(nzbFilename, nzbStr):
         
         rmtree(tempLocation)
 
-    f = open(tempLocation, 'w')
+    f = uopen(tempLocation, 'w')
     f.writelines(nzbStr)
     f.close()
 

@@ -663,8 +663,8 @@ class NZBParser(ContentHandler):
         
         # Map of duplicate filenames -- @see DupeHandler.handleDupeOnDisk
         self.workingDirDupeMap = {}
-        
-        files = [normalize('NFC', file) for file in os.listdir(toUnicode(Hellanzb.WORKING_DIR))]
+
+        files = [normalize('NFC', toUnicode(file)) for file in os.listdir(toUnicode(Hellanzb.WORKING_DIR))]
         files.sort()
         for file in files:
 

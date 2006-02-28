@@ -556,6 +556,10 @@ def hellaRename(filename):
 
 DUPE_SUFFIX = '_hellanzb_dupe'
 DUPE_SUFFIX_RE = re.compile('(.*)' + DUPE_SUFFIX + '(\d{1,4})$')
+def isDupeName(filename):
+    """ Determine if the following filename is a dupe """
+    return DUPE_SUFFIX_RE.match(filename) is not None
+
 def cleanDupeName(filename):
     """ For the given duplicate filename, return a tuple containing the non-duplicate
     filename, and the duplicate filename index. Returns an index of -1 for non-duplicate

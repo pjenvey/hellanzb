@@ -156,6 +156,9 @@ class HellaThrottlingFactory(WrappingFactory):
 def validWorkingFile(file, overwriteZeroByteFiles = False):
     """ Determine if the specified file path is a valid, existing file in the WORKING_DIR """
     # Overwrite (return True) 0 byte segment files if specified
+    if Hellanzb.SYSNAME != 'Darwin':
+        from Hellanzb.Util import fromUnicode
+        file = fromUnicode(file)
     if os.path.exists(file) and \
             (os.stat(file)[stat.ST_SIZE] != 0 or not overwriteZeroByteFiles):
         return True

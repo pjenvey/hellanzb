@@ -607,7 +607,7 @@ def segmentsNeedDownload(segmentList, overwriteZeroByteSegments = False):
 
     # Cache all WORKING_DIR segment filenames in a map of lists
     for file in os.listdir(toUnicode(Hellanzb.WORKING_DIR)):
-        file = normalize('NFC', file)
+        file = normalize('NFC', toUnicode(file))
         if not validWorkingFile(Hellanzb.WORKING_DIR + os.sep + file,
                                 overwriteZeroByteSegments):
             continue

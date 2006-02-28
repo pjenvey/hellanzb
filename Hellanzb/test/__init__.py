@@ -1,3 +1,4 @@
+# -*- coding: iso-8859-1 -*-
 """
 
 HellanzbTestCase - All hellanzb tests should derive from this class
@@ -10,6 +11,12 @@ import Hellanzb.Core
 
 __id__ = '$Id$'
 
+# Strings requiring special handling. Mostly involves casting to/from unicode when writing
+# them out to the screen, xml, or the filesystem
+EVIL_STRINGS = ('SÃÂ£o_Paulo', 'Zappa_–_', '_Les_Rivières_Pourpres',
+                '_SkandalÃ¶s_-_Ficken_Auf_Der_Strasse', 'test\xb4s  file.test',
+                'é composed char', '\u00e9 escaped composed', '\u0065\u0301 escaped decomposed')
+                
 class HellanzbTestCase(unittest.TestCase):
     skip = False
     verbose = False

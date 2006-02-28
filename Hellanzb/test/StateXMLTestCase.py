@@ -7,7 +7,7 @@ hellanzb state xml
 [See end of file]
 """
 import os, shutil, tempfile, time, unittest, Hellanzb, Hellanzb.NZBQueue
-from Hellanzb.test import HellanzbTestCase
+from Hellanzb.test import HellanzbTestCase, EVIL_STRINGS
 from Hellanzb.Log import *
 from Hellanzb.NZBLeecher.NZBModel import NZB, NZBFile
 from Hellanzb.NZBQueue import recoverStateFromDisk
@@ -17,10 +17,6 @@ from Hellanzb.Util import toUnicode
 
 __id__ = '$Id$'
 
-EVIL_STRINGS = ('SÃÂ£o_Paulo', 'Zappa_–_', '_Les_Rivières_Pourpres',
-                '_SkandalÃ¶s_-_Ficken_Auf_Der_Strasse', 'test\xb4s  file.test',
-                'é composed char', '\u00e9 escaped composed', '\u0065\u0301 escaped decomposed')
-                
 class StateXMLTestCase(HellanzbTestCase):
     verbose = False
 

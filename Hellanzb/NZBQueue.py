@@ -576,9 +576,14 @@ def enqueueNZBs(nzbFileOrFiles, next = False, writeQueue = True):
             else:
                 Hellanzb.queued_nzbs.insert(0, nzb)
 
-            msg = 'Found new nzb: '
-            info(msg + archiveName(nzbFile))
-            growlNotify('Queue', 'hellanzb ' + msg, archiveName(nzbFile), False)
+            logMsg = msg = 'Found new nzb'
+            if nzb.msgid is not None:
+                logMsg += ' (msgid: %i): ' % nzb.msgid
+            else:
+                logMsg += ': '
+            msg += ': '
+            info(logMsg + nzb.archiveName)
+            growlNotify('Queue', 'hellanzb ' + msg, nzb.archiveName, False)
                 
     if writeQueue:
         writeStateXML()

@@ -765,10 +765,8 @@ def statusString(remoteCall, result):
     """.rstrip() % (processing, queued)
 
     if isinstance(msg, unicode):
-        # FIXME: I'm pretty sure 'latin-1' did not fix a particular problem here, causing
-        # me to use utf-8. I didn't document the cause. Is utf-8 totally necessary here?
-        msg = msg.encode('utf-8')
-    noLogFile(str(msg))
+        msg = msg.encode('iso-8859-1')
+    noLogFile(msg)
     
     reactor.stop()
 

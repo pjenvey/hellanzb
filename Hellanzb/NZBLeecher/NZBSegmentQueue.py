@@ -93,8 +93,7 @@ class RetryQueue:
     def get(self, serverPoolName):
         """ Return the next segment for the specified serverPool that is queued to be retried """
         # Loop through all the valid priority queues for the specified serverPool
-        valids = self.nameIndex[serverPoolName]
-        for queueName in valids:
+        for queueName in self.nameIndex[serverPoolName]:
             queue = self.poolQueues[queueName]
 
             # Found a segment waiting to be retried

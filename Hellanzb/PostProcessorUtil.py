@@ -820,15 +820,15 @@ def par2(postProcessor, parFiles, wildcard, needAssembly = None):
         # par did not find any valid 'Target:' files, and more blocks are needed. This is
         # probably a bad archive
         if targetsFound == 0 and neededBlocks > 0:
-            raise FatalError('Unable to par repair: archive requires ' + neededBlocks + \
-                             ' more recovery ' + needType + \
+            raise FatalError('Unable to par repair: archive requires ' + \
+                             str(neededBlocks) + ' more recovery ' + needType + \
                              ' for repair. No valid files found (bad archive?)')
 
         # The archive is only totally broken when we're missing required files
         if len(damagedAndRequired) > 0:
             growlNotify('Error', 'hellanzb Cannot par repair:', archiveName(dirName) + \
-                        '\nNeed ' + neededBlocks + ' more recovery ' + needType, True)
-            raise FatalError('Unable to par repair: archive requires ' + neededBlocks + \
+                        '\nNeed ' + str(neededBlocks) + ' more recovery ' + needType, True)
+            raise FatalError('Unable to par repair: archive requires ' + str(neededBlocks) + \
                              ' more recovery ' + needType + ' for repair')
 
     else:
@@ -837,15 +837,15 @@ def par2(postProcessor, parFiles, wildcard, needAssembly = None):
                          '. Please run par2 manually for more information, par2 cmd: ' + \
                          repairCmd)
 
-RAR_NOT_FOUND_RE = re.compile(r'.*File:\ "(.*)"\ -\ no\ data\ found\..*')
-RAR_DAMAGED_RE = re.compile(r'"\ -\ damaged\.\ Found\ \d+\ of\ \d+\ data\ blocks\.')
+NO_DATA_FOUND_RE = re.compile(r'.*File:\ "(.*)"\ -\ no\ data\ found\..*')
+DAMAGED_RE = re.compile(r'"\ -\ damaged\.\ Found\ \d+\ of\ \d+\ data\ blocks\.')
 def parseParNeedsBlocksOutput(archive, output):
     """ Return a list of broken or damaged required files from par2 v output, and the
     required blocks needed. Will also log warn the user when it finds either of these
     kinds of files, or log error when they're required """
     damagedAndRequired = []
     missingFiles = []
-    neededBlocks = None
+    neededBlocks = -1
     parType = UNKNOWN
 
     targetsFound = 0
@@ -879,9 +879,7 @@ def parseParNeedsBlocksOutput(archive, output):
         if isTargetLine:
             targetsFound += 1
             
-        if isTargetLine and line.endswith('missing.') or RAR_DAMAGED_RE.search(line):
-            targetsFound += 1
-            
+        if isTargetLine and line.endswith('missing.') or DAMAGED_RE.search(line):
             # Strip any preceeding curses junk
             line = line[index:]
 
@@ -894,7 +892,7 @@ def parseParNeedsBlocksOutput(archive, output):
                            warn: 'Archive missing non-required file'}
                 missingFiles.append(file)
             else:
-                file = RAR_DAMAGED_RE.sub('', line)
+                file = DAMAGED_RE.sub('', line)
                 errMsgs = {error: 'Archive has damaged, required file',
                            warn: 'Archive has damaged, non-required file'}
 
@@ -907,14 +905,20 @@ def parseParNeedsBlocksOutput(archive, output):
             if line.find(' more recovery files ') > -1:
                 # Par 1 format
                 parType = PAR1
-                neededBlocks = line[:-len(' more recovery files to be able to repair.')]
+                try:
+                    neededBlocks = int(line[:-len(' more recovery files to be able to repair.')])
+                except ValueError:
+                    pass
             else:
                 # Par 2
                 parType = PAR2
-                neededBlocks = line[:-len(' more recovery blocks to be able to repair.')]
+                try:
+                    neededBlocks = int(line[:-len(' more recovery blocks to be able to repair.')])
+                except ValueError:
+                    pass
                 
-        elif RAR_NOT_FOUND_RE.match(line):
-            file = RAR_NOT_FOUND_RE.sub(r'\1', line)
+        elif NO_DATA_FOUND_RE.match(line):
+            file = NO_DATA_FOUND_RE.sub(r'\1', line)
             errMsgs =  {error: 'Archive has damaged, required file',
                         warn: 'Archive has damaged, non-required file'}
             spammed = checkRequired(file, errMsgs, spammed)

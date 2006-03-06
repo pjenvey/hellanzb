@@ -450,7 +450,6 @@ class NZBFile:
                 identifyPar(self)
                 return dupeNeedsDl
 
-
             # First, check if this is one of the dupe files on disk
             isDupe, dupeNeedsDl = handleDupeNZBFileNeedsDownload(self, workingDirDupeMap)
             if isDupe:

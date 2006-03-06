@@ -7,7 +7,7 @@ the twisted reactor loop, except for initialization functions
 [See end of file]
 """
 import os, time, Hellanzb, PostProcessor, PostProcessorUtil
-from shutil import copy, move, rmtree
+from shutil import copy, rmtree
 from twisted.internet import reactor
 from twisted.scripts.twistd import daemonize
 from Hellanzb.HellaXMLRPC import initXMLRPCServer, HellaXMLRPCServer
@@ -16,7 +16,7 @@ from Hellanzb.Logging import prettyException
 from Hellanzb.NZBQueue import dequeueNZBs, recoverStateFromDisk, parseNZB, \
     scanQueueDir, writeStateXML
 from Hellanzb.Util import archiveName, ensureDirs, getMsgId, hellaRename, prettyElapsed, \
-    prettySize, touch, validNZB, IDPool
+    prettySize, touch, umove, uremove, validNZB, IDPool
 
 __id__ = '$Id$'
 
@@ -170,11 +170,11 @@ def handleNZBDone(nzb):
     # Move our nzb contents to their new location for post processing
     hellaRename(processingDir)
         
-    move(Hellanzb.WORKING_DIR, processingDir)
+    umove(Hellanzb.WORKING_DIR, processingDir)
     nzb.destDir = processingDir
     nzb.archiveDir = processingDir
     
-    move(nzb.nzbFileName, processingDir)
+    umove(nzb.nzbFileName, processingDir)
     nzb.nzbFileName = processingDir + os.sep + nzb.nzbFileName
     
     touch(processingDir + os.sep + '.msgid_' + msgId)
@@ -240,12 +240,12 @@ def cancelCurrent():
         # FIXME: should GC here
         canceled = True
         nzb.cancel()
-        os.remove(nzb.nzbFileName)
+        uremove(nzb.nzbFileName)
         info('Canceling download: ' + nzb.archiveName)
     Hellanzb.queue.cancel()
     try:
         hellaRename(Hellanzb.TEMP_DIR + os.sep + 'canceled_WORKING_DIR')
-        move(Hellanzb.WORKING_DIR, Hellanzb.TEMP_DIR + os.sep + 'canceled_WORKING_DIR')
+        umove(Hellanzb.WORKING_DIR, Hellanzb.TEMP_DIR + os.sep + 'canceled_WORKING_DIR')
         os.mkdir(Hellanzb.WORKING_DIR)
         rmtree(Hellanzb.TEMP_DIR + os.sep + 'canceled_WORKING_DIR')
     except Exception, e:
@@ -442,7 +442,7 @@ def forceNZB(nzbfilename, notification = 'Forcing download'):
             nzb.destDir = postponed
             info('Interrupting: ' + nzb.archiveName)
             
-            move(nzb.nzbFileName, Hellanzb.QUEUE_DIR + os.sep + os.path.basename(nzb.nzbFileName))
+            umove(nzb.nzbFileName, Hellanzb.QUEUE_DIR + os.sep + os.path.basename(nzb.nzbFileName))
             nzb.nzbFileName = Hellanzb.QUEUE_DIR + os.sep + os.path.basename(nzb.nzbFileName)
             Hellanzb.queued_nzbs.insert(0, nzb)
             writeStateXML()
@@ -461,14 +461,14 @@ def forceNZB(nzbfilename, notification = 'Forcing download'):
     
             # Move the postponed files to the new postponed dir
             for file in os.listdir(Hellanzb.WORKING_DIR):
-                move(Hellanzb.WORKING_DIR + os.sep + file, postponed + os.sep + file)
+                umove(Hellanzb.WORKING_DIR + os.sep + file, postponed + os.sep + file)
 
             # Copy the specified NZB, unless it's already in the queue dir (move it
             # instead)
             if os.path.normpath(os.path.dirname(nzbfilename)) != os.path.normpath(Hellanzb.QUEUE_DIR):
                 copy(nzbfilename, Hellanzb.CURRENT_DIR + os.sep + os.path.basename(nzbfilename))
             else:
-                move(nzbfilename, Hellanzb.CURRENT_DIR + os.sep + os.path.basename(nzbfilename))
+                umove(nzbfilename, Hellanzb.CURRENT_DIR + os.sep + os.path.basename(nzbfilename))
             nzbfilename = Hellanzb.CURRENT_DIR + os.sep + os.path.basename(nzbfilename)
             nzb.nzbFileName = nzbfilename
 
@@ -491,7 +491,7 @@ def forceNZBParRecover(nzb):
 
     if not len(Hellanzb.queued_nzbs) and not len(Hellanzb.queue.currentNZBs()):
         new = Hellanzb.CURRENT_DIR + os.sep + os.path.basename(nzb.nzbFileName)
-        move(nzb.nzbFileName, new)
+        umove(nzb.nzbFileName, new)
         nzb.nzbFileName = new
 
         # FIXME: Would be nice to include the number of needed recovery blocks in the

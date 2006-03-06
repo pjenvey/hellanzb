@@ -1,4 +1,4 @@
-#!/usr/bin/env python
+#!/opt/local/bin/python
 """
 
 test - Run all or a specific test
@@ -18,9 +18,9 @@ def suite(testName = None):
             module = __import__('Hellanzb.test.' + packageName, globals(), locals(), packageName)
             klass = getattr(module, packageName)
             if klass.skip:
-                print 'Skipping test: %s' % packageName
+                print 'Skipping: %s' % packageName
             else:
-                print 'Loading test: %s' % packageName
+                print 'Loading: %s' % packageName
                 s.addTest(unittest.makeSuite(klass, 'test'))
     return s
 

@@ -11,7 +11,7 @@ from twisted.internet import reactor
 from Hellanzb.Log import *
 from Hellanzb.PostProcessorUtil import getParName, getParRecoveryName, isPar, isPar1, \
     isPar2, PAR1, PAR2
-from Hellanzb.Util import cleanDupeName, inMainThread, isHellaTemp, FatalError
+from Hellanzb.Util import cleanDupeName, inMainThread, isHellaTemp, prettySize, FatalError
 
 __id__ = '$Id$'
 
@@ -59,9 +59,6 @@ def smartDequeue(segment, readOnlyQueue = False):
         
     if not isQueuedRecoveryPar:
         # Extra par2 -- dequeue the rest of its segments
-        segment.nzbFile.isSkippedPar = True
-        segment.nzbFile.nzb.skippedParFiles.append(segment.nzbFile)
-
         dequeueSegments = segment.nzbFile.todoNzbSegments.copy()
         dequeueSegments.remove(segment)
 
@@ -87,6 +84,11 @@ def smartDequeue(segment, readOnlyQueue = False):
         # (readOnlyQueue). Don't bother printing it if we didn't actually dequeue anything
         if readOnlyQueue or not dequeuedCount == 0:
             info('Skipped %s: %s (%iMB)' % (parTypeName, segment.nzbFile.filename, size))
+            
+            # Only consider the nzbFile as skipped when there were actually segments
+            # dequeued, or if readOnlyQueue mode
+            segment.nzbFile.isSkippedPar = True
+            segment.nzbFile.nzb.skippedParFiles.append(segment.nzbFile)
     else:
         info('Queued %s: %s (%iMB, %i %s)' % (parTypeName, segment.nzbFile.filename,
                                               size, getParSize(segment.nzbFile.filename),
@@ -124,6 +126,16 @@ def smartRequeue(nzb):
             info('%s: didn\'t find a main par file, requeueing extra par: %s' % \
                  (nzb.archiveName, firstPar.filename))
             requeueSkippedPars([firstPar])
+
+def logSkippedParCount(nzb):
+    """ Print a message describing the number of and size of all skipped par files """
+    skippedParMB = 0
+    for nzbFile in nzb.skippedParFiles:
+        for nzbSegment in nzbFile.dequeuedSegments:
+            skippedParMB += nzbSegment.bytes
+    if skippedParMB > 0:
+        info('Skipped pars: Approx. %i files, %s' % (len(nzb.skippedParFiles),
+                                                     prettySize(skippedParMB)))
 
 PAR2_VOL_RE = re.compile(r'(.*)\.vol(\d*)\+(\d*)\.par2', re.I)
 def identifyPar(nzbFile):

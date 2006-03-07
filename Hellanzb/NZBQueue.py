@@ -514,7 +514,7 @@ def dequeueNZBs(nzbIdOrIds, quiet = False):
     for nzb in found:
         msg = 'Dequeueing: %s' % (nzb.archiveName)
         if os.path.isdir(Hellanzb.POSTPONED_DIR + os.sep + nzb.archiveName):
-            msg = '%s%s' % (msg, ' (archive has a postponed dir)')
+            msg = '%s%s' % (msg, ' (warning: archive has a postponed dir)')
             warn(msg)
         elif not quiet:
             info(msg)

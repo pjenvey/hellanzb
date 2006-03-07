@@ -445,9 +445,11 @@ def getFileExtension(filename):
 def touch(filename):
     """ Set the access/modified times of this file to the current time. Create the file if
     it does not exist """
-    fd = os.open(ufilename(filename), os.O_WRONLY | os.O_CREAT, 0666)
+    if Hellanzb.SYSNAME == "Darwin":
+        filename = fromUnicode(toUnicode(filename))
+    fd = os.open(filename, os.O_WRONLY | os.O_CREAT, 0666)
     os.close(fd)
-    os.utime(ufilename(filename), None)
+    os.utime(filename, None)
 
 def archiveName(dirName, unformatNewzbinNZB = True):
     """ Extract the name of the archive from the archive's absolute path, or its .nzb file

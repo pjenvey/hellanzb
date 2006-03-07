@@ -245,7 +245,7 @@ def isRar(fileName):
     if ext and ext.lower() == 'rar':
         return True
 
-    fh = uopen(fileName)
+    fh = open(fileName)
     firstFourBytes = fh.read(4)
     fh.close()
 
@@ -1004,11 +1004,11 @@ def assembleSplitFiles(dirName, toAssemble):
         info(msg)
         debug(msg + ' ' + str(parts))
         
-        assembledFile = uopen(dirName + os.sep + key, 'w')
+        assembledFile = open(dirName + os.sep + key, 'w')
         write = assembledFile.write
         
         for file in parts:
-            partFile = uopen(dirName + os.sep + file)
+            partFile = open(dirName + os.sep + file)
             read = partFile.read
             while True:
                 buf = read(BUF_SIZE)

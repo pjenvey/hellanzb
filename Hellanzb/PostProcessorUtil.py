@@ -212,6 +212,7 @@ class NeedMorePars(Exception):
         """ Construct with how many more blocks (par2) or par files (par1) are needed, the par
         type (constants PAR1 or PAR2) and the prefix (filename minus the extension) of the
         original par file that requested more pars"""
+        parPrefix = unorm(parPrefix)
         self.args = [size, parType, parPrefix]
         self.size, self.parType, self.parPrefix = int(size), parType, parPrefix
 

@@ -133,6 +133,8 @@ class NZB(Archive):
         self.totalBytes = 0
         self.totalSkippedBytes = 0
         self.totalReadBytes = 0
+        self.firstSegmentsDownloaded = 0
+        ##self.neededBlocks = 0 # ?
         for nzbFile in self.nzbFiles:
             nzbFile.totalSkippedBytes = 0
             nzbFile.totalReadBytes = 0

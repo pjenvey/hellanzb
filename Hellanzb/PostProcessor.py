@@ -137,7 +137,7 @@ class PostProcessor(Thread):
 
             # Write the queue to disk unless we've been stopped by a killed Topen (via
             # CTRL-C)
-            if not self.killed and self.background:
+            if not self.killed and not self.isSubDir and self.background:
                 Hellanzb.writeStateXML()
 
         # FIXME: This isn't the best place to GC. The best place would be when a download
@@ -191,7 +191,7 @@ class PostProcessor(Thread):
             Hellanzb.postProcessors.append(self)
             Hellanzb.postProcessorLock.release()
 
-            if self.background:
+            if not self.isSubDir and self.background:
                 Hellanzb.writeStateXML()
         
         try:
@@ -533,10 +533,11 @@ class PostProcessor(Thread):
             
             if os.path.isdir(pathjoin(self.dirName, file)):
                 if not self.isSubDir:
-                    troll = PostProcessor(self.archive, subDir = file)
+                    troll = PostProcessor(self.archive, background = self.background,
+                                          subDir = file)
                 else:
-                    troll = PostProcessor(self.archive, subDir = pathjoin(self.subDir,
-                                                                          file))
+                    troll = PostProcessor(self.archive, background = self.background,
+                                          subDir = pathjoin(self.subDir, file))
                 troll.run()
                 trolled += 1
 

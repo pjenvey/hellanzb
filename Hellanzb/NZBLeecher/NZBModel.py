@@ -130,7 +130,9 @@ class NZB(Archive):
     def cleanStats(self):
         """ Reset downlaod statistics """
         self.allParsMode = False
+        self.totalBytes = 0
         self.totalSkippedBytes = 0
+        self.totalReadBytes = 0
         for nzbFile in self.nzbFiles:
             nzbFile.totalSkippedBytes = 0
             nzbFile.totalReadBytes = 0

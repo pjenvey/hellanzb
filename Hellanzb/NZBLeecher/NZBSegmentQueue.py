@@ -482,7 +482,7 @@ class NZBSegmentQueue(PriorityQueue):
             # ->handleDupeNZBSegment->isBeingDownloaded) reads onDiskSegments
             self.onDiskSegments[nzbSegment.getDestination()] = nzbSegment
             
-            if nzbSegment.number == 1:
+            if nzbSegment.isFirstSegment():
                 nzbSegment.nzbFile.nzb.firstSegmentsDownloaded += 1
 
     def isBeingDownloadedFile(self, segmentFilename):
@@ -520,6 +520,18 @@ class NZBSegmentQueue(PriorityQueue):
             self.nzbDone(nzb)
             raise FatalError('Unable to parse Invalid NZB file: ' + os.path.basename(fileName))
 
+        # We trust the NZB XML's <segment number="111"> attribute, but if the sequence of
+        # segments does not begin at "1", the parser wouldn't have found the
+        # nzbFile.firstSegment
+        for needWorkFile in nzbp.needWorkFiles:
+            if needWorkFile.firstSegment is None and len(needWorkFile.nzbSegments):
+                # Set the firstSegment to the smallest segment number
+                sortedSegments = [(nzbSegment.number, nzbSegment) for nzbSegment in \
+                                  needWorkFile.nzbSegments]
+                sortedSegments.sort()
+                needWorkFile.firstSegment = sortedSegments[0][1]
+                needWorkFile.firstSegment.priority = NZBSegmentQueue.NZB_CONTENT_P
+
         s = time.time()
         # The parser will add all the segments of all the NZBFiles that have not already
         # been downloaded. After the parsing, we'll check if each of those segments have
@@ -529,6 +541,22 @@ class NZBSegmentQueue(PriorityQueue):
                                                                            nzb.overwriteZeroByteFiles)
         e = time.time() - s
 
+        # FIXME: firstSegmentsDownloaded need to be tweaked if isSkippedPar and no
+        # segments were found on disk by segmentsNeedDownload
+        """
+        if Hellanzb.SMART_PAR and nzb.isParRecovery:
+            # FIXME: this doesn't work either. the value is: len(nzbFiles) -
+            # len(zeroByteNZBFiles)
+            nzb.firstSegmentsDownloaded = len(nzb.nzbFiles)
+        '''
+            for nzbFile in needWorkFiles:
+                if nzbFile.isSkippedPar and \
+                        len(nzbFile.todoNzbSegments) == len(nzbFile.nzbSegments):
+                    nzbFile.nzb.firstSegmentsDownloaded += 1
+                    '''
+        """
+                    
+        # Calculate and print parsed/skipped/queued statistics
         skippedPars = 0
         queuedParBlocks = 0
         for nzbFile in needDlFiles:
@@ -603,10 +631,9 @@ class NZBSegmentQueue(PriorityQueue):
                 not len(self):
             msg = 'Par recovery download: Not sure what specific pars are needed -- downloading all pars'
             if skippedPars:
-                msg = '%s (%s)' % (msg, skippedParsMsg)
+                msg = '%s (%i par files)' % (msg, skippedPars)
             if verbose:
                 info(msg)
-            nzb.isParRecovery = False
             for nzbSegment in needDlSegments:
                 if nzbSegment.nzbFile.isSkippedPar:
                     self.put((nzbSegment.priority, nzbSegment))

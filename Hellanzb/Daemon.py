@@ -71,7 +71,7 @@ def ensureCleanDirs():
 
 def initDaemon():
     """ Start the daemon """
-    Hellanzb.queued_nzbs = []
+    Hellanzb.nzbQueue = []
     Hellanzb.loggedIdleMessage = True
 
     try:
@@ -331,7 +331,7 @@ def continueCurrent():
 def clearCurrent(andCancel):
     """ Clear the queue -- optionally clear what's currently being downloaded (cancel it) """
     info('Clearing queue')
-    dequeueNZBs([nzb.id for nzb in Hellanzb.queued_nzbs], quiet = True)
+    dequeueNZBs([nzb.id for nzb in Hellanzb.nzbQueue], quiet = True)
     
     if andCancel:
         cancelCurrent()
@@ -391,7 +391,7 @@ def setRarPassword(nzbId, rarPassword):
     # Find the nzbId in the queued list, processing list, or currently downloading nzb
     found = None
     for collection in (Hellanzb.queue.currentNZBs(), Hellanzb.postProcessors,
-                       Hellanzb.queued_nzbs):
+                       Hellanzb.nzbQueue):
         for nzbOrArchive in collection:
             if nzbOrArchive.id == nzbId:
                 found = nzbOrArchive
@@ -414,7 +414,7 @@ def forceNZBId(nzbId):
         return False
 
     foundNZB = None
-    for nzb in Hellanzb.queued_nzbs:
+    for nzb in Hellanzb.nzbQueue:
         if nzb.id == nzbId:
             foundNZB = nzb
             
@@ -444,12 +444,12 @@ def forceNZB(nzbfilename, notification = 'Forcing download'):
             
             umove(nzb.nzbFileName, Hellanzb.QUEUE_DIR + os.sep + os.path.basename(nzb.nzbFileName))
             nzb.nzbFileName = Hellanzb.QUEUE_DIR + os.sep + os.path.basename(nzb.nzbFileName)
-            Hellanzb.queued_nzbs.insert(0, nzb)
+            Hellanzb.nzbQueue.insert(0, nzb)
             writeStateXML()
 
             # remove what we've forced with from the old queue, if it exists
             nzb = None
-            for n in Hellanzb.queued_nzbs:
+            for n in Hellanzb.nzbQueue:
                 if os.path.normpath(n.nzbFileName) == os.path.normpath(nzbfilename):
                     nzb = n
                     
@@ -457,7 +457,7 @@ def forceNZB(nzbfilename, notification = 'Forcing download'):
                 from Hellanzb.NZBLeecher.NZBModel import NZB
                 nzb = NZB(nzbfilename)
             else:
-                Hellanzb.queued_nzbs.remove(nzb)
+                Hellanzb.nzbQueue.remove(nzb)
     
             # Move the postponed files to the new postponed dir
             for file in os.listdir(Hellanzb.WORKING_DIR):
@@ -489,7 +489,7 @@ def forceNZBParRecover(nzb):
     amount) for the specified NZB """
     nzb.isParRecovery = True
 
-    if not len(Hellanzb.queued_nzbs) and not len(Hellanzb.queue.currentNZBs()):
+    if not len(Hellanzb.nzbQueue) and not len(Hellanzb.queue.currentNZBs()):
         new = Hellanzb.CURRENT_DIR + os.sep + os.path.basename(nzb.nzbFileName)
         umove(nzb.nzbFileName, new)
         nzb.nzbFileName = new
@@ -504,7 +504,7 @@ def forceNZBParRecover(nzb):
         nzb.destDir = Hellanzb.WORKING_DIR
         parseNZB(nzb, 'Downloading recovery pars')
     else:
-        Hellanzb.queued_nzbs.insert(0, nzb)
+        Hellanzb.nzbQueue.insert(0, nzb)
         forceNZB(nzb.nzbFileName, 'Forcing par recovery download')
 
 """

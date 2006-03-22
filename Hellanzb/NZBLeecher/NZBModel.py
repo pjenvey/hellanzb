@@ -133,6 +133,8 @@ class NZB(Archive):
         self.totalBytes = 0
         self.totalSkippedBytes = 0
         self.totalReadBytes = 0
+        self.firstSegmentsDownloaded = 0
+        ##self.neededBlocks = 0 # ?
         for nzbFile in self.nzbFiles:
             nzbFile.totalSkippedBytes = 0
             nzbFile.totalReadBytes = 0
@@ -233,7 +235,7 @@ class NZB(Archive):
                 self.postProcessor in Hellanzb.postProcessors:
             type = 'processing'
             attribs['nzbFileName'] = os.path.basename(self.nzbFileName)
-        elif self in Hellanzb.queued_nzbs:
+        elif self in Hellanzb.nzbQueue:
             type = 'queued'
         else:
             return
@@ -568,6 +570,10 @@ class NZBSegment:
         # Delete the copy on disk ASAP
         nuke(Hellanzb.DOWNLOAD_TEMP_DIR + os.sep + self.getTempFileName() + '_ENC')
 
+    def isFirstSegment(self):
+        """ Determine whether or not this is the first segment """
+        return self is self.nzbFile.firstSegment
+
     def smartDequeue(self, readOnlyQueue = False):
         """ Shortcut to the SmartPar function of the same name """
         smartDequeue(self, readOnlyQueue)
@@ -650,7 +656,7 @@ def segmentsNeedDownload(segmentList, overwriteZeroByteSegments = False):
             needDlSegments.append(segment)
             needDlFiles.add(segment.nzbFile)
         else:
-            if segment.number == 1 and not isHellaTemp(foundFileName) and \
+            if segment.isFirstSegment() and not isHellaTemp(foundFileName) and \
                     segment.nzbFile.filename is None:
                 # HACK: filename is None. so we only have the temporary name in
                 # memory. since we didnt see the temporary name on the filesystem, but we

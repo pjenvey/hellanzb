@@ -466,7 +466,7 @@ def initLogging():
     # map of ascii colors. for the kids
     Hellanzb.ACODE = ASCIICodes()
 
-    Hellanzb.recentLogs = RecentLogEntries(15)
+    Hellanzb.recentLogs = RecentLogEntries(20)
 
 def initLogFile(logFile = None, debugLogFile = None):
     """ Initialize the log file. This has to be done after the config is loaded """

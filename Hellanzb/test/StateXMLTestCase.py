@@ -30,7 +30,7 @@ class StateXMLTestCase(HellanzbTestCase):
         self.stateXMLFile = open(self.stateXMLFileName, 'w')
         Hellanzb.queue = NZBSegmentQueue()
         Hellanzb.postProcessors = []
-        Hellanzb.queued_nzbs = []
+        Hellanzb.nzbQueue = []
 
     def tearDown(self):
         HellanzbTestCase.tearDown(self)

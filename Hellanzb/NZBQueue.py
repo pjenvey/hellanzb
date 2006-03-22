@@ -3,7 +3,7 @@
 NZBQueue - Maintains NZB files queued to be downloaded in the future
 
 These are all module level functions that operate on the main Hellanzb queue, located at
-Hellanzb.queued_nzbs
+Hellanzb.nzbQueue
 
 (c) Copyright 2005 Philip Jenvey
 [See end of file]
@@ -127,7 +127,7 @@ def scanQueueDir(firstRun = False, justScan = False):
     displayNotification = False
     new_nzbs = []
     queuedMap = {}
-    for nzb in Hellanzb.queued_nzbs:
+    for nzb in Hellanzb.nzbQueue:
         queuedMap[os.path.normpath(nzb.nzbFileName)] = nzb
 
     for file in os.listdir(Hellanzb.QUEUE_DIR):
@@ -140,7 +140,7 @@ def scanQueueDir(firstRun = False, justScan = False):
 
     # Remove anything no longer in the queue directory
     for nzb in queuedMap.itervalues():
-        Hellanzb.queued_nzbs.remove(nzb)
+        Hellanzb.nzbQueue.remove(nzb)
 
     if firstRun:
         # enqueueNZBs() will delete the recovered state. Save it beforehand for sorting
@@ -162,7 +162,7 @@ def scanQueueDir(firstRun = False, justScan = False):
     #    debug('Ziplick scanQueueDir: ' + Hellanzb.QUEUE_DIR)
 
     if not current_nzbs:
-        if not Hellanzb.queued_nzbs:
+        if not Hellanzb.nzbQueue:
             if firstRun:
                 writeStateXML()
 
@@ -175,15 +175,15 @@ def scanQueueDir(firstRun = False, justScan = False):
             return
 
         # Start the next download
-        nzb = Hellanzb.queued_nzbs[0]
+        nzb = Hellanzb.nzbQueue[0]
         nzbfilename = os.path.basename(nzb.nzbFileName)
-        del Hellanzb.queued_nzbs[0]
+        del Hellanzb.nzbQueue[0]
     
         # nzbfile will always be a absolute filename 
         nzbfile = Hellanzb.QUEUE_DIR + nzbfilename
         move(nzbfile, Hellanzb.CURRENT_DIR)
 
-        if not (len(new_nzbs) == 1 and len(Hellanzb.queued_nzbs) == 0):
+        if not (len(new_nzbs) == 1 and len(Hellanzb.nzbQueue) == 0):
             # Show what's going to be downloaded next, unless the queue was empty, and we
             # only found one nzb (The 'Found new nzb' message is enough in that case)
             displayNotification = True
@@ -220,19 +220,19 @@ def sortQueueFromRecoveredState(queuedRecoveredState):
                    queuedRecoveredState.iteritems()]
     onDiskQueue.sort()
     
-    unsorted = Hellanzb.queued_nzbs[:]
-    Hellanzb.queued_nzbs = []
+    unsorted = Hellanzb.nzbQueue[:]
+    Hellanzb.nzbQueue = []
     arranged = []
     for order, archiveName in onDiskQueue:
         for nzb in unsorted:
             if nzb.archiveName == archiveName:
-                Hellanzb.queued_nzbs.append(nzb)
+                Hellanzb.nzbQueue.append(nzb)
                 arranged.append(nzb)
                 break
     for nzb in arranged:
         unsorted.remove(nzb)
     for nzb in unsorted:
-        Hellanzb.queued_nzbs.append(nzb)
+        Hellanzb.nzbQueue.append(nzb)
             
 def recoverStateFromDisk(filename = None):
     """ Load hellanzb state from the on disk XML """
@@ -285,7 +285,7 @@ def _writeStateXML(outFile):
     postProcessors = Hellanzb.postProcessors[:]
     Hellanzb.postProcessorLock.release()
 
-    for container in (Hellanzb.queue.currentNZBs(), postProcessors, Hellanzb.queued_nzbs):
+    for container in (Hellanzb.queue.currentNZBs(), postProcessors, Hellanzb.nzbQueue):
         for item in container:
             item.toStateXML(writer)
 
@@ -461,7 +461,7 @@ def moveUp(nzbId, shift = 1, moveDown = False):
             
     i = 0
     foundNzb = None
-    for nzb in Hellanzb.queued_nzbs:
+    for nzb in Hellanzb.nzbQueue:
         if nzb.id == nzbId:
             foundNzb = nzb
             break
@@ -473,15 +473,15 @@ def moveUp(nzbId, shift = 1, moveDown = False):
     if i - shift <= -1 and not moveDown:
         # can't go any higher
         return False
-    elif i + shift >= len(Hellanzb.queued_nzbs) and moveDown:
+    elif i + shift >= len(Hellanzb.nzbQueue) and moveDown:
         # can't go any lower
         return False
 
-    Hellanzb.queued_nzbs.remove(foundNzb)
+    Hellanzb.nzbQueue.remove(foundNzb)
     if not moveDown:
-        Hellanzb.queued_nzbs.insert(i - shift, foundNzb)
+        Hellanzb.nzbQueue.insert(i - shift, foundNzb)
     else:
-        Hellanzb.queued_nzbs.insert(i + shift, foundNzb)
+        Hellanzb.nzbQueue.insert(i + shift, foundNzb)
     writeStateXML()
     return True
 
@@ -508,7 +508,7 @@ def dequeueNZBs(nzbIdOrIds, quiet = False):
             error = True
             continue
         
-        for nzb in Hellanzb.queued_nzbs:
+        for nzb in Hellanzb.nzbQueue:
             if nzb.id == nzbId:
                 found.append(nzb)
     for nzb in found:
@@ -520,7 +520,7 @@ def dequeueNZBs(nzbIdOrIds, quiet = False):
             info(msg)
         move(nzb.nzbFileName, Hellanzb.DEQUEUED_NZBS_DIR + os.sep + \
              os.path.basename(nzb.nzbFileName))
-        Hellanzb.queued_nzbs.remove(nzb)
+        Hellanzb.nzbQueue.remove(nzb)
         
     writeStateXML()
     return not error
@@ -560,7 +560,7 @@ def enqueueNZBs(nzbFileOrFiles, next = False, writeQueue = True):
             nzbFile = Hellanzb.QUEUE_DIR + os.sep + os.path.basename(nzbFile)
 
             found = False
-            for n in Hellanzb.queued_nzbs:
+            for n in Hellanzb.nzbQueue:
                 if os.path.normpath(n.nzbFileName) == os.path.normpath(nzbFile):
                     found = True
                     error('Unable to add nzb file to queue: ' + os.path.basename(nzbFile) + \
@@ -572,9 +572,9 @@ def enqueueNZBs(nzbFileOrFiles, next = False, writeQueue = True):
             name = os.path.basename(nzbFile)
             nzb = NZB.fromStateXML('queued', nzbFile)
             if not next:
-                Hellanzb.queued_nzbs.append(nzb)
+                Hellanzb.nzbQueue.append(nzb)
             else:
-                Hellanzb.queued_nzbs.insert(0, nzb)
+                Hellanzb.nzbQueue.insert(0, nzb)
 
             logMsg = msg = 'Found new nzb'
             if nzb.msgid is not None:
@@ -601,15 +601,15 @@ def nextNZBId(nzbId):
         return False
 
     foundNZB = None
-    for nzb in Hellanzb.queued_nzbs:
+    for nzb in Hellanzb.nzbQueue:
         if nzb.id == nzbId:
             foundNZB = nzb
             
     if not foundNZB:
         return True
 
-    Hellanzb.queued_nzbs.remove(foundNZB)
-    Hellanzb.queued_nzbs.insert(0, foundNZB)
+    Hellanzb.nzbQueue.remove(foundNZB)
+    Hellanzb.nzbQueue.insert(0, foundNZB)
 
     writeStateXML()
     return True
@@ -622,15 +622,15 @@ def lastNZB(nzbId):
         return False
 
     foundNZB = None
-    for nzb in Hellanzb.queued_nzbs:
+    for nzb in Hellanzb.nzbQueue:
         if nzb.id == nzbId:
             foundNZB = nzb
             
     if not foundNZB:
         return True
     
-    Hellanzb.queued_nzbs.remove(foundNZB)
-    Hellanzb.queued_nzbs.append(foundNZB)
+    Hellanzb.nzbQueue.remove(foundNZB)
+    Hellanzb.nzbQueue.append(foundNZB)
 
     writeStateXML()
     return True
@@ -648,15 +648,15 @@ def moveNZB(nzbId, index):
         return False
 
     foundNZB = None
-    for nzb in Hellanzb.queued_nzbs:
+    for nzb in Hellanzb.nzbQueue:
         if nzb.id == nzbId:
             foundNZB = nzb
             
     if not foundNZB:
         return True
     
-    Hellanzb.queued_nzbs.remove(foundNZB)
-    Hellanzb.queued_nzbs.insert(index - 1, foundNZB)
+    Hellanzb.nzbQueue.remove(foundNZB)
+    Hellanzb.nzbQueue.insert(index - 1, foundNZB)
 
     writeStateXML()
     return True
@@ -665,7 +665,7 @@ def listQueue(includeIds = True, convertToUnicode = True):
     """ Return a listing of the current queue. By default this function will convert all
     strings to unicode, as it's only used right now for the return of XMLRPC calls """
     members = []
-    for nzb in Hellanzb.queued_nzbs:
+    for nzb in Hellanzb.nzbQueue:
         if includeIds:
             name = archiveName(os.path.basename(nzb.nzbFileName))
             rarPassword = nzb.rarPassword

@@ -49,7 +49,7 @@ def decode(segment):
               ' a problem occurred during decoding', e)
         touch(segment.getDestination())
 
-    if Hellanzb.SMART_PAR and segment.number == 1:
+    if Hellanzb.SMART_PAR and segment.isFirstSegment():
         # This will dequeue all of this segment's sibling segments that are still in the
         # NZBSegmentQueue. Segments that aren't in the queue are either:
         # o already decoded and on disk
@@ -71,8 +71,8 @@ def decode(segment):
     if handleCanceledSegment(segment):
         return
 
-    if segment.number == 1 and segment.nzbFile.nzb.firstSegmentsDownloaded == \
-                len(segment.nzbFile.nzb.nzbFiles):
+    if Hellanzb.SMART_PAR and segment.isFirstSegment() and \
+            segment.nzbFile.nzb.firstSegmentsDownloaded == len(segment.nzbFile.nzb.nzbFiles):
         # Done downloading all first segments. Check for a few special situations that
         # warrant requeueing of files
         segment.smartRequeue()
@@ -374,9 +374,10 @@ def yDecodeFileSizeCheck(segment, size):
 
 def handleIOError(ioe):
     if ioe.errno == 28:
-        error('No space left on device!')
-        pauseCurrent()
-        growlNotify('Error', 'hellanzb Download Paused', 'No space left on device!', True)
+        if not Hellanzb.downloadPaused:
+            error('No space left on device!')
+            pauseCurrent()
+            growlNotify('Error', 'hellanzb Download Paused', 'No space left on device!', True)
         raise OutOfDiskSpace('LOL BURN SOME DVDS LOL')
     else:
         debug('handleIOError: got: %s' % str(ioe))

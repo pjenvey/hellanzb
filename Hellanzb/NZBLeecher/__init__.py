@@ -310,11 +310,10 @@ class NZBLeecher(NNTPClient, TimeoutMixin):
         # we'll quiet it by canceling it
         if Hellanzb.SHUTDOWN:
             self.factory.stopTrying()
-            return
 
         NNTPClient.connectionLost(self) # calls self.factory.clientConnectionLost(self, reason)
 
-        if self.currentSegment != None:
+        if not Hellanzb.SHUTDOWN and self.currentSegment != None:
             if (self.currentSegment.priority, self.currentSegment) in Hellanzb.scroller.segments:
                 Hellanzb.scroller.removeClient(self.currentSegment)
 
@@ -505,9 +504,14 @@ class NZBLeecher(NNTPClient, TimeoutMixin):
     def fetchBody(self, index):
         debug(str(self) + ' getting BODY: <' + self.currentSegment.messageId + '> ' + \
               self.currentSegment.getDestination())
-        start = Hellanzb.preReadTime
-        if self.currentSegment.nzbFile.downloadStartTime == None:
-            self.currentSegment.nzbFile.downloadStartTime = start
+
+        # Reset the file's start time if it doesn't exist
+        # KLUDGE: OR if we're downloading segment #2. Otherwise segment 1 downloads mess
+        # up the downloadStartTime value. However this makes it inaccurate in regards to
+        # the amount downloaded (when was it ever that accurate anyway?)
+        if self.currentSegment.nzbFile.downloadStartTime == None or \
+                self.currentSegment.number == 2:
+            self.currentSegment.nzbFile.downloadStartTime = Hellanzb.preReadTime
         
         Hellanzb.scroller.addClient(self.currentSegment)
 

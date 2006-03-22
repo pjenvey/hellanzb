@@ -380,9 +380,10 @@ def yDecodeFileSizeCheck(segment, size):
 
 def handleIOError(ioe):
     if ioe.errno == 28:
-        error('No space left on device!')
-        pauseCurrent()
-        growlNotify('Error', 'hellanzb Download Paused', 'No space left on device!', True)
+        if not Hellanzb.downloadPaused:
+            error('No space left on device!')
+            pauseCurrent()
+            growlNotify('Error', 'hellanzb Download Paused', 'No space left on device!', True)
         raise OutOfDiskSpace('LOL BURN SOME DVDS LOL')
     else:
         debug('handleIOError: got: %s' % str(ioe))

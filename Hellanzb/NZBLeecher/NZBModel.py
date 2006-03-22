@@ -235,7 +235,7 @@ class NZB(Archive):
                 self.postProcessor in Hellanzb.postProcessors:
             type = 'processing'
             attribs['nzbFileName'] = os.path.basename(self.nzbFileName)
-        elif self in Hellanzb.queued_nzbs:
+        elif self in Hellanzb.nzbQueue:
             type = 'queued'
         else:
             return

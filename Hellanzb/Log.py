@@ -40,9 +40,10 @@ def error(message, exception = None):
     
     Hellanzb.logger.error('%s\n' % message)
 
-def info(message, appendLF = True):
+def info(message, appendLF = True, saveRecent = True):
     """ Log a message at the info level """
-    Hellanzb.recentLogs.append(logging.INFO, message)
+    if saveRecent:
+        Hellanzb.recentLogs.append(logging.INFO, message)
     
     if appendLF:
         message = '%s\n' % message
@@ -144,7 +145,7 @@ def _scrollEnd():
     stdinEchoOn()
     ScrollableHandler.scrollFlag = False
 
-    info('')
+    info('', saveRecent = False)
     
 def scrollEnd():
     """ Let the logger know we're done scrolling """

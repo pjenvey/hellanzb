@@ -546,10 +546,15 @@ class NZBSegmentQueue(PriorityQueue):
         # segments were found on disk by segmentsNeedDownload
         """
         if Hellanzb.SMART_PAR and nzb.isParRecovery:
+            # FIXME: this doesn't work either. the value is: len(nzbFiles) -
+            # len(zeroByteNZBFiles)
+            nzb.firstSegmentsDownloaded = len(nzb.nzbFiles)
+        '''
             for nzbFile in needWorkFiles:
                 if nzbFile.isSkippedPar and \
                         len(nzbFile.todoNzbSegments) == len(nzbFile.nzbSegments):
                     nzbFile.nzb.firstSegmentsDownloaded += 1
+                    '''
         """
                     
         # Calculate and print parsed/skipped/queued statistics

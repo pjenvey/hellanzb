@@ -49,7 +49,7 @@ def decode(segment):
               ' a problem occurred during decoding', e)
         touch(segment.getDestination())
 
-    if Hellanzb.SMART_PAR and segment.number == 1:
+    if Hellanzb.SMART_PAR and segment.isFirstSegment():
         # This will dequeue all of this segment's sibling segments that are still in the
         # NZBSegmentQueue. Segments that aren't in the queue are either:
         # o already decoded and on disk
@@ -71,8 +71,8 @@ def decode(segment):
     if handleCanceledSegment(segment):
         return
 
-    if segment.number == 1 and segment.nzbFile.nzb.firstSegmentsDownloaded == \
-                len(segment.nzbFile.nzb.nzbFiles):
+    if Hellanzb.SMART_PAR and segment.isFirstSegment() and \
+            segment.nzbFile.nzb.firstSegmentsDownloaded == len(segment.nzbFile.nzb.nzbFiles):
         # Done downloading all first segments. Check for a few special situations that
         # warrant requeueing of files
         segment.nzbFile.nzb.smartRequeue()

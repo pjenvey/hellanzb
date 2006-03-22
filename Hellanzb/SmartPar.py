@@ -24,7 +24,7 @@ def smartDequeue(segment, readOnlyQueue = False):
     recovery data), this function will determine whether or not the rest of the nzbFile
     segments need to be downloaded (dequeueing them from the NZBSegmentQueue when
     necessary, unless the readOnlyQueue is True) """
-    if segment.number != 1:
+    if not segment.isFirstSegment():
         raise FatalError('smartDequeue on number > 1')
 
     if segment.nzbFile.filename is None:
@@ -130,12 +130,15 @@ def smartRequeue(nzb):
 def logSkippedParCount(nzb):
     """ Print a message describing the number of and size of all skipped par files """
     skippedParMB = 0
+    actualSkippedParMB = 0
     for nzbFile in nzb.skippedParFiles:
+        skippedParMB += nzbFile.totalBytes
         for nzbSegment in nzbFile.dequeuedSegments:
-            skippedParMB += nzbSegment.bytes
-    if skippedParMB > 0:
-        info('Skipped pars: Approx. %i files, %s' % (len(nzb.skippedParFiles),
-                                                     prettySize(skippedParMB)))
+            actualSkippedParMB += nzbSegment.bytes
+    if actualSkippedParMB > 0:
+        info('Skipped pars: Approx. %i files, %s (actual: %s)' % \
+             (len(nzb.skippedParFiles), prettySize(skippedParMB),
+              prettySize(actualSkippedParMB)))
 
 PAR2_VOL_RE = re.compile(r'(.*)\.vol(\d*)\+(\d*)\.par2', re.I)
 def identifyPar(nzbFile):

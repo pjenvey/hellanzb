@@ -571,6 +571,10 @@ class NZBSegment:
         # Delete the copy on disk ASAP
         nuke(Hellanzb.DOWNLOAD_TEMP_DIR + os.sep + self.getTempFileName() + '_ENC')
 
+    def isFirstSegment(self):
+        """ Determine whether or not this is the first segment """
+        return self is self.nzbFile.firstSegment
+
     def smartDequeue(self, readOnlyQueue = False):
         """ Shortcut to the SmartPar function of the same name """
         smartDequeue(self, readOnlyQueue)
@@ -648,7 +652,7 @@ def segmentsNeedDownload(segmentList, overwriteZeroByteSegments = False):
             needDlSegments.append(segment)
             needDlFiles.add(segment.nzbFile)
         else:
-            if segment.number == 1 and not isHellaTemp(foundFileName) and \
+            if segment.isFirstSegment() and not isHellaTemp(foundFileName) and \
                     segment.nzbFile.filename is None:
                 # HACK: filename is None. so we only have the temporary name in
                 # memory. since we didnt see the temporary name on the filesystem, but we

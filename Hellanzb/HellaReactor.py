@@ -19,7 +19,6 @@ else:
     from twisted.internet.default import _NO_FILEDESC
 
 from twisted.internet.main import installReactor
-from twisted.protocols.policies import ThrottlingProtocol
 from twisted.python import log, failure
 from Hellanzb.Log import *
 
@@ -77,6 +76,9 @@ class HellaReactor(SelectReactor):
             elif handfn() == -1:
                 why = _NO_FILEDESC
         except IOError, ioe:
+            # NOTE: Importing this in the module causes TimeoutMixin to not work. ???
+            from twisted.protocols.policies import ThrottlingProtocol
+            
             # Handle OutOfDiskSpace exceptions. Piggybacking this check into the reactor
             # here uses less CPU than try: excepting in NZBLeecher.dataReceived
             if selectable.protocol.__class__ is ThrottlingProtocol:

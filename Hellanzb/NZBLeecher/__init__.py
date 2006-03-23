@@ -878,6 +878,9 @@ def initNZBLeecher():
     sysInfoMsg += '. python defaultencoding: %s, filesystemencoding: %s' % \
         (sys.getdefaultencoding(), sys.getfilesystemencoding())
     debug(sysInfoMsg)
+    debug('python: %s' % sys.version)
+    uname = os.uname()
+    debug('os: %s-%s (%s)' % (uname[0], uname[2], uname[4]))
     
     # Direct twisted log output to the debug level
     twistedTimestampLen = len('2006/02/10 23:59 PST ')

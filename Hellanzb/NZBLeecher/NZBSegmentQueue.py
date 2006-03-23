@@ -16,7 +16,7 @@ from Hellanzb.Log import *
 from Hellanzb.Util import EmptyForThisPool, PoolsExhausted, PriorityQueue, OutOfDiskSpace, \
     DUPE_SUFFIX, fromUnicode, isHellaTemp, unorm, uremove
 from Hellanzb.PostProcessorUtil import getParRecoveryName
-from Hellanzb.SmartPar import getParSize, smartRequeue
+from Hellanzb.SmartPar import getParSize, logSkippedPars, smartRequeue
 from Hellanzb.NZBLeecher.ArticleDecoder import assembleNZBFile
 from Hellanzb.NZBLeecher.DupeHandler import handleDupeOnDisk
 from Hellanzb.NZBLeecher.NZBLeecherUtil import validWorkingFile
@@ -626,6 +626,8 @@ class NZBSegmentQueue(PriorityQueue):
         if len(nzb.skippedParFiles):
             # Requeue files in certain situations
             smartRequeue(nzb)
+            if nzb.firstSegmentsDownloaded == len(nzb.nzbFiles):
+                logSkippedPars(nzb)
                 
         if nzb.isParRecovery and nzb.skippedParSubjects and len(nzb.skippedParSubjects) and \
                 not len(self):

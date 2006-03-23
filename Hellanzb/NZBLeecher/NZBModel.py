@@ -15,7 +15,7 @@ from Hellanzb.NZBLeecher.ArticleDecoder import parseArticleData, setRealFileName
 from Hellanzb.NZBLeecher.DupeHandler import handleDupeNZBFileNeedsDownload
 from Hellanzb.NZBLeecher.NZBLeecherUtil import validWorkingFile
 from Hellanzb.PostProcessorUtil import Archive, getParEnum, getParName
-from Hellanzb.SmartPar import smartDequeue, smartRequeue, identifyPar
+from Hellanzb.SmartPar import identifyPar, logSkippedPars, smartDequeue, smartRequeue
 
 __id__ = '$Id$'
 
@@ -293,6 +293,10 @@ class NZB(Archive):
 
         return nzb
     fromStateXML = staticmethod(fromStateXML)
+        
+    def logSkippedPars(self):
+        """ Shortcut to the SmartPar function of the same name """
+        logSkippedPars(self)
         
 class NZBFile:
     """ <nzb><file/><nzb> """

@@ -474,36 +474,14 @@ class PostProcessor(Thread):
             except ParExpectsUnsplitFiles:
                 info(archiveName(self.dirName) + ': This archive requires assembly before running par2')
                 assembleSplitFiles(self.dirName, needAssembly)
-                processPars(self, None)
-                
+                try:
+                    processPars(self, None)
+                except NeedMorePars, nmp:
+                    if self.triggerParRecovery(nmp):
+                        return
             except NeedMorePars, nmp:
-                if self.background and self.isNZBArchive() and self.hasMorePars:
-                    # Must download more pars. Move the archive to the postponed dir, and
-                    # triggere the special force call for par recoveries
-                    postponedDir = Hellanzb.POSTPONED_DIR + os.sep + \
-                        os.path.basename(self.dirName)
-                    move(self.dirName, postponedDir)
-                    self.archive.archiveDir = self.archive.destDir = postponedDir
-                    self.archive.nzbFileName = postponedDir + os.sep + \
-                        os.path.basename(self.archive.nzbFileName)
-
-                    info(archiveName(self.dirName) + \
-                         ': More pars avaialble, forcing extra par download')
-
-                    self.archive.neededBlocks, self.archive.parType, self.archive.parPrefix = \
-                        nmp.size, nmp.parType, nmp.parPrefix
-                    self.forcedRecovery = True
-
-                    def triggerRecovery():
-                        from twisted.internet import reactor
-                        from Hellanzb.Daemon import forceNZBParRecover # FIXME:
-                        reactor.callFromThread(forceNZBParRecover, self.archive)
-                    self.callback = triggerRecovery
+                if self.triggerParRecovery(nmp):
                     return
-                else:
-                    info(archiveName(self.dirName) + ': Failed par verify, requires ' + \
-                         nmp.neededBlocks + ' more recovery ' + \
-                         getParRecoveryName(nmp.parType))
 
         cleanSkippedPars(self.dirName)
 
@@ -545,6 +523,37 @@ class PostProcessor(Thread):
             cleanDupeFiles(self.dirName)
                 
         self.finishedPostProcess()
+
+    def triggerParRecovery(self, nmp):
+        """ Trigger a par recovery download for the specified NeedMorePars exception """
+        if self.background and self.isNZBArchive() and self.hasMorePars:
+            # Must download more pars. Move the archive to the postponed dir, and
+            # triggere the special force call for par recoveries
+            postponedDir = Hellanzb.POSTPONED_DIR + os.sep + \
+                os.path.basename(self.dirName)
+            move(self.dirName, postponedDir)
+            self.archive.archiveDir = self.archive.destDir = postponedDir
+            self.archive.nzbFileName = postponedDir + os.sep + \
+                os.path.basename(self.archive.nzbFileName)
+
+            info(archiveName(self.dirName) + \
+                 ': More pars avaialble, forcing extra par download')
+
+            self.archive.neededBlocks, self.archive.parType, self.archive.parPrefix = \
+                nmp.size, nmp.parType, nmp.parPrefix
+            self.forcedRecovery = True
+
+            def triggerRecovery():
+                from twisted.internet import reactor
+                from Hellanzb.Daemon import forceNZBParRecover # FIXME:
+                reactor.callFromThread(forceNZBParRecover, self.archive)
+            self.callback = triggerRecovery
+            return True
+        else:
+            info(archiveName(self.dirName) + ': Failed par verify, requires ' + \
+                 nmp.neededBlocks + ' more recovery ' + \
+                 getParRecoveryName(nmp.parType))
+        return False
 
 """
 Copyright (c) 2005 Philip Jenvey <pjenvey@groovie.org>

@@ -781,26 +781,6 @@ def par2(postProcessor, parFiles, wildcard, needAssembly = None):
         # Verified
         return
 
-    elif returnCode == 2 and postProcessor.hasMorePars:
-        # Damaged data, more par data is needed that hasn't been downloaded yet
-        damagedAndRequired, missingFiles, targetsFound, neededBlocks, parType = \
-            parseParNeedsBlocksOutput(archiveName(dirName), output)
-        
-        #growlNotify('Error', archiveName(dirName) + '\nNeed ' + neededBlocks + \
-        #            ' more recovery ' + needType, True)
-        warn(archiveName(dirName) + ': Failed par verify, requires ' + neededBlocks + \
-             ' more recovery ' + getParRecoveryName(parType))
-
-        parPrefix = None
-        if parType == PAR1:
-            # Remove '.*' from the wildcard of pattern: Data.part01.*
-            parPrefix = wildcard[:-2]
-        elif parType == PAR2:
-            # Remove '*.{par2,PAR2}' from the wildcard of pattern: dataGroupA*.{par2,PAR2}
-            parPrefix = wildcard[:-13]
-        
-        raise NeedMorePars(neededBlocks, parType, parPrefix)
-        
     elif returnCode == 2:
         # Repair required and impossible
 
@@ -816,6 +796,21 @@ def par2(postProcessor, parFiles, wildcard, needAssembly = None):
                 # Found a file we need to assemble for Par2. Throw us back out to handle
                 # that work, we'll run par2 again later
                 raise ParExpectsUnsplitFiles('')
+
+        if postProcessor.hasMorePars:
+            # Damaged data, more par data is needed that hasn't been downloaded yet
+            warn(archiveName(dirName) + ': Failed par verify, requires ' + neededBlocks + \
+                 ' more recovery ' + getParRecoveryName(parType))
+
+            parPrefix = None
+            if parType == PAR1:
+                # Remove '.*' from the wildcard of pattern: Data.part01.*
+                parPrefix = wildcard[:-2]
+            elif parType == PAR2:
+                # Remove '*.{par2,PAR2}' from the wildcard of pattern: dataGroupA*.{par2,PAR2}
+                parPrefix = wildcard[:-13]
+
+            raise NeedMorePars(neededBlocks, parType, parPrefix)
 
         # par did not find any valid 'Target:' files, and more blocks are needed. This is
         # probably a bad archive

@@ -11,7 +11,7 @@ from twisted.internet import reactor
 from Hellanzb.Log import *
 from Hellanzb.PostProcessorUtil import findPar2Groups, getParName, getParRecoveryName, \
     isPar, isPar1, isPar2, PAR1, PAR2
-from Hellanzb.Util import cleanDupeName, inMainThread, isHellaTemp, FatalError
+from Hellanzb.Util import cleanDupeName, inMainThread, isHellaTemp, prettySize, FatalError
 
 __id__ = '$Id$'
 
@@ -59,9 +59,6 @@ def smartDequeue(segment, readOnlyQueue = False, verbose = False):
         
     if not isQueuedRecoveryPar:
         # Extra par2 -- dequeue the rest of its segments
-        segment.nzbFile.isSkippedPar = True
-        segment.nzbFile.nzb.skippedParFiles.append(segment.nzbFile)
-
         dequeueSegments = segment.nzbFile.todoNzbSegments.copy()
         dequeueSegments.remove(segment)
 
@@ -92,6 +89,11 @@ def smartDequeue(segment, readOnlyQueue = False, verbose = False):
             elif not len(segment.nzbFile.nzb.skippedParFiles):
                 info('Skipping pars.. (Skipped %s: %s (%iMB))' % \
                      (parTypeName, segment.nzbFile.filename, size))
+            
+            # Only consider the nzbFile as skipped when there were actually segments
+            # dequeued, or if readOnlyQueue mode
+            segment.nzbFile.isSkippedPar = True
+            segment.nzbFile.nzb.skippedParFiles.append(segment.nzbFile)
     else:
         info('Queued %s: %s (%iMB, %i %s)' % (parTypeName, segment.nzbFile.filename,
                                               size, getParSize(segment.nzbFile.filename),

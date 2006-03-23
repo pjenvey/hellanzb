@@ -293,6 +293,10 @@ class NZB(Archive):
 
         return nzb
     fromStateXML = staticmethod(fromStateXML)
+
+    def smartRequeue(self):
+        """ Shortcut to the SmartPar function of the same name """
+        smartRequeue(self)
         
     def logSkippedPars(self):
         """ Shortcut to the SmartPar function of the same name """
@@ -444,6 +448,7 @@ class NZBFile:
         including dirname) of files lying in Hellanzb.WORKING_DIR """
         if os.path.isfile(self.getDestination()):
             # This block only handles matching temporary file names
+            self.nzb.firstSegmentsDownloaded += 1
             return False
 
         elif self.filename is None:
@@ -454,11 +459,8 @@ class NZBFile:
                 # If there is a par file fully assembled on disk, we don't care about
                 # skipping it
                 identifyPar(self)
-                return dupeNeedsDl
-
-            # First, check if this is one of the dupe files on disk
-            isDupe, dupeNeedsDl = handleDupeNZBFileNeedsDownload(self, workingDirDupeMap)
-            if isDupe:
+                if not dupeNeedsDl:
+                    self.nzb.firstSegmentsDownloaded += 1
                 return dupeNeedsDl
 
             # We only know about the temp filename. In that case, fall back to matching
@@ -475,6 +477,7 @@ class NZBFile:
                             debug('needsDownload: Found par on disk: %s isExtraPar: %s' % \
                                   (file, str(self.isExtraPar)))
                         
+                    self.nzb.firstSegmentsDownloaded += 1
                     return False
     
         return True
@@ -581,10 +584,6 @@ class NZBSegment:
     def smartDequeue(self, readOnlyQueue = False):
         """ Shortcut to the SmartPar function of the same name """
         smartDequeue(self, readOnlyQueue)
-
-    def smartRequeue(self):
-        """ Shortcut to the SmartPar function of the same name """
-        smartRequeue(self.nzbFile.nzb)
 
     #def __repr__(self):
     #    return 'segment: ' + os.path.basename(self.getDestination()) + ' number: ' + \

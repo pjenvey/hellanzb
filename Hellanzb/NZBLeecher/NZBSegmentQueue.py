@@ -14,7 +14,7 @@ from xml.sax import make_parser, SAXParseException
 from xml.sax.handler import ContentHandler, feature_external_ges, feature_namespaces
 from Hellanzb.Log import *
 from Hellanzb.Util import EmptyForThisPool, PoolsExhausted, PriorityQueue, OutOfDiskSpace, \
-    DUPE_SUFFIX, fromUnicode, isHellaTemp, unorm, uremove
+    DUPE_SUFFIX, fromUnicode, isHellaTemp, prettySize, unorm, uremove
 from Hellanzb.PostProcessorUtil import getParRecoveryName
 from Hellanzb.SmartPar import getParSize, logSkippedPars, smartRequeue
 from Hellanzb.NZBLeecher.ArticleDecoder import assembleNZBFile
@@ -567,25 +567,26 @@ class NZBSegmentQueue(PriorityQueue):
                     nzbFile.filename is not None and not isHellaTemp(nzbFile.filename):
                 queuedParBlocks += getParSize(nzbFile.filename)
 
-        onDiskCount = nzbp.fileCount - len(needWorkFiles)
-        msg = 'Parsed: %i posts (%i files' % (nzbp.segmentCount, nzbp.fileCount)
-        skippedParsMsg = ''
-        if skippedPars:
-            skippedParsMsg = '%i par files' % skippedPars
-        if onDiskCount:
-            msg = '%s, skipping %i on disk files' % (msg, onDiskCount)
-            if skippedPars:
-                msg = '%s & %s' % (msg, skippedParsMsg)
-        elif skippedPars:
-            msg = '%s, skipping %s' % (msg, skippedParsMsg)
-
-        if nzb.isParRecovery and queuedParBlocks:
-            if queuedParBlocks:
-                msg = '%s, recovering %i %s' % (msg, queuedParBlocks,
-                                                getParRecoveryName(nzb.parType))
-        msg += ')'
-        if verbose:
-            info(msg)
+        onDiskBytes = 0
+        for nzbSegment in onDiskSegments:
+            onDiskBytes += nzbSegment.bytes
+        for nzbFile in nzb.nzbFiles:
+            if nzbFile not in needDlFiles:
+                onDiskBytes += nzbFile.totalBytes
+        onDiskFilesCount = nzbp.fileCount - len(needWorkFiles)
+        onDiskSegmentsCount = len(onDiskSegments)
+        info('Parsed: %i files (%i posts), %s' % (nzbp.fileCount, nzbp.segmentCount,
+                                                  prettySize(nzb.totalBytes)))
+        if onDiskFilesCount or onDiskSegmentsCount:
+            filesMsg = segmentsMsg = separator = ''
+            if onDiskFilesCount:
+                filesMsg = '%i files' % onDiskFilesCount
+            if onDiskSegmentsCount:
+                segmentsMsg = '%i segments' % onDiskSegmentsCount
+            if onDiskFilesCount and onDiskSegmentsCount:
+                separator = ' and '
+            info('Skipped (on disk): %s%s%s, %s' % (filesMsg, separator, segmentsMsg,
+                                                    prettySize(onDiskBytes)))
 
         # Tally what was skipped for correct percentages in the UI
         for nzbSegment in onDiskSegments:
@@ -658,6 +659,10 @@ class NZBSegmentQueue(PriorityQueue):
 
         # Finally tally the size of the queue
         self.calculateTotalQueuedBytes()
+        dlMsg = 'Queued: %s' % prettySize(self.totalQueuedBytes)
+        if nzb.isParRecovery and queuedParBlocks:
+            dlMsg += ' (recovering %i %s)' % (queuedParBlocks, getParRecoveryName(nzb.parType))
+        info(dlMsg)
 
         # Archive not complete
         return False
@@ -731,6 +736,7 @@ class NZBParser(ContentHandler):
                     # Only download previously marked pars
                     self.fileNeedsDownload = False
                     extraMsg = ' (not on disk but wasn\'t previously marked as an skippedParFile)'
+                    self.file.nzb.firstSegmentsDownloaded += 1
                 elif self.nzb.parPrefix not in subject:
                     # Previously marked par -- only download it if it pertains to the
                     # particular par. We keep it set to needsDownload here so it gets to

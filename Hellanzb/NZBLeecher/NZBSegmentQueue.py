@@ -632,7 +632,7 @@ class NZBSegmentQueue(PriorityQueue):
                 
         if nzb.isParRecovery and nzb.skippedParSubjects and len(nzb.skippedParSubjects) and \
                 not len(self):
-            msg = 'Par recovery download: Not sure what specific pars are needed -- downloading all pars'
+            msg = 'Par recovery download: Not sure what specific pars are needed (parPrefix: %s) -- downloading all pars' % nzb.parPrefix
             if skippedPars:
                 msg = '%s (%i par files)' % (msg, skippedPars)
             if verbose:

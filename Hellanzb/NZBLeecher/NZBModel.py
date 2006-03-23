@@ -470,6 +470,9 @@ class NZBFile:
                 if self.subject.find(file) > -1:
                     # No need for setRealFileName(self, file)'s extra work here
                     self.filename = file
+                    
+                    # Prevent matching of this file multiple times
+                    workingDirListing.remove(file)
 
                     if Hellanzb.SMART_PAR:
                         identifyPar(self)

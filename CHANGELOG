@@ -17,6 +17,8 @@ o Rar passwords are now saved in between CTRL-Cs.
 
 o No longer leaving enqueuednewzbin/dequeued/cancelled NZBs in the TEMP_DIR
 
+o Added the Hellanzb.UMASK option to force umask in daemon mode
+
 
 v0.8:
 

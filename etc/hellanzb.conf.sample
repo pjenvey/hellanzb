@@ -97,7 +97,7 @@ Hellanzb.DELETE_PROCESSED = True
 #Hellanzb.SKIP_UNRAR = False
 
 # hellanzb inherits the umask from the current user's environment (unless it's
-# running in daemon mode). The umask can be forced here
+# running in daemon mode). The umask can be forced with this option
 #Hellanzb.UMASK = 0022
 
 

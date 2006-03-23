@@ -91,6 +91,10 @@ def initDaemon():
 
     if Hellanzb.DAEMONIZE:
         daemonize()
+
+    if hasattr(Hellanzb, 'UMASK'):
+        # umask here, as daemonize() might have just reset the value
+        os.umask(Hellanzb.UMASK)
     
     from Hellanzb.NZBLeecher import initNZBLeecher, startNZBLeecher
     initNZBLeecher()

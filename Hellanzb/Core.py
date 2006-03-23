@@ -326,7 +326,7 @@ def shutdownAndExit(returnCode = 0):
 
 def marquee():
     """ Print a simple header, for when starting the app """
-    info('')
+    info('', saveRecent = False)
     msg = 'hellanzb v' + Hellanzb.version
 
     options = ['config = %s' % Hellanzb.CONFIG_FILENAME]

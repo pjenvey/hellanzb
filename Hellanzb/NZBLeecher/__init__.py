@@ -9,7 +9,7 @@ Freddie (freddie@madcowdisease.org) utilizing the twisted framework
 (c) Copyright 2005 Philip Jenvey, Ben Bangert
 [See end of file]
 """
-import os, re, time, Hellanzb
+import os, re, sys, time, Hellanzb
 from sets import Set
 from shutil import move
 from twisted.copyright import version as twistedVersion
@@ -870,12 +870,15 @@ class NZBLeecher(NNTPClient, TimeoutMixin):
 
 def initNZBLeecher():
     """ Init """
-    # Note what version of twisted is being used
+    # Note what version of twisted/python/os being used
     twistedVersionMsg = 'Using: Twisted-%s' % twistedVersion
     if twistedVersion >= '2.0.0':
         from twisted.web import __version__ as twistedWebVersion
         twistedVersionMsg += ', TwistedWeb-%s' % twistedWebVersion
     debug(twistedVersionMsg)
+    debug('python: %s' % sys.version)
+    uname = os.uname()
+    debug('os: %s-%s (%s)' % (uname[0], uname[2], uname[4]))
     
     # Direct twisted log output to the debug level
     twistedTimestampLen = len('2006/02/10 23:59 PST ')

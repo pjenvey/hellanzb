@@ -76,7 +76,7 @@ def decode(segment):
         # Done downloading all first segments. Check for a few special situations that
         # warrant requeueing of files
         segment.nzbFile.nzb.smartRequeue()
-        segment.nzbFile.nzb.logSkippedParCount()
+        segment.nzbFile.nzb.logSkippedPars()
 
     tryAssemble(segment.nzbFile)
 

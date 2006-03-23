@@ -9,13 +9,13 @@ SmartPar - Functions for identifying potential par files from their their real f
 import re, Hellanzb
 from twisted.internet import reactor
 from Hellanzb.Log import *
-from Hellanzb.PostProcessorUtil import getParName, getParRecoveryName, isPar, isPar1, \
-    isPar2, PAR1, PAR2
+from Hellanzb.PostProcessorUtil import findPar2Groups, getParName, getParRecoveryName, \
+    isPar, isPar1, isPar2, PAR1, PAR2
 from Hellanzb.Util import cleanDupeName, inMainThread, isHellaTemp, prettySize, FatalError
 
 __id__ = '$Id$'
 
-def smartDequeue(segment, readOnlyQueue = False):
+def smartDequeue(segment, readOnlyQueue = False, verbose = False):
     """ This function is called after downloading the first segment of every nzbFile
 
     It determines whether or not the segment's parent nzbFile is part of a par archive. If
@@ -83,7 +83,12 @@ def smartDequeue(segment, readOnlyQueue = False):
         # Always print the skipped message if called from segmentsNeedDownload
         # (readOnlyQueue). Don't bother printing it if we didn't actually dequeue anything
         if readOnlyQueue or not dequeuedCount == 0:
-            info('Skipped %s: %s (%iMB)' % (parTypeName, segment.nzbFile.filename, size))
+            if verbose:
+                 info('Skipped %s: %s (%iMB)' % (parTypeName, segment.nzbFile.filename,
+                                                 size))
+            elif not len(segment.nzbFile.nzb.skippedParFiles):
+                info('Skipping pars.. (Skipped %s: %s (%iMB))' % \
+                     (parTypeName, segment.nzbFile.filename, size))
             
             # Only consider the nzbFile as skipped when there were actually segments
             # dequeued, or if readOnlyQueue mode
@@ -127,18 +132,50 @@ def smartRequeue(nzb):
                  (nzb.archiveName, firstPar.filename))
             requeueSkippedPars([firstPar])
 
-def logSkippedParCount(nzb):
-    """ Print a message describing the number of and size of all skipped par files """
+def logSkippedPars(nzb):
+    """ Print a message describing the summary of all skipped par files """
+    # Tally the total mb skipped
     skippedParMB = 0
     actualSkippedParMB = 0
-    for nzbFile in nzb.skippedParFiles:
+    parFilenames = []
+    skippedParsDict = {}
+
+    skippedPars = nzb.skippedParFiles[:]
+    skippedPars.sort(lambda x, y: cmp(x.filename, y.filename))
+    for nzbFile in skippedPars:
+        parFilenames.append(nzbFile.filename)
+        skippedParsDict[nzbFile.filename] = nzbFile
+        
         skippedParMB += nzbFile.totalBytes
         for nzbSegment in nzbFile.dequeuedSegments:
             actualSkippedParMB += nzbSegment.bytes
+
+    # Identify the par groups
+    parGroups, parGroupOrder = findPar2Groups(parFilenames)
+    
     if actualSkippedParMB > 0:
-        info('Skipped pars: Approx. %i files, %s (actual: %s)' % \
+        info('Skipped pars: %i files, %s (actual skipped: %s)' % \
              (len(nzb.skippedParFiles), prettySize(skippedParMB),
               prettySize(actualSkippedParMB)))
+
+        # Further summarize the par group statistics
+        for key in parGroupOrder:
+            parFilenames = parGroups[key]
+            skippedGroupMB = 0
+            skippedGroupBlocks = 0
+            for parFilename in parFilenames:
+                skippedGroupBlocks += getParSize(parFilename)
+                nzbFile = skippedParsDict[parFilename]
+                skippedGroupMB += nzbFile.totalBytes
+
+            # Don't duplicate the extra stats when there's only one par group
+            groupStats = ''
+            if len(parGroups) > 1:
+                groupStats = '%i files, %s, ' % (len(parFilenames),
+                                                 prettySize(skippedGroupMB))
+            info(' %s -> %s (%s%s %s)' % \
+                 (parFilenames[0], parFilenames[-1], groupStats, skippedGroupBlocks,
+                  getParRecoveryName(nzbFile.parType)))
 
 PAR2_VOL_RE = re.compile(r'(.*)\.vol(\d*)\+(\d*)\.par2', re.I)
 def identifyPar(nzbFile):

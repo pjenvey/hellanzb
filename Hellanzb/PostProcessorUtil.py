@@ -580,9 +580,9 @@ def unrar(postProcessor, fileName, pathToExtract = None):
 
     return processedRars
 
-def findPar2Groups(dirName):
+def findPar2Groups(files):
     """ Find all par2 file groupings """
-    pars = [file for file in os.listdir(dirName) if isPar(file)]
+    pars = [file for file in files if isPar(file)]
     pars.sort()
 
     # A map of a wildcards defining a par file group and its par file names. The wildcard
@@ -699,7 +699,7 @@ def processPars(postProcessor, needAssembly = None):
     # (aren't in this list)
     dotOneFiles = [file for file in os.listdir(dirName) if PAR2_LEFTOVER_SUFFIX.search(file)]
 
-    parGroups, parGroupOrder = findPar2Groups(dirName)
+    parGroups, parGroupOrder = findPar2Groups(os.listdir(dirName))
     for wildcard in parGroupOrder:
         parFiles = parGroups[wildcard]
         

@@ -633,11 +633,12 @@ class NZBSegmentQueue(PriorityQueue):
                 
         if nzb.isParRecovery and nzb.skippedParSubjects and len(nzb.skippedParSubjects) and \
                 not len(self):
-            msg = 'Par recovery download: Not sure what specific pars are needed (parPrefix: %s) -- downloading all pars' % nzb.parPrefix
+            msg = 'Par recovery download: No pars with prefix: %s -- recovering ALL pars' % \
+                nzb.parPrefix
             if skippedPars:
                 msg = '%s (%i par files)' % (msg, skippedPars)
             if verbose:
-                info(msg)
+                warn(msg)
             for nzbSegment in needDlSegments:
                 if nzbSegment.nzbFile.isSkippedPar:
                     self.put((nzbSegment.priority, nzbSegment))

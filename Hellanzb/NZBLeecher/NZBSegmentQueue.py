@@ -620,11 +620,10 @@ class NZBSegmentQueue(PriorityQueue):
                 # officially dequeued, and can be requeued later
                 nzbSegment.nzbFile.dequeuedSegments.add(nzbSegment)
                 
-        if len(nzb.skippedParFiles):
-            # Requeue files in certain situations
+        # Requeue files in certain situations
+        if nzb.firstSegmentsDownloaded == len(nzb.nzbFiles):
             smartRequeue(nzb)
-            if nzb.firstSegmentsDownloaded == len(nzb.nzbFiles):
-                logSkippedPars(nzb)
+            logSkippedPars(nzb)
                 
         if nzb.isParRecovery and nzb.skippedParSubjects and len(nzb.skippedParSubjects) and \
                 not len(self):

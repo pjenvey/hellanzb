@@ -7,6 +7,8 @@ build_util.py - Build related functions
 [See end of file]
 """
 import distutils.util, md5, os, setup, shutil, sys, tarfile
+if sys.version >= '2.5':
+    from hashlib import sha256
 from Hellanzb.Log import *
 from Hellanzb.Util import Ptyopen2
 
@@ -90,6 +92,8 @@ def buildPort(version):
     distinfo = open(destDir + os.sep + 'distinfo', 'w')
     distinfo.write('MD5 (hellanzb-' + version + '.tar.gz) = ' +
                  md5File('dist/hellanzb-' + version + '.tar.gz') + '\n')
+    distinfo.write('SHA256 (hellanzb-' + version + '.tar.gz) = ' +
+                 sha256File('dist/hellanzb-' + version + '.tar.gz') + '\n')
     distinfo.write('SIZE (hellanzb-' + version + '.tar.gz) = ' +
                  str(os.path.getsize('dist/hellanzb-' + version + '.tar.gz')) + '\n')
     distinfo.close()
@@ -155,7 +159,22 @@ def md5File(fileName):
     file = open(fileName)
     for line in file.readlines():
         m.update(line)
+    file.close()
     return m.hexdigest()
+
+def sha256File(fileName):
+    """ Return the SHA-256 hash of the specified file """
+    if sys.version >= '2.5':
+        s = sha256()
+        file = open(fileName)
+        for line in file.readlines():
+            s.update(line)
+        file.close()
+        return s.hexdigest()
+    else:
+        p = Ptyopen2('sha -2 ' + fileName)
+        output, status = p.readlinesAndWait()
+        return output[0].split()[0]
 
 def uploadToHost(version, host, dir):
     """ Upload the new build of version to the UPLOAD_HOST """

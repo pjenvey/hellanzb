@@ -541,20 +541,15 @@ class NZBSegmentQueue(PriorityQueue):
                                                                            nzb.overwriteZeroByteFiles)
         e = time.time() - s
 
-        # FIXME: firstSegmentsDownloaded need to be tweaked if isSkippedPar and no
-        # segments were found on disk by segmentsNeedDownload
-        """
+        # firstSegmentsDownloaded needs to be tweaked if isSkippedPar and no segments were
+        # found on disk by segmentsNeedDownload. i.e. first segments have ALWAYS already
+        # been downloaded in isParRecovery mode
+        fauxFirstSegmentsDownloaded = 0
         if Hellanzb.SMART_PAR and nzb.isParRecovery:
-            # FIXME: this doesn't work either. the value is: len(nzbFiles) -
-            # len(zeroByteNZBFiles)
-            nzb.firstSegmentsDownloaded = len(nzb.nzbFiles)
-        '''
-            for nzbFile in needWorkFiles:
-                if nzbFile.isSkippedPar and \
-                        len(nzbFile.todoNzbSegments) == len(nzbFile.nzbSegments):
-                    nzbFile.nzb.firstSegmentsDownloaded += 1
-                    '''
-        """
+            for nzbFile in nzb.nzbFiles:
+                if nzbFile.isSkippedPar and nzbFile.firstSegment not in onDiskSegments:
+                    nzb.firstSegmentsDownloaded += 1
+                    fauxFirstSegmentsDownloaded += 1
                     
         # Calculate and print parsed/skipped/queued statistics
         skippedPars = 0
@@ -632,11 +627,17 @@ class NZBSegmentQueue(PriorityQueue):
                 
         if nzb.isParRecovery and nzb.skippedParSubjects and len(nzb.skippedParSubjects) and \
                 not len(self):
-            msg = 'Par recovery download: Not sure what specific pars are needed (parPrefix: %s) -- downloading all pars' % nzb.parPrefix
+            # FIXME: This recovering ALL pars should be a mode (with a flag on the NZB
+            # object). No par skipping would occur in this mode -- for the incredibly rare
+            # case that first segments are lost prior to this mode taking place. What will
+            # happen doesn't make sense: hellanzb will say 'recovering ALL pars', then
+            # SmartPar will later skip pars
+            msg = 'Par recovery download: No pars with prefix: %s -- recovering ALL pars' % \
+                nzb.parPrefix
             if skippedPars:
                 msg = '%s (%i par files)' % (msg, skippedPars)
             if verbose:
-                info(msg)
+                warn(msg)
             for nzbSegment in needDlSegments:
                 if nzbSegment.nzbFile.isSkippedPar:
                     self.put((nzbSegment.priority, nzbSegment))
@@ -646,6 +647,9 @@ class NZBSegmentQueue(PriorityQueue):
             for nzbSegment in needDlSegments:
                 if nzbSegment.nzbFile.isSkippedPar:
                     nzbSegment.nzbFile.isSkippedPar = False
+
+            # We might have faked the value of this: reset it
+            nzb.firstSegmentsDownloaded -= fauxFirstSegmentsDownloaded
                     
         if not len(self):
             self.nzbDone(nzb)

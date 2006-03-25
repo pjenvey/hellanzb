@@ -173,9 +173,15 @@ def logSkippedPars(nzb):
             if len(parGroups) > 1:
                 groupStats = '%i files, %s, ' % (len(parFilenames),
                                                  prettySize(skippedGroupMB))
-            info(' %s -> %s (%s%s %s)' % \
-                 (parFilenames[0], parFilenames[-1], groupStats, skippedGroupBlocks,
-                  getParRecoveryName(nzbFile.parType)))
+            if len(parFilenames) == 1:
+                label = parFilenames[0]
+            elif len(parFilenames) == 2:
+                label = '%s, %s' % (parFilenames[0], parFilenames[-1])
+            elif len(parFilenames) > 2:
+                label = '%s -> %s' % (parFilenames[0], parFilenames[-1])
+                
+            info(' %s (%s%s %s)' % (label, groupStats, skippedGroupBlocks,
+                                    getParRecoveryName(nzbFile.parType)))
 
 PAR2_VOL_RE = re.compile(r'(.*)\.vol(\d*)\+(\d*)\.par2', re.I)
 def identifyPar(nzbFile):

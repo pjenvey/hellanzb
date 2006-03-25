@@ -1,6 +1,6 @@
 # New ports collection makefile for:	hellanzb
 # Date created:		Sat Sep 25 18:46:46 PDT 2004
-# Whom:			Philip Jenveey <pjenvey@groovie.org>
+# Whom:			Philip Jenvey <pjenvey@groovie.org>
 #
 # $FreeBSD$
 # $Id$

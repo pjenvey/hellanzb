@@ -791,9 +791,18 @@ class NZBLeecher(NNTPClient, TimeoutMixin):
         Ultimately, significantly less work than dataReceivedToLines """
         if not self.gotResponseCode:
             # find the nntp response in the header of the message (the BODY command)
-            lstripped = data.lstrip()
-            off = lstripped.find(self.delimiter)
-            line = lstripped[:off]
+            if self.lastChunk == '':
+                data = data.lstrip()
+            else:
+                data = self.lastChunk + data
+                
+            off = data.find(self.delimiter)
+            if off == -1:
+                # Haven't received the entire first line yet
+                self.lastChunk = data
+                return
+            
+            line = data[:off]
 
             code = extractCode(line)
             if code is None or (not (200 <= code[0] < 400) and code[0] != 100): # An error!
@@ -812,7 +821,8 @@ class NZBLeecher(NNTPClient, TimeoutMixin):
             else:
                 self._setResponseCode(code)
                 self.gotResponseCode = True
-                data = lstripped[off:]
+                data = data[off:]
+                self.lastChunk = ''
 
         # write data to disk
         self.currentSegment.encodedData.write(data)

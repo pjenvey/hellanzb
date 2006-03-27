@@ -300,6 +300,8 @@ class HellaXMLRPCServer(XMLRPC):
         s['total_dl_files'] = Hellanzb.totalFilesDownloaded
         s['total_dl_segments'] = Hellanzb.totalSegmentsDownloaded
         s['total_dl_mb'] = Hellanzb.totalBytesDownloaded / 1024 / 1024
+        s['config_file'] = Hellanzb.CONFIG_FILENAME
+        s['hostname'] = Hellanzb.HOSTNAME
         s['version'] = Hellanzb.version
 
         s['currently_downloading'] = [self.makeNZBStruct(nzb.id, nzb.archiveName, nzb.rarPassword,

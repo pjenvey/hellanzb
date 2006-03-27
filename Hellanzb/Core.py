@@ -12,6 +12,7 @@ HellaReactor.install()
 import optparse, os, signal, sys, time, thread, threading, Hellanzb, Hellanzb.PostProcessor
 from distutils import spawn
 from shutil import rmtree
+from socket import gethostname
 from threading import Lock
 from twisted.internet import reactor
 from Hellanzb.Daemon import initDaemon, postProcess
@@ -226,6 +227,9 @@ def init(options = {}):
 
     # The name of the loaded config file
     Hellanzb.CONFIG_FILENAME = None
+
+    # hostname we're running on
+    Hellanzb.HOSTNAME = gethostname()
 
     (sysname, nodename, release, version, machine) = os.uname()
     # The OS in use

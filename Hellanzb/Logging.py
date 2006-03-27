@@ -248,7 +248,7 @@ class NZBLeecherTicker:
     # here, anyway
     def updateLog(self, logNow = False):
         """ Log ticker """
-        if Hellanzb.DAEMONIZE:
+        if Hellanzb.DAEMONIZE or Hellanzb.DISABLE_SCROLLER:
             return
         
         # Delay the actual log work -- so we don't over-log (too much CPU work in the
@@ -362,16 +362,20 @@ class NZBLeecherTicker:
 
 def stdinEchoOff():
     """ ECHO OFF standard input """
-    if Hellanzb.DAEMONIZE:
+    if Hellanzb.DAEMONIZE or Hellanzb.DISABLE_SCROLLER:
         return
     
     from Hellanzb.Log import debug
     try:
         fd = sys.stdin.fileno()
     except:
-        pass
+        return
 
-    new = termios.tcgetattr(fd)
+    try:
+        new = termios.tcgetattr(fd)
+    except Exception, e:
+        debug('stdinEchoOn error', e)
+        return
 
     new[3] = new[3] & ~termios.ECHO # 3 == 'lflags'
     try:
@@ -379,20 +383,23 @@ def stdinEchoOff():
         debug('stdinEchoOff - OFF')
     except Exception, e:
         debug('stdinEchoOff error', e)
-        pass
     
 def stdinEchoOn():
     """ ECHO ON standard input """
-    if Hellanzb.DAEMONIZE:
+    if Hellanzb.DAEMONIZE or Hellanzb.DISABLE_SCROLLER:
         return
     
     from Hellanzb.Log import debug
     try:
         fd = sys.stdin.fileno()
     except:
-        pass
+        return
 
-    new = termios.tcgetattr(fd)
+    try:
+        new = termios.tcgetattr(fd)
+    except Exception, e:
+        debug('stdinEchoOn error', e)
+        return
 
     new[3] = new[3] | termios.ECHO # 3 == 'lflags'
     try:
@@ -400,7 +407,6 @@ def stdinEchoOn():
         debug('stdinEchoOn - ON')
     except Exception, e:
         debug('stdinEchoOn error', e)
-        pass
 
 def prettyException(exception):
     """ Return a pretty rendition of the specified exception, or if no valid exception an
@@ -500,6 +506,10 @@ def initLogFile(logFile = None, debugLogFile = None):
     if hasattr(Hellanzb, 'DEBUG_MODE') and Hellanzb.DEBUG_MODE is not None:
         dirNames['DEBUG_MODE'] = os.path.dirname(Hellanzb.DEBUG_MODE)
     ensureDirs(dirNames)
+
+    Hellanzb.DISABLE_SCROLLER = False
+    if isPy2App():
+        Hellanzb.DISABLE_SCROLLER = True
     
     if Hellanzb.LOG_FILE:
         fileHdlr = RotatingFileHandlerNoLF(Hellanzb.LOG_FILE, maxBytes = maxBytes,

@@ -5,7 +5,7 @@ Util - hellanzb misc functions
 (c) Copyright 2005 Philip Jenvey, Ben Bangert
 [See end of file]
 """
-import os, popen2, pty, re, signal, string, thread, threading, time, Hellanzb
+import os, popen2, pty, re, signal, string, sys, thread, threading, time, Hellanzb
 from distutils import spawn
 from heapq import heapify, heappop, heappush
 from os.path import normpath
@@ -815,6 +815,29 @@ def uopen(filename, *args, **kwargs):
 def isHellaTemp(filename):
     """ Determine whether or not the specified file is a 'hellanzb-tmp-' file """
     return filename.find('hellanzb-tmp-') == 0
+
+def find_packager():
+    """ Detect packaging systems such as py2app and py2exe """
+    frozen = getattr(sys, 'frozen', None)
+    if not frozen:
+        # COULD be certain cx_Freeze options or bundlebuilder, nothing to worry about though
+        return None
+    elif frozen in ('dll', 'console_exe', 'windows_exe'):
+        return 'py2exe'
+    elif frozen in ('macosx_app',):
+        return 'py2app'
+    elif frozen is True:
+        # it doesn't ALWAYS set this
+        return 'cx_Freeze'
+    else:
+        return '<unknown packager: %r>' % (frozen,)
+
+def isPy2App():
+    """ Whether or not this process is running via py2app """
+    try:
+        return Hellanzb.PACKAGER == 'py2app'
+    except AttributeError:
+        return find_packager() == 'py2app'
 
 Hellanzb.CMHELLA = \
 '''

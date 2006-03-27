@@ -10,6 +10,10 @@ assert sys.version >= '2', "Install Python 2.0 or greater" # don't know of this 
                                                            # necessary
 from distutils.core import setup, Extension
 import Hellanzb
+try:
+    import py2app
+except ImportError:
+    pass
 
 __id__ = '$Id$'
 
@@ -38,6 +42,14 @@ def runSetup():
         scripts = [ 'hellanzb.py' ],
         data_files = [ ( 'etc', [ 'etc/hellanzb.conf.sample' ] ),
                        ( 'share/doc/hellanzb', [ 'CHANGELOG', 'CREDITS', 'README', 'LICENSE' ] ) ],
+
+        # py2app options
+        app = [ 'hellanzb.py' ],
+        options = dict(py2app = dict(
+                argv_emulation = True,
+                # twisted '__import__'s instead of 'import's the syslog module, preventing
+                # py2app from detecting its use
+                includes = [ 'syslog' ])),
         )
 
 if __name__ == '__main__':

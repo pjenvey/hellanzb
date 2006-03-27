@@ -238,6 +238,13 @@ def init(options = {}):
     except ImportError:
         Hellanzb.HAVE_C_YENC = False
 
+    Hellanzb.PACKAGER = find_packager()
+    if isPy2App():
+        # Append the py2app Contents/Resources dir to the PATH
+        import __main__
+        os.environ['PATH'] = os.environ['PATH'] + ':' + os.sep + \
+            os.path.dirname(os.path.abspath(__main__.__file__))
+
     # abort if we lack required binaries
     assertHasARar()
     assertIsExe('par2')

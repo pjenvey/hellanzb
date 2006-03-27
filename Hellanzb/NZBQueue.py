@@ -337,7 +337,7 @@ def parseNZB(nzb, notification = 'Downloading', quiet = False):
         
         info('Parsing: ' + os.path.basename(nzb.nzbFileName) + '...')
         if not Hellanzb.queue.parseNZB(nzb):
-            Hellanzb.Daemon.beginDownload()
+            Hellanzb.Daemon.beginDownload(nzb)
 
     except FatalError, fe:
         error('Problem while parsing the NZB', fe)

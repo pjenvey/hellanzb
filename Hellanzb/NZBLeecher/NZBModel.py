@@ -55,6 +55,10 @@ class NZB(Archive):
         self.totalSkippedBytes = 0
         ## How many bytes have been downloaded for this NZB
         self.totalReadBytes = 0
+        ## Time this NZB began downloading
+        self.downloadStartTime = None
+        ## Amount of time taken to download the NZB
+        self.downloadTime = None
 
         ## Whether or not we should redownload NZBFile and NZBSegment files on disk that
         ## are 0 bytes in size
@@ -224,6 +228,9 @@ class NZB(Archive):
                 attribs[attrib] = toUnicode(val)
             attribs['parType'] = getParName(self.parType)
 
+        if self.downloadTime:
+            attribs['downloadTime'] = str(self.downloadTime)
+
         return attribs
 
     def toStateXML(self, xmlWriter):
@@ -287,6 +294,8 @@ class NZB(Archive):
                     continue
                 if key == 'neededBlocks':
                     value = int(value)
+                if key == 'downloadTime':
+                    value = float(value)
                 if key == 'parType':
                     value = getParEnum(value)
                 setattr(nzb, key, value)

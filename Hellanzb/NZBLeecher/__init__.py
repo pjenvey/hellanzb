@@ -652,7 +652,6 @@ class NZBLeecher(NNTPClient, TimeoutMixin):
         debug(str(self) + ' EXCEEDED line length, len: ' + str(len(line)) + ' line: ' + line)
 
     def updateByteCount(self, lineLen):
-        Hellanzb.totalReadBytes += lineLen
         Hellanzb.totalBytesDownloaded += lineLen
         self.factory.sessionReadBytes += lineLen
         if self.currentSegment != None:
@@ -894,9 +893,6 @@ def initNZBLeecher():
     # Create the one and only download queue
     Hellanzb.queue = NZBSegmentQueue()
 
-    Hellanzb.totalReadBytes = 0
-    Hellanzb.totalStartTime = None
-    
     # The NZBLeecherFactories
     Hellanzb.nsfs = []
     Hellanzb.totalSpeed = 0

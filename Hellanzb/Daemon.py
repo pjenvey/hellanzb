@@ -114,14 +114,14 @@ def resumePostProcessors():
         info('Resuming post processor: ' + archiveName(archiveDirName))
         troll.start()
 
-def beginDownload():
+def beginDownload(nzb = None):
     """ Initialize the download. Notify the downloaders to begin their work, etc """
     # BEGIN
     Hellanzb.loggedIdleMessage = False
     writeStateXML()
     now = time.time()
-    Hellanzb.totalReadBytes = 0
-    Hellanzb.totalStartTime = now
+    if nzb:
+        nzb.downloadStartTime = now
     
     # The scroll level will flood the console with constantly updating
     # statistics -- the logging system can interrupt this scroll
@@ -144,14 +144,6 @@ def beginDownload():
 
 def endDownload():
     """ Finished downloading """
-    elapsed = time.time() - Hellanzb.totalStartTime
-    speed = Hellanzb.totalReadBytes / 1024.0 / elapsed
-    # FIXME: should be using nzb.totalReadBytes (which isn't available here)
-    leeched = prettySize(Hellanzb.totalReadBytes)
-    info('Transferred %s in %s at %.1fKB/s' % (leeched, prettyElapsed(elapsed), speed))
-    
-    Hellanzb.totalReadBytes = 0
-    Hellanzb.totalStartTime = None
     Hellanzb.totalSpeed = 0
     Hellanzb.scroller.currentLog = None
 
@@ -165,6 +157,18 @@ def endDownload():
 def handleNZBDone(nzb):
     """ Hand-off from the downloader -- make a dir for the NZB with its contents, then post
     process it in a separate thread"""
+    elapsed = time.time() - nzb.downloadStartTime
+    if not nzb.isParRecovery:
+        nzb.downloadTime = elapsed
+    else:
+        nzb.downloadTime += elapsed
+    speed = nzb.totalReadBytes / 1024.0 / elapsed
+    leeched = prettySize(nzb.totalReadBytes)
+    # FIXME/NOTE: This is now the total time to transfer & fully decode the archive, as
+    # opposed to how long to just transfer (which this used to be)
+    info('Transferred %s in %s at %.1fKB/s (%s)' % \
+         (leeched, prettyElapsed(elapsed), speed, nzb.archiveName))
+    
     # Make our new directory, minus the .nzb
     processingDir = Hellanzb.PROCESSING_DIR + nzb.archiveName
     

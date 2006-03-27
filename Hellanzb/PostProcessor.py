@@ -318,6 +318,7 @@ class PostProcessor(Thread):
             decompressor.join()
 
         del decompressorThreads
+        checkShutdown()
 
         if len(self.failedToProcesses) > 0:
             raise FatalError('Failed to complete music decompression')

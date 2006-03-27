@@ -242,7 +242,7 @@ def init(options = {}):
     if isPy2App():
         # Append the py2app Contents/Resources dir to the PATH
         import __main__
-        os.environ['PATH'] = os.environ['PATH'] + ':' + os.sep + \
+        os.environ['PATH'] = os.environ['PATH'] + ':' + \
             os.path.dirname(os.path.abspath(__main__.__file__))
 
     # abort if we lack required binaries

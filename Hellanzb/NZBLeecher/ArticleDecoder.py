@@ -129,12 +129,13 @@ def handleCanceledFile(nzbFile):
         nuke(nzbFile.getDestination())
         return True
     return False
-        
+
+MIME_HEADER_RE = re.compile('^(\w|-)+: .*$')
 def stripArticleData(articleData):
     """ Rip off leading/trailing whitespace (and EOM char) from the articleData list """
     try:
         # Rip off the leading whitespace
-        while articleData[0] == '':
+        while articleData[0] == '' or MIME_HEADER_RE.match(articleData[0]):
             articleData.pop(0)
 
         # and trailing

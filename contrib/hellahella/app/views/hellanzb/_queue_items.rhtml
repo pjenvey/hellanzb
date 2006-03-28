@@ -1,6 +1,0 @@
-<% @queue.each do |item| -%>
-  <div id="nzb_<%= item["id"] %>" class="nzbitems">
-    <h4 class="handle"><%= item['nzbName'] %></h4>
-  </div>
-  <%= draggable_element "nzb_#{item["id"]}", :revert => true %>
-<% end -%>

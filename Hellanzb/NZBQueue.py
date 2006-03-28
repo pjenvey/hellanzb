@@ -491,17 +491,17 @@ def moveDown(nzbId, shift = 1):
 
 def dequeueNZBs(nzbIdOrIds, quiet = False):
     """ remove nzbs from the queue """
-    if type(nzbIdOrIds) != list:
-        newNzbIds = [ nzbIdOrIds ]
+    if isinstance(nzbIdOrIds, list) or isinstance(nzbIdOrIds, tuple):
+        nzbIds = nzbIdOrIds
     else:
-        newNzbIds = nzbIdOrIds
+        nzbIds = [ nzbIdOrIds ]
 
-    if len(newNzbIds) == 0:
+    if len(nzbIds) == 0:
         return False
 
     error = False
     found = []
-    for nzbId in newNzbIds:
+    for nzbId in nzbIds:
         try:
             nzbId = int(nzbId)
         except Exception:
@@ -545,10 +545,10 @@ def enqueueNZBStr(nzbFilename, nzbStr):
     
 def enqueueNZBs(nzbFileOrFiles, next = False, writeQueue = True):
     """ add one or a list of nzb files to the end of the queue """
-    if type(nzbFileOrFiles) != list:
-        newNzbFiles = [ nzbFileOrFiles ]
-    else:
+    if isinstance(nzbFileOrFiles, list) or isinstance(nzbFileOrFiles, tuple):
         newNzbFiles = nzbFileOrFiles
+    else:
+        newNzbFiles = [ nzbFileOrFiles ]
 
     if len(newNzbFiles) == 0:
         return False

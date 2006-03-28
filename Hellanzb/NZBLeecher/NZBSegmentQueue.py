@@ -622,6 +622,9 @@ class NZBSegmentQueue(PriorityQueue):
                 
         # Requeue files in certain situations
         if nzb.firstSegmentsDownloaded == len(nzb.nzbFiles):
+            # NOTE: This block of code does not commonly happen with newzbin.com NZBs: due
+            # to how the DupeHandler handles .NFO files. newzbin.com seems to always
+            # duplicate the .NFO file in their NZBs
             smartRequeue(nzb)
             logSkippedPars(nzb)
                 

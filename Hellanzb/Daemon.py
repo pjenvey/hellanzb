@@ -107,6 +107,50 @@ def initHellaHella(configFile, verbose = False):
     """ Initialize hellahella, the web UI """
     try:
         from paste.deploy import loadapp
+        from twisted.web2.server import Request
+        def _parseURL(self):
+            if self.uri[0] == '/':
+                # Can't use urlparse for request_uri because urlparse
+                # wants to be given an absolute or relative URI, not just
+                # an abs_path, and thus gets '//foo' wrong.
+                self.scheme = self.host = self.path = self.params = self.querystring = ''
+                if '?' in self.uri:
+                    self.path, self.querystring = self.uri.split('?', 1)
+                else:
+                    self.path = self.uri
+                if ';' in self.path:
+                    self.path, self.params = self.path.split(';', 1)
+            else:
+                # It is an absolute uri, use standard urlparse
+                (self.scheme, self.host, self.path,
+                 self.params, self.querystring, fragment) = urlparse.urlparse(self.uri)
+
+            if self.querystring:
+                self.args = cgi.parse_qs(self.querystring, True)
+            else:
+                self.args = {}
+
+            ####path = map(unquote, self.path[1:].split('/'))
+            path = self.path[1:].split('/')
+            if self._initialprepath:
+                # We were given an initial prepath -- this is for supporting
+                # CGI-ish applications where part of the path has already
+                # been processed
+                ####prepath = map(unquote, self._initialprepath[1:].split('/'))
+                prepath = self._initialprepath[1:].split('/')
+
+                if path[:len(prepath)] == prepath:
+                    self.prepath = prepath
+                    self.postpath = path[len(prepath):]
+                else:
+                    self.prepath = []
+                    self.postpath = path
+            else:
+                self.prepath = []
+                self.postpath = path
+
+        Request._parseURL = _parseURL
+        
         from twisted.application.service import Application
         from twisted.web2.http import HTTPFactory
         from twisted.web2.log import LogWrapperResource, DefaultCommonAccessLoggingObserver
@@ -136,7 +180,6 @@ def initHellaHella(configFile, verbose = False):
         Hellanzb.HELLAHELLA_PORT = 8761
         wsgiApp = loadapp('config:' + configFile)
 
-        verbose = True
         if verbose:
             lwr = LogWrapperResource(WSGIResource(wsgiApp))
             DefaultCommonAccessLoggingObserver().start()

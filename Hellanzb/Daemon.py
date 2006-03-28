@@ -6,7 +6,7 @@ the twisted reactor loop, except for initialization functions
 (c) Copyright 2005 Ben Bangert, Philip Jenvey
 [See end of file]
 """
-import os, time, Hellanzb, PostProcessor, PostProcessorUtil
+import os, re, time, Hellanzb, PostProcessor, PostProcessorUtil
 from shutil import copy, move, rmtree
 from twisted.internet import reactor
 from twisted.scripts.twistd import daemonize
@@ -103,7 +103,7 @@ def initDaemon():
     initNZBLeecher()
     startNZBLeecher()
 
-def initHellaHella(configFile):
+def initHellaHella(configFile, verbose = False):
     """ Initialize hellahella, the web UI """
     try:
         from paste.deploy import loadapp
@@ -111,14 +111,39 @@ def initHellaHella(configFile):
         from twisted.web2.http import HTTPFactory
         from twisted.web2.log import LogWrapperResource, DefaultCommonAccessLoggingObserver
         from twisted.web2.server import Site
-        from twisted.web2.wsgi import WSGIResource
+        from twisted.web2.wsgi import FileWrapper, InputStream, ErrorStream, WSGIHandler, \
+            WSGIResource
+
+        # Munge the SCRIPT_NAME to '' when web2 makes it '/'
+        from twisted.web2.twcgi import createCGIEnvironment
+        def setupEnvironment(self, ctx, request):
+            # Called in IO thread
+            env = createCGIEnvironment(ctx, request)
+            if re.compile('\/+').search(env['SCRIPT_NAME']):
+                env['SCRIPT_NAME'] = ''
+            env['wsgi.version']      = (1, 0)
+            env['wsgi.url_scheme']   = env['REQUEST_SCHEME']
+            env['wsgi.input']        = InputStream(request.stream)
+            env['wsgi.errors']       = ErrorStream()
+            env['wsgi.multithread']  = True
+            env['wsgi.multiprocess'] = True
+            env['wsgi.run_once']     = False
+            env['wsgi.file_wrapper'] = FileWrapper
+            self.environment = env
+
+        WSGIHandler.setupEnvironment = setupEnvironment
+        
         Hellanzb.HELLAHELLA_PORT = 8761
         wsgiApp = loadapp('config:' + configFile)
 
-        lwr = LogWrapperResource(WSGIResource(wsgiApp))
-        DefaultCommonAccessLoggingObserver().start()
+        verbose = True
+        if verbose:
+            lwr = LogWrapperResource(WSGIResource(wsgiApp))
+            DefaultCommonAccessLoggingObserver().start()
+            Hellanzb.hhHTTPFactory = HTTPFactory(Site(lwr))
+        else:
+            Hellanzb.hhHTTPFactory = HTTPFactory(Site(WSGIResource(wsgiApp)))
 
-        Hellanzb.hhHTTPFactory = HTTPFactory(Site(lwr))
         reactor.listenTCP(Hellanzb.HELLAHELLA_PORT, Hellanzb.hhHTTPFactory)
     except Exception, e:
         error('Unable to load hellahella', e)

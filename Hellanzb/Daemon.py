@@ -95,10 +95,33 @@ def initDaemon():
     if hasattr(Hellanzb, 'UMASK'):
         # umask here, as daemonize() might have just reset the value
         os.umask(Hellanzb.UMASK)
+
+    if hasattr(Hellanzb, 'HELLAHELLA_CONFIG'):
+        initHellaHella(Hellanzb.HELLAHELLA_CONFIG)
     
     from Hellanzb.NZBLeecher import initNZBLeecher, startNZBLeecher
     initNZBLeecher()
     startNZBLeecher()
+
+def initHellaHella(configFile):
+    """ Initialize hellahella, the web UI """
+    try:
+        from paste.deploy import loadapp
+        from twisted.application.service import Application
+        from twisted.web2.http import HTTPFactory
+        from twisted.web2.log import LogWrapperResource, DefaultCommonAccessLoggingObserver
+        from twisted.web2.server import Site
+        from twisted.web2.wsgi import WSGIResource
+        Hellanzb.HELLAHELLA_PORT = 8761
+        wsgiApp = loadapp('config:' + configFile)
+
+        lwr = LogWrapperResource(WSGIResource(wsgiApp))
+        DefaultCommonAccessLoggingObserver().start()
+
+        Hellanzb.hhHTTPFactory = HTTPFactory(Site(lwr))
+        reactor.listenTCP(Hellanzb.HELLAHELLA_PORT, Hellanzb.hhHTTPFactory)
+    except Exception, e:
+        error('Unable to load hellahella', e)
 
 def resumePostProcessors():
     """ Pickup left off Post Processors that were cancelled via CTRL-C """

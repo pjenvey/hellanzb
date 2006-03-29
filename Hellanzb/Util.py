@@ -863,28 +863,16 @@ Hellanzb.CMHELLA_VERSIONED = \
       :  l$$$F   :$$$$$  8$$$l"""""` l$$$l  l$$$l l$$$l   $$$L | ) /_ |_)
       :  $$$$:   l$$$$$L `4$$$bcmang;ACID$::$$$88:`4$$$bmm$$$$;.     ...
       :    ```      ```""              ```    ```    .    ```.     ..:::..
-      :..............................................:     %s  `:::`
+      :..............................................:   %s  `:::`
                                                                       `
 '''
 def cmVersion(version = Hellanzb.version):
     """ try to make Hellanzb.version always look like this: 'V 1 . 0' """
-    cmV = 'V 1 . 0'
-    orig = version
+    #cmV = '  V 1 . 0'
+    version = version.replace('-trunk', '')
     muck = lambda v : 'v' + v.replace('', ' ').rstrip()
-
-    # expand it
-    v = muck(orig)
-    if len(v) < len(cmV):
-        # just left justify for now
-        return v.ljust(len(cmV))
-
-    elif len(v) > len(cmV):
-        # now try removing non digits and non periods, then expand
-        v = muck(re.sub('[^\d.]', '', orig))
-        
-        if len(v) != len(cmV):
-            # just left jusity for now
-            v = orig.ljust(len(cmV))
+    if len(version) == len('0.10') and version.startswith('0.'):
+        v = muck(version)
 
     return v
 

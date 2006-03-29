@@ -225,6 +225,9 @@ def init(options = {}):
     # When the first CTRL-C was pressed
     Hellanzb.firstSignal = None
 
+    # Whether or not this is a hellanzb download daemon process
+    Hellanzb.isDaemon = False
+
     # The name of the loaded config file
     Hellanzb.CONFIG_FILENAME = None
 

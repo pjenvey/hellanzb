@@ -6,13 +6,13 @@ the twisted reactor loop, except for initialization functions
 (c) Copyright 2005 Ben Bangert, Philip Jenvey
 [See end of file]
 """
-import os, re, time, Hellanzb, PostProcessor, PostProcessorUtil
+import os, re, sys, time, Hellanzb, PostProcessor, PostProcessorUtil
 from shutil import copy, move, rmtree
 from twisted.internet import reactor
 from twisted.scripts.twistd import daemonize
 from Hellanzb.HellaXMLRPC import initXMLRPCServer, HellaXMLRPCServer
 from Hellanzb.Log import *
-from Hellanzb.Logging import prettyException
+from Hellanzb.Logging import prettyException, LogOutputStream
 from Hellanzb.NZBQueue import dequeueNZBs, recoverStateFromDisk, parseNZB, \
     scanQueueDir, writeStateXML
 from Hellanzb.Util import archiveName, ensureDirs, getMsgId, hellaRename, prettyElapsed, \
@@ -71,6 +71,7 @@ def ensureCleanDirs():
 
 def initDaemon():
     """ Start the daemon """
+    Hellanzb.isDaemon = True
     Hellanzb.nzbQueue = []
     Hellanzb.loggedIdleMessage = True
 
@@ -105,6 +106,7 @@ def initDaemon():
 
 def initHellaHella(configFile, verbose = False):
     """ Initialize hellahella, the web UI """
+    Hellanzb.HELLAHELLA_PORT = 8761 # FIXME
     try:
         from paste.deploy import loadapp
         from twisted.web2.server import Request
@@ -176,9 +178,16 @@ def initHellaHella(configFile, verbose = False):
             self.environment = env
 
         WSGIHandler.setupEnvironment = setupEnvironment
-        
-        Hellanzb.HELLAHELLA_PORT = 8761
+
+        # incase pylons raises deprecation warnings during loadapp, redirect them to the
+        # debug log
+        oldStderr = sys.stderr
+        sys.stderr = LogOutputStream(debug)
+
+        # Load the wsgi app via paste
         wsgiApp = loadapp('config:' + configFile)
+
+        sys.stderr = oldStderr
 
         if verbose:
             lwr = LogWrapperResource(WSGIResource(wsgiApp))

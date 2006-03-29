@@ -106,7 +106,7 @@ def initDaemon():
 
 def initHellaHella(configFile, verbose = False):
     """ Initialize hellahella, the web UI """
-    Hellanzb.HELLAHELLA_PORT = 8761 # FIXME
+    Hellanzb.HELLAHELLA_PORT = 8750
     try:
         from paste.deploy import loadapp
         from twisted.web2.server import Request

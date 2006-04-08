@@ -257,17 +257,24 @@ def endDownload():
 def handleNZBDone(nzb):
     """ Hand-off from the downloader -- make a dir for the NZB with its contents, then post
     process it in a separate thread"""
-    elapsed = time.time() - nzb.downloadStartTime
+    downloadTime = 0
+    # Print download statistics when something was downloaded (have an
+    # nzb.downloadStartTime). Otherwise we might have simply parsed the NZB and found the
+    # archive was assembled (required no downloading)
+    if nzb.downloadStartTime:
+        downloadTime = time.time() - nzb.downloadStartTime
+        speed = nzb.totalReadBytes / 1024.0 / downloadTime
+        
+        # NOTE: This is now the total time to transfer & fully decode the archive, as
+        # opposed to how long to just transfer (which this used to be)
+        info('Transferred %s in %s at %.1fKB/s (%s)' % \
+             (prettySize(nzb.totalReadBytes), prettyElapsed(downloadTime), speed,
+              nzb.archiveName))
+
     if not nzb.isParRecovery:
-        nzb.downloadTime = elapsed
+        nzb.downloadTime = downloadTime
     else:
-        nzb.downloadTime += elapsed
-    speed = nzb.totalReadBytes / 1024.0 / elapsed
-    leeched = prettySize(nzb.totalReadBytes)
-    # FIXME/NOTE: This is now the total time to transfer & fully decode the archive, as
-    # opposed to how long to just transfer (which this used to be)
-    info('Transferred %s in %s at %.1fKB/s (%s)' % \
-         (leeched, prettyElapsed(elapsed), speed, nzb.archiveName))
+        nzb.downloadTime += downloadTime
     
     # Make our new directory, minus the .nzb
     processingDir = Hellanzb.PROCESSING_DIR + nzb.archiveName

@@ -328,8 +328,13 @@ def shutdown(killPostProcessors = False):
 
     # stop the twisted reactor
     if reactor.running:
+        reactor.addSystemEventTrigger('after', 'shutdown', finishShutdown)
         reactor.stop()
+    else:
+        finishShutdown()
 
+def finishShutdown():
+    """ Last minute calls prior to shutdown """
     # Just in case we left it off
     stdinEchoOn()
 

@@ -238,6 +238,10 @@ def init(options = {}):
     # The OS in use
     Hellanzb.SYSNAME = sysname
 
+    # Only add anonymous NZB files placed in the QUEUE_DIR to the NZBQueue after this
+    # number have seconds have passed since the files modification time
+    Hellanzb.NZBQUEUE_MDELAY = 10
+    
     # Whether or not the C yenc module is installed
     try:
         import _yenc

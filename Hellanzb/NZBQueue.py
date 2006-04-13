@@ -131,12 +131,22 @@ def scanQueueDir(firstRun = False, justScan = False):
         queuedMap[os.path.normpath(nzb.nzbFileName)] = nzb
 
     for file in os.listdir(Hellanzb.QUEUE_DIR):
-        if Hellanzb.NZB_FILE_RE.search(file) and \
-            os.path.normpath(Hellanzb.QUEUE_DIR + os.sep + file) not in queuedMap:
-            new_nzbs.append(Hellanzb.QUEUE_DIR + os.sep + file)
-            
-        elif os.path.normpath(Hellanzb.QUEUE_DIR + os.sep + file) in queuedMap:
-            queuedMap.pop(os.path.normpath(Hellanzb.QUEUE_DIR + os.sep + file))
+        if Hellanzb.NZB_FILE_RE.search(file):
+            if os.path.normpath(Hellanzb.QUEUE_DIR + os.sep + file) not in queuedMap:
+                # Delay enqueueing recently modified NZBs
+                mode, ino, dev, nlink, uid, gid, size, atime, mtime, ctime = \
+                    os.stat(Hellanzb.QUEUE_DIR + os.sep + file)
+
+                now = time.time()
+                if mtime < now and now - mtime < Hellanzb.NZBQUEUE_MDELAY:
+                    debug('Delaying enqueue of %s: mtime: %i Hellanzb.NZBQUEUE_MDELAY: %i' % \
+                          (file, mtime, Hellanzb.NZBQUEUE_MDELAY))
+                    continue
+                
+                new_nzbs.append(Hellanzb.QUEUE_DIR + os.sep + file)
+
+            elif os.path.normpath(Hellanzb.QUEUE_DIR + os.sep + file) in queuedMap:
+                queuedMap.pop(os.path.normpath(Hellanzb.QUEUE_DIR + os.sep + file))
 
     # Remove anything no longer in the queue directory
     for nzb in queuedMap.itervalues():

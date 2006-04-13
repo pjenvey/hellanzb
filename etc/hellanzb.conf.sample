@@ -162,3 +162,8 @@ Hellanzb.KEEP_FILE_TYPES = [ 'nfo', 'txt' ]
 # List of alternative file extensions matched as NZB files in the QUEUE_DIR.
 # The 'nzb' file extension is always matched
 #Hellanzb.OTHER_NZB_FILE_TYPES = [ 'xml' ]
+
+# Delay enqueueing new, recently modified NZB files added to the QUEUE_DIR until
+# this many seconds has passed since the NZB's last modification time (defaults
+# to 10 seconds)
+#Hellanzb.NZBQUEUE_MDELAY = 10

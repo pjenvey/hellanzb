@@ -134,9 +134,7 @@ def scanQueueDir(firstRun = False, justScan = False):
         if Hellanzb.NZB_FILE_RE.search(file):
             if os.path.normpath(Hellanzb.QUEUE_DIR + os.sep + file) not in queuedMap:
                 # Delay enqueueing recently modified NZBs
-                mode, ino, dev, nlink, uid, gid, size, atime, mtime, ctime = \
-                    os.stat(Hellanzb.QUEUE_DIR + os.sep + file)
-
+                mtime = os.stat(Hellanzb.QUEUE_DIR + os.sep + file)[8]
                 now = time.time()
                 if mtime < now and now - mtime < Hellanzb.NZBQUEUE_MDELAY:
                     debug('Delaying enqueue of %s: mtime: %i Hellanzb.NZBQUEUE_MDELAY: %i' % \

@@ -122,8 +122,7 @@ def signalHandler(signum, frame):
     if signum == signal.SIGINT:
         # If there aren't any proceses to wait for exit immediately
         if len(Topen.activePool) == 0:
-            shutdown()
-            logShutdown('Caught interrupt, exiting..')
+            shutdown(message = 'Caught interrupt, exiting..')
             return
 
         # We can safely exit ASAP if all the processes are associated with the main thread
@@ -135,8 +134,7 @@ def signalHandler(signum, frame):
                 threadsOutsideMain = True
 
         if not threadsOutsideMain:
-            shutdown()
-            logShutdown('Caught interrupt, exiting..')
+            shutdown(message = 'Caught interrupt, exiting..')
             return
 
         # We couldn't cheat our way out of the program, tell the user the processes
@@ -169,8 +167,7 @@ def signalHandler(signum, frame):
             # The SHUTDOWN knob must be on before killing the PostProcessors
             Hellanzb.SHUTDOWN = True
             Topen.killAll()
-            shutdown()
-            logShutdown('Killed all child processes, exiting..')
+            shutdown(message = 'Killed all child processes, exiting..')
             return
             
 def assertHasARar():
@@ -318,7 +315,7 @@ def outlineRequiredDirs():
     for dir in requiredDirs:
         setattr(Hellanzb, dir + '_DIR', None)
 
-def shutdown(killPostProcessors = False):
+def shutdown(killPostProcessors = False, message = None):
     """ Turn the knob that tells all parts of the program we're shutting down, optionally kill
     any sub processes (that could prevent the program from exiting) and kill the twisted
     reactor """
@@ -332,12 +329,12 @@ def shutdown(killPostProcessors = False):
 
     # stop the twisted reactor
     if reactor.running:
-        reactor.addSystemEventTrigger('after', 'shutdown', finishShutdown)
+        reactor.addSystemEventTrigger('after', 'shutdown', finishShutdown, message)
         reactor.stop()
     else:
-        finishShutdown()
+        finishShutdown(message)
 
-def finishShutdown():
+def finishShutdown(message = None):
     """ Last minute calls prior to shutdown """
     # Just in case we left it off
     stdinEchoOn()
@@ -349,6 +346,9 @@ def finishShutdown():
         rmtree(Hellanzb.DOWNLOAD_TEMP_DIR)
     if hasattr(Hellanzb, 'DEQUEUED_NZBS_DIR'):
         rmtree(Hellanzb.DEQUEUED_NZBS_DIR)
+
+    if message:
+        logShutdown(message)
     
 def shutdownAndExit(returnCode = 0):
     """ Shutdown hellanzb's twisted reactor, AND call sys.exit """

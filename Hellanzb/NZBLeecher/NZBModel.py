@@ -75,9 +75,11 @@ class NZB(Archive):
         ## Skipped par file's subjects are kept here, in a list, during post
         ## processing. This list is arranged by the file's size
         self.skippedParSubjects = None
-        ## The number of par blocks (or par files for par1 mode), the par version, and the
-        ## par prefix for the current par recovery download
+        ## The number of par blocks (or par files for par1 mode), queued to download
+        ## recovery blocks, the par version, and the par prefix for the current par
+        ## recovery download
         self.neededBlocks = 0
+        self.queuedBlocks = 0
         self.parType = None
         self.parPrefix = None
         
@@ -139,6 +141,7 @@ class NZB(Archive):
         self.totalReadBytes = 0
         self.firstSegmentsDownloaded = 0
         ##self.neededBlocks = 0 # ?
+        self.queuedBlocks = 0
         for nzbFile in self.nzbFiles:
             nzbFile.totalSkippedBytes = 0
             nzbFile.totalReadBytes = 0

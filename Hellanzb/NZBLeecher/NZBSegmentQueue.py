@@ -447,6 +447,11 @@ class NZBSegmentQueue(PriorityQueue):
                 if self.onDiskSegments.has_key(nzbSegment.getDestination()):
                     self.onDiskSegments.pop(nzbSegment.getDestination())
 
+            if nzbFile.isExtraPar and nzbFile.nzb.queuedBlocks > 0:
+                fileBlocks = getParSize(nzbFile.filename)
+                nzbFile.nzb.queuedBlocks -= fileBlocks
+                nzbFile.nzb.neededBlocks -= fileBlocks
+                
             if nzbFile.isSkippedPar:
                 # If a skipped par file was actually assembled, it wasn't actually skipped
                 nzbFile.isSkippedPar = False
@@ -744,7 +749,7 @@ class NZBParser(ContentHandler):
                     self.fileNeedsDownload = False
                     extraMsg = ' (not on disk but wasn\'t previously marked as an skippedParFile)'
                     self.file.nzb.firstSegmentsDownloaded += 1
-                elif self.nzb.parPrefix not in subject:
+                elif toUnicode(self.nzb.parPrefix) not in toUnicode(subject):
                     # Previously marked par -- only download it if it pertains to the
                     # particular par. We keep it set to needsDownload here so it gets to
                     # parseNZB -- parseNZB won't actually queue it

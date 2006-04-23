@@ -42,11 +42,12 @@ def smartDequeue(segment, readOnlyQueue = False, verbose = False):
 
     nzb = segment.nzbFile.nzb
     isQueuedRecoveryPar = False
-    if nzb.isParRecovery and nzb.parPrefix in segment.nzbFile.subject and \
-            nzb.neededBlocks > 0:
+    if nzb.isParRecovery and \
+            toUnicode(nzb.parPrefix) in toUnicode(segment.nzbFile.subject) and \
+            nzb.neededBlocks - nzb.queuedBlocks > 0:
         isQueuedRecoveryPar = True
         # readOnlyQueue can be True here.
-        nzb.neededBlocks -= getParSize(segment.nzbFile.filename)
+        nzb.queuedBlocks += getParSize(segment.nzbFile.filename)
 
     if not isQueuedRecoveryPar and len(segment.nzbFile.nzbSegments) == 1:
         # Nothing to actually dequeue (we just downloaded the only segment). If we're in

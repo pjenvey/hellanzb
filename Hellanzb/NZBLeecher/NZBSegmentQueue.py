@@ -379,7 +379,7 @@ class NZBSegmentQueue(PriorityQueue):
         if self.retryQueueEnabled:
             try:
                 return self.rQueue.get(serverPoolName)
-            except:
+            except Empty:
                 # All retry queues for this serverPool are empty. fall through
                 pass
 

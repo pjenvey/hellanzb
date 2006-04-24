@@ -465,7 +465,7 @@ def processRars(postProcessor):
                 
             unrared += 1
 
-    processComplete(postProcessor.dirName, 'rar', lambda file : os.path.isfile(file) and isRar(file))
+    processComplete(postProcessor.dirName, 'rar')
     
     rarTxt = 'rar group'
     if unrared > 1:
@@ -549,10 +549,11 @@ def unrar(postProcessor, fileName, pathToExtract = None):
                          ' -p on the archive directory with the -P option to specify a password')
 
     if isPassworded:
-        cmd = '%s x -y "-p%s" -- "%s" "%s"' % (Hellanzb.UNRAR_CMD, postProcessor.rarPassword,
-                                               fileName, pathToExtract)
+        cmd = '%s x -y -idp "-p%s" -- "%s" "%s"' % \
+            (Hellanzb.UNRAR_CMD, postProcessor.rarPassword, fileName, pathToExtract)
     else:
-        cmd = '%s x -y -p- -- "%s" "%s"' % (Hellanzb.UNRAR_CMD, fileName, pathToExtract)
+        cmd = '%s x -y -idp -p- -- "%s" "%s"' % (Hellanzb.UNRAR_CMD, fileName,
+                                                 pathToExtract)
     
     info(archiveName(postProcessor.dirName) + ': Unraring ' + os.path.basename(fileName) + '..')
     t = Topen(cmd, postProcessor)
@@ -709,8 +710,8 @@ def processPars(postProcessor, needAssembly = None):
         for parFile in parFiles:
             moveToProcessed(dirName + os.sep + parFile)
 
-    processComplete(dirName, 'par', lambda file : isPar(file) or \
-                    (PAR2_LEFTOVER_SUFFIX.search(file) and file not in dotOneFiles))
+    processComplete(dirName, 'par', lambda file : PAR2_LEFTOVER_SUFFIX.search(file) and \
+                    file not in dotOneFiles)
     
     parTxt = 'par group'
     groupCount = len(parGroups)
@@ -1052,7 +1053,7 @@ def moveToProcessed(file):
     move(file, os.path.dirname(file) + os.sep + Hellanzb.PROCESSED_SUBDIR + os.sep + \
          os.path.basename(file))
         
-def processComplete(dirName, processStateName, moveFileFilterFunction):
+def processComplete(dirName, processStateName, moveFileFilterFunction = None):
     """ Once we've finished a particular processing state, this function will be called to
     move the files we processed out of the way, and touch a file on the filesystem
     indicating this state is done """

@@ -886,13 +886,13 @@ def parseParNeedsBlocksOutput(archive, output):
 
             if line.endswith('missing.'):
                 file = line[:-len('" - missing.')]
-                errMsgs = {error: 'Archive missing required file',
-                           warn: 'Archive missing non-required file'}
+                errMsgs = {error: 'Missing file',
+                           warn: 'Missing (not required) file'}
                 missingFiles.append(file)
             else:
                 file = RAR_DAMAGED_RE.sub('', line)
-                errMsgs = {error: 'Archive has damaged, required file',
-                           warn: 'Archive has damaged, non-required file'}
+                errMsgs = {error: 'Damaged file',
+                           warn: 'Damaged (not required) file'}
 
             spammed = checkRequired(file, errMsgs, spammed)
 
@@ -911,8 +911,8 @@ def parseParNeedsBlocksOutput(archive, output):
                 
         elif RAR_NOT_FOUND_RE.match(line):
             file = RAR_NOT_FOUND_RE.sub(r'\1', line)
-            errMsgs =  {error: 'Archive has damaged, required file',
-                        warn: 'Archive has damaged, non-required file'}
+            errMsgs =  {error: 'Damaged file',
+                        warn: 'Damaged (not required) file'}
             spammed = checkRequired(file, errMsgs, spammed)
 
     if spammed > maxSpam and len(extraSpam):
@@ -920,7 +920,7 @@ def parseParNeedsBlocksOutput(archive, output):
         
         # Enforce usage of warn() on non-required messages. sigh
         lastMsg = extraSpam[-1]
-        if lastMsg.find('non-required') > -1:
+        if lastMsg.find('not required') > -1:
             warn(lastMsg)
         else:
             error(lastMsg)

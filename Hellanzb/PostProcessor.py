@@ -538,7 +538,7 @@ class PostProcessor(Thread):
                 os.path.basename(self.archive.nzbFileName)
 
             info(archiveName(self.dirName) + \
-                 ': More pars avaialble, forcing extra par download')
+                 ': More pars available, forcing extra par download')
 
             self.archive.neededBlocks, self.archive.parType, self.archive.parPrefix = \
                 nmp.size, nmp.parType, nmp.parPrefix

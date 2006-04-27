@@ -211,6 +211,9 @@ def init(options = {}):
     # How many total NZB archives have been post processed
     Hellanzb.totalPostProcessed = 0
 
+    # Whether or not we're a downloader process
+    Hellanzb.IS_DOWNLOADER = False
+
     # Whether or not the queue daemon is running as a daemon process (forked)
     Hellanzb.DAEMONIZE = False
 
@@ -221,6 +224,8 @@ def init(options = {}):
     Hellanzb.stopSignalCount = 0
     # When the first CTRL-C was pressed
     Hellanzb.firstSignal = None
+    # Message printed before exiting
+    Hellanzb.shutdownMessage = None
 
     # Whether or not this is a hellanzb download daemon process
     Hellanzb.isDaemon = False
@@ -327,14 +332,21 @@ def shutdown(killPostProcessors = False, message = None):
         # here
         Topen.killAll()
 
+    if not Hellanzb.shutdownMessage:
+        Hellanzb.shutdownMessage = message
+    
     # stop the twisted reactor
     if reactor.running:
-        reactor.addSystemEventTrigger('after', 'shutdown', finishShutdown, message)
+        # hellanzb downloader processes will call finishShutdown after reactor.run has
+        # completed (it has to: because the system event trigger below does NOT ensure
+        # finishShutdown is called in the final reactor iteration)
+        if not Hellanzb.IS_DOWNLOADER:
+            reactor.addSystemEventTrigger('after', 'shutdown', finishShutdown)
         reactor.stop()
     else:
-        finishShutdown(message)
+        finishShutdown()
 
-def finishShutdown(message = None):
+def finishShutdown():
     """ Last minute calls prior to shutdown """
     # Just in case we left it off
     stdinEchoOn()
@@ -347,12 +359,12 @@ def finishShutdown(message = None):
     if hasattr(Hellanzb, 'DEQUEUED_NZBS_DIR'):
         rmtree(Hellanzb.DEQUEUED_NZBS_DIR)
 
-    if message:
-        logShutdown(message)
+    if Hellanzb.shutdownMessage:
+        logShutdown(Hellanzb.shutdownMessage)
     
 def shutdownAndExit(returnCode = 0):
     """ Shutdown hellanzb's twisted reactor, AND call sys.exit """
-    shutdown()
+    shutdown(killPostProcessors = True)
 
     sys.exit(returnCode)
 
@@ -440,7 +452,8 @@ def processArgs(options, args):
     """ By default (no args) run the daemon. Otherwise we could be making an XML RPC call, or
     calling a PostProcessor on the specified dir then exiting """
     if not len(args) and not options.postProcessDir:
-
+        Hellanzb.IS_DOWNLOADER = True
+        
         if options.daemonize:
             # Run as a daemon process (fork)
             Hellanzb.DAEMONIZE = True

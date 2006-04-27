@@ -251,10 +251,9 @@ class HellaXMLRPCServer(XMLRPC):
     def xmlrpc_shutdown(self):
         """ Shutdown hellanzb. Will quietly kill any post processing threads that may exist """
         # Shutdown the reactor/alert the ui
-        reactor.addSystemEventTrigger('after', 'shutdown', logShutdown, 'RPC shutdown call, exiting..')
         from Hellanzb.Core import shutdown
-        reactor.callLater(1, shutdown, True)
-        
+        reactor.callLater(1, shutdown, **dict(killPostProcessors = True,
+                                              message = 'RPC shutdown call, exiting..'))
         return True
 
     xmlrpc_shutdown.signature = [ ['boolean'] ]

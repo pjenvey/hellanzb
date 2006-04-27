@@ -20,6 +20,7 @@ from twisted.internet.protocol import ReconnectingClientFactory
 from twisted.protocols.basic import LineReceiver
 from twisted.protocols.policies import TimeoutMixin, ThrottlingFactory
 from twisted.python import log
+from Hellanzb.Core import finishShutdown
 from Hellanzb.Daemon import cancelCurrent, endDownload
 from Hellanzb.Log import *
 from Hellanzb.Logging import LogOutputStream, NZBLeecherTicker
@@ -1006,6 +1007,9 @@ def startNZBLeecher():
     # bacon and spam; spam sausage spam spam bacon spam tomato and spam;
     reactor.run()
     # Spam! Spam! Spam! Spam! Lovely spam! Spam! Spam!
+
+    # Safely tear down the app only after the reactor shutdown
+    finishShutdown()
     
 """
 Copyright (c) 2005 Philip Jenvey <pjenvey@groovie.org>

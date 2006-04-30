@@ -421,7 +421,7 @@ class NZBSegmentQueue(PriorityQueue):
 
             # We might have just requeued a segment onto an idle server pool. Reactivate
             # any idle connections pertaining to this segment
-            self.nudgeIdleNZBLeechers(segment)
+            reactor.callLater(0, self.nudgeIdleNZBLeechers, segment)
         else:
             raise PoolsExhausted()
 
@@ -431,7 +431,7 @@ class NZBSegmentQueue(PriorityQueue):
         if not Hellanzb.downloadPaused and not requeuedSegment.nzbFile.nzb.canceled:
             for nsf in Hellanzb.nsfs:
                 if nsf.serverPoolName not in requeuedSegment.failedServerPools:
-                    reactor.callLater(0, nsf.fetchNextNZBSegment)
+                    nsf.fetchNextNZBSegment()
 
     def fileDone(self, nzbFile):
         """ Notify the queue a file is done. This is called after assembling a file into it's

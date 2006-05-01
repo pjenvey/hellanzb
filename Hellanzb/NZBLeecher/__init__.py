@@ -145,6 +145,9 @@ class NZBLeecherFactory(ReconnectingClientFactory):
         if client not in self.activeClients:
             self.activeClients.add(client)
 
+        if not self.sessionStartTime:
+            self.sessionStartTime = time.time()
+
     def deactivateClient(self, client, justThisDownloadPool = False):
         """ Deactive the specified client """
         self.activeClients.remove(client)
@@ -286,6 +289,7 @@ class NZBLeecher(NNTPClient, TimeoutMixin):
         debug(str(self) + ' AUTHINFO failed: ' + str(err))
         # FIXME: This gives us too much scroll. Need to only do it selectively
         #error(self.factory.hostname + '[' + str(self.id).zfill(2) + '] Authorization failed: ' + str(err))
+        self.transport.loseConnection()
 
     def connectionMade(self):
         debug(str(self) + ' CONNECTION MADE')

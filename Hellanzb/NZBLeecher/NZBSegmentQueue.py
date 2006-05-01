@@ -421,11 +421,16 @@ class NZBSegmentQueue(PriorityQueue):
 
             # We might have just requeued a segment onto an idle server pool. Reactivate
             # any idle connections pertaining to this segment
-            reactor.callLater(0, self.nudgeIdleNZBLeechers, segment)
+            self.nudgeIdleNZBLeechers(segment)
         else:
             raise PoolsExhausted()
 
     def nudgeIdleNZBLeechers(self, requeuedSegment):
+        """ Activate any idle NZBLeechers that might need to download the specified requeued
+        segment """
+        reactor.callLater(0, self._nudgeIdleNZBLeechers, requeuedSegment)
+        
+    def _nudgeIdleNZBLeechers(self, requeuedSegment):
         """ Activate any idle NZBLeechers that might need to download the specified requeued
         segment """
         if not Hellanzb.downloadPaused and not requeuedSegment.nzbFile.nzb.canceled:

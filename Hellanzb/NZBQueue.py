@@ -138,7 +138,7 @@ def scanQueueDir(firstRun = False, justScan = False):
                 now = time.time()
                 if mtime < now and now - mtime < Hellanzb.NZBQUEUE_MDELAY:
                     debug('Delaying enqueue of %s: mtime: %i Hellanzb.NZBQUEUE_MDELAY: %i' % \
-                          (file, mtime, Hellanzb.NZBQUEUE_MDELAY))
+                          (file, now - mtime, Hellanzb.NZBQUEUE_MDELAY))
                     continue
                 
                 new_nzbs.append(Hellanzb.QUEUE_DIR + os.sep + file)
@@ -233,7 +233,7 @@ def sortQueueFromRecoveredState(queuedRecoveredState):
     arranged = []
     for order, archiveName in onDiskQueue:
         for nzb in unsorted:
-            if nzb.archiveName == archiveName:
+            if toUnicode(nzb.archiveName) == toUnicode(archiveName):
                 Hellanzb.nzbQueue.append(nzb)
                 arranged.append(nzb)
                 break

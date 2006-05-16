@@ -164,6 +164,6 @@ Hellanzb.KEEP_FILE_TYPES = [ 'nfo', 'txt' ]
 #Hellanzb.OTHER_NZB_FILE_TYPES = [ 'xml' ]
 
 # Delay enqueueing new, recently modified NZB files added to the QUEUE_DIR until
-# this many seconds has passed since the NZB's last modification time (defaults
+# this many seconds have passed since the NZB's last modification time (defaults
 # to 10 seconds)
 #Hellanzb.NZBQUEUE_MDELAY = 10

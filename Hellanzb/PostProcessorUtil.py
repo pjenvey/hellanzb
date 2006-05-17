@@ -1001,11 +1001,24 @@ def assembleSplitFiles(dirName, toAssemble):
         for file in parts:
             partFile = open(dirName + os.sep + file)
             read = partFile.read
-            while True:
-                buf = read(BUF_SIZE)
-                if not buf:
-                    break
-                write(buf)
+            try:
+                while True:
+                    buf = read(BUF_SIZE)
+                    if not buf:
+                        break
+                    write(buf)
+                    
+            except IOError, ioe:
+                assembledFile.close()
+                partFile.close()
+                if ioe.errno == 28:
+                    typeName = 'file'
+                    if key[-3:].lower() == '.ts':
+                        typeName = 'TS'
+                    raise FatalError('Ran out of disk space while assembling split %s: %s' % \
+                                     (typeName, key))
+                else:
+                    raise
             
             try:
                 checkShutdown()

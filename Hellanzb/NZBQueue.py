@@ -368,7 +368,8 @@ def ensureSafePostponedLoad(nzbFileName):
     cancelledClients = []
     for nsf in Hellanzb.nsfs:
         for nzbl in nsf.clients:
-            if nzbl.currentSegment != None and os.path.basename(nzbl.currentSegment.nzbFile.nzb.nzbFileName) == \
+            if nzbl.currentSegment != None and \
+                    os.path.basename(nzbl.currentSegment.nzbFile.nzb.nzbFileName) == \
                     os.path.basename(nzbFileName):
                 # the easiest way to prevent weird things from happening (such as the
                 # parser getting confused about what needs to be downloaded/skipped) is to

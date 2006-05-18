@@ -177,9 +177,9 @@ def logSkippedPars(nzb):
             if len(parFilenames) == 1:
                 label = parFilenames[0]
             elif len(parFilenames) == 2:
-                label = '%s, %s' % (parFilenames[0], parFilenames[-1])
+                label = '%s,\n %s' % (parFilenames[0], parFilenames[-1])
             elif len(parFilenames) > 2:
-                label = '%s -> %s' % (parFilenames[0], parFilenames[-1])
+                label = '%s ->\n %s' % (parFilenames[0], parFilenames[-1])
                 
             info(' %s (%s%s %s)' % (label, groupStats, skippedGroupBlocks,
                                     getParRecoveryName(nzbFile.parType)))

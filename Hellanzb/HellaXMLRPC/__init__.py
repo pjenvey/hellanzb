@@ -134,7 +134,8 @@ class HellaXMLRPCServer(XMLRPC):
         """ Download the NZB with the specified NZB ID from www.newzbin.com, and enqueue it """
         from Hellanzb.NewzbinDownloader import NewzbinDownloader
         if not NewzbinDownloader.canDownload():
-            faultMsg = 'Unable to enqueue NZB, Hellanzb.NEWZBIN_USERNAME and or Hellanzb.NEWZBIN_PASSWORD were not supplied in the conf file'
+            faultMsg = 'Unable to enqueue NZB, Hellanzb.NEWZBIN_USERNAME and or ' \
+                'Hellanzb.NEWZBIN_PASSWORD were not supplied in the conf file'
             raise Fault(9001, faultMsg)
         newzdl = NewzbinDownloader(str(nzbId))
         newzdl.download()
@@ -171,7 +172,8 @@ class HellaXMLRPCServer(XMLRPC):
     xmlrpc_list.signature = [ ['list'],
                               ['list', 'boolean'] ]
     xmlrpc_list.help = xmlrpc_list.__doc__.rstrip() + \
-        '. Returns a list of structs (nzbid -> nzbName). Excluding the NZB IDs returns a list of nzbName strings'
+        '. Returns a list of structs (nzbid -> nzbName). Excluding the NZB IDs returns a ' \
+        'list of nzbName strings'
     
     def xmlrpc_maxrate(self, rate = None):
         """ Return the Hellanzb.MAX_RATE (maximum download rate) value. Specify a second argument
@@ -226,7 +228,8 @@ class HellaXMLRPCServer(XMLRPC):
         # We are the queue daemon -- Symlink to the archiveDir. If we are ctrl-ced, we'll
         # pick up the post processing afterward restart
         if os.path.normpath(dirName) != os.path.normpath(Hellanzb.PROCESSING_DIR):
-            destDir = dupeName(Hellanzb.PROCESSING_DIR + os.sep + os.path.basename(archiveDir.rstrip(os.sep)))
+            destDir = dupeName(Hellanzb.PROCESSING_DIR + os.sep + \
+                               os.path.basename(archiveDir.rstrip(os.sep)))
             # UNIX: symlink, windows =[
             os.symlink(archiveDir, destDir)
             archiveDir = destDir
@@ -365,7 +368,8 @@ def resultMadeItBoolAndExit(remoteCall, result):
         if result:
             info('Successfully made remote call to hellanzb queue daemon')
         else:
-            info('Remote call to hellanzb queue daemon returned False! (there was a problem, see logs for details)')
+            info('Remote call to hellanzb queue daemon returned False! (there was a '
+                 'problem, see logs for details)')
         reactor.stop()
     else:
         noLogFile(str(result))

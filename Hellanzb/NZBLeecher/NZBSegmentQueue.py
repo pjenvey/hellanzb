@@ -482,7 +482,8 @@ class NZBSegmentQueue(PriorityQueue):
             elif nzbSegment in nzbSegment.nzbFile.dequeuedSegments:
                 # NOTE: this should really never occur
                 # need this elif?
-                debug('*** segmentDone called on dequeued nzbSegment -- removing from nzbFile.dequeuedSegments!')
+                debug('*** segmentDone called on dequeued nzbSegment -- removing from '
+                      'nzbFile.dequeuedSegments!')
                 nzbSegment.nzbFile.dequeuedSegments.remove(nzbSegment)
             if nzbSegment.nzbFile.nzb in self.nzbs:
                 self.totalQueuedBytes -= nzbSegment.bytes

@@ -580,7 +580,7 @@ class NZBSegment:
         # downloaded encodedData was written to disk by NZBLeecher
         encodedData = open(Hellanzb.DOWNLOAD_TEMP_DIR + os.sep + self.getTempFileName() + '_ENC')
         # remove crlfs. FIXME: might be quicker to do this during a later loop
-        self.articleData = [line[:-2] for line in encodedData.readlines()]
+        self.articleData = [line[:-2] for line in encodedData]
         encodedData.close()
 
         # Delete the copy on disk ASAP

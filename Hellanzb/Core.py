@@ -324,6 +324,10 @@ def shutdown(killPostProcessors = False, message = None):
     """ Turn the knob that tells all parts of the program we're shutting down, optionally kill
     any sub processes (that could prevent the program from exiting) and kill the twisted
     reactor """
+    if Hellanzb.SHUTDOWN:
+        # shutdown already triggered
+        return
+    
     # that knob, that threads (PostProcessors) will check on before doing significant work
     Hellanzb.SHUTDOWN = True
 

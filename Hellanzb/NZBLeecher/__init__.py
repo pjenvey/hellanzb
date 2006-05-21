@@ -479,7 +479,7 @@ class NZBLeecher(NNTPClient, TimeoutMixin):
                         debug(str(self) + \
                               ' All groups failed, requeueing to another pool!')
                         self.resetCurrentSegment(removeEncFile = True)
-                        self.fetchNextNZBSegment()
+                        reactor.callLater(0, self.fetchNextNZBSegment)
 
                     except PoolsExhausted:
                         error('Unable to retrieve *any* groups for file (subject: ' + \

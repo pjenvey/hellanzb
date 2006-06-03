@@ -108,6 +108,7 @@ def initHellaHella(configFile, verbose = False):
     """ Initialize hellahella, the web UI """
     Hellanzb.HELLAHELLA_PORT = 8750
     try:
+        import cgi
         from paste.deploy import loadapp
         from twisted.web2.server import Request
         def _parseURL(self):
@@ -172,7 +173,7 @@ def initHellaHella(configFile, verbose = False):
             env['wsgi.input']        = InputStream(request.stream)
             env['wsgi.errors']       = ErrorStream()
             env['wsgi.multithread']  = True
-            env['wsgi.multiprocess'] = True
+            env['wsgi.multiprocess'] = False
             env['wsgi.run_once']     = False
             env['wsgi.file_wrapper'] = FileWrapper
             self.environment = env

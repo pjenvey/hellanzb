@@ -187,8 +187,13 @@ def parseArticleData(segment, justExtractFilename = False):
         # After stripping the articleData, we should find a yencode header, uuencode
         # header, or a uuencode part header (an empty line)
         if not withinData and line.startswith('=ybegin'):
-            # See if we can parse the =ybegin line
-            ybegin = ySplit(line)
+            # Parse the =ybegin line. Be explicit about the length of =ybegin fields we're
+            # splitting, incase badly named filenames destroy the regexp Example:
+            # =ybegin part=1 line=128 size=71492 name=--=GRUB=-- Puker_S1_D1.par2
+            splits = 3
+            if line.find(' part='):
+                splits = 4
+            ybegin = ySplit(line, splits)
             
             if not ('line' in ybegin and 'size' in ybegin and 'name' in ybegin):
                 # FIXME: show filename information
@@ -539,18 +544,22 @@ def yDecode(dataList):
         data = data.replace(j, chr(i))
     return data.translate(YDEC_TRANS)
                
-YSPLIT_RE = re.compile(r'(\S+)=')
-def ySplit(line):
+YSPLIT_RE = re.compile(r'([a-zA-Z0-9]+)=')
+def ySplit(line, strictFieldLen = None):
     """ Split a =y* line into key/value pairs """
     fields = {}
-    
-    parts = YSPLIT_RE.split(line)[1:]
+
+    if strictFieldLen is not None:
+        parts = YSPLIT_RE.split(line, strictFieldLen)[1:]
+    else:
+        parts = YSPLIT_RE.split(line)[1:]
+        
     if len(parts) % 2:
-            return fields
+        return fields
     
     for i in range(0, len(parts), 2):
-            key, value = parts[i], parts[i+1]
-            fields[key] = value.strip()
+        key, value = parts[i], parts[i+1]
+        fields[key] = value.strip()
     
     return fields
 

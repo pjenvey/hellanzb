@@ -464,7 +464,8 @@ class NZBFile:
                 # NOTE: We should know this is a par, but probably don't care if it is.
                 # If there is a par file fully assembled on disk, we don't care about
                 # skipping it
-                identifyPar(self)
+                if self.filename is not None:
+                    identifyPar(self)
                 if not dupeNeedsDl:
                     self.nzb.firstSegmentsDownloaded += 1
                 return dupeNeedsDl

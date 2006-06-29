@@ -191,8 +191,10 @@ def parseArticleData(segment, justExtractFilename = False):
             # splitting, incase badly named filenames destroy the regexp Example:
             # =ybegin part=1 line=128 size=71492 name=--=GRUB=-- Puker_S1_D1.par2
             splits = 3
-            if line.find(' part='):
-                splits = 4
+            if line.find(' part=') > -1:
+                splits += 1
+            if line.find(' total=') > -1:
+                splits += 1
             ybegin = ySplit(line, splits)
             
             if not ('line' in ybegin and 'size' in ybegin and 'name' in ybegin):

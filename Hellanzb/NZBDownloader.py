@@ -77,6 +77,7 @@ class NZBDownloader(object):
 
         type, attrs = splitattr(headers[found][0])
         key, val = splitvalue(attrs[0].strip())
+        val = val.strip().strip('"')
         if val:
             debug(str(self) + ' gotHeaders: found filename: %s' % val)
             self.nzbFilename = val

@@ -144,6 +144,15 @@ class HellaXMLRPCServer(XMLRPC):
     xmlrpc_enqueuenewzbin.signature = [ ['struct', 'string'],
                                         ['struct', 'int'] ]
 
+    def xmlrpc_enqueueurl(self, url):
+        """ Download the NZB at the specified URL, and enqueue it """
+        from Hellanzb.NZBDownloader import NZBDownloader
+        newzdl = NZBDownloader(url)
+        newzdl.download()
+        return self.xmlrpc_status()
+
+    xmlrpc_enqueueurl.signature = [ ['struct', 'string'] ]
+
     def xmlrpc_force(self, nzbId):
         """ Force hellanzb to begin downloading the NZB with the specified ID immediately,
         interrupting the current download """
@@ -613,6 +622,8 @@ def initXMLRPCClient():
     r.addRequiredArg('nzbfile')
     r = RemoteCall('enqueuenewzbin', statusString)
     r.addRequiredArg('nzbid')
+    r = RemoteCall('enqueueurl', statusString)
+    r.addRequiredArg('url')
     r = RemoteCall('force', statusString)
     r.addRequiredArg('nzbid')
     r = RemoteCall('last', printQueueListAndExit)

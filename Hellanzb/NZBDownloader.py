@@ -10,10 +10,21 @@ import base64, os, string, urllib, urlparse, Hellanzb.NZBQueue
 from twisted.internet import reactor
 from twisted.internet.error import ConnectionRefusedError, DNSLookupError, TimeoutError
 from twisted.web.client import HTTPDownloader
+from urllib import splitattr, splitvalue
 from Hellanzb.Log import *
 from Hellanzb.Util import tempFilename
 
 __id__ = '$Id$'
+
+class StoreHeadersHTTPDownloader(HTTPDownloader):
+    """ Give the headers to the headerListener """
+    def __init__(self, url, fileOrName, headerListener = None, *args, **kargs):
+        self.headerListener = headerListener
+        HTTPDownloader.__init__(self, url, fileOrName, *args, **kargs)
+        
+    def gotHeaders(self, headers):
+        self.headerListener.gotHeaders(headers)
+        HTTPDownloader.gotHeaders(self, headers)
 
 class NZBDownloader(object):
     """ Download the NZB file at the specified URL """
@@ -49,6 +60,27 @@ class NZBDownloader(object):
 
         self.handleNZBDownload()
 
+    def gotHeaders(self, headers):
+        """ The downloader will feeds headers via this function """
+        debug(str(self) + ' gotHeaders')
+        # Grab the file name of the NZB via content-disposition header
+        keys = headers.keys()
+
+        found = None
+        for key in keys:
+            if key.lower() == 'content-disposition':
+                found = key
+                break
+
+        if found is None:
+            return
+
+        type, attrs = splitattr(headers[found][0])
+        key, val = splitvalue(attrs[0].strip())
+        if val:
+            debug(str(self) + ' gotHeaders: found filename: %s' % val)
+            self.nzbFilename = val
+
     def handleNZBDownload(self):
         """ Download the NZB """
         debug(str(self) + ' handleNZBDownload')
@@ -64,8 +96,9 @@ class NZBDownloader(object):
             auth = string.join(string.split(auth), "") # get rid of whitespace
             headers['Authorization'] = 'Basic ' + auth
 
-        httpd = HTTPDownloader(self.url, self.tempFilename, headers = headers,
-                               agent = self.AGENT)
+        httpd = StoreHeadersHTTPDownloader(self.url, self.tempFilename,
+                                           headerListener = self, headers = headers,
+                                           agent = self.AGENT)
         httpd.deferred.addCallback(self.handleEnqueueNZB)
         httpd.deferred.addErrback(self.errBack)
 

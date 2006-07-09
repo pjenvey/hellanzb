@@ -12,9 +12,10 @@ people might want it so here it is -pjenvey
 import os, time, Hellanzb.NZBQueue
 from twisted.internet import reactor
 from twisted.internet.error import ConnectionRefusedError, DNSLookupError, TimeoutError
-from twisted.web.client import HTTPClientFactory, HTTPDownloader
+from twisted.web.client import HTTPClientFactory
 from urllib import splitattr, splitvalue
 from Hellanzb.Log import *
+from Hellanzb.NZBDownloader import StoreHeadersHTTPDownloader
 from Hellanzb.Util import tempFilename
 
 __id__ = '$Id$'
@@ -44,16 +45,6 @@ class StoreCookieHTTPClientFactory(HTTPClientFactory):
                 cookies[k.lstrip()] = v.lstrip()
 
         return cookies
-
-class StoreHeadersHTTPDownloader(HTTPDownloader):
-    """ Give the headers to the headerListener """
-    def __init__(self, url, fileOrName, headerListener = None, *args, **kargs):
-        self.headerListener = headerListener
-        HTTPDownloader.__init__(self, url, fileOrName, *args, **kargs)
-        
-    def gotHeaders(self, headers):
-        self.headerListener.gotHeaders(headers)
-        HTTPDownloader.gotHeaders(self, headers)
 
 class NewzbinDownloader(object):
     """ Download the NZB file with the specified msgid from www.newzbin.com, by instantiating

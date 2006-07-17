@@ -75,6 +75,8 @@ class PostProcessor(Thread):
         self.decompressorLock = RLock()
         self.decompressorCondition = Condition(self.decompressorLock)
 
+        self.movedSamples = []
+        
         self.startTime = None
 
         # Whether or not this PostProcessor's Topen processes were explicitly kill()'ed
@@ -126,6 +128,8 @@ class PostProcessor(Thread):
 
     def stop(self):
         """ Perform any cleanup and remove ourself from the pool before exiting """
+        moveBackSamples(self)
+        
         if not self.forcedRecovery:
             cleanUp(self.dirName)
 
@@ -332,6 +336,8 @@ class PostProcessor(Thread):
 
     def finishedPostProcess(self):
         """ finish the post processing work """
+        moveBackSamples(self)
+
         # Move other cruft out of the way
         deleteDuplicates(self.dirName)
         
@@ -493,6 +499,7 @@ class PostProcessor(Thread):
         
         if not Hellanzb.SKIP_UNRAR and dirHasRars(self.dirName):
             checkShutdown()
+            moveSamples(self)
             processRars(self)
 
         if dirHasMusic(self.dirName):

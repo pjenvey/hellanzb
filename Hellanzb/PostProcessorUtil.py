@@ -1065,7 +1065,7 @@ def moveToProcessed(file):
     """ Move files to the processed dir """
     move(file, os.path.dirname(file) + os.sep + Hellanzb.PROCESSED_SUBDIR + os.sep + \
          os.path.basename(file))
-        
+
 def processComplete(dirName, processStateName, moveFileFilterFunction = None):
     """ Once we've finished a particular processing state, this function will be called to
     move the files we processed out of the way, and touch a file on the filesystem
@@ -1079,6 +1079,23 @@ def processComplete(dirName, processStateName, moveFileFilterFunction = None):
     # And make a note of the completion
     touch(dirName + os.sep + Hellanzb.PROCESSED_SUBDIR + os.sep + '.' + \
           processStateName + '_done')
+
+def moveSamples(postProcessor):
+    """ Temporarily move any sample files that look like .rars into the processed dir
+    (they can cause unrar to fail) """
+    for file in os.listdir(postProcessor.dirName):
+        fullPath = postProcessor.dirName + os.sep + file
+        if isRar(fullPath) and \
+            file.lower().endswith('.sample.vob'):
+            moveToProcessed(fullPath)
+            postProcessor.movedSamples.append(file)
+
+def moveBackSamples(postProcessor):
+    """ Restore the moved samples """
+    for file in postProcessor.movedSamples[:]:
+        move(postProcessor.dirName + os.sep + Hellanzb.PROCESSED_SUBDIR + os.sep + file,
+             postProcessor.dirName + os.sep + file)
+        postProcessor.movedSamples.remove(file)
 
 def isFreshState(dirName, stateName):
     """ Determine if the specified state has already been completed """

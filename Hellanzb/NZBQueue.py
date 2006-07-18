@@ -117,15 +117,15 @@ def scanQueueDir(firstRun = False, justScan = False):
     #t = time.time()
 
     from Hellanzb.NZBLeecher.NZBModel import NZB
-    current_nzbs = []
+    currentNZBs = []
     for file in os.listdir(Hellanzb.CURRENT_DIR):
         if Hellanzb.NZB_FILE_RE.search(file):
-            current_nzbs.append(Hellanzb.CURRENT_DIR + os.sep + file)
+            currentNZBs.append(Hellanzb.CURRENT_DIR + os.sep + file)
 
     # See if we're resuming a nzb fetch
     resuming = False
     displayNotification = False
-    new_nzbs = []
+    newNZBs = []
     queuedMap = {}
     for nzb in Hellanzb.nzbQueue:
         queuedMap[os.path.normpath(nzb.nzbFileName)] = nzb
@@ -141,7 +141,7 @@ def scanQueueDir(firstRun = False, justScan = False):
                           (file, now - mtime, Hellanzb.NZBQUEUE_MDELAY))
                     continue
                 
-                new_nzbs.append(Hellanzb.QUEUE_DIR + os.sep + file)
+                newNZBs.append(Hellanzb.QUEUE_DIR + os.sep + file)
 
             elif os.path.normpath(Hellanzb.QUEUE_DIR + os.sep + file) in queuedMap:
                 queuedMap.pop(os.path.normpath(Hellanzb.QUEUE_DIR + os.sep + file))
@@ -154,7 +154,7 @@ def scanQueueDir(firstRun = False, justScan = False):
         # enqueueNZBs() will delete the recovered state. Save it beforehand for sorting
         queuedRecoveredState = Hellanzb.recoveredState.queued.copy()
 
-    enqueueNZBs(new_nzbs, writeQueue = not firstRun)
+    enqueueNZBs(newNZBs, writeQueue = not firstRun)
             
     if firstRun:
         sortQueueFromRecoveredState(queuedRecoveredState)
@@ -169,7 +169,7 @@ def scanQueueDir(firstRun = False, justScan = False):
     #else:
     #    debug('Ziplick scanQueueDir: ' + Hellanzb.QUEUE_DIR)
 
-    if not current_nzbs:
+    if not currentNZBs:
         if not Hellanzb.nzbQueue:
             if firstRun:
                 writeStateXML()
@@ -188,21 +188,21 @@ def scanQueueDir(firstRun = False, justScan = False):
         del Hellanzb.nzbQueue[0]
     
         # nzbfile will always be a absolute filename 
-        nzbfile = Hellanzb.QUEUE_DIR + nzbfilename
+        nzbfile = Hellanzb.QUEUE_DIR + os.sep + nzbfilename
         move(nzbfile, Hellanzb.CURRENT_DIR)
 
-        if not (len(new_nzbs) == 1 and len(Hellanzb.nzbQueue) == 0):
+        if not (len(newNZBs) == 1 and len(Hellanzb.nzbQueue) == 0):
             # Show what's going to be downloaded next, unless the queue was empty, and we
             # only found one nzb (The 'Found new nzb' message is enough in that case)
             displayNotification = True
     else:
         # Resume the NZB in the CURRENT_DIR
-        nzbfilename = current_nzbs[0]
+        nzbfilename = currentNZBs[0]
         nzb = NZB.fromStateXML('downloading', nzbfilename)
         
         nzbfilename = os.path.basename(nzb.nzbFileName)
         displayNotification = True
-        del current_nzbs[0]
+        del currentNZBs[0]
         resuming = True
 
     nzbfile = Hellanzb.CURRENT_DIR + os.sep + nzbfilename

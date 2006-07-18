@@ -101,7 +101,17 @@ def loadConfig(fileName):
                 Hellanzb.OTHER_NZB_FILE_TYPES.append('nzb')
             typesStr = '|'.join(Hellanzb.OTHER_NZB_FILE_TYPES)
             Hellanzb.NZB_FILE_RE = re.compile(nzbTypeRe % typesStr)
-            
+
+        # Make sure we expand pathnames so that ~ can be used
+        for expandPath in ('PREFIX_DIR', 'QUEUE_DIR', 'DEST_DIR', 'POSTPONED_DIR',
+                           'CURRENT_DIR', 'TEMP_DIR', 'PROCESSING_DIR', 'STATE_XML_FILE',
+                           'WORKING_DIR', 'LOG_FILE', 'DEBUG_MODE'):
+                if hasattr(Hellanzb, expandPath):
+                        thisDir = getattr(Hellanzb, expandPath)
+                        if thisDir is not None:
+                                expandedDir = os.path.expanduser(thisDir)
+                                setattr(Hellanzb, expandPath, expandedDir)
+
         debug('Found config file in directory: ' + os.path.dirname(fileName))
         return True
     

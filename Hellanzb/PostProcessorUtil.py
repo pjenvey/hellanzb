@@ -965,12 +965,25 @@ def findSplitFiles(dirName):
             parts = toAssemble[key]
             parts.append(file)
 
-    # Remove any file sets that contain rar files, just in case
+    # Remove any file sets that are rars and don't appear to be a split rar file.
+    # E.g.,
+    # This is not a split archive, it's a sequential set of rars (don't assemble it)
+    # file01.rar
+    # file01.001
+    # file01.002
+    #
+    # This set on the other hand is one .rar file split into pieces (and should be
+    # assembled)
+    # file01.rar.001
+    # file01.rar.002
+    # file01.rar.003
     for key, parts in toAssemble.copy().iteritems():
 
         foundRar = False
         for part in parts:
-            if isRar(dirName + os.sep + part):
+            partPrefix = os.path.splitext(part)[0]
+            if isRar(dirName + os.sep + part) and \
+                    not partPrefix.lower().endswith('.rar'):
                 foundRar = True
                 break
         if foundRar:

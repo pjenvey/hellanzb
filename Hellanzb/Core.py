@@ -87,6 +87,11 @@ def loadConfig(fileName):
         if not hasattr(Hellanzb, 'SKIP_UNRAR') or Hellanzb.SKIP_UNRAR is None:
             Hellanzb.SKIP_UNRAR = False
 
+        if not hasattr(Hellanzb, 'EXTERNAL_HANDLER_SCRIPT') or \
+               Hellanzb.EXTERNAL_HANDLER_SCRIPT is None or \
+               not os.path.exists(Hellanzb.EXTERNAL_HANDLER_SCRIPT):
+            Hellanzb.EXTERNAL_HANDLER_SCRIPT = None
+
         if not hasattr(Hellanzb, 'SMART_PAR'):
             Hellanzb.SMART_PAR = True
 
@@ -105,7 +110,8 @@ def loadConfig(fileName):
         # Make sure we expand pathnames so that ~ can be used
         for expandPath in ('PREFIX_DIR', 'QUEUE_DIR', 'DEST_DIR', 'POSTPONED_DIR',
                            'CURRENT_DIR', 'TEMP_DIR', 'PROCESSING_DIR', 'STATE_XML_FILE',
-                           'WORKING_DIR', 'LOG_FILE', 'DEBUG_MODE'):
+                           'WORKING_DIR', 'LOG_FILE', 'DEBUG_MODE',
+                           'EXTERNAL_HANDLER_SCRIPT'):
                 if hasattr(Hellanzb, expandPath):
                         thisDir = getattr(Hellanzb, expandPath)
                         if thisDir is not None:

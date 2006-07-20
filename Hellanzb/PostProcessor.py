@@ -223,6 +223,7 @@ class PostProcessor(Thread):
 
             pe = prettyException(fe)
             lines = pe.split('\n')
+            archive = archiveName(self.dirName)
             if self.background and Hellanzb.LOG_FILE and len(lines) > 13:
                 # Show only the first 4 and last 4 lines of the error
                 begin = ''.join([line + '\n' for line in lines[:3]])
@@ -231,10 +232,16 @@ class PostProcessor(Thread):
                     '\n <hellanzb truncated the error\'s output, see the log file for full output>\n' + \
                     end
                 
-                noLogFile(archiveName(self.dirName) + ': A problem occurred: ' + msg)
-                logFile(archiveName(self.dirName) + ': A problem occurred', fe)
+                noLogFile(archive + ': A problem occurred: ' + msg)
+                logFile(archive + ': A problem occurred', fe)
             else:
-                error(archiveName(self.dirName) + ': A problem occurred: ' + pe)
+                error(archive + ': A problem occurred: ' + pe)
+
+            e = time.time() - self.startTime 
+            dispatchExternalHandler(ERROR, archiveName=archive,
+                                    destDir=os.path.join(Hellanzb.DEST_DIR, archive),
+                                    elapsedTime=prettyElapsed(e),
+                                    parMessage='A problem occurred: %s' % pe)
 
             return
         
@@ -396,13 +403,18 @@ class PostProcessor(Thread):
             if not handledPars:
                 parMessage = ' (No Pars)'
                 
-            info('%s: Finished processing (took: %s)%s' % (archiveName(self.dirName),
+            archive = archiveName(self.dirName)
+            info('%s: Finished processing (took: %s)%s' % (archive,
                                                            prettyElapsed(e), parMessage))
+            dispatchExternalHandler(SUCCESS, archiveName=archive,
+                                    destDir=os.path.join(Hellanzb.DEST_DIR, archive),
+                                    elapsedTime=prettyElapsed(e),
+                                    parMessage=parMessage)
 
             if parMessage != '':
                 parMessage = '\n' + parMessage
             growlNotify('Archive Success', 'hellanzb Done Processing' + parMessage + ':',
-                        archiveName(self.dirName), True)
+                        archive, True)
                        #self.background)
         # FIXME: could unsticky the message if we're running hellanzb.py -p
         # and preferably if the post processing took say over 30 seconds

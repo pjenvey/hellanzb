@@ -167,3 +167,16 @@ Hellanzb.KEEP_FILE_TYPES = [ 'nfo', 'txt' ]
 # this many seconds have passed since the NZB's last modification time (defaults
 # to 10 seconds)
 #Hellanzb.NZBQUEUE_MDELAY = 10
+
+# Optional external handler script. hellanzb will run this script after post
+# processing an archive, with the following arguments:
+#
+# handler_script type archiveName destDir elapsedTime parMessage
+#
+# type: post processing result, either 'SUCCESS' or 'ERROR'
+# archiveName: name of the archive, e.g. 'Usenet_Post5'
+# destDir: where the archive ended up, e.g. '/ext2/usenet/Usenet_Post5'
+# elapsedTime: a pretty string showing how long post processing took, e.g.
+#              '10m 37s'
+# parMessage: optional post processing message. e.g. '(No Pars)'
+#Hellanzb.EXTERNAL_HANDLER_SCRIPT = '~/bin/post_hellanzb.sh'

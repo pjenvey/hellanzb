@@ -117,7 +117,9 @@ class NZBLeecherFactory(ReconnectingClientFactory):
 
     def clientConnectionLost(self, connector, reason):
         """ Handle lost connections """
-        self.leecherConnectors.append(connector)
+        # Only append connectors if we have antiIdle disabled
+        if self.antiIdleTimeout == 0:
+            self.leecherConnectors.append(connector)
         self.clientConnectionFailed(connector, reason, caller = 'clientConnectionLost')
 
     def fetchNextNZBSegment(self):

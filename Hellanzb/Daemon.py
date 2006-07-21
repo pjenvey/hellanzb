@@ -238,6 +238,12 @@ def beginDownload(nzb = None):
     Hellanzb.downloadScannerID = reactor.callLater(5, scanQueueDir, False, True)
     
     for nsf in Hellanzb.nsfs:
+        if nsf.idledOut:
+            nsf.resetDelay()
+            for a in nsf.leecherConnectors:
+                nsf.retry(a)
+            nsf.leecherConnectors = []
+            nsf.idledOut = False
         nsf.beginDownload()
                 
     Hellanzb.scroller.started = True

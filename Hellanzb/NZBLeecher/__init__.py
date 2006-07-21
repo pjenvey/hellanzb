@@ -68,6 +68,8 @@ class NZBLeecherFactory(ReconnectingClientFactory):
 
         self.connectionCount = 0
 
+        self.idledOut = False
+        self.leecherConnectors = []
         # server reconnecting drop off factor, by default e. PHI (golden ratio) is a lower
         # factor than e
         self.factor = PHI # (Phi is acceptable for use as a factor if e is too large for
@@ -115,6 +117,7 @@ class NZBLeecherFactory(ReconnectingClientFactory):
 
     def clientConnectionLost(self, connector, reason):
         """ Handle lost connections """
+        self.leecherConnectors.append(connector)
         self.clientConnectionFailed(connector, reason, caller = 'clientConnectionLost')
 
     def fetchNextNZBSegment(self):
@@ -315,6 +318,10 @@ class NZBLeecher(NNTPClient, TimeoutMixin):
         # we'll quiet it by canceling it
         if Hellanzb.SHUTDOWN:
             self.factory.stopTrying()
+
+        if not self.activated and self.antiIdleTimeout == 0:
+            self.factory.continueTrying = False
+            self.factory.idledOut = True
 
         NNTPClient.connectionLost(self) # calls self.factory.clientConnectionLost(self, reason)
 
@@ -849,9 +856,12 @@ class NZBLeecher(NNTPClient, TimeoutMixin):
         if self.activated:
             debug(str(self) + ' TIMING OUT connection')
             self.transport.loseConnection()
-        else:
+        elif self.antiIdleTimeout != 0:
             debug(str(self) + ' ANTI IDLING connection')
             self.antiIdleConnection()
+        else:
+            debug(str(self) + ' NOT ANTI IDLING connection')
+            return
             
             # TimeoutMixin assumes we're done (timed out) after timeoutConnection. Since we're
             # still connected, manually reset the timeout

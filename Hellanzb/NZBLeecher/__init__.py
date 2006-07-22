@@ -875,9 +875,9 @@ class NZBLeecher(NNTPClient, TimeoutMixin):
             debug(str(self) + ' NOT ANTI IDLING connection')
             return
             
-            # TimeoutMixin assumes we're done (timed out) after timeoutConnection. Since we're
-            # still connected, manually reset the timeout
-            self.setTimeout(self.antiIdleTimeout)
+        # TimeoutMixin assumes we're done (timed out) after timeoutConnection. Since we're
+        # still connected, manually reset the timeout
+        self.setTimeout(self.antiIdleTimeout)
 
     def resetCurrentSegment(self, removeEncFile = False):
         """ Reset the currentSegment to None. close the encodedData file handle if necessary """

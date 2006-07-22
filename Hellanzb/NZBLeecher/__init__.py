@@ -564,7 +564,16 @@ class NZBLeecher(NNTPClient, TimeoutMixin):
                 except PoolsExhausted:
                     info(self.currentSegment.nzbFile.showFilename + ' segment: ' + \
                          str(self.currentSegment.number) + ' Article is missing!')
-            elif code == 400 and \
+
+        self.handle400Message(err)
+        self.finishedSegmentDownload()
+
+
+    def handle400Message(self, err):
+        code = codeExtract(err)
+        if code is not None:
+            code, msg = code 
+            if code == 400 and \
                     (msg.lower().find('idle timeout') > -1 or \
                      msg.lower().find('session timeout') > -1):
                 # Handle:
@@ -580,7 +589,6 @@ class NZBLeecher(NNTPClient, TimeoutMixin):
                 self.transport.loseConnection()
                 return
                 
-        self.finishedSegmentDownload()
 
     def finishedSegmentDownload(self):
         """ Defer decoding of the encodedData of the specified currentSegment, reset our state and
@@ -618,6 +626,7 @@ class NZBLeecher(NNTPClient, TimeoutMixin):
         # was the only group available for this NZB file, so cancelCurrent()) or not a big
         # deal (other groups were successfully retrieved for this segment and we can
         # safely continue to fetchBody())
+        self.handle400Message(err)
         self.fetchNextNZBSegment()
 
     def allGroupsFailed(self, groups):
@@ -660,6 +669,7 @@ class NZBLeecher(NNTPClient, TimeoutMixin):
     def getHelpFailed(self, err):
         "Override for getHelpFailed"
         debug(str(self) + ' got HELP failed: ' + str(err))
+        self.handle400Message(err)
 
     def lineLengthExceeded(self, line):
         error('Error!!: LineReceiver.MAX_LENGTH exceeded. size: ' + str(len(line)))

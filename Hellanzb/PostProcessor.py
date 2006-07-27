@@ -388,7 +388,7 @@ class PostProcessor(Thread):
 
         if hasattr(Hellanzb, 'DELETE_PROCESSED') and Hellanzb.DELETE_PROCESSED:
             msg = 'Deleting processed dir: ' + archiveName(self.dirName) + os.sep + \
-                Hellanzb.PROCESSED_SUBDIR + ', it contains: ' + str(deletedFiles)
+                Hellanzb.PROCESSED_SUBDIR + ', it contains: ' + str(deletedFiles) + '\n'
             if len(deletedFiles):
                 logFile(msg)
             rmtree(self.dirName + os.sep + Hellanzb.PROCESSED_SUBDIR)

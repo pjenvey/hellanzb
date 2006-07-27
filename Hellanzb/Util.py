@@ -6,7 +6,10 @@ Util - hellanzb misc functions
 [See end of file]
 """
 import os, popen2, pty, re, signal, string, sys, thread, threading, time, Hellanzb
-from distutils import spawn
+try:
+    from distutils import spawn
+except:
+    pass
 from heapq import heapify, heappop, heappush
 from os.path import normpath
 from random import randint
@@ -412,14 +415,22 @@ def getLocalClassName(klass):
         
     return klass    
     
-def assertIsExe(exe):
-    """ Abort the program if the specified file is not in our PATH and executable """
-    if len(exe) > 0:
-        exe = os.path.basename(exe.split()[0])
-        fullPath = spawn.find_executable(exe)
-        if fullPath != None and os.access(fullPath, os.X_OK):
-            return
-    raise FatalError('Cannot continue program, required executable not in path: \'' + \
+def assertIsExe(exe_list):
+    """ Abort the program if none of the specified files are executable """
+    if not isinstance(exe_list, (list, tuple)):
+        exe_list = [exe_list]
+    if exe_list:
+        for exe in exe_list:
+            if exe == os.path.basename(exe.split()[0]):
+                try:
+                    fullPath = spawn.find_executable(exe)
+                except:
+                    raise FatalError('Cannot continue program, your platform does not support searching the path for an executable and you did not supply the full path to the %s executable.' % exe)
+            else:
+                fullPath = exe
+            if fullPath != None and os.access(fullPath, os.X_OK):
+                return fullPath
+    raise FatalError('Cannot continue program, required executable not found: \'' + \
                      exe + '\'')
 
 def dirHasFileType(dirName, fileExtension):

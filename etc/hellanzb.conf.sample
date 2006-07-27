@@ -93,6 +93,12 @@ Hellanzb.DELETE_PROCESSED = True
 # Disable SMART_PAR (download all PAR files)
 #Hellanzb.SMART_PAR = False
 
+# Supply a path to the (un)rar command
+#Hellanzb.UNRAR_CMD = None
+
+# Supply a path to the par2 command
+#Hellanzb.PAR2_CMD = None
+
 # Skip unraring during post processing
 #Hellanzb.SKIP_UNRAR = False
 

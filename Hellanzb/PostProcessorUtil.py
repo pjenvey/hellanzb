@@ -109,7 +109,7 @@ class MusicType(object):
 
         if decompressor != None and decompressor != '':
             # exit if we lack the required decompressor
-            assertIsExe(decompressor)
+            assertIsExe([decompressor])
             self.decompressor = decompressor
 
         self.decompressToType = decompressToType
@@ -766,7 +766,7 @@ def par2(postProcessor, parFiles, wildcard, needAssembly = None):
     if needAssembly == None:
         needAssembly = {}
         
-    repairCmd = 'par2 r --'
+    repairCmd = Hellanzb.PAR2_CMD + ' r --'
     for parFile in parFiles:
         repairCmd += ' "%s"' % (pathjoin(dirName, parFile))
         

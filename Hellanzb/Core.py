@@ -84,6 +84,16 @@ def loadConfig(fileName):
         else:
             Hellanzb.MAX_RATE = int(Hellanzb.MAX_RATE)
 
+        if not hasattr(Hellanzb, 'UNRAR_CMD') or Hellanzb.UNRAR_CMD is None:
+            Hellanzb.UNRAR_CMD = assertIsExe(['rar', 'unrar'])
+        else:
+            Hellanzb.UNRAR_CMD = assertIsExe([Hellanzb.UNRAR_CMD])
+
+        if not hasattr(Hellanzb, 'PAR2_CMD') or Hellanzb.PAR2_CMD is None:
+            Hellanzb.PAR2_CMD = assertIsExe(['par2'])
+        else:
+            Hellanzb.PAR2_CMD = assertIsExe([Hellanzb.PAR2_CMD])
+
         if not hasattr(Hellanzb, 'SKIP_UNRAR') or Hellanzb.SKIP_UNRAR is None:
             Hellanzb.SKIP_UNRAR = False
 
@@ -111,7 +121,7 @@ def loadConfig(fileName):
         for expandPath in ('PREFIX_DIR', 'QUEUE_DIR', 'DEST_DIR', 'POSTPONED_DIR',
                            'CURRENT_DIR', 'TEMP_DIR', 'PROCESSING_DIR', 'STATE_XML_FILE',
                            'WORKING_DIR', 'LOG_FILE', 'DEBUG_MODE',
-                           'EXTERNAL_HANDLER_SCRIPT'):
+                           'UNRAR_CMD', 'PAR2_CMD', 'EXTERNAL_HANDLER_SCRIPT'):
                 if hasattr(Hellanzb, expandPath):
                         thisDir = getattr(Hellanzb, expandPath)
                         if thisDir is not None:
@@ -186,17 +196,6 @@ def signalHandler(signum, frame):
             shutdown(message = 'Killed all child processes, exiting..')
             return
             
-def assertHasARar():
-    """ assertIsExe rar or its doppelganger """
-    Hellanzb.UNRAR_CMD = None
-    for exe in [ 'rar', 'unrar' ]:
-        if spawn.find_executable(exe):
-            Hellanzb.UNRAR_CMD = exe
-    if not Hellanzb.UNRAR_CMD:
-        err = 'Cannot continue program, required executable \'rar\' or \'unrar\' not in path'
-        raise FatalError(err)
-    assertIsExe(Hellanzb.UNRAR_CMD)
-
 def init(options = {}):
     """ initialize the app """
     # Whether or not the app is in the process of shutting down
@@ -273,10 +272,6 @@ def init(options = {}):
         import __main__
         os.environ['PATH'] = os.environ['PATH'] + ':' + \
             os.path.dirname(os.path.abspath(__main__.__file__))
-
-    # abort if we lack required binaries
-    assertHasARar()
-    assertIsExe('par2')
 
     # Twisted will replace this with its own signal handler when initialized
     signal.signal(signal.SIGINT, signalHandler)

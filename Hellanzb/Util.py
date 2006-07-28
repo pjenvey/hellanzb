@@ -850,6 +850,30 @@ def isPy2App():
     except AttributeError:
         return find_packager() == 'py2app'
 
+ONE_MB = float(1024*3)
+try:
+    import statvfs
+    def diskFree(dirName):
+        """ Return the disk free space for the specified dir's volume, in MB """
+        try:
+            s = os.statvfs(dirName)
+            return (s[statvfs.F_BFREE] * s[statvfs.F_FRSIZE]) / ONE_MB
+        except OSError:
+            return 0.0
+
+except AttributeError:
+    try:
+        import win32api
+    except ImportError:
+        pass
+    def diskFree(dirName):
+        """ Return the disk free space for the specified dir's volume, in MB """
+        try:
+            secp, byteper, freecl, noclu = win32api.GetDiskFreeSpace(dirName)
+            return (secp * byteper * freecl) / ONE_MB
+        except:
+            return 0.0
+
 Hellanzb.CMHELLA = \
 '''
            ;;;;            .  .

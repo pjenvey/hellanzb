@@ -190,10 +190,8 @@ def signalHandler(signum, frame):
             # either an o/s problem (we don't care) or a bug in hellanzb (we aren't
             # allowing the process to exit/still reading from it)
             warn('Killing child processes..')
-            # The SHUTDOWN knob must be on before killing the PostProcessors
-            Hellanzb.SHUTDOWN = True
-            Topen.killAll()
-            shutdown(message = 'Killed all child processes, exiting..')
+            shutdown(message = 'Killed all child processes, exiting..',
+                     killPostProcessors = True)
             return
             
 def init(options = {}):

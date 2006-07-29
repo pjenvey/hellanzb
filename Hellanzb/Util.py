@@ -421,7 +421,7 @@ def assertIsExe(exe_list):
         exe_list = [exe_list]
     if exe_list:
         for exe in exe_list:
-            if exe == os.path.basename(exe.split()[0]):
+            if exe == os.path.basename(exe):
                 try:
                     fullPath = spawn.find_executable(exe)
                 except:

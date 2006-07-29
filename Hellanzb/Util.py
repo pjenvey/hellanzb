@@ -108,7 +108,7 @@ class Topen(protocol.ProcessProtocol):
               'aquiring lock')
         self.finished.acquire()
         debug('processEnded THREAD ID: ' + str(thread.get_ident()) + ' (' + self.cmd + ')' + \
-              ' (pid: ' + str(self.pid) + ')')
+              ' (pid: ' + str(self.transport.pid) + ')')
         self.finished.notify()
         self.finished.release()
 

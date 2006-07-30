@@ -107,9 +107,9 @@ class MusicType(object):
     def __init__(self, extension, decompressor, decompressToType):
         self.extension = extension
 
-        if decompressor != None and decompressor != '':
+        if decompressor:
             # exit if we lack the required decompressor
-            assertIsExe([decompressor])
+            assertIsExe(decompressor.split()[0])
             self.decompressor = decompressor
 
         self.decompressToType = decompressToType

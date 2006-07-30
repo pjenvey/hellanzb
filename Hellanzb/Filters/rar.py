@@ -1,26 +1,48 @@
 from Hellanzb.Filters import Filter, getFileExtension
 from Hellanzb.PostProcessorUtil import Topen
 
+def isRar(filename):
+	""" This implements a magic check for Rar files """
+	rarHeader = 'Rar!'
+	if not os.path.isfile(filename):
+		return False
+
+	ext = getFileExtension(filename)
+	if ext and ext == 'rar':
+		return True
+
+	f = file(filename)
+	if f.read(4) == rarHeader:
+		f.close()
+		return True
+
 class RarFilter(Filter):
 	def __init__(self):
 		pass
 
-	def canHandle(self, filename):
-		""" This implements a magic check for Rar files """
-		rarHeader = 'Rar!'
-		if not os.path.isfile(filename):
-			return False
+	def groupAlikes(self, files):
+		# Make a list of main_rars, we only deal with the first one
+		# in the list, and then we return this so it can be removed
+		# from the file list and then the new file list can be iterated
+		# by the filter handler.
+		mainRars = []
+		for a in files:
+			if a.endswith('.rar'):
+				mainRars.append(a)
 
-		ext = getFileExtension(filename)
-		if ext and ext == 'rar':
-			return True
+		# Now we determine the rar group name, and then we get a list of
+		# files that match the two common patterns with that rar group name.
+		theRar=mainRars[0]
+		_splitRar = theRar.split('.')
+		groupName = '.'.join(_splitRar[:len(_splitRar)-1])
+		groupMembers = [ a for a in files if re.search(groupName+'\.r([0-9]{1,4})', b) or re.search(groupName+'\.part([0-9]{1,4})', a) ]
 
-		f = file(filename)
-		if f.read(4) == rarHeader:
-			f.close()
-			return True
+		return groupMembers
 
-	def processFile(self, filename):
+	def canHandle(self, files):
+		pass
+
+	def processFile(self, files):
 		""" Process a file """
 		# In a non-encrypted header offset 23=t and offset 24 either ' '
 		# if not encypted or '$' if encrypted. If the t isn't there. The

@@ -569,11 +569,10 @@ class NZBLeecher(NNTPClient, TimeoutMixin):
             return
         self.finishedSegmentDownload()
 
-
     def handle400Message(self, err):
-        code = codeExtract(err)
+        code = extractCode(err)
         if code is not None:
-            code, msg = code 
+            code, msg = code
             if code == 400 and \
                     (msg.lower().find('idle timeout') > -1 or \
                      msg.lower().find('session timeout') > -1):
@@ -589,7 +588,7 @@ class NZBLeecher(NNTPClient, TimeoutMixin):
                 debug(str(self) + ' received Session/Idle TIMEOUT from server, disconnecting')
                 self.transport.loseConnection()
                 return True
-        return False        
+        return False
 
     def finishedSegmentDownload(self):
         """ Defer decoding of the encodedData of the specified currentSegment, reset our state and

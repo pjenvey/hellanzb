@@ -39,8 +39,11 @@ class RarFilter(Filter):
 
 		return groupMembers
 
-	def canHandle(self, files):
-		pass
+	def canHandle(self, fileName):
+        if isRar(fileName):
+            return True
+        else:
+            return False
 
 	def processFile(self, files):
 		""" Process a file """

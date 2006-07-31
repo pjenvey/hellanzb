@@ -26,24 +26,21 @@ class RarFilter(Filter):
         # in the list, and then we return this so it can be removed
         # from the file list and then the new file list can be iterated
         # by the filter handler.
-        mainRars = []
-        for a in files:
-            if a.endswith('.rar'):
-               mainRars.append(a)
+        mainRars = [ a for a in files if a.endswith('.rar') ]
 
         # Now we determine the rar group name, and then we get a list of
-        # files that match the two common patterns with that rar group name.
+        # files that match the groupName and are rars.
         theRar=mainRars[0]
         _splitRar = theRar.split('.')
         groupName = '.'.join(_splitRar[:len(_splitRar)-1])
-        groupMembers = [ a for a in files if re.search(groupName+'\.r([0-9]{1,4})', b) or re.search(groupName+'\.part([0-9]{1,4})', a) ]
+        groupMembers = [ a for a in files if re.search(groupName, a) and isRar(a) ] 
 
         return groupMembers
 
     def canHandle(self, files):
         pass
 
-    def processFile(self, files):
+    def processFile(self, nzbObject, files):
         """ Process a file """
         # First file should be the .rar, so we'll check the encryption
         # state on the main rar file.

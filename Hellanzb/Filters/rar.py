@@ -1,5 +1,6 @@
-from Hellanzb.Filters import Filter, getFileExtension
+from Filters import Filter, getFileExtension
 from Hellanzb.PostProcessorUtil import Topen
+import os, os.path
 
 def isRar(filename):
     """ This implements a magic check for Rar files """
@@ -18,7 +19,7 @@ def isRar(filename):
 
 class RarFilter(Filter):
     def __init__(self):
-        pass
+        self.name = 'rar' 
 
     def groupAlikes(self, files):
         """ Returns the a Rar group the filter is able to act on """
@@ -37,8 +38,8 @@ class RarFilter(Filter):
 
         return groupMembers
 
-    def canHandle(self, files):
-        pass
+    def canHandle(self, theFile):
+        return isRar(theFile)
 
     def processFile(self, nzbObject, files):
         """ Process a file """

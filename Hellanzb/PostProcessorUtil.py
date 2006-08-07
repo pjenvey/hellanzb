@@ -1147,6 +1147,7 @@ def dispatchExternalHandler(type, **info):
             except:
                 debug(errorMsg)
         elif pid > 0:
+            os.wait()
             return
     except:
         debug(errorMsg)

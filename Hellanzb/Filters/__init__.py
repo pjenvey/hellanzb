@@ -1,3 +1,7 @@
+import Hellanzb
+import os, string
+
+
 class Filter:
     """ Base class for all filters, cannot be used directly """
     def __init__(self):
@@ -13,3 +17,7 @@ def getFileExtension(fileName):
     """ Return the extenion of the specified file name, in lowercase """
     if len(fileName) > 1 and fileName.find('.') > -1:
         return string.lower(os.path.splitext(fileName)[1][1:])
+
+from rar import isRar, RarFilter
+ourFilters = {}
+ourFilters['rar'] = RarFilter()

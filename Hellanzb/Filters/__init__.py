@@ -19,5 +19,7 @@ def getFileExtension(fileName):
         return string.lower(os.path.splitext(fileName)[1][1:])
 
 from rar import isRar, RarFilter
+from par import isPar, ParFilter
 ourFilters = {}
 ourFilters['rar'] = RarFilter()
+ourFilters['par'] = ParFilter()

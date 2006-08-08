@@ -1,6 +1,6 @@
 from Filters import Filter, getFileExtension
 from Hellanzb.PostProcessorUtil import Topen
-import os, os.path
+import os, os.path, re
 
 def isRar(filename):
     """ This implements a magic check for Rar files """
@@ -35,7 +35,6 @@ class RarFilter(Filter):
         _splitRar = theRar.split('.')
         groupName = '.'.join(_splitRar[:len(_splitRar)-1])
         groupMembers = [ a for a in files if re.search(groupName, a) and isRar(a) ] 
-
         return groupMembers
 
     def canHandle(self, theFile):

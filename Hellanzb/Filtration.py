@@ -27,10 +27,22 @@ class FiltrationMaster:
         # to group them to the correct filters.
         files = os.listdir(processDir)
 
+        # If we're going to do file operations on these things, we should
+        # hand off the absolute paths to the files
+        files = [ pathjoin(self.processDir, a) for a in files ]
+
         for a in ourFilters:
             self._handles[a] = []
-            self._handles[a] = [ b for b in files if ourFilters[a].canHandle(pathjoin(self.processDir, b)) ]
-        print self._handles
+            self._handles[a] = [ b for b in files if ourFilters[a].canHandle(b) ]
+            # TODO: Pop files off the files list once they've been marked as
+            # handlable
+
+        # Now that files are split into their correct filters, we should get
+        # some file groups and pass them off to the processors.
+
+        for a in self._handles:
+            groupedFiles = ourFilters[a].groupAlikes(self._handles[a])
+            print groupedFiles
 
 fil = FiltrationMaster('/usr/home/alex/news/usenet/stargatesg-11003wsdsr-dimension/processed')
 

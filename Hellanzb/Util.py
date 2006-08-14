@@ -782,6 +782,7 @@ def nuke(filename):
 
 def validNZB(nzbfilename):
     """ Return true if the specified filename is a valid NZB """
+    from Hellanzb.Log import error
     if nzbfilename == None or not os.path.isfile(nzbfilename):
         error('Invalid NZB file: ' + str(nzbfilename))
         return False

@@ -21,10 +21,10 @@ class Filter:
     def __init__(self):
         pass
 
-    def canHandle(self, file):
+    def canHandle(self, files):
         raise NotImplementedError()
 
-    def processFile(self, file):
+    def processFiles(self, nzbObject, files):
         raise NotImplementedError()
 
 def getFileExtension(fileName):

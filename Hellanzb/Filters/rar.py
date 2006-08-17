@@ -34,14 +34,24 @@ class RarFilter(Filter):
         theRar=mainRars[0]
         _splitRar = theRar.split('.')
         groupName = '.'.join(_splitRar[:len(_splitRar)-1])
-        groupMembers = [ a for a in files if re.search(groupName, a) and isRar(a) ] 
+        groupMembers = [ a for a in files if re.search(groupName, a) ]
+        groupMembers.remove(theRar)
+        groupMembers.insert(0, theRar)
         return groupMembers
 
-    def canHandle(self, theFile):
-        return isRar(theFile)
+    def canHandle(self, files):
+        return [ a for a in files if isRar(a) ]
 
-    def processFile(self, nzbObject, files):
+    def processFiles(self, nzbObject, files):
         """ Process a file """
+        handleable = self.canHandle(files)
+        if not handleable:
+            return None
+
+        # Take the first group, and begin to process it, filter should
+        # return a list of files that were processed
+        files = self.groupAlikes(handleable)
+
         # First file should be the .rar, so we'll check the encryption
         # state on the main rar file.
         _fileName = files[0]

@@ -34,12 +34,14 @@ class ParFilter(Filter):
         thePar = mainPars[0]
         _splitPar = thePar.split('.')
         groupName = '.'.join(_splitPar[:len(_splitPar)-1])
-        groupMembers = [ a for a in files if re.search(groupName, a) and isPar(a) ]
+        groupMembers = [ a for a in files if re.search(groupName, a) ]
+        groupMembers.remove(thePar)
+        groupMembers.insert(0, thePar)
         return groupMembers
 
-    def canHandle(self, theFile):
-        return isPar(theFile)
+    def canHandle(self, files):
+        return [ a for a in files if isPar(a) ]
 
-    def processFile(self, nzbObject, files):
+    def processFiles(self, nzbObject, files):
         pass
 

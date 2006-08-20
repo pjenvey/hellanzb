@@ -708,6 +708,9 @@ class NZBParser(ContentHandler):
         self.fileCount = 0
         self.segmentCount = 0
 
+        # All encountered segment numbers for the current NZBFile
+        self.segmentNumbers = Set()
+        
         # Current listing of existing files in the WORKING_DIR
         self.workingDirListing = []
         
@@ -742,6 +745,7 @@ class NZBParser(ContentHandler):
             poster = self.parseUnicode(attrs.get('poster'))
 
             self.file = NZBFile(subject, attrs.get('date'), poster, self.nzb)
+            self.segmentNumbers.clear()
 
             self.fileNeedsDownload = \
                 self.file.needsDownload(workingDirListing = self.workingDirListing,
@@ -801,6 +805,11 @@ class NZBParser(ContentHandler):
             self.chars = None
                 
         elif name == 'segment':
+            if self.number in self.segmentNumbers:
+                # This segment number was already registered
+                return
+            self.segmentNumbers.add(self.number)
+
             self.segmentCount += 1
 
             messageId = self.parseUnicode(''.join(self.chars))

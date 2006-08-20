@@ -1,3 +1,13 @@
+v0.10:
+
+o Fixed the following IOError occurring on malformed NZBs that include multiple
+<segment>s of the same segment number for a particular <file> (particularly
+those NZBs created by newzleech.com):
+
+IOError: [Errno 2] No such file or directory:
+'/nzb/daemon.temp/download-tmp/hellanzb-tmp-archvie.file0172.segment0001_ENC'
+
+
 v0.9:
 
 NZBLeecher:

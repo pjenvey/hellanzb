@@ -991,7 +991,7 @@ def connectServer(serverName, serverDict, defaultAntiIdle, defaultIdleTimeout):
         for connection in range(connections):
             if serverDict.has_key('bindTo') and serverDict['bindTo'] != None and \
                     serverDict['bindTo'] != '':
-                reactor.connectTCP(host, port, nsf, bindAddress = serverDict['bindTo'])
+                reactor.connectTCP(host, port, nsf, bindAddress = (serverDict['bindTo'], 0))
             else:
                 reactor.connectTCP(host, port, nsf)
             connectionCount += 1

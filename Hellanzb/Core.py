@@ -97,10 +97,6 @@ def loadConfig(fileName):
         if not hasattr(Hellanzb, 'SKIP_UNRAR') or Hellanzb.SKIP_UNRAR is None:
             Hellanzb.SKIP_UNRAR = False
 
-        if not hasattr(Hellanzb, 'EXTERNAL_HANDLER_SCRIPT') or \
-               Hellanzb.EXTERNAL_HANDLER_SCRIPT is None or \
-               not os.path.exists(Hellanzb.EXTERNAL_HANDLER_SCRIPT):
-            Hellanzb.EXTERNAL_HANDLER_SCRIPT = None
 
         if not hasattr(Hellanzb, 'SMART_PAR'):
             Hellanzb.SMART_PAR = True
@@ -127,6 +123,12 @@ def loadConfig(fileName):
                         if thisDir is not None:
                                 expandedDir = os.path.expanduser(thisDir)
                                 setattr(Hellanzb, expandPath, expandedDir)
+
+        if not hasattr(Hellanzb, 'EXTERNAL_HANDLER_SCRIPT') or \
+               Hellanzb.EXTERNAL_HANDLER_SCRIPT is None or \
+               not os.path.isfile(Hellanzb.EXTERNAL_HANDLER_SCRIPT) or \
+               not os.access(Hellanzb.EXTERNAL_HANDLER_SCRIPT, os.X_OK):
+            Hellanzb.EXTERNAL_HANDLER_SCRIPT = None
 
         debug('Found config file in directory: ' + os.path.dirname(fileName))
         return True

@@ -469,6 +469,9 @@ def initLogging():
     # Whether or not scroll mode is on
     ScrollableHandler.scrollFlag = False
 
+    # Whether or not the scroller functionality is completely disabled
+    Hellanzb.DISABLE_SCROLLER = False
+    
     # map of ascii colors. for the kids
     Hellanzb.ACODE = ASCIICodes()
 
@@ -507,7 +510,6 @@ def initLogFile(logFile = None, debugLogFile = None):
         dirNames['DEBUG_MODE'] = os.path.dirname(Hellanzb.DEBUG_MODE)
     ensureDirs(dirNames)
 
-    Hellanzb.DISABLE_SCROLLER = False
     if isPy2App():
         Hellanzb.DISABLE_SCROLLER = True
     

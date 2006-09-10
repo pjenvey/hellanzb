@@ -18,6 +18,7 @@ COMMENT=	Nzb downloader and post processor
 RUN_DEPENDS=	par2:${PORTSDIR}/archivers/par2cmdline \
 		flac:${PORTSDIR}/audio/flac \
 		shorten:${PORTSDIR}/audio/shorten \
+		${PYTHON_SITELIBDIR}/yenc.py:${PORTSDIR}/news/py-yenc \
 		${PYTHON_SITELIBDIR}/twisted:${PORTSDIR}/devel/py-twistedCore \
 		${PYTHON_SITELIBDIR}/twisted/web:${PORTSDIR}/www/py-twistedWeb
 

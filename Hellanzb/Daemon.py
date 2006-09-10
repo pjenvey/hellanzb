@@ -558,16 +558,8 @@ def forceNZB(nzbfilename, notification = 'Forcing download'):
     # postpone the current NZB download
     for nzb in Hellanzb.queue.currentNZBs():
         try:
-            postponed = Hellanzb.POSTPONED_DIR + os.sep + nzb.archiveName
-            hellaRename(postponed)
-            os.mkdir(postponed)
-            nzb.destDir = postponed
             info('Interrupting: ' + nzb.archiveName)
-            
-            move(nzb.nzbFileName, Hellanzb.QUEUE_DIR + os.sep + os.path.basename(nzb.nzbFileName))
-            nzb.nzbFileName = Hellanzb.QUEUE_DIR + os.sep + os.path.basename(nzb.nzbFileName)
-            Hellanzb.nzbQueue.insert(0, nzb)
-            writeStateXML()
+            nzb.postpone()
 
             # remove what we've forced with from the old queue, if it exists
             nzb = None
@@ -581,10 +573,6 @@ def forceNZB(nzbfilename, notification = 'Forcing download'):
             else:
                 Hellanzb.nzbQueue.remove(nzb)
     
-            # Move the postponed files to the new postponed dir
-            for file in os.listdir(Hellanzb.WORKING_DIR):
-                move(Hellanzb.WORKING_DIR + os.sep + file, postponed + os.sep + file)
-
             # Copy the specified NZB, unless it's already in the queue dir (move it
             # instead)
             if os.path.normpath(os.path.dirname(nzbfilename)) != os.path.normpath(Hellanzb.QUEUE_DIR):

@@ -7,10 +7,12 @@ NZBModel - Representations of the NZB file format in memory
 """
 import os, re, Hellanzb
 from sets import Set
+from shutil import move
 from threading import Lock, RLock
 from Hellanzb.Log import *
+from Hellanzb.NZBQueue import writeStateXML
 from Hellanzb.Util import IDPool, UnicodeList, archiveName, getFileExtension, \
-    isHellaTemp, nuke, toUnicode
+    hellaRename, isHellaTemp, nuke, toUnicode
 from Hellanzb.NZBLeecher.ArticleDecoder import parseArticleData, setRealFileName, tryAssemble
 from Hellanzb.NZBLeecher.DupeHandler import handleDupeNZBFileNeedsDownload
 from Hellanzb.NZBLeecher.NZBLeecherUtil import validWorkingFile
@@ -47,6 +49,9 @@ class NZB(Archive):
         ## cancel call was made (after the fact cleanup)
         self.canceled = False
         self.canceledLock = Lock()
+
+        ## Acquired during assembly of an NZBFile
+        self.assembleLock = Lock()
 
         ## Total bytes this NZB represents
         self.totalBytes = 0
@@ -98,6 +103,29 @@ class NZB(Archive):
         self.canceled = True
         self.canceledLock.release()
 
+    def postpone(self):
+        """ Postpone an active NZB """
+        assert self in Hellanzb.queue.currentNZBs(), \
+            'Attempting to postpone an NZB not actively being downloaded: %s' % self.archiveName
+        postponed = Hellanzb.POSTPONED_DIR + os.sep + self.archiveName
+        hellaRename(postponed)
+        os.mkdir(postponed)
+
+        self.assembleLock.acquire()
+        try:
+            self.destDir = postponed
+
+            move(self.nzbFileName, Hellanzb.QUEUE_DIR + os.sep + os.path.basename(self.nzbFileName))
+            self.nzbFileName = Hellanzb.QUEUE_DIR + os.sep + os.path.basename(self.nzbFileName)
+            Hellanzb.nzbQueue.insert(0, self)
+            writeStateXML()
+
+            # Move the postponed files to the new postponed dir
+            for file in os.listdir(Hellanzb.WORKING_DIR):
+                move(Hellanzb.WORKING_DIR + os.sep + file, postponed + os.sep + file)
+        finally:
+            self.assembleLock.release()
+            
     def isAllPars(self):
         """ Determine whether or not all nzbFiles in this archive are par files. An NZB only
         containing par files needs to be specially handled (all its nzbFiles should be

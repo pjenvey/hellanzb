@@ -475,8 +475,6 @@ def decodeSegmentToFile(segment, encodingType = YENCODE):
         except binascii.Error, msg:
             error('UUDecode failed in file: %s (part number: %d) error: %s' % \
                   (segment.getDestination(), segment.number, msg))
-            debug('UUDecode failed in file: %s (part number: %d) error: %s' % \
-                  (segment.getDestination(), segment.number, prettyException(msg)))
 
         handleDupeNZBSegment(segment)
         if handleCanceledSegment(segment):
@@ -616,6 +614,7 @@ def assembleNZBFile(nzbFile, autoFinish = True):
     if handleCanceledFile(nzbFile):
         return
 
+    nzbFile.nzb.assembleLock.acquire()
     file = open(nzbFile.getDestination(), 'wb')
     write = file.write
 
@@ -634,6 +633,7 @@ def assembleNZBFile(nzbFile, autoFinish = True):
                 write(buf)
 
         except IOError, ioe:
+            nzbFile.nzb.assembleLock.release()
             file.close()
             decodedSegmentFile.close()
             handleIOError(ioe) # will re-raise
@@ -656,6 +656,7 @@ def assembleNZBFile(nzbFile, autoFinish = True):
                 # exceptions.OSError: [Errno 2] No such file or directory: 
                 if ose.errno != 2:
                     debug('Unexpected ERROR while removing nzbFile: ' + nzbFile.getDestination())
+            nzbFile.nzb.assembleLock.release()
             raise
 
     file.close()
@@ -670,6 +671,7 @@ def assembleNZBFile(nzbFile, autoFinish = True):
                 debug('Unexpected ERROR while removing segmentFile: ' + segmentFile)
 
     Hellanzb.queue.fileDone(nzbFile)
+    nzbFile.nzb.assembleLock.release()
     reactor.callFromThread(fileDone)
     
     debug('Assembled file: ' + nzbFile.getDestination() + ' from segment files: ' + \

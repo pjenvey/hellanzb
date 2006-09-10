@@ -1,5 +1,7 @@
 v0.10:
 
+o Added support for compressed (.zip) nzbs (thanks Freddie)
+
 o Fixed the following IOError occurring on malformed NZBs that include multiple
 <segment>s of the same segment number for a particular <file> (particularly
 those NZBs created by newzleech.com):

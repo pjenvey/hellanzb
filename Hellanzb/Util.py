@@ -460,7 +460,10 @@ def touch(fileName):
     os.close(fd)
     os.utime(fileName, None)
 
-NEWZBIN_FILENAME_RE = re.compile(r'^(?:msgid|NZB)_(\d+)_(.*?)\.nzb$', re.I)
+NEWZBIN_FILE_PREFIX = r'^(?:msgid|NZB)_(\d+)_(.*?)'
+NEWZBIN_FILE_SUFFIX = r'\.nzb$'
+NEWZBIN_FILE_SUFFIX_RE = re.compile(r'\.nzb$', re.I)
+NEWZBIN_FILE_RE = re.compile(NEWZBIN_FILE_PREFIX + NEWZBIN_FILE_SUFFIX, re.I)
 def archiveName(dirName, unformatNewzbinNZB = True):
     """ Extract the name of the archive from the archive's absolute path, or its .nzb file
     name. Optionally remove newzbin 'msgid_99999' or 'NZB_' prefixes and the '.nzb' suffix
@@ -477,14 +480,19 @@ def archiveName(dirName, unformatNewzbinNZB = True):
 
     # Strip the msg_id and .nzb extension from an nzb file name
     if unformatNewzbinNZB:
-        name = NEWZBIN_FILENAME_RE.sub(r'\2', name)
+        newzbinMatch = NEWZBIN_FILE_RE.match(name)
+        if newzbinMatch:
+            name = newzbinMatch.group(2)
+        else:
+            name = NEWZBIN_FILE_SUFFIX_RE.sub('', name)
 
     return name
 
 def getMsgId(archiveName):
     """ Grab the msgid from a newzbin filename/archiveName """
-    if NEWZBIN_FILENAME_RE.match(archiveName):
-        return NEWZBIN_FILENAME_RE.sub(r'\1', archiveName)
+    match = NEWZBIN_FILE_RE.match(archiveName)
+    if match:
+        return match.group(1)
     return None
 
 def checkShutdown(message = 'Shutting down..'):

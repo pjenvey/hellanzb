@@ -23,17 +23,17 @@ class DupeNameTestCase(HellanzbTestCase):
 
     def testCleanDupeName(self):
         """ Test the cleanDupeName functionality. """ + cleanDupeName.__doc__
-        testFile = self.tempDir + os.sep + 'file'
-        testFile0 = self.tempDir + os.sep + 'file_hellanzb_dupe0'
+        testFile = os.path.join(self.tempDir, 'file')
+        testFile0 = os.path.join(self.tempDir, 'file_hellanzb_dupe0')
         self.assertEqual(cleanDupeName(testFile), (testFile, -1))
         self.assertEqual(cleanDupeName(testFile0), (testFile, 0))
 
     def testDupeName(self):
         """ Test the dupeName functionality. """ + dupeName.__doc__
-        testFile = self.tempDir + os.sep + 'file'
-        testFile0 = self.tempDir + os.sep + 'file_hellanzb_dupe0'
-        testFile1 = self.tempDir + os.sep + 'file_hellanzb_dupe1'
-        testFile2 = self.tempDir + os.sep + 'file_hellanzb_dupe2'
+        testFile = os.path.join(self.tempDir, 'file')
+        testFile0 = os.path.join(self.tempDir, 'file_hellanzb_dupe0')
+        testFile1 = os.path.join(self.tempDir, 'file_hellanzb_dupe1')
+        testFile2 = os.path.join(self.tempDir, 'file_hellanzb_dupe2')
         
         self.assertEqual(dupeName(testFile), testFile)
         self.assertEqual(dupeName(testFile, eschewNames = (testFile)), testFile0)
@@ -50,10 +50,10 @@ class DupeNameTestCase(HellanzbTestCase):
 
     def testNextDupeName(self):
         """ Test the nextDupeName functionality. """ + nextDupeName.__doc__
-        testFile = self.tempDir + os.sep + 'file'
-        testFile0 = self.tempDir + os.sep + 'file_hellanzb_dupe0'
-        testFile1 = self.tempDir + os.sep + 'file_hellanzb_dupe1'
-        testFile2 = self.tempDir + os.sep + 'file_hellanzb_dupe2'
+        testFile = os.path.join(self.tempDir, 'file')
+        testFile0 = os.path.join(self.tempDir, 'file_hellanzb_dupe0')
+        testFile1 = os.path.join(self.tempDir, 'file_hellanzb_dupe1')
+        testFile2 = os.path.join(self.tempDir, 'file_hellanzb_dupe2')
         
         self.assertEqual(nextDupeName(testFile), testFile0)
         self.assertEqual(nextDupeName(testFile, eschewNames = (testFile0)), testFile1)

@@ -181,7 +181,7 @@ class PostProcessor(Thread):
 
             elif os.path.isdir(self.dirName):
                 # A dir in the processing dir, move it to DEST
-                newdir = Hellanzb.DEST_DIR + os.sep + os.path.basename(self.dirName)
+                newdir = os.path.join(Hellanzb.DEST_DIR, os.path.basename(self.dirName))
                 hellaRename(newdir)
                 move(self.dirName, newdir)
                 
@@ -272,7 +272,7 @@ class PostProcessor(Thread):
         # Determine the music files to decompress
         self.musicFiles = []
         for file in os.listdir(self.dirName):
-            absPath = self.dirName + os.sep + file
+            absPath = os.path.join(self.dirName, file)
             if os.path.isfile(absPath) and getMusicType(file) and getMusicType(file).shouldDecompress():
                 self.musicFiles.append(absPath)
     
@@ -349,49 +349,49 @@ class PostProcessor(Thread):
         deleteDuplicates(self.dirName)
         
         if self.nzbFile is not None:
-            if os.path.isfile(self.dirName + os.sep + self.nzbFile) and \
-                    os.access(self.dirName + os.sep + self.nzbFile, os.R_OK):
-                move(self.dirName + os.sep + self.nzbFile,
-                     self.dirName + os.sep + Hellanzb.PROCESSED_SUBDIR + os.sep + self.nzbFile)
+            if os.path.isfile(os.path.join(self.dirName, self.nzbFile)) and \
+                    os.access(os.path.join(self.dirName, self.nzbFile), os.R_OK):
+                move(os.path.join(self.dirName, self.nzbFile),
+                     os.path.join(self.dirName, Hellanzb.PROCESSED_SUBDIR, self.nzbFile))
 
         # Move out anything else that's broken, a dupe or tagged as
         # not required
         for file in self.brokenFiles:
-            if os.path.isfile(self.dirName + os.sep + file):
-                move(self.dirName + os.sep + file,
-                     self.dirName + os.sep + Hellanzb.PROCESSED_SUBDIR + os.sep + file)
+            if os.path.isfile(os.path.join(self.dirName, file)):
+                move(os.path.join(self.dirName, file),
+                     os.path.join(self.dirName, Hellanzb.PROCESSED_SUBDIR, file))
 
         for file in os.listdir(self.dirName):
             ext = getFileExtension(file)
             if ext is not None and len(ext) > 0 and \
                     ext.lower() not in Hellanzb.KEEP_FILE_TYPES and \
                    ext.lower() in Hellanzb.NOT_REQUIRED_FILE_TYPES:
-                move(self.dirName + os.sep + file,
-                     self.dirName + os.sep + Hellanzb.PROCESSED_SUBDIR + os.sep + file)
+                move(os.path.join(self.dirName, file),
+                     os.path.join(self.dirName, Hellanzb.PROCESSED_SUBDIR, file))
                 
             elif re.match(r'.*_duplicate\d{0,4}', file):
-                move(self.dirName + os.sep + file,
-                     self.dirName + os.sep + Hellanzb.PROCESSED_SUBDIR + os.sep + file)
+                move(os.path.join(self.dirName, file),
+                     os.path.join(self.dirName, Hellanzb.PROCESSED_SUBDIR, file))
 
         handledPars = False
-        if os.path.isfile(self.dirName + os.sep + Hellanzb.PROCESSED_SUBDIR + \
-                          os.sep + '.par_done'):
+        if os.path.isfile(os.path.join(self.dirName, Hellanzb.PROCESSED_SUBDIR, '.par_done')):
             handledPars = True
         
         # Finally, nuke the processed dir. Hopefully the PostProcessor did its job and
         # there was absolutely no need for any of the files in the processed dir,
         # otherwise tough! (otherwise disable the option and redownload again)
-        deleteDir = self.dirName + os.sep + Hellanzb.PROCESSED_SUBDIR
+        deleteDir = os.path.join(self.dirName, Hellanzb.PROCESSED_SUBDIR)
         deletedFiles = walk(deleteDir, 1, return_folders = 1)
         deletedFiles.sort()
         deletedFiles = [fileName.replace(deleteDir + os.sep, '') for fileName in deletedFiles]
 
         if hasattr(Hellanzb, 'DELETE_PROCESSED') and Hellanzb.DELETE_PROCESSED:
-            msg = 'Deleting processed dir: ' + archiveName(self.dirName) + os.sep + \
-                Hellanzb.PROCESSED_SUBDIR + ', it contains: ' + str(deletedFiles) + '\n'
+            msg = 'Deleting processed dir: ' + \
+                os.path.join(archiveName(self.dirName), Hellanzb.PROCESSED_SUBDIR) + \
+                ', it contains: ' + str(deletedFiles) + '\n'
             if len(deletedFiles):
                 logFile(msg)
-            rmtree(self.dirName + os.sep + Hellanzb.PROCESSED_SUBDIR)
+            rmtree(os.path.join(self.dirName, Hellanzb.PROCESSED_SUBDIR))
 
         # Finished. Move dirName to DEST_DIR if we need to
         self.moveDestDir()
@@ -426,7 +426,7 @@ class PostProcessor(Thread):
         checkShutdown()
         
         # Put files we've processed and no longer need (like pars rars) in this dir
-        processedDir = self.dirName + os.sep + Hellanzb.PROCESSED_SUBDIR
+        processedDir = os.path.join(self.dirName, Hellanzb.PROCESSED_SUBDIR)
 
         if not os.path.exists(self.dirName):
             raise FatalError('Directory does not exist: ' + self.dirName)
@@ -458,7 +458,7 @@ class PostProcessor(Thread):
         self.brokenFiles = []
         files = os.listdir(self.dirName)
         for file in files:
-            absoluteFile = self.dirName + os.sep + file
+            absoluteFile = os.path.join(self.dirName, file)
             if os.path.isfile(absoluteFile):
                 if file.endswith('_broken'):
                     # Keep track of the broken files
@@ -505,8 +505,8 @@ class PostProcessor(Thread):
         cleanSkippedPars(self.dirName)
 
         if self.background and not self.isSubDir and \
-                os.path.isfile(self.dirName + os.sep + Hellanzb.PROCESSED_SUBDIR + \
-                               os.sep + '.par_done'):
+                os.path.isfile(os.path.join(self.dirName, Hellanzb.PROCESSED_SUBDIR,
+                                            '.par_done')):
             cleanHellanzbTmpFiles(self.dirName)
         
         if not Hellanzb.SKIP_UNRAR and dirHasRars(self.dirName):
@@ -549,12 +549,12 @@ class PostProcessor(Thread):
         if self.background and self.isNZBArchive() and self.hasMorePars:
             # Must download more pars. Move the archive to the postponed dir, and
             # triggere the special force call for par recoveries
-            postponedDir = Hellanzb.POSTPONED_DIR + os.sep + \
-                os.path.basename(self.dirName)
+            postponedDir = os.path.join(Hellanzb.POSTPONED_DIR,
+                                        os.path.basename(self.dirName))
             move(self.dirName, postponedDir)
             self.archive.archiveDir = self.archive.destDir = postponedDir
-            self.archive.nzbFileName = postponedDir + os.sep + \
-                os.path.basename(self.archive.nzbFileName)
+            self.archive.nzbFileName = \
+                os.path.join(postponedDir, os.path.basename(self.archive.nzbFileName))
 
             info(archiveName(self.dirName) + \
                  ': More pars available, forcing extra par download')

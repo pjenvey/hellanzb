@@ -62,7 +62,8 @@ class NewzbinDownloader(object):
         self.msgId = msgId
 
         # Write the downloaded NZB here temporarily
-        self.tempFilename = Hellanzb.TEMP_DIR + os.sep + tempFilename(self.TEMP_FILENAME_PREFIX) + '.nzb'
+        self.tempFilename = os.path.join(Hellanzb.TEMP_DIR,
+                                         tempFilename(self.TEMP_FILENAME_PREFIX) + '.nzb')
 
         # The real NZB filename determined from HTTP headers
         self.nzbFilename = None
@@ -181,10 +182,10 @@ class NewzbinDownloader(object):
 
         if self.nzbFilename == None:
             debug(str(self) + ' handleEnqueueNZB: no nzbFilename found, aborting!')
-            os.rename(self.tempFilename, Hellanzb.TEMP_DIR + os.sep + 'Newzbin.error')
+            os.rename(self.tempFilename, os.path.join(Hellanzb.TEMP_DIR, 'Newzbin.error'))
             return
 
-        dest = os.path.dirname(self.tempFilename) + os.sep + self.nzbFilename
+        dest = os.path.join(os.path.dirname(self.tempFilename), self.nzbFilename)
         os.rename(self.tempFilename, dest)
         
         Hellanzb.NZBQueue.enqueueNZBs(dest)

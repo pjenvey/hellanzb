@@ -35,7 +35,7 @@ def findAndLoadConfig(optionalConfigFile = None):
             sys.exit(1)
 
     # look for conf in this order: sys.prefix, ./, or ./etc/
-    confDirs = [ sys.prefix + os.sep + 'etc', os.getcwd() + os.sep + 'etc', os.getcwd() ]
+    confDirs = [ os.path.join(sys.prefix, 'etc'), os.path.join(os.getcwd(), 'etc'), os.getcwd() ]
 
     # hard coding preferred Darwin config file location, kind of lame. but I'd rather do
     # this then make an etc dir in os x's Python.framework directory
@@ -43,7 +43,7 @@ def findAndLoadConfig(optionalConfigFile = None):
         confDirs[0] = '/opt/local/etc'
 
     for dir in confDirs:
-        file = dir + os.sep + 'hellanzb.conf'
+        file = os.path.join(dir, 'hellanzb.conf')
         
         if loadConfig(file):
             Hellanzb.CONFIG_FILENAME = file

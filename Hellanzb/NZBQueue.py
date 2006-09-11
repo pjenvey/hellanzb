@@ -130,7 +130,7 @@ def scanQueueDir(firstRun = False, justScan = False):
     currentNZBs = []
     for file in os.listdir(Hellanzb.CURRENT_DIR):
         if Hellanzb.NZB_FILE_RE.search(file):
-            currentNZBs.append(Hellanzb.CURRENT_DIR + os.sep + file)
+            currentNZBs.append(os.path.join(Hellanzb.CURRENT_DIR, file))
 
     # See if we're resuming a nzb fetch
     resuming = False
@@ -142,15 +142,15 @@ def scanQueueDir(firstRun = False, justScan = False):
 
     for file in os.listdir(Hellanzb.QUEUE_DIR):
         if Hellanzb.NZB_FILE_RE.search(file):
-            if os.path.normpath(Hellanzb.QUEUE_DIR + os.sep + file) not in queuedMap:
+            if os.path.normpath(os.path.join(Hellanzb.QUEUE_DIR, file)) not in queuedMap:
                 # Delay enqueueing recently modified NZBs
                 if not isOldEnough(os.path.join(Hellanzb.QUEUE_DIR, file)):
                     continue
                 
-                newNZBs.append(Hellanzb.QUEUE_DIR + os.sep + file)
+                newNZBs.append(os.path.join(Hellanzb.QUEUE_DIR, file))
 
-            elif os.path.normpath(Hellanzb.QUEUE_DIR + os.sep + file) in queuedMap:
-                queuedMap.pop(os.path.normpath(Hellanzb.QUEUE_DIR + os.sep + file))
+            elif os.path.normpath(os.path.join(Hellanzb.QUEUE_DIR, file)) in queuedMap:
+                queuedMap.pop(os.path.normpath(os.path.join(Hellanzb.QUEUE_DIR, file)))
 
         elif file.lower().endswith('.zip'):
             filepath = os.path.join(Hellanzb.QUEUE_DIR, file)
@@ -228,7 +228,7 @@ def scanQueueDir(firstRun = False, justScan = False):
         del Hellanzb.nzbQueue[0]
     
         # nzbfile will always be a absolute filename 
-        nzbfile = Hellanzb.QUEUE_DIR + os.sep + nzbfilename
+        nzbfile = os.path.join(Hellanzb.QUEUE_DIR, nzbfilename)
         move(nzbfile, Hellanzb.CURRENT_DIR)
 
         if not (len(newNZBs) == 1 and len(Hellanzb.nzbQueue) == 0):
@@ -245,7 +245,7 @@ def scanQueueDir(firstRun = False, justScan = False):
         del currentNZBs[0]
         resuming = True
 
-    nzbfile = Hellanzb.CURRENT_DIR + os.sep + nzbfilename
+    nzbfile = os.path.join(Hellanzb.CURRENT_DIR, nzbfilename)
     nzb.nzbFileName = nzbfile
 
     if firstRun:
@@ -453,7 +453,7 @@ def findAndLoadPostponedDir(nzb):
             nzb.destDir = Hellanzb.WORKING_DIR
         
     nzbfilename = nzb.nzbFileName
-    d = Hellanzb.POSTPONED_DIR + os.sep + archiveName(nzbfilename)
+    d = os.path.join(Hellanzb.POSTPONED_DIR, archiveName(nzbfilename))
     if os.path.isdir(d):
         try:
             os.rmdir(Hellanzb.WORKING_DIR)
@@ -464,11 +464,11 @@ def findAndLoadPostponedDir(nzb):
                 ext = getFileExtension(name)
                 if ext != None:
                     name = name.replace(ext, '')
-                move(Hellanzb.WORKING_DIR, Hellanzb.TEMP_DIR + os.sep + name)
+                move(Hellanzb.WORKING_DIR, os.path.join(Hellanzb.TEMP_DIR, name))
 
             else:
                 debug('ERROR Stray WORKING_DIR!: ' + str(os.listdir(Hellanzb.WORKING_DIR)))
-                name = Hellanzb.TEMP_DIR + os.sep + 'stray_WORKING_DIR'
+                name = os.path.join(Hellanzb.TEMP_DIR, 'stray_WORKING_DIR')
                 hellaRename(name)
                 move(Hellanzb.WORKING_DIR, name)
 
@@ -562,13 +562,13 @@ def dequeueNZBs(nzbIdOrIds, quiet = False):
                 found.append(nzb)
     for nzb in found:
         msg = 'Dequeueing: %s' % (nzb.archiveName)
-        if os.path.isdir(Hellanzb.POSTPONED_DIR + os.sep + nzb.archiveName):
+        if os.path.isdir(os.path.join(Hellanzb.POSTPONED_DIR, nzb.archiveName)):
             msg = '%s%s' % (msg, ' (warning: archive has a postponed dir)')
             warn(msg)
         elif not quiet:
             info(msg)
-        move(nzb.nzbFileName, Hellanzb.DEQUEUED_NZBS_DIR + os.sep + \
-             os.path.basename(nzb.nzbFileName))
+        move(nzb.nzbFileName, os.path.join(Hellanzb.DEQUEUED_NZBS_DIR,
+                                           os.path.basename(nzb.nzbFileName)))
         Hellanzb.nzbQueue.remove(nzb)
         
     writeStateXML()
@@ -577,7 +577,7 @@ def dequeueNZBs(nzbIdOrIds, quiet = False):
 def enqueueNZBStr(nzbFilename, nzbStr):
     """ Write the specified NZB file (in string format) to disk and enqueue it """
     # FIXME: could use a tempfile.TempFile here (NewzbinDownloader could use it also)
-    tempLocation = Hellanzb.TEMP_DIR + os.sep + os.path.basename(nzbFilename)
+    tempLocation = os.path.join(Hellanzb.TEMP_DIR, os.path.basename(nzbFilename))
     if os.path.exists(tempLocation):
         if not os.access(tempLocation, os.W_OK):
             error('Unable to write NZB to temp location: ' + tempLocation)
@@ -605,8 +605,8 @@ def enqueueNZBs(nzbFileOrFiles, next = False, writeQueue = True):
     for nzbFile in newNzbFiles:
         if validNZB(nzbFile):
             if os.path.normpath(os.path.dirname(nzbFile)) != os.path.normpath(Hellanzb.QUEUE_DIR):
-                copy(nzbFile, Hellanzb.QUEUE_DIR + os.sep + os.path.basename(nzbFile))
-            nzbFile = Hellanzb.QUEUE_DIR + os.sep + os.path.basename(nzbFile)
+                copy(nzbFile, os.path.join(Hellanzb.QUEUE_DIR, os.path.basename(nzbFile)))
+            nzbFile = os.path.join(Hellanzb.QUEUE_DIR, os.path.basename(nzbFile))
 
             found = False
             for n in Hellanzb.nzbQueue:

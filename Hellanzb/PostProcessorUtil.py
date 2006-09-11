@@ -222,14 +222,14 @@ class NeedMorePars(Exception):
 def dirHasRars(dirName):
     """ Determine if the specified directory contains rar files """
     for file in os.listdir(dirName):
-        if isRar(dirName + os.sep + file):
+        if isRar(os.path.join(dirName, file)):
             return True
     return False
 
 def dirHasPars(dirName):
     """ Determine if the specified directory contains par files """
     for file in os.listdir(dirName):
-        file = dirName + os.sep + file
+        file = os.path.join(dirName, file)
         if isPar(file):
             return True
     return False
@@ -375,7 +375,7 @@ def cleanUp(dirName):
 
     # Delete the processed dir only if it doesn't contain anything
     try:
-        os.rmdir(dirName + os.sep + Hellanzb.PROCESSED_SUBDIR)
+        os.rmdir(os.path.join(dirName, Hellanzb.PROCESSED_SUBDIR))
     except OSError:
         pass
 
@@ -413,8 +413,8 @@ def decompressMusicFile(postProcessor, fileName, musicType, archive = None):
 
     if returnCode == 0:
         # Successful, move the old file away
-        move(fileName, os.path.dirname(fileName) + os.sep + Hellanzb.PROCESSED_SUBDIR + os.sep +
-             os.path.basename(fileName))
+        move(fileName, os.path.join(os.path.dirname(fileName), Hellanzb.PROCESSED_SUBDIR,
+                                    os.path.basename(fileName)))
         
     elif returnCode > 0:
         msg = 'There was a problem while decompressing music file: ' + os.path.basename(fileName) + \
@@ -451,7 +451,7 @@ def processRars(postProcessor):
     start = time.time()
     unrared = 0
     for file in files:
-        absPath = os.path.normpath(postProcessor.dirName + os.sep + file)
+        absPath = os.path.normpath(os.path.join(postProcessor.dirName, file))
         
         if absPath not in processedRars and not os.path.isdir(absPath) and \
                 isRar(absPath) and not isDuplicate(absPath) and \
@@ -488,7 +488,7 @@ enum { SUCCESS,WARNING,FATAL_ERROR,CRC_ERROR,LOCK_ERROR,WRITE_ERROR,
 """
 def unrar(postProcessor, fileName, pathToExtract = None):
     """ Unrar the specified file. Returns all the rar files we extracted from """
-    fileName = os.path.normpath(postProcessor.dirName + os.sep + fileName)
+    fileName = os.path.normpath(os.path.join(postProcessor.dirName, fileName))
 
     # By default extract to the file's dir
     if pathToExtract == None:
@@ -578,7 +578,8 @@ def unrar(postProcessor, fileName, pathToExtract = None):
         if len(line) > len(prefix) + 1 and line.find(prefix) == 0:
             rarFile = line[len(prefix):].rstrip()
             # Distrust the dirname rar returns (just incase)
-            rarFile = os.path.normpath(os.path.dirname(fileName) + os.sep + os.path.basename(rarFile))
+            rarFile = os.path.normpath(os.path.join(os.path.dirname(fileName),
+                                                    os.path.basename(rarFile)))
             
             if rarFile not in processedRars:
                 processedRars.append(rarFile)
@@ -712,7 +713,7 @@ def processPars(postProcessor, needAssembly = None):
         
         # Successful par2, move them out of the way
         for parFile in parFiles:
-            moveToProcessed(dirName + os.sep + parFile)
+            moveToProcessed(os.path.join(dirName, parFile))
 
     processComplete(dirName, 'par', lambda file : PAR2_LEFTOVER_SUFFIX.search(file) and \
                     file not in dotOneFiles)
@@ -986,7 +987,7 @@ def findSplitFiles(dirName):
         foundRar = False
         for part in parts:
             partPrefix = os.path.splitext(part)[0]
-            if isRar(dirName + os.sep + part) and \
+            if isRar(os.path.join(dirName, part)) and \
                     not partPrefix.lower().endswith('.rar'):
                 foundRar = True
                 break
@@ -1012,11 +1013,11 @@ def assembleSplitFiles(dirName, toAssemble):
         info(msg)
         debug(msg + ' ' + str(parts))
         
-        assembledFile = open(dirName + os.sep + key, 'w')
+        assembledFile = open(os.path.join(dirName, key), 'w')
         write = assembledFile.write
         
         for file in parts:
-            partFile = open(dirName + os.sep + file)
+            partFile = open(os.path.join(dirName, file))
             read = partFile.read
             try:
                 while True:
@@ -1042,11 +1043,11 @@ def assembleSplitFiles(dirName, toAssemble):
             except SystemExit:
                 # We were interrupted. Instead of waiting to finish, just delete the file. It
                 # will be automatically assembled upon restart
-                debug('PostProcessor: (CTRL-C) Removing unfinished file: ' + dirName + \
-                      os.sep + key)
+                debug('PostProcessor: (CTRL-C) Removing unfinished file: ' + \
+                      os.path.join(dirName, key))
                 assembledFile.close()
                 try:
-                    os.remove(dirName + os.sep + key)
+                    os.remove(os.path.join(dirName, key))
                 except:
                     pass
                 raise
@@ -1054,7 +1055,7 @@ def assembleSplitFiles(dirName, toAssemble):
         assembledFile.close()
 
         for part in parts:
-            moveToProcessed(dirName + os.sep + part)
+            moveToProcessed(os.path.join(dirName, part))
 
 # segment files on disk
 SEGMENT_SUFFIX_RE = re.compile(r'\.segment\d{4}$')
@@ -1064,24 +1065,24 @@ def cleanSkippedPars(dirName):
     for file in os.listdir(dirName):
         if SEGMENT_SUFFIX_RE.search(file) and \
                 isPar(cleanDupeName(SEGMENT_SUFFIX_RE.sub('', file))[0]):
-            moveToProcessed(dirName + os.sep + file)
+            moveToProcessed(os.path.join(dirName, file))
 
 def cleanHellanzbTmpFiles(dirName):
     """ Remove any 'hellanzb-tmp' files. This should be done after a successful par2 """
     for file in os.listdir(dirName):
         if isHellaTemp(file):
-            moveToProcessed(dirName + os.sep + file)
+            moveToProcessed(os.path.join(dirName, file))
 
 def cleanDupeFiles(dirName):
     """ Remove any files marked as duplicates """
     for file in os.listdir(dirName):
         if DUPE_SUFFIX_RE.match(file):
-            moveToProcessed(dirName + os.sep + file)
+            moveToProcessed(os.path.join(dirName, file))
 
 def moveToProcessed(file):
     """ Move files to the processed dir """
-    move(file, os.path.dirname(file) + os.sep + Hellanzb.PROCESSED_SUBDIR + os.sep + \
-         os.path.basename(file))
+    move(file, os.path.join(os.path.dirname(file), Hellanzb.PROCESSED_SUBDIR,
+                            os.path.basename(file)))
 
 def processComplete(dirName, processStateName, moveFileFilterFunction = None):
     """ Once we've finished a particular processing state, this function will be called to
@@ -1090,18 +1091,18 @@ def processComplete(dirName, processStateName, moveFileFilterFunction = None):
     # ensure we pass the absolute path to the filter function
     if moveFileFilterFunction != None:
         for file in filter(moveFileFilterFunction,
-                           [dirName + os.sep + file for file in os.listdir(dirName)]):
+                           [os.path.join(dirName, file) for file in os.listdir(dirName)]):
             moveToProcessed(file)
 
     # And make a note of the completion
-    touch(dirName + os.sep + Hellanzb.PROCESSED_SUBDIR + os.sep + '.' + \
-          processStateName + '_done')
+    touch(os.path.join(dirName, Hellanzb.PROCESSED_SUBDIR,
+                       '.' + processStateName + '_done'))
 
 def moveSamples(postProcessor):
     """ Temporarily move any sample files that look like .rars into the processed dir
     (they can cause unrar to fail) """
     for file in os.listdir(postProcessor.dirName):
-        fullPath = postProcessor.dirName + os.sep + file
+        fullPath = os.path.join(postProcessor.dirName, file)
         if isRar(fullPath) and \
             file.lower().endswith('.sample.vob'):
             moveToProcessed(fullPath)
@@ -1110,14 +1111,14 @@ def moveSamples(postProcessor):
 def moveBackSamples(postProcessor):
     """ Restore the moved samples """
     for file in postProcessor.movedSamples[:]:
-        move(postProcessor.dirName + os.sep + Hellanzb.PROCESSED_SUBDIR + os.sep + file,
-             postProcessor.dirName + os.sep + file)
+        move(os.path.join(postProcessor.dirName, Hellanzb.PROCESSED_SUBDIR, file),
+             os.path.join(postProcessor.dirName, file))
         postProcessor.movedSamples.remove(file)
 
 def isFreshState(dirName, stateName):
     """ Determine if the specified state has already been completed """
-    if os.path.isfile(dirName + os.sep + Hellanzb.PROCESSED_SUBDIR + os.sep + \
-                      '.' + stateName + '_done'):
+    if os.path.isfile(os.path.join(dirName, Hellanzb.PROCESSED_SUBDIR,
+                                   '.' + stateName + '_done')):
         return False
     return True
 

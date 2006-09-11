@@ -60,7 +60,7 @@ def ensureCleanDirs():
     exception) """
     for var, dirName in {'DOWNLOAD_TEMP_DIR': 'download-tmp',
                          'DEQUEUED_NZBS_DIR': 'dequeued-nzbs'}.iteritems():
-        fullPath = Hellanzb.TEMP_DIR + os.sep + dirName
+        fullPath = os.path.join(Hellanzb.TEMP_DIR, dirName)
         setattr(Hellanzb, var, fullPath)
         try:
             ensureCleanDir(fullPath)
@@ -297,10 +297,10 @@ def handleNZBDone(nzb):
     nzb.archiveDir = processingDir
     
     move(nzb.nzbFileName, processingDir)
-    nzb.nzbFileName = processingDir + os.sep + nzb.nzbFileName
+    nzb.nzbFileName = os.path.join(processingDir, nzb.nzbFileName)
 
     if msgId:
-        touch(processingDir + os.sep + '.msgid_' + msgId)
+        touch(os.path.join(processingDir, '.msgid_' + msgId))
     
     os.mkdir(Hellanzb.WORKING_DIR)
 
@@ -367,10 +367,10 @@ def cancelCurrent():
         info('Canceling download: ' + nzb.archiveName)
     Hellanzb.queue.cancel()
     try:
-        hellaRename(Hellanzb.TEMP_DIR + os.sep + 'canceled_WORKING_DIR')
-        move(Hellanzb.WORKING_DIR, Hellanzb.TEMP_DIR + os.sep + 'canceled_WORKING_DIR')
+        hellaRename(os.path.join(Hellanzb.TEMP_DIR, 'canceled_WORKING_DIR'))
+        move(Hellanzb.WORKING_DIR, os.path.join(Hellanzb.TEMP_DIR, 'canceled_WORKING_DIR'))
         os.mkdir(Hellanzb.WORKING_DIR)
-        rmtree(Hellanzb.TEMP_DIR + os.sep + 'canceled_WORKING_DIR')
+        rmtree(os.path.join(Hellanzb.TEMP_DIR, 'canceled_WORKING_DIR'))
     except Exception, e:
         error('Problem while canceling WORKING_DIR', e)
 
@@ -577,10 +577,10 @@ def forceNZB(nzbfilename, notification = 'Forcing download'):
             # Copy the specified NZB, unless it's already in the queue dir (move it
             # instead)
             if os.path.normpath(os.path.dirname(nzbfilename)) != os.path.normpath(Hellanzb.QUEUE_DIR):
-                copy(nzbfilename, Hellanzb.CURRENT_DIR + os.sep + os.path.basename(nzbfilename))
+                copy(nzbfilename, os.path.join(Hellanzb.CURRENT_DIR, os.path.basename(nzbfilename)))
             else:
-                move(nzbfilename, Hellanzb.CURRENT_DIR + os.sep + os.path.basename(nzbfilename))
-            nzbfilename = Hellanzb.CURRENT_DIR + os.sep + os.path.basename(nzbfilename)
+                move(nzbfilename, os.path.join(Hellanzb.CURRENT_DIR, os.path.basename(nzbfilename)))
+            nzbfilename = os.path.join(Hellanzb.CURRENT_DIR, os.path.basename(nzbfilename))
             nzb.nzbFileName = nzbfilename
 
             # delete everything from the queue. priority will be reset
@@ -601,7 +601,7 @@ def forceNZBParRecover(nzb):
     nzb.isParRecovery = True
 
     if not len(Hellanzb.nzbQueue) and not len(Hellanzb.queue.currentNZBs()):
-        new = Hellanzb.CURRENT_DIR + os.sep + os.path.basename(nzb.nzbFileName)
+        new = os.path.join(Hellanzb.CURRENT_DIR, os.path.basename(nzb.nzbFileName))
         move(nzb.nzbFileName, new)
         nzb.nzbFileName = new
 

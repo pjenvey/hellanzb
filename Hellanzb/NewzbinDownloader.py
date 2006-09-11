@@ -67,6 +67,9 @@ class NewzbinDownloader(NZBDownloader):
         # The real NZB filename determined from HTTP headers
         self.nzbFilename = None
 
+        # Whether or not it appears that this NZB with the msgId does not exist on newzbin
+        self.nonExistantNZB = False
+
     def getNZBURL(self):
         if not self.msgId:
             return ''
@@ -96,25 +99,13 @@ class NewzbinDownloader(NZBDownloader):
 
     def gotHeaders(self, headers):
         """ The downloader will feeds headers via this function """
-        debug(str(self) + ' gotHeaders')
-        # Grab the file name of the NZB via content-disposition header
-        keys = headers.keys()
-
-        found = None
-        for key in keys:
-            if key.lower() == 'content-disposition':
-                found = key
-                break
-
-        if found == None:
-            debug(str(self) + ' gotHeaders: Unable to determine filename! ' + 
-                  'No content-disposition returned' + str(headers))
-            return
-
-        type, attrs = splitattr(headers[found][0])
-        key, val = splitvalue(attrs[0].strip())
-        self.nzbFilename = val
-
+        super(self.__class__, self).gotHeaders(headers)
+        if self.nzbFilename == 'msgid_%s_.nzb' % self.msgId or \
+                self.nzbFilename == 'NZB_%s_.nzb' % self.msgId: # V3 support -- (if it actually does this?)
+            debug('gotHeaders: bad nzb filename: %s' % self.nzbFilename)
+            self.nzbFilename = None
+            self.nonExistantNZB = True
+            
     def haveValidSession(self):
         c = NewzbinDownloader.cookies
         if c.has_key('PHPSESSID') and \
@@ -196,8 +187,11 @@ class NewzbinDownloader(NZBDownloader):
                 del self.cookies[self.UNCONFIRMED_COOKIE_KEY]
                 Hellanzb.NZBQueue.writeStateXML()
         else:
-            error('Unable to download newzbin NZB: %s (Incorrect NEWZBIN_USERNAME/PASSWORD?)' % \
-                  self.msgId)
+            msg = 'Unable to download newzbin NZB: %s' % self.msgId
+            if self.nonExistantNZB:
+                error('%s (This appears to be an invalid msgid)' % msg)
+            else:
+                error('%s (Incorrect NEWZBIN_USERNAME/PASSWORD?)' % msg)
     
     def __str__(self):
         return '%s(%s):' % (self.__class__.__name__, self.msgId)

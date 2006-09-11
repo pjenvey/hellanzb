@@ -1,5 +1,8 @@
 v0.10:
 
+o All filename paths in the config file now expand the "~" character to the
+  user's home directory
+
 o Added support for compressed (.zip) nzbs (thanks Freddie)
 
 o Fixed the following IOError occurring on malformed NZBs that include multiple

@@ -86,9 +86,15 @@ def initDaemon():
 
     reactor.callLater(0, info, 'hellanzb - Now monitoring queue...')
     reactor.callLater(0, growlNotify, 'Queue', 'hellanzb', 'Now monitoring queue..', False)
-    reactor.callLater(0, recoverStateFromDisk)
-    reactor.callLater(0, resumePostProcessors)
-    reactor.callLater(0, scanQueueDir, True)
+    # Twisted does not guarantee callLater(0, first); callLater(0, second) will run in
+    # that order: http://twistedmatrix.com/trac/ticket/1396
+    # This is especially problematic on some platforms (cygwin):
+    # http://hellanzb.com/trac/hellanzb/ticket/196
+    def recoverStateAndBegin():
+        recoverStateFromDisk()
+        resumePostProcessors()
+        scanQueueDir(True)
+    reactor.callLater(0, recoverStateAndBegin)
 
     if Hellanzb.DAEMONIZE:
         daemonize()

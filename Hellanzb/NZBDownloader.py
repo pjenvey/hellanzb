@@ -138,7 +138,7 @@ class NZBDownloader(object):
             error('Unable to download from %s: %s' % (self.url, str(reason)))
 
     def __str__(self):
-        return 'NZBDownloader(%s):' % self.url
+        return '%s(%s):' % (self.__class__.__name__, self.url)
 
 """
 Copyright (c) 2005 Philip Jenvey <pjenvey@groovie.org>

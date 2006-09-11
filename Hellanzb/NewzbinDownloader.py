@@ -15,7 +15,7 @@ from twisted.internet.error import ConnectionRefusedError, DNSLookupError, Timeo
 from twisted.web.client import HTTPClientFactory
 from urllib import splitattr, splitvalue
 from Hellanzb.Log import *
-from Hellanzb.NZBDownloader import StoreHeadersHTTPDownloader
+from Hellanzb.NZBDownloader import NZBDownloader, StoreHeadersHTTPDownloader
 from Hellanzb.Util import tempFilename
 
 __id__ = '$Id$'
@@ -46,14 +46,12 @@ class StoreCookieHTTPClientFactory(HTTPClientFactory):
 
         return cookies
 
-class NewzbinDownloader(object):
+class NewzbinDownloader(NZBDownloader):
     """ Download the NZB file with the specified msgid from www.newzbin.com, by instantiating
     this class and calling download() """
 
-    AGENT = 'hellanzb/' + Hellanzb.version
     HEADERS = { 'Content-Type': 'application/x-www-form-urlencoded'}
     GET_NZB_URL = 'http://www.newzbin.com/browse/post/____ID____/msgids/msgidlist_post____ID____.nzb'
-    TEMP_FILENAME_PREFIX = 'hellanzb-newzbin-download'
 
     cookies = {}
     
@@ -176,40 +174,8 @@ class NewzbinDownloader(object):
 
         reactor.connectTCP('www.newzbin.com', 80, httpd)
     
-    def handleEnqueueNZB(self, page):
-        """ Add the new NZB to the queue"""
-        debug(str(self) + ' handleEnqueueNZB')
-
-        if self.nzbFilename == None:
-            debug(str(self) + ' handleEnqueueNZB: no nzbFilename found, aborting!')
-            os.rename(self.tempFilename, os.path.join(Hellanzb.TEMP_DIR, 'Newzbin.error'))
-            return
-
-        dest = os.path.join(os.path.dirname(self.tempFilename), self.nzbFilename)
-        os.rename(self.tempFilename, dest)
-        
-        Hellanzb.NZBQueue.enqueueNZBs(dest)
-
-        os.remove(dest)
-        
-    def errBack(self, reason):
-        if os.path.isfile(self.tempFilename):
-            os.remove(self.tempFilename)
-            
-        if Hellanzb.SHUTDOWN:
-           return
-       
-        if reason.check(TimeoutError):
-            error('Unable to connect to www.newzbin.com: Connection timed out')
-        elif reason.check(ConnectionRefusedError):
-            error('Unable to connect to www.newzbin.com: Connection refused')
-        elif reason.check(DNSLookupError):
-            error('Unable to connect to www.newzbin.com: DNS lookup failed')
-        else:
-            error('Unable to download from www.newzbin.com: ' + str(reason))
-
     def __str__(self):
-        return 'NewzbinDownloader(%s):' % self.msgId
+        return '%s(%s):' % (self.__class__.__name__, self.msgId)
 
     def canDownload():
         """ Whether or not the conf file supplied www.newzbin.com login info """

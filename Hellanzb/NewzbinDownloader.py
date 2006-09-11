@@ -9,7 +9,7 @@ people might want it so here it is -pjenvey
 (c) Copyright 2005 Philip Jenvey
 [See end of file]
 """
-import os, time, Hellanzb.NZBQueue
+import base64, md5, os, time, Hellanzb.NZBQueue
 from twisted.internet import reactor
 from twisted.internet.error import ConnectionRefusedError, DNSLookupError, TimeoutError
 from twisted.web.client import HTTPClientFactory
@@ -52,6 +52,7 @@ class NewzbinDownloader(NZBDownloader):
 
     HEADERS = { 'Content-Type': 'application/x-www-form-urlencoded'}
     GET_NZB_URL = 'http://www.newzbin.com/browse/post/____ID____/msgids/msgidlist_post____ID____.nzb'
+    UNCONFIRMED_COOKIE_KEY = 'Hellanzb.UNCONFIRMED'
 
     cookies = {}
     
@@ -70,16 +71,27 @@ class NewzbinDownloader(NZBDownloader):
         if not self.msgId:
             return ''
         return self.GET_NZB_URL.replace('____ID____', self.msgId)
+    url = property(getNZBURL)
+
+    def encryptedNewzbinPass(self):
+        """ Return an encrypted version of the NEWZBIN_PASSWORD """
+        m = md5.new()
+        m.update(Hellanzb.NEWZBIN_PASSWORD)
+        return base64.b64encode(m.digest())        
 
     def gotCookies(self, cookies):
         """ The downloader will feeds cookies via this function """
         # Grab the cookies for the PHPSESSID
-        newId = False
         if NewzbinDownloader.cookies.get('PHPSESSID') != cookies.get('PHPSESSID'):
-            newId = True
+            # We haven't confirmed the login process tied to this cookie was successful
+            # yet
+            cookies[self.UNCONFIRMED_COOKIE_KEY] = True
+
+        # Store the username/pass associated with this cookie info
+        cookies['Hellanzb-NEWZBIN_USERNAME'] = Hellanzb.NEWZBIN_USERNAME
+        cookies['Hellanzb-ENCRYPTED_NEWZBIN_PASSWORD'] = self.encryptedNewzbinPass()
+        
         NewzbinDownloader.cookies = cookies
-        if newId:
-            Hellanzb.NZBQueue.writeStateXML()
         debug(str(self) + ' gotCookies: ' + str(NewzbinDownloader.cookies))
 
     def gotHeaders(self, headers):
@@ -104,8 +116,11 @@ class NewzbinDownloader(NZBDownloader):
         self.nzbFilename = val
 
     def haveValidSession(self):
-        if NewzbinDownloader.cookies.has_key('PHPSESSID') and \
-                NewzbinDownloader.cookies.has_key('expires'):
+        c = NewzbinDownloader.cookies
+        if c.has_key('PHPSESSID') and \
+            c.get('Hellanzb-NEWZBIN_USERNAME') == Hellanzb.NEWZBIN_USERNAME and \
+            c.get('Hellanzb-ENCRYPTED_NEWZBIN_PASSWORD') == self.encryptedNewzbinPass() and \
+            c.has_key('expires'):
             expireTime = NewzbinDownloader.cookies['expires']
             
             try:
@@ -173,6 +188,16 @@ class NewzbinDownloader(NZBDownloader):
         httpd.deferred.addErrback(self.errBack)
 
         reactor.connectTCP('www.newzbin.com', 80, httpd)
+
+    def handleEnqueueNZB(self, page):
+        """ Add the new NZB to the queue"""
+        if super(self.__class__, self).handleEnqueueNZB(page):
+            if self.UNCONFIRMED_COOKIE_KEY in self.cookies:
+                del self.cookies[self.UNCONFIRMED_COOKIE_KEY]
+                Hellanzb.NZBQueue.writeStateXML()
+        else:
+            error('Unable to download newzbin NZB: %s (Incorrect NEWZBIN_USERNAME/PASSWORD?)' % \
+                  self.msgId)
     
     def __str__(self):
         return '%s(%s):' % (self.__class__.__name__, self.msgId)

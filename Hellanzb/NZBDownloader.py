@@ -112,7 +112,7 @@ class NZBDownloader(object):
         if self.nzbFilename == None:
             debug(str(self) + ' handleEnqueueNZB: no nzbFilename found, aborting!')
             os.rename(self.tempFilename, os.path.join(Hellanzb.TEMP_DIR, 'Newzbin.error'))
-            return
+            return False
 
         dest = os.path.join(os.path.dirname(self.tempFilename), self.nzbFilename)
         os.rename(self.tempFilename, dest)
@@ -120,6 +120,7 @@ class NZBDownloader(object):
         Hellanzb.NZBQueue.enqueueNZBs(dest)
 
         os.remove(dest)
+        return True
         
     def errBack(self, reason):
         if os.path.isfile(self.tempFilename):

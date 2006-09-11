@@ -298,8 +298,9 @@ def handleNZBDone(nzb):
     
     move(nzb.nzbFileName, processingDir)
     nzb.nzbFileName = processingDir + os.sep + nzb.nzbFileName
-    
-    touch(processingDir + os.sep + '.msgid_' + msgId)
+
+    if msgId:
+        touch(processingDir + os.sep + '.msgid_' + msgId)
     
     os.mkdir(Hellanzb.WORKING_DIR)
 

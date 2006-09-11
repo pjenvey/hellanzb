@@ -475,9 +475,8 @@ def archiveName(dirName, unformatNewzbinNZB = True):
         name = os.path.basename(dirName)
 
     # Strip the msg_id and .nzb extension from an nzb file name
-    if unformatNewzbinNZB and len(name) > 3 and name[-3:].lower() == 'nzb':
-        name = re.sub(r'msgid_.*?_', r'', name)
-        name = re.sub(r'\.nzb$', r'', name)
+    if unformatNewzbinNZB:
+        name = re.sub(r'^(?:msgid|NZB)_(\d+)_.*?\.nzb$', r'\1', name)
 
     return name
 

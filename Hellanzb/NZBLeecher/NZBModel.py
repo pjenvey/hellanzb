@@ -11,7 +11,7 @@ from shutil import move
 from threading import Lock, RLock
 from Hellanzb.Log import *
 from Hellanzb.NZBQueue import writeStateXML
-from Hellanzb.Util import IDPool, UnicodeList, archiveName, getFileExtension, \
+from Hellanzb.Util import IDPool, UnicodeList, archiveName, getFileExtension, getMsgId, \
     hellaRename, isHellaTemp, nuke, toUnicode
 from Hellanzb.NZBLeecher.ArticleDecoder import parseArticleData, setRealFileName, tryAssemble
 from Hellanzb.NZBLeecher.DupeHandler import handleDupeNZBFileNeedsDownload
@@ -21,7 +21,6 @@ from Hellanzb.SmartPar import identifyPar, logSkippedPars, smartDequeue, smartRe
 
 __id__ = '$Id$'
 
-NEWZBIN_FILENAME_RE = re.compile(r'^msgid_(\d*)_.*\.nzb$', re.I)
 class NZB(Archive):
     """ Representation of an nzb file -- the root <nzb> tag """
     
@@ -33,11 +32,9 @@ class NZB(Archive):
         self.archiveName = archiveName(self.nzbFileName) # pretty name
         self.msgid = None
         filename = os.path.basename(nzbFileName)
-        if NEWZBIN_FILENAME_RE.match(filename):
-            try:
-                self.msgid = int(NEWZBIN_FILENAME_RE.sub(r'\1', filename))
-            except ValueError:
-                pass
+        self.msgid = getMsgId(filename)
+        if self.msgid:
+            self.msgid = int(self.msgid)
         self.nzbFiles = []
         self.skippedParFiles = []
 

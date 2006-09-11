@@ -460,10 +460,11 @@ def touch(fileName):
     os.close(fd)
     os.utime(fileName, None)
 
+NEWZBIN_FILENAME_RE = re.compile(r'^(?:msgid|NZB)_(\d+)_(.*?)\.nzb$', re.I)
 def archiveName(dirName, unformatNewzbinNZB = True):
     """ Extract the name of the archive from the archive's absolute path, or its .nzb file
-    name. Optionally remove newzbin 'msgid_99999' prefix and '.nzb' suffix from a newzbin
-    formatted .nzb filename """
+    name. Optionally remove newzbin 'msgid_99999' or 'NZB_' prefixes and the '.nzb' suffix
+    from a newzbin formatted .nzb filename """
     from Hellanzb.PostProcessorUtil import DirName
     # pop off separator and basename
     while dirName[len(dirName) - 1] == os.sep:
@@ -476,9 +477,15 @@ def archiveName(dirName, unformatNewzbinNZB = True):
 
     # Strip the msg_id and .nzb extension from an nzb file name
     if unformatNewzbinNZB:
-        name = re.sub(r'^(?:msgid|NZB)_(\d+)_.*?\.nzb$', r'\1', name)
+        name = NEWZBIN_FILENAME_RE.sub(r'\2', name)
 
     return name
+
+def getMsgId(archiveName):
+    """ Grab the msgid from a newzbin filename/archiveName """
+    if NEWZBIN_FILENAME_RE.match(archiveName):
+        return NEWZBIN_FILENAME_RE.sub(r'\1', archiveName)
+    return None
 
 def checkShutdown(message = 'Shutting down..'):
     """ Raise a SystemExit exception if the SHUTDOWN flag has been set """
@@ -663,12 +670,6 @@ def nextDupeName(*args, **kwargs):
     if not kwargs.has_key('minIteration'):
         kwargs['minIteration'] = 1
     return dupeName(*args, **kwargs)
-
-def getMsgId(archiveName):
-    """ grab the msgid from a 'msgid_31337_HellaBlah.nzb string """
-    msgId = re.sub(r'.*msgid_', r'', os.path.basename(archiveName))
-    msgId = re.sub(r'_.*', r'', msgId)
-    return msgId
 
 def walk(root, recurse=0, pattern='*', return_folders=0):
     """ return a recursive directory listing.

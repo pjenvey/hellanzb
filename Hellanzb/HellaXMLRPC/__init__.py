@@ -237,8 +237,8 @@ class HellaXMLRPCServer(XMLRPC):
         # We are the queue daemon -- Symlink to the archiveDir. If we are ctrl-ced, we'll
         # pick up the post processing afterward restart
         if os.path.normpath(dirName) != os.path.normpath(Hellanzb.PROCESSING_DIR):
-            destDir = dupeName(Hellanzb.PROCESSING_DIR + os.sep + \
-                               os.path.basename(archiveDir.rstrip(os.sep)))
+            destDir = dupeName(os.path.join(Hellanzb.PROCESSING_DIR,
+                               os.path.basename(archiveDir.rstrip(os.sep))))
             # UNIX: symlink, windows =[
             os.symlink(archiveDir, destDir)
             archiveDir = destDir

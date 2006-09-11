@@ -438,10 +438,12 @@ class NZBLeecher(NNTPClient, TimeoutMixin):
         if self.currentSegment is None:
 
             try:
-                priority, self.currentSegment = Hellanzb.queue.getSmart(self.factory.serverPoolName)
-                self.currentSegment.encodedData = open(Hellanzb.DOWNLOAD_TEMP_DIR + os.sep + \
-                                                       self.currentSegment.getTempFileName() + '_ENC',
-                                                       'w')
+                priority, self.currentSegment = \
+                    Hellanzb.queue.getSmart(self.factory.serverPoolName)
+                self.currentSegment.encodedData = \
+                    open(os.path.join(Hellanzb.DOWNLOAD_TEMP_DIR,
+                                      self.currentSegment.getTempFileName() + '_ENC'),
+                         'w')
                 debug(str(self) + ' PULLED FROM QUEUE: ' + self.currentSegment.getDestination())
 
                 # got a segment - set ourselves as active unless we're already set as so
@@ -895,8 +897,8 @@ class NZBLeecher(NNTPClient, TimeoutMixin):
 
             if removeEncFile:
                 try:
-                    os.remove(Hellanzb.DOWNLOAD_TEMP_DIR + os.sep + \
-                              self.currentSegment.getTempFileName() + '_ENC')
+                    os.remove(os.path.join(Hellanzb.DOWNLOAD_TEMP_DIR,
+                              self.currentSegment.getTempFileName() + '_ENC'))
                 except Exception, e:
                     pass
 

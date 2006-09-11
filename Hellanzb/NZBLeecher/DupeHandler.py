@@ -29,7 +29,7 @@ def knownRealNZBFilenames():
     for nzb in Hellanzb.queue.nzbs:
         for nzbFile in nzb.nzbFiles:
             if nzbFile.filename != None:
-                filenames.append(nzb.destDir + os.sep + nzbFile.filename)
+                filenames.append(os.path.join(nzb.destDir, nzbFile.filename))
     return filenames
 
 def handleDupeNZBSegment(nzbSegment):
@@ -201,7 +201,7 @@ def handleDupeNZBFileNeedsDownload(nzbFile, workingDirDupeMap):
                     dupeEntry[1] = nzbFile
 
                     # Set our filename now, since we know it, for sanity sake
-                    dupeFilename = nextDupeName(Hellanzb.WORKING_DIR + os.sep + file,
+                    dupeFilename = nextDupeName(os.path.join(Hellanzb.WORKING_DIR, file),
                                                 checkOnDisk = False,
                                                 minIteration = dupeEntry[0] + 1)
                     nzbFile.filename = os.path.basename(dupeFilename)

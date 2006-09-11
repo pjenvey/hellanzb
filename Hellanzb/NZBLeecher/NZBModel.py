@@ -104,7 +104,7 @@ class NZB(Archive):
         """ Postpone an active NZB """
         assert self in Hellanzb.queue.currentNZBs(), \
             'Attempting to postpone an NZB not actively being downloaded: %s' % self.archiveName
-        postponed = Hellanzb.POSTPONED_DIR + os.sep + self.archiveName
+        postponed = os.path.join(Hellanzb.POSTPONED_DIR, self.archiveName)
         hellaRename(postponed)
         os.mkdir(postponed)
 
@@ -112,14 +112,16 @@ class NZB(Archive):
         try:
             self.destDir = postponed
 
-            move(self.nzbFileName, Hellanzb.QUEUE_DIR + os.sep + os.path.basename(self.nzbFileName))
-            self.nzbFileName = Hellanzb.QUEUE_DIR + os.sep + os.path.basename(self.nzbFileName)
+            move(self.nzbFileName, os.path.join(Hellanzb.QUEUE_DIR,
+                                                os.path.basename(self.nzbFileName)))
+            self.nzbFileName = os.path.join(Hellanzb.QUEUE_DIR,
+                                            os.path.basename(self.nzbFileName))
             Hellanzb.nzbQueue.insert(0, self)
             writeStateXML()
 
             # Move the postponed files to the new postponed dir
             for file in os.listdir(Hellanzb.WORKING_DIR):
-                move(Hellanzb.WORKING_DIR + os.sep + file, postponed + os.sep + file)
+                move(os.path.join(Hellanzb.WORKING_DIR, file), os.path.join(postponed, file))
         finally:
             self.assembleLock.release()
             
@@ -293,7 +295,7 @@ class NZB(Archive):
         the specified type (such as 'processing', 'downloading') """
         if type == 'processing':
             recoveredDict = Hellanzb.recoveredState.getRecoveredDict(type, target)
-            archiveDir = Hellanzb.PROCESSING_DIR + os.sep + target
+            archiveDir = os.path.join(Hellanzb.PROCESSING_DIR, target)
             if recoveredDict and recoveredDict.get('nzbFileName') is not None:
                 target = recoveredDict.get('nzbFileName')
             else:
@@ -423,7 +425,7 @@ class NZBFile:
 
     def getDestination(self):
         """ Return the full pathname of where this NZBFile should be written to on disk """
-        return self.nzb.destDir + os.sep + self.getFilename()
+        return os.path.join(self.nzb.destDir, self.getFilename())
 
     def getFilename(self):
         """ Return the filename of where this NZBFile will reside on the filesystem, within the
@@ -604,13 +606,13 @@ class NZBSegment:
         """ Load the previously downloaded article BODY from disk, as a list to the .articleData
         variable. Removes the on disk version upon loading """
         # downloaded encodedData was written to disk by NZBLeecher
-        encodedData = open(Hellanzb.DOWNLOAD_TEMP_DIR + os.sep + self.getTempFileName() + '_ENC')
+        encodedData = open(os.path.join(Hellanzb.DOWNLOAD_TEMP_DIR, self.getTempFileName() + '_ENC'))
         # remove crlfs. FIXME: might be quicker to do this during a later loop
         self.articleData = [line[:-2] for line in encodedData]
         encodedData.close()
 
         # Delete the copy on disk ASAP
-        nuke(Hellanzb.DOWNLOAD_TEMP_DIR + os.sep + self.getTempFileName() + '_ENC')
+        nuke(os.path.join(Hellanzb.DOWNLOAD_TEMP_DIR, self.getTempFileName() + '_ENC'))
 
     def isFirstSegment(self):
         """ Determine whether or not this is the first segment """
@@ -649,7 +651,7 @@ def segmentsNeedDownload(segmentList, overwriteZeroByteSegments = False):
 
     # Cache all WORKING_DIR segment filenames in a map of lists
     for file in os.listdir(Hellanzb.WORKING_DIR):
-        if not validWorkingFile(Hellanzb.WORKING_DIR + os.sep + file,
+        if not validWorkingFile(os.path.join(Hellanzb.WORKING_DIR, file),
                                 overwriteZeroByteSegments):
             continue
         

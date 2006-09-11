@@ -346,8 +346,8 @@ def setRealFileName(nzbFile, filename, forceChange = False, settingSegmentNumber
     # Rename all segments
     for file in os.listdir(nzbFile.nzb.destDir):
         if file in renameFilenames:
-            orig = nzbFile.nzb.destDir + os.sep + file
-            new = nzbFile.nzb.destDir + os.sep + renameFilenames.get(file)
+            orig = os.path.join(nzbFile.nzb.destDir, file)
+            new = os.path.join(nzbFile.nzb.destDir, renameFilenames.get(file))
             shutil.move(orig, new)
 
             # Keep the onDiskSegments map in sync

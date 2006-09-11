@@ -724,7 +724,7 @@ class NZBParser(ContentHandler):
             if DUPE_SEGMENT_RE.match(file):
                 # Sorry duplicate file segments, handling dupes is a pain enough as it is
                 # without segments coming into the mix
-                os.remove(Hellanzb.WORKING_DIR + os.sep + file)
+                os.remove(os.path.join(Hellanzb.WORKING_DIR, file))
                 continue
 
             # Add an entry to the self.workingDirDupeMap if this file looks like a
@@ -733,7 +733,7 @@ class NZBParser(ContentHandler):
             if handleDupeOnDisk(file, self.workingDirDupeMap):
                 continue
             
-            if not validWorkingFile(Hellanzb.WORKING_DIR + os.sep + file,
+            if not validWorkingFile(os.path.join(Hellanzb.WORKING_DIR, file),
                                     self.nzb.overwriteZeroByteFiles):
                 continue
 

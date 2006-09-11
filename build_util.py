@@ -71,7 +71,7 @@ def buildPort(version):
     portStubDir = 'freebsd-port'
     
     portDestDir = 'dist/hellanzb-freebsd-port-' + version
-    destDir = portDestDir + os.sep + 'hellanzb'
+    destDir = os.path.join(portDestDir, 'hellanzb')
 
     if not os.path.isdir(portDestDir):
         os.mkdir(portDestDir)
@@ -79,19 +79,19 @@ def buildPort(version):
         os.mkdir(destDir)
 
     # replace the version
-    os.system('cat ' + portStubDir + os.sep + 'Makefile | sed s/____VERSION____/' + version + '/ > ' +
-              destDir + os.sep + 'Makefile')
+    os.system('cat ' + os.path.join(portStubDir, 'Makefile') + ' | sed s/____VERSION____/' + \
+              version + '/ > ' + os.path.join(destDir, 'Makefile'))
 
     # copy over the port files
-    shutil.copy(portStubDir + os.sep + 'pkg-descr', destDir + os.sep + 'pkg-descr')
-    shutil.copy(portStubDir + os.sep + 'pkg-plist', destDir + os.sep + 'pkg-plist')
-    shutil.copytree(portStubDir + os.sep + 'files', destDir + os.sep + 'files')
-    dotSVNDir = destDir + os.sep + 'files/.svn'
+    shutil.copy(os.path.join(portStubDir, 'pkg-descr'), os.path.join(destDir, 'pkg-descr'))
+    shutil.copy(os.path.join(portStubDir, 'pkg-plist'), os.path.join(destDir, 'pkg-plist'))
+    shutil.copytree(os.path.join(portStubDir, 'files'), os.path.join(destDir, 'files'))
+    dotSVNDir = os.path.join(destDir, 'files', '.svn')
     if os.path.isdir(dotSVNDir):
         shutil.rmtree(dotSVNDir)
 
     # create a distinfo with the checksum
-    distinfo = open(destDir + os.sep + 'distinfo', 'w')
+    distinfo = open(os.path.join(destDir, 'distinfo'), 'w')
     distinfo.write('MD5 (hellanzb-' + version + '.tar.gz) = ' +
                  md5File('dist/hellanzb-' + version + '.tar.gz') + '\n')
     distinfo.write('SHA256 (hellanzb-' + version + '.tar.gz) = ' +
@@ -107,20 +107,19 @@ def buildDPort(version):
     print 'Building new Darwin port'
     portStubDir = 'darwin-dport'
     
-    portDestDir = 'dist/hellanzb-darwin-dport-' + version
-    destDir = portDestDir + os.sep + 'hellanzb'
+    portDestDir = os.path.join('dist', 'hellanzb-darwin-dport-' + version)
+    destDir = os.path.join(portDestDir, 'hellanzb')
 
-    if not os.path.isdir(portDestDir):
-        os.mkdir(portDestDir)
     if not os.path.isdir(destDir):
-        os.mkdir(destDir)
+        os.makedirs(destDir)
 
     # replace the version, and darwinports seems to require a checksum
     checksum = md5File('dist/hellanzb-' + version + '.tar.gz')
-    os.system('cat ' + portStubDir + os.sep + 'Portfile | sed s/____VERSION____/' + version + '/ | ' +
-              'sed s/____MD5_CHECKSUM____/' + 'md5\ ' + checksum + '/ > ' + destDir + os.sep + 'Portfile')
+    os.system('cat ' + os.path.join(portStubDir, 'Portfile') + ' | sed s/____VERSION____/' + \
+              version + '/ | ' + 'sed s/____MD5_CHECKSUM____/' + 'md5\ ' + checksum + '/ > ' + \
+              os.path.join(destDir, 'Portfile'))
 
-    dir = portDestDir[len('dist/'):]
+    dir = portDestDir[len('dist' + os.sep):]
     createTarBall('dist', dir, dir + '.tar.gz')
 
 def bumpVersion(oldVersion):
@@ -139,7 +138,7 @@ def createTarBall(workingDir, dirName, fileName):
     
     tarBall = tarfile.open(fileName, 'w:gz')
     for file in os.listdir(dirName):
-        tarBall.add(dirName + os.sep + file)
+        tarBall.add(os.path.join(dirName, file))
     tarBall.close()
         
     os.chdir(cwd)
@@ -204,7 +203,7 @@ def uploadToHost(version, host, dir):
 def writeVersion(newVersion, destDir = None):
     """ Write out a new version number """
     if destDir:
-        versionFile = open(destDir + os.sep + VERSION_FILENAME, 'w')
+        versionFile = open(os.path.join(destDir, VERSION_FILENAME), 'w')
     else:
         versionFile = open(VERSION_FILENAME, 'w')
     versionFile.write('version = \'' + newVersion + '\'\n')

@@ -490,6 +490,7 @@ def archiveName(dirName, unformatNewzbinNZB = True):
 
 def getMsgId(archiveName):
     """ Grab the msgid from a newzbin filename/archiveName """
+    archiveName = os.path.basename(archiveName)
     match = NEWZBIN_FILE_RE.match(archiveName)
     if match:
         return match.group(1)

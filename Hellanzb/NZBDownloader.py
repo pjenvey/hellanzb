@@ -109,8 +109,9 @@ class NZBDownloader(object):
         """ Add the new NZB to the queue"""
         debug(str(self) + ' handleEnqueueNZB')
 
-        if self.nzbFilename == None:
+        if not self.nzbFilename:
             debug(str(self) + ' handleEnqueueNZB: no nzbFilename found, aborting!')
+            error('Unable to download: %s, no filename found' % self.url)
             os.rename(self.tempFilename, os.path.join(Hellanzb.TEMP_DIR, 'Newzbin.error'))
             return False
 

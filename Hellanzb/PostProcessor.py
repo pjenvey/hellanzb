@@ -509,6 +509,9 @@ class PostProcessor(Thread):
                                             '.par_done')):
             cleanHellanzbTmpFiles(self.dirName)
         
+        # Rars may need assembly before unraring
+        assembleSplitFiles(self.dirName, findSplitFiles(self.dirName))
+
         if not Hellanzb.SKIP_UNRAR and dirHasRars(self.dirName):
             checkShutdown()
             moveSamples(self)
@@ -518,7 +521,7 @@ class PostProcessor(Thread):
             checkShutdown()
             self.processMusic()
 
-        # Assemble split up files
+        # Assemble split up files (that were just unrared)
         assembleSplitFiles(self.dirName, findSplitFiles(self.dirName))
 
         # FIXME: do we need to gc.collect() after post processing a lot of data?

@@ -1,5 +1,7 @@
 v0.10:
 
+o Now including duplicate files during par2 repair
+
 o All filename paths in the config file now expand the "~" character to the
   user's home directory
 

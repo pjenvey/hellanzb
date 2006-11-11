@@ -769,7 +769,7 @@ def par2(postProcessor, parFiles, wildcard, needAssembly = None):
         
     repairCmd = Hellanzb.PAR2_CMD + ' r --'
     for parFile in parFiles:
-        repairCmd += ' "%s"' % (pathjoin(dirName, parFile))
+        repairCmd += ' "%s" "*._hellanzb_dupe.*"' % (pathjoin(dirName, parFile))
         
     t = Topen(repairCmd, postProcessor)
     output, returnCode = t.readlinesAndWait()

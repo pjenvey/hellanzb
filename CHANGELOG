@@ -17,6 +17,9 @@ those NZBs created by newzleech.com):
 IOError: [Errno 2] No such file or directory:
 '/nzb/daemon.temp/download-tmp/hellanzb-tmp-archvie.file0172.segment0001_ENC'
 
+o Added the ability to disconnect from the usenet server when idle (set
+  antiIdle = 0)
+
 o Fixed defineServer's bindTo option
 
 o Better handling of slow NZB copies to the queue directory (won't queue the

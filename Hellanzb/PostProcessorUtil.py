@@ -1104,7 +1104,7 @@ def moveSamples(postProcessor):
     for file in os.listdir(postProcessor.dirName):
         fullPath = os.path.join(postProcessor.dirName, file)
         if isRar(fullPath) and \
-            file.lower().endswith('.sample.vob'):
+            file.lower().endswith('sample.vob'):
             moveToProcessed(fullPath)
             postProcessor.movedSamples.append(file)
 

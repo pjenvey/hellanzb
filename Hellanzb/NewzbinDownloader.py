@@ -192,6 +192,9 @@ class NewzbinDownloader(NZBDownloader):
                 error('%s (This appears to be an invalid msgid)' % msg)
             else:
                 error('%s (Incorrect NEWZBIN_USERNAME/PASSWORD?)' % msg)
+                # Invalidate the cached cookies
+                NewzbinDownloader.cookies = {}
+                Hellanzb.NZBQueue.writeStateXML()
     
     def __str__(self):
         return '%s(%s):' % (self.__class__.__name__, self.msgId)

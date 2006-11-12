@@ -116,14 +116,14 @@ class HellaXMLRPCServer(XMLRPC):
 
     def xmlrpc_enqueue(self, nzbFilename, nzbData = None):
         """ Add the specified NZB file to the end of the queue """
-        from Hellanzb.NZBQueue import enqueueNZBs, enqueueNZBStr
+        from Hellanzb.NZBQueue import enqueueNZBs, enqueueNZBData
         if nzbData == None:
             # FIXME: this should really check for a valid nzb. if it's not valid, raise a
             # Fault (like the xmlrpc_process does)
             enqueueNZBs(nzbFilename)
             
         else:
-            enqueueNZBStr(nzbFilename, nzbData)
+            enqueueNZBData(nzbFilename, nzbData)
             
         return self.xmlrpc_status()
 

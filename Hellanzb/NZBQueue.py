@@ -8,7 +8,7 @@ Hellanzb.nzbQueue
 (c) Copyright 2005 Philip Jenvey
 [See end of file]
 """
-import gc, os, re, time, zipfile, Hellanzb, Hellanzb.Daemon
+import gc, os, re, shutil, time, zipfile, Hellanzb, Hellanzb.Daemon
 from shutil import copy, move, rmtree
 from twisted.internet import reactor
 from xml.sax import make_parser, SAXParseException
@@ -575,19 +575,28 @@ def dequeueNZBs(nzbIdOrIds, quiet = False):
     writeStateXML()
     return not error
 
-def enqueueNZBStr(nzbFilename, nzbStr):
-    """ Write the specified NZB file (in string format) to disk and enqueue it """
+def enqueueNZBData(nzbFilename, nzbData):
+    """ Write the specified NZB file data (as a string or file object) to disk and enqueue it
+    """
     # FIXME: could use a tempfile.TempFile here (NewzbinDownloader could use it also)
     tempLocation = os.path.join(Hellanzb.TEMP_DIR, os.path.basename(nzbFilename))
     if os.path.exists(tempLocation):
         if not os.access(tempLocation, os.W_OK):
             error('Unable to write NZB to temp location: ' + tempLocation)
             return
-        
-        rmtree(tempLocation)
+
+        if os.path.isdir(tempLocation):
+            rmtree(tempLocation)
+        else:
+            os.remove(tempLocation)
 
     f = open(tempLocation, 'w')
-    f.writelines(nzbStr)
+    if isinstance(nzbData, file):
+        nzbData.seek(0)
+        shutil.copyfileobj(nzbData, f)
+        nzbData.seek(0)
+    else:
+        f.write(nzbData)
     f.close()
 
     enqueueNZBs(tempLocation)

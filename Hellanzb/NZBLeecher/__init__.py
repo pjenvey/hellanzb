@@ -9,7 +9,7 @@ Freddie (freddie@madcowdisease.org) utilizing the twisted framework
 (c) Copyright 2005 Philip Jenvey, Ben Bangert
 [See end of file]
 """
-import os, re, sys, time, Hellanzb
+import logging, os, re, sys, time, Hellanzb
 from sets import Set
 from shutil import move
 from twisted.copyright import version as twistedVersion
@@ -1013,11 +1013,21 @@ def connectServer(serverName, serverDict, defaultAntiIdle, defaultIdleTimeout):
             connectionCount += 1
         preWrappedNsf.setConnectionCount(connectionCount)
 
-    info(preWrappedNsf.color + '(' + serverName + ') ' + Hellanzb.ACODE.RESET, appendLF = False)
+    msg = preWrappedNsf.color + '(' + serverName + ') ' + Hellanzb.ACODE.RESET + \
+        'Opening ' + str(connectionCount)
+    logFileMsg = '(' + serverName + ') Opening ' + str(connectionCount)
     if connectionCount == 1:
-        info('Opening ' + str(connectionCount) + ' connection...')
+        suffix = ' connection...'
     else:
-        info('Opening ' + str(connectionCount) + ' connections...')
+        suffix = ' connections...'
+    msg += suffix
+    logFileMsg += suffix
+    logFile(logFileMsg)
+    noLogFile(msg)
+    # HACK: remove this as a recentLog entry -- replace it with the version without color
+    # codes
+    Hellanzb.recentLogs.logEntries.pop()
+    Hellanzb.recentLogs.append(logging.INFO, logFileMsg)
 
     # Let the queue know about this new serverPool
     Hellanzb.queue.serverAdd(serverName)

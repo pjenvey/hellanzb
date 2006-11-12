@@ -70,11 +70,13 @@ def logShutdown(message):
     
     Hellanzb.logger.log(ScrollableHandler.SHUTDOWN, message)
 
-def logFile(message, exception = None):
+def logFile(message, exception = None, appendLF = True):
     """ Log a message to only the log file (and not the console) """
     prettyEx = prettyException(exception)
     if prettyEx != '':
         message = '%s: %s' % (message, prettyEx)
+    if appendLF:
+        message = '%s\n' % message
     Hellanzb.logger.log(ScrollableHandler.LOGFILE, message)
 
 def noLogFile(message, appendLF = True):

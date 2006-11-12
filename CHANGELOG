@@ -1,5 +1,8 @@
 v0.10:
 
+o Multiple servers are now represented with different colors in the scroller
+  output
+
 o Now including duplicate files during par2 repair
 
 o All filename paths in the config file now expand the "~" character to the

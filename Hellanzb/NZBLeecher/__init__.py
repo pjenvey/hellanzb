@@ -37,7 +37,7 @@ PHI = 1.6180339887498948 # (1 + math.sqrt(5)) / 2
 class NZBLeecherFactory(ReconnectingClientFactory):
 
     def __init__(self, username, password, activeTimeout, antiIdleTimeout, hostname,
-                 serverPoolName, skipGroupCmd):
+                 serverPoolName, skipGroupCmd, color = None):
         self.username = username
         self.password = password
         self.antiIdleTimeout = antiIdleTimeout
@@ -77,6 +77,14 @@ class NZBLeecherFactory(ReconnectingClientFactory):
 
         # Whether or not we should skip sending GROUP cmds to this nntp server
         self.skipGroupCmd = skipGroupCmd
+
+        if color is not None:
+            self.color = color
+        else:
+            try:
+                self.color = Hellanzb.NZBLF_COLORS.pop(0)
+            except IndexError:
+                self.color = Hellanzb.ACODE.F_BROWN
 
         # FIXME: after too many disconnections and or no established
         # connections, info('Unable to connect!: + str(error)')
@@ -144,6 +152,7 @@ class NZBLeecherFactory(ReconnectingClientFactory):
         """ Set the number of total connections for this factory """
         self.connectionCount = connectionCount
         self.clientIds = range(self.connectionCount)
+        Hellanzb.scroller.setConnectionCount(self.color, connectionCount)
 
     def activateClient(self, client):
         """ Mark this client as being activated (in the download loop) """
@@ -328,8 +337,9 @@ class NZBLeecher(NNTPClient, TimeoutMixin):
         NNTPClient.connectionLost(self) # calls self.factory.clientConnectionLost(self, reason)
 
         if not Hellanzb.SHUTDOWN and self.currentSegment != None:
-            if (self.currentSegment.priority, self.currentSegment) in Hellanzb.scroller.segments:
-                Hellanzb.scroller.removeClient(self.currentSegment)
+            if (self.currentSegment.priority, self.currentSegment, self.factory.color) in \
+                    Hellanzb.scroller.segments:
+                Hellanzb.scroller.removeClient(self.currentSegment, self.factory.color)
 
             # twisted doesn't reconnect our same client connections, we have to pitch
             # stuff back into the queue that hasn't finished before the connectionLost
@@ -529,7 +539,7 @@ class NZBLeecher(NNTPClient, TimeoutMixin):
                 self.currentSegment.number == 2:
             self.currentSegment.nzbFile.downloadStartTime = Hellanzb.preReadTime
         
-        Hellanzb.scroller.addClient(self.currentSegment)
+        Hellanzb.scroller.addClient(self.currentSegment, self.factory.color)
 
         NNTPClient.fetchBody(self, '<' + index + '>')
 
@@ -558,7 +568,7 @@ class NZBLeecher(NNTPClient, TimeoutMixin):
                     debug(str(self) + ' ' + self.currentSegment.nzbFile.showFilename + \
                           ' segment: ' + str(self.currentSegment.number) + \
                           ' Article is missing! Attempting to requeue on a different pool!')
-                    Hellanzb.scroller.removeClient(self.currentSegment)
+                    Hellanzb.scroller.removeClient(self.currentSegment, self.factory.color)
                     self.resetCurrentSegment(removeEncFile = True)
                     reactor.callLater(0, self.fetchNextNZBSegment)
                     return
@@ -595,7 +605,7 @@ class NZBLeecher(NNTPClient, TimeoutMixin):
     def finishedSegmentDownload(self):
         """ Defer decoding of the encodedData of the specified currentSegment, reset our state and
         continue fetching the next queued segment """
-        Hellanzb.scroller.removeClient(self.currentSegment)
+        Hellanzb.scroller.removeClient(self.currentSegment, self.factory.color)
 
         segment = self.currentSegment
         self.resetCurrentSegment()
@@ -951,6 +961,10 @@ def initNZBLeecher():
     # loop to scan the queue dir during download
     Hellanzb.downloadScannerID = None
 
+    ACODE = Hellanzb.ACODE
+    Hellanzb.NZBLF_COLORS = [ACODE.F_DBLUE, ACODE.F_DMAGENTA, ACODE.F_LRED, ACODE.F_DGREEN,
+                             ACODE.F_YELLOW, ACODE.F_DCYAN, ACODE.F_BWHITE]
+
 def setWithDefault(dict, key, default):
     """ Return value for the specified key set via the config file. Use the default when the
     value is blank or doesn't exist """
@@ -967,7 +981,6 @@ def connectServer(serverName, serverDict, defaultAntiIdle, defaultIdleTimeout):
     connectionCount = 0
     hosts = serverDict['hosts']
     connections = int(serverDict['connections'])
-    info('(' + serverName + ') ', appendLF = False)
 
     for host in hosts:
         antiIdle = int(setWithDefault(serverDict, 'antiIdle', defaultAntiIdle))
@@ -976,6 +989,7 @@ def connectServer(serverName, serverDict, defaultAntiIdle, defaultIdleTimeout):
 
         nsf = NZBLeecherFactory(serverDict['username'], serverDict['password'],
                                 idleTimeout, antiIdle, host, serverName, skipGroupCmd)
+        color = nsf.color
         Hellanzb.nsfs.append(nsf)
 
         # FIXME: pass this to the factory constructor
@@ -999,6 +1013,7 @@ def connectServer(serverName, serverDict, defaultAntiIdle, defaultIdleTimeout):
             connectionCount += 1
         preWrappedNsf.setConnectionCount(connectionCount)
 
+    info(preWrappedNsf.color + '(' + serverName + ') ' + Hellanzb.ACODE.RESET, appendLF = False)
     if connectionCount == 1:
         info('Opening ' + str(connectionCount) + ' connection...')
     else:

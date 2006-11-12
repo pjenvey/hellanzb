@@ -190,6 +190,7 @@ class NZBLeecherTicker:
     def __init__(self):
         self.size = 0
         self.segments = []
+        self.connectionCounts = {}
         self.currentLog = None
 
         self.maxCount = 0 # FIXME: var name
@@ -210,13 +211,20 @@ class NZBLeecherTicker:
         from Hellanzb.Log import scroll
         self.logger = scroll
 
-    def addClient(self, segment):
-        """ Add a client (it's segment) to the ticker """
-        heapq.heappush(self.segments, (segment.priority, segment))
+    def addClient(self, segment, color):
+        """ Add a client (it's segment) to the ticker, to log with the specified ascii color code """
+        heapq.heappush(self.segments, (segment.priority, segment, color))
         
-    def removeClient(self, segment):
+    def removeClient(self, segment, color):
         """ Remove a client (it's segment) from the ticker """
-        self.segments.remove((segment.priority, segment))
+        self.segments.remove((segment.priority, segment, color))
+
+    def setConnectionCount(self, color, count):
+        """ Set the number of connections for the particular color """
+        if color not in self.connectionCounts:
+            self.connectionCounts[color] = count
+        else:
+            self.connectionCounts[color] += count
 
     def scrollHeader(self, message):
         # Even if passed multiple lines, ensure all lines are max 80 chars
@@ -283,16 +291,18 @@ class NZBLeecherTicker:
         # listing sorted via heapq
         heap = self.segments[:]
         sortedSegments = []
+        colorCount = self.connectionCounts.copy()
         try:
             while True:
-                p, segment = heapq.heappop(heap)
-                sortedSegments.append(segment)
+                p, segment, color = heapq.heappop(heap)
+                colorCount[color] -= 1
+                sortedSegments.append((segment, color))
         except IndexError:
             pass
 
         lastSegment = None
         i = 0
-        for segment in sortedSegments:
+        for segment, color in sortedSegments:
             i += 1
             if self.maxCount > 9:
                 prettyId = str(i).zfill(2)
@@ -311,7 +321,9 @@ class NZBLeecherTicker:
                       ' duh: ' + str(segment.articleData))
                 pass
 
-            prefix = self.connectionPrefix % prettyId
+            connectionPrefix = color + '[' + ACODE.RESET + '%s' + \
+                                color + ']' + ACODE.RESET
+            prefix = connectionPrefix % prettyId
             if lastSegment != None and lastSegment.nzbFile == segment.nzbFile:
                 # 57 line width -- approximately 80 - 5 (prefix) - 18 (max suffix)
                 self.currentLog = '%s%s %s%s' % (self.currentLog, prefix,
@@ -327,14 +339,20 @@ class NZBLeecherTicker:
             self.currentLog = '%s\n\r' % self.currentLog
 
             lastSegment = segment
-                
-        for fill in range(i + 1, self.maxCount + 1):
-            if self.maxCount > 9:
-                prettyId = str(fill).zfill(2)
-            else:
-                prettyId = str(fill)
-            prefix = self.connectionPrefix % prettyId
-            self.currentLog = '%s%s%s\n\r' % (self.currentLog, prefix, ACODE.KILL_LINE)
+
+        # Fill in empty lines
+        for color, fillCount in colorCount.iteritems():
+            for count in range(fillCount):
+                i += 1
+                fill = i
+                if self.maxCount > 9:
+                    prettyId = str(fill).zfill(2)
+                else:
+                    prettyId = str(fill)
+                connectionPrefix = color + '[' + ACODE.RESET + '%s' + \
+                                    color + ']' + ACODE.RESET
+                prefix = connectionPrefix % prettyId
+                self.currentLog = '%s%s%s\n\r' % (self.currentLog, prefix, ACODE.KILL_LINE)
 
         paused = ''
         if Hellanzb.downloadPaused:

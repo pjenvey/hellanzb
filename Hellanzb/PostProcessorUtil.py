@@ -994,7 +994,10 @@ def findSplitFiles(dirName):
         if foundRar:
             toAssemble.pop(key)
             
-    return toAssemble
+    if len(toAssemble) > 1:
+        return toAssemble
+    else:
+        return {}
 
 def assembleSplitFiles(dirName, toAssemble):
     """ Assemble files previously found to be split in the common split formats. This could be

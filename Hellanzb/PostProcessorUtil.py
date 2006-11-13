@@ -983,6 +983,10 @@ def findSplitFiles(dirName):
     # file01.rar.002
     # file01.rar.003
     for key, parts in toAssemble.copy().iteritems():
+        if len(parts) < 2:
+            # Nothing to assemble
+            toAssemble.pop(key)
+            continue
 
         foundRar = False
         for part in parts:
@@ -994,10 +998,7 @@ def findSplitFiles(dirName):
         if foundRar:
             toAssemble.pop(key)
             
-    if len(toAssemble) > 1:
-        return toAssemble
-    else:
-        return {}
+    return toAssemble
 
 def assembleSplitFiles(dirName, toAssemble):
     """ Assemble files previously found to be split in the common split formats. This could be

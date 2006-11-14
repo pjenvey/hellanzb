@@ -3,6 +3,9 @@ v0.10:
 o Multiple servers are now represented with different colors in the scroller
   output
 
+o Added the ability to run an external handler script on an archive after
+  post processing
+
 o Now including duplicate files during par2 repair
 
 o All filename paths in the config file now expand the "~" character to the
@@ -22,8 +25,14 @@ o Added the ability to disconnect from the usenet server when idle (set
 
 o Fixed defineServer's bindTo option
 
+o Added the enqueueurl RPC call (downloads the NZB at the specified URL)
+
 o Better handling of slow NZB copies to the queue directory (won't queue the
   NZB until it's fully copied)
+
+o Rars within rars are no longer deleted by the PostProcessor in some cases
+
+o A few misc. lockup/stability related fixes
 
 v0.9:
 

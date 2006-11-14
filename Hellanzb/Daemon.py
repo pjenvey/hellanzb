@@ -159,9 +159,16 @@ def initHellaHella(configFile, verbose = False):
                 self.postpath = path
 
         Request._parseURL = _parseURL
-        
+
+        twistedWeb01 = False
         from twisted.application.service import Application
-        from twisted.web2.http import HTTPFactory
+        try:
+            # twistedWeb 0.1
+            from twisted.web2.http import HTTPFactory
+            twistedWeb01 = True
+        except ImportError:
+            # twistedWeb 0.2
+            from twisted.web2.channel import HTTPFactory
         from twisted.web2.log import LogWrapperResource, DefaultCommonAccessLoggingObserver
         from twisted.web2.server import Site
         from twisted.web2.wsgi import FileWrapper, InputStream, ErrorStream, WSGIHandler, \
@@ -169,20 +176,36 @@ def initHellaHella(configFile, verbose = False):
 
         # Munge the SCRIPT_NAME to '' when web2 makes it '/'
         from twisted.web2.twcgi import createCGIEnvironment
-        def setupEnvironment(self, ctx, request):
-            # Called in IO thread
-            env = createCGIEnvironment(ctx, request)
-            if re.compile('\/+').search(env['SCRIPT_NAME']):
-                env['SCRIPT_NAME'] = ''
-            env['wsgi.version']      = (1, 0)
-            env['wsgi.url_scheme']   = env['REQUEST_SCHEME']
-            env['wsgi.input']        = InputStream(request.stream)
-            env['wsgi.errors']       = ErrorStream()
-            env['wsgi.multithread']  = True
-            env['wsgi.multiprocess'] = False
-            env['wsgi.run_once']     = False
-            env['wsgi.file_wrapper'] = FileWrapper
-            self.environment = env
+        if twistedWeb01:
+            def setupEnvironment(self, ctx, request):
+                # Called in IO thread
+                env = createCGIEnvironment(ctx, request)
+                if re.compile('\/+').search(env['SCRIPT_NAME']):
+                    env['SCRIPT_NAME'] = ''
+                env['wsgi.version']      = (1, 0)
+                env['wsgi.url_scheme']   = env['REQUEST_SCHEME']
+                env['wsgi.input']        = InputStream(request.stream)
+                env['wsgi.errors']       = ErrorStream()
+                env['wsgi.multithread']  = True
+                env['wsgi.multiprocess'] = False
+                env['wsgi.run_once']     = False
+                env['wsgi.file_wrapper'] = FileWrapper
+                self.environment = env
+        else:
+            def setupEnvironment(self, request):
+                # Called in IO thread
+                env = createCGIEnvironment(request)
+                if re.compile('\/+').search(env['SCRIPT_NAME']):
+                    env['SCRIPT_NAME'] = ''
+                env['wsgi.version']      = (1, 0)
+                env['wsgi.url_scheme']   = env['REQUEST_SCHEME']
+                env['wsgi.input']        = InputStream(request.stream)
+                env['wsgi.errors']       = ErrorStream()
+                env['wsgi.multithread']  = True
+                env['wsgi.multiprocess'] = False
+                env['wsgi.run_once']     = False
+                env['wsgi.file_wrapper'] = FileWrapper
+                self.environment = env
 
         WSGIHandler.setupEnvironment = setupEnvironment
 

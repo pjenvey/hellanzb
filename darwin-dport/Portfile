@@ -23,8 +23,7 @@ depends_run  bin:par2:par2 \
              bin:unrar:unrar \
              bin:flac:flac \
              bin:shorten:shorten \
-             port:py-twisted \
-             port:py-twistedweb
+             port:py-twisted
 
 post-activate {
         # copy over the sample conf file if necessary

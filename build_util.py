@@ -85,6 +85,7 @@ def buildPort(version):
     # copy over the port files
     shutil.copy(os.path.join(portStubDir, 'pkg-descr'), os.path.join(destDir, 'pkg-descr'))
     shutil.copy(os.path.join(portStubDir, 'pkg-plist'), os.path.join(destDir, 'pkg-plist'))
+    shutil.rmtree(os.path.join(destDir, 'files'))
     shutil.copytree(os.path.join(portStubDir, 'files'), os.path.join(destDir, 'files'))
     dotSVNDir = os.path.join(destDir, 'files', '.svn')
     if os.path.isdir(dotSVNDir):

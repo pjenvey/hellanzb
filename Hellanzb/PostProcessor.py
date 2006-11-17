@@ -492,6 +492,7 @@ class PostProcessor(Thread):
                 processPars(self, needAssembly)
             except ParExpectsUnsplitFiles:
                 info(archiveName(self.dirName) + ': This archive requires assembly before running par2')
+                decodeMacBin(self)
                 assembleSplitFiles(self.dirName, needAssembly)
                 try:
                     processPars(self, None)
@@ -510,6 +511,7 @@ class PostProcessor(Thread):
             cleanHellanzbTmpFiles(self.dirName)
         
         # Rars may need assembly before unraring
+        decodeMacBin(self)
         assembleSplitFiles(self.dirName, findSplitFiles(self.dirName))
 
         if not Hellanzb.SKIP_UNRAR and dirHasRars(self.dirName):
@@ -522,6 +524,7 @@ class PostProcessor(Thread):
             self.processMusic()
 
         # Assemble split up files (that were just unrared)
+        decodeMacBin(self)
         assembleSplitFiles(self.dirName, findSplitFiles(self.dirName))
 
         # FIXME: do we need to gc.collect() after post processing a lot of data?

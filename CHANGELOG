@@ -1,3 +1,7 @@
+v0.11:
+
+o Added optional support for converting MacBinary files
+
 v0.10:
 
 o Multiple servers are now represented with different colors in the scroller

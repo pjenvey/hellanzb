@@ -293,6 +293,13 @@ def isPar1(fileName):
 
     return False
 
+def isMacBin(fileName):
+    """ Determine if the specified file is of type MacBinary """
+    ext = getFileExtension(fileName)
+    if not ext:
+        return False
+    return ext.lower() == 'bin'
+
 def getParName(parType):
     """ Return the name of the given parType """
     if parType == PAR1:
@@ -1060,6 +1067,46 @@ def assembleSplitFiles(dirName, toAssemble):
 
         for part in parts:
             moveToProcessed(os.path.join(dirName, part))
+
+def decodeMacBin(postProcessor):
+    """ Decode MacBinary files """
+    if Hellanzb.MACBINCONV_CMD is None:
+        return
+
+    start = time.time()
+
+    fileCount = 0
+    for file in os.listdir(postProcessor.dirName):
+        fullPath = os.path.join(postProcessor.dirName, file)
+        if isMacBin(fullPath):
+            fileCount += 1
+
+            output = fullPath[:-4]
+            hellaRename(output)
+            macbinCmd = '%s -mb "%s" -mac "%s"' % \
+                (Hellanzb.MACBINCONV_CMD, fullPath, output)
+        
+            t = Topen(macbinCmd, postProcessor)
+            output, returnCode = t.readlinesAndWait()
+
+            if returnCode == 0:
+                moveToProcessed(fullPath)
+            else:
+                errMsg = 'There was a problem during macbinconv, output:\n\n'
+                err = ''
+                for line in output:
+                    err += line
+                errMsg += err.strip()
+                raise FatalError(errMsg)
+
+    if not fileCount:
+        return
+    macbinTxt = 'file'
+    if fileCount > 1:
+        macbinTxt += 's'
+    e = time.time() - start
+    info('%s: Finished macbinconv (%i %s, took: %s)' % \
+         (archiveName(postProcessor.dirName), fileCount, macbinTxt, prettyElapsed(e)))
 
 # segment files on disk
 SEGMENT_SUFFIX_RE = re.compile(r'\.segment\d{4}$')

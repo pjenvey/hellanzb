@@ -102,6 +102,10 @@ Hellanzb.DELETE_PROCESSED = True
 # Skip unraring during post processing
 #Hellanzb.SKIP_UNRAR = False
 
+# Supply a path to the optional macbinconv command (for converting MacBinary
+# files)
+#Hellanzb.MACBINCONV_CMD = None
+
 # hellanzb inherits the umask from the current user's environment (unless it's
 # running in daemon mode). The umask can be forced with this option
 #Hellanzb.UMASK = 0022

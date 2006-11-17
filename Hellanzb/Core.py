@@ -94,6 +94,16 @@ def loadConfig(fileName):
         else:
             Hellanzb.PAR2_CMD = assertIsExe([Hellanzb.PAR2_CMD])
 
+        if not hasattr(Hellanzb, 'MACBINCONV_CMD') or Hellanzb.MACBINCONV_CMD is None:
+            # macbinconv is optional when not explicitly specified in the conf
+            Hellanzb.MACBINCONV_CMD = None
+            try:
+                Hellanzb.MACBINCONV_CMD = assertIsExe(['macbinconv'])
+            except FatalError:
+                pass
+        else:
+            Hellanzb.MACBINCONV_CMD = assertIsExe([Hellanzb.MACBINCONV_CMD])
+
         if not hasattr(Hellanzb, 'SKIP_UNRAR') or Hellanzb.SKIP_UNRAR is None:
             Hellanzb.SKIP_UNRAR = False
 
@@ -117,7 +127,8 @@ def loadConfig(fileName):
         for expandPath in ('PREFIX_DIR', 'QUEUE_DIR', 'DEST_DIR', 'POSTPONED_DIR',
                            'CURRENT_DIR', 'TEMP_DIR', 'PROCESSING_DIR', 'STATE_XML_FILE',
                            'WORKING_DIR', 'LOG_FILE', 'DEBUG_MODE',
-                           'UNRAR_CMD', 'PAR2_CMD', 'EXTERNAL_HANDLER_SCRIPT'):
+                           'UNRAR_CMD', 'PAR2_CMD', 'MACBINCONV_CMD',
+                           'EXTERNAL_HANDLER_SCRIPT'):
                 if hasattr(Hellanzb, expandPath):
                         thisDir = getattr(Hellanzb, expandPath)
                         if thisDir is not None:
@@ -393,6 +404,8 @@ def marquee():
         options.append('daemonized')
     if Hellanzb.HAVE_C_YENC:
         options.append('C yenc module')
+    if Hellanzb.MACBINCONV_CMD is not None:
+        options.append('MacBinary')
 
     optionLen = len(options)
     msg += ' ('

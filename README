@@ -38,8 +38,11 @@ Twisted = 1.3          http://www.twistedmatrix.com
 par2cmdline =~ 0.4     http://parchive.sourceforge.net
 rar or unrar =~ 3.41   http://www.rarlab.com
 
-hellanzb requires the command line utilities "par2", and "rar" (or "unrar") to
-be in your shell environment's PATH.
+Optionally (For MacBinary file conversion support):
+macbinconv =~ 1.1.2    http://sourceforge.net/projects/macbinconv
+
+hellanzb requires the command line utilities "par2", and "rar" (or "unrar") 
+and optionally "macbinconv" to be in your shell environment's PATH.
 
 hellanzb can either be ran from its own directory, or to install it system wide,
 simply run (as root) in the hellanzb directory:

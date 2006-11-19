@@ -14,7 +14,7 @@ from xml.sax import make_parser, SAXParseException
 from xml.sax.handler import ContentHandler, feature_external_ges, feature_namespaces
 from Hellanzb.Log import *
 from Hellanzb.Util import EmptyForThisPool, PoolsExhausted, PriorityQueue, OutOfDiskSpace, \
-    DUPE_SUFFIX, isHellaTemp, prettySize
+    DUPE_SUFFIX, archiveName, isHellaTemp, prettySize
 from Hellanzb.PostProcessorUtil import getParRecoveryName
 from Hellanzb.SmartPar import getParSize, logSkippedPars, smartRequeue
 from Hellanzb.NZBLeecher.ArticleDecoder import assembleNZBFile
@@ -226,7 +226,7 @@ class RetryQueue:
             newNotName = notName + 'not' + str(x + 1)
             self.poolQueues[newNotName] = PriorityQueue()
             self._recurseCreateQueues(newList, x, totalCount)
-        
+
 class NZBSegmentQueue(PriorityQueue):
     """ priority fifo queue of segments to download. lower numbered segments are downloaded
     before higher ones """
@@ -234,8 +234,16 @@ class NZBSegmentQueue(PriorityQueue):
     # FIXME: EXTRA_PAR2_P isn't actually used
     EXTRA_PAR2_P = 0 # par2 after-the-fact downloads are more important
 
-    def __init__(self, fileName = None):
+    def __init__(self, fileName = None, parent = None):
         PriorityQueue.__init__(self)
+
+        if parent is not None:
+            self.parent = parent
+        else:
+            self.parent = self
+
+            # Segments curently on disk
+            self.onDiskSegments = {}
 
         # Maintain a collection of the known nzbFiles belonging to the segments in this
         # queue. Set is much faster for _put & __contains__
@@ -247,9 +255,6 @@ class NZBSegmentQueue(PriorityQueue):
         self.nzbsLock = Lock()
 
         self.totalQueuedBytes = 0
-
-        # Segments curently on disk
-        self.onDiskSegments = {}
 
         self.retryQueueEnabled = False
         self.rQueue = RetryQueue()
@@ -268,7 +273,7 @@ class NZBSegmentQueue(PriorityQueue):
 
         self.nzbs = []
         
-        self.onDiskSegments.clear()
+        self.parent.onDiskSegments.clear()
 
     def postpone(self, cancel = False):
         """ Postpone the current download """
@@ -285,6 +290,20 @@ class NZBSegmentQueue(PriorityQueue):
         self.nzbsLock.release()
 
         self.totalQueuedBytes = 0
+
+    def unpostpone(self, nzb):
+        """ Recall a postponed NZB """
+        self.nzbFilesLock.acquire()
+        arName = archiveName(nzb.nzbFileName)
+        found = []
+        for nzbFile in self.postponedNzbFiles:
+            # FIXME:
+            # Why is this not nzbFile.nzb == nzb?
+            if nzbFile.nzb.archiveName == arName:
+                found.append(nzbFile)
+        for nzbFile in found:
+            self.postponedNzbFiles.remove(nzbFile)
+        self.nzbFilesLock.release()
 
     def _put(self, item):
         """ Add a segment to the queue """
@@ -335,6 +354,10 @@ class NZBSegmentQueue(PriorityQueue):
             
         return dequeuedSegments
 
+    def addQueuedBytes(self, bytes):
+        """ Add to the totalQueuedBytes count """
+        self.totalQueuedBytes += bytes
+
     def currentNZBs(self):
         """ Return a copy of the list of nzbs currently being downloaded """
         self.nzbsLock.acquire()
@@ -358,27 +381,46 @@ class NZBSegmentQueue(PriorityQueue):
             pass
         self.nzbsLock.release()
 
-    def serverAdd(self, serverPoolName):
+    def isNZBDone(self, nzb, postponed = False):
+        """ Determine whether or not all of the specified NZB as been thoroughly downloaded """
+        self.nzbFilesLock.acquire()
+        if not postponed:
+            queueFilesCopy = self.nzbFiles.copy()
+        else:
+            queueFilesCopy = self.postponedNzbFiles.copy()
+        self.nzbFilesLock.release()
+
+        for nzbFile in queueFilesCopy:
+            if nzbFile not in nzb.nzbFiles:
+                continue
+
+            debug('isNZBDone: NOT DONE: ' + nzbFile.getDestination())
+            return False
+        return True
+
+    def serverAdd(self, serverFactory):
         """ Add the specified server pool, for use by the RetryQueue """
-        self.rQueue.addServerPool(serverPoolName)
+        self.rQueue.addServerPool(serverFactory.serverPoolName)
 
     def initRetryQueue(self):
         """ Initialize and enable use of the RetryQueue """
         self.retryQueueEnabled = True
         self.rQueue.createQueues()
 
-    def serverRemove(self, serverPoolName):
+    def serverRemove(self, serverFactory):
         """ Remove the specified server pool """
-        self.rQueue.removeServerPool(serverPoolName)
+        self.rQueue.removeServerPool(serverFactory.serverPoolName)
             
-    def getSmart(self, serverPoolName):
+    def getSmart(self, serverFactory):
         """ Get the next available segment in the queue. The 'smart'ness first checks for segments
         in the RetryQueue, otherwise it falls back to the main queue """
         # Don't bother w/ retryQueue nonsense unless it's enabled (meaning there are
         # multiple serverPools)
         if self.retryQueueEnabled:
             try:
-                return self.rQueue.get(serverPoolName)
+                priority, segment = self.rQueue.get(serverFactory.serverPoolName)
+                segment.fromQueue = self
+                return priority, segment
             except Empty:
                 # All retry queues for this serverPool are empty. fall through
                 pass
@@ -390,16 +432,18 @@ class NZBSegmentQueue(PriorityQueue):
                 # serverPools)
                 raise EmptyForThisPool()
             
-        return PriorityQueue.get_nowait(self)
+        priority, segment = PriorityQueue.get_nowait(self)
+        segment.fromQueue = self
+        return priority, segment
     
-    def requeue(self, serverPoolName, segment):
+    def requeue(self, serverFactory, segment):
         """ Requeue the segment for download. This differs from requeueMissing as it's for
         downloads that failed for reasons other than the file or group missing from the
         server (such as a connection timeout) """
         # This segment only needs to go back into the retry queue if the retry queue is
         # enabled AND the segment was previously requeueMissing()'d
         if self.retryQueueEnabled and len(segment.failedServerPools):
-            self.rQueue.requeue(serverPoolName, segment)
+            self.rQueue.requeue(serverFactory.serverPoolName, segment)
         else:
             self.put((segment.priority, segment))
 
@@ -407,21 +451,21 @@ class NZBSegmentQueue(PriorityQueue):
         # received Empty from the queue, then afterwards the connection is lost (say the
         # connection timed out), causing the requeue. Find and reactivate them because
         # they now have work to do
-        self.nudgeIdleNZBLeechers(segment)
+        self.parent.nudgeIdleNZBLeechers(segment)
 
-    def requeueMissing(self, serverPoolName, segment):
+    def requeueMissing(self, serverFactory, segment):
         """ Requeue a missing segment. This segment will be added to the RetryQueue (if enabled),
         where other serverPools will find it and reattempt the download """
         # This serverPool has just failed the download
-        assert(serverPoolName not in segment.failedServerPools)
-        segment.failedServerPools.append(serverPoolName)
+        assert(serverFactory.serverPoolName not in segment.failedServerPools)
+        segment.failedServerPools.append(serverFactory.serverPoolName)
 
         if self.retryQueueEnabled:
-            self.rQueue.requeue(serverPoolName, segment)
+            self.rQueue.requeue(serverFactory.serverPoolName, segment)
 
             # We might have just requeued a segment onto an idle server pool. Reactivate
             # any idle connections pertaining to this segment
-            self.nudgeIdleNZBLeechers(segment)
+            self.parent.nudgeIdleNZBLeechers(segment)
         else:
             raise PoolsExhausted()
 
@@ -439,18 +483,21 @@ class NZBSegmentQueue(PriorityQueue):
                     nsf.fetchNextNZBSegment()
 
     def fileDone(self, nzbFile):
-        """ Notify the queue a file is done. This is called after assembling a file into it's
+        """ Notify the queue a file is done. This is called after assembling a file into its
         final contents. Segments are really stored independantly of individual Files in
         the queue, hence this function """
         self.nzbFilesLock.acquire()
         if nzbFile in self.nzbFiles:
             self.nzbFiles.remove(nzbFile)
+        else:
+            self.nzbFilesLock.release()
+            return
         self.nzbFilesLock.release()
 
         if nzbFile.isAllSegmentsDecoded():
             for nzbSegment in nzbFile.nzbSegments:
-                if self.onDiskSegments.has_key(nzbSegment.getDestination()):
-                    self.onDiskSegments.pop(nzbSegment.getDestination())
+                if self.parent.onDiskSegments.has_key(nzbSegment.getDestination()):
+                    self.parent.onDiskSegments.pop(nzbSegment.getDestination())
 
             if nzbFile.isExtraPar and nzbFile.nzb.queuedBlocks > 0:
                 fileBlocks = getParSize(nzbFile.filename)
@@ -492,7 +539,7 @@ class NZBSegmentQueue(PriorityQueue):
         if not dequeue:
             # NOTE: currently don't have to lock -- only the ArticleDecoder thread (via
             # ->handleDupeNZBSegment->isBeingDownloaded) reads onDiskSegments
-            self.onDiskSegments[nzbSegment.getDestination()] = nzbSegment
+            self.parent.onDiskSegments[nzbSegment.getDestination()] = nzbSegment
             
             if nzbSegment.isFirstSegment():
                 nzbSegment.nzbFile.nzb.firstSegmentsDownloaded += 1
@@ -503,8 +550,8 @@ class NZBSegmentQueue(PriorityQueue):
         the filename """
         # see segmentDone
         segmentFilename = segmentFilename
-        if self.onDiskSegments.has_key(segmentFilename):
-            return self.onDiskSegments[segmentFilename]
+        if self.parent.onDiskSegments.has_key(segmentFilename):
+            return self.parent.onDiskSegments[segmentFilename]
 
     def parseNZB(self, nzb, verbose = True):
         """ Initialize the queue from the specified nzb file """
@@ -684,6 +731,140 @@ class NZBSegmentQueue(PriorityQueue):
 
         # Archive not complete
         return False
+
+class FillServerQueue(object):
+    def __init__(self, fileName = None):
+        # NZBSegmentQueues indexed by their fill server priority
+        self.queues = {}
+
+        # Segments curently on disk
+        self.onDiskSegments = {}
+
+        # XXX: postpone should probably be locked
+        for methodName in ('cancel', 'clear', 'postpone', 'unpostpone',
+                           'calculateTotalQueuedBytes', 'nzbAdd', 'nzbDone',
+                           'initRetryQueue', 'nudgeIdleNZBLeechers', 'fileDone'):
+            setattr(self, methodName, self._applyToQueues(getattr(NZBSegmentQueue,
+                                                                  methodName)))
+
+    def _getTotalQueuedBytes(self):
+        """ Return the total queued bytes of all the queues """
+        totalQueuedBytes = 0
+        for queue in self.queues.itervalues():
+            totalQueuedBytes += queue.totalQueuedBytes
+        return totalQueuedBytes
+    totalQueuedBytes = property(_getTotalQueuedBytes)
+
+    def _applyToQueues(self, method):
+        def apply(*args, **kwargs):
+            #for queue in self.queues.itervalues():
+            for name, queue in self.queues.iteritems():
+                #info('APPLYING %s TO %s' % (str(method), name))
+                # XXX:
+                method(queue, *args, **kwargs)
+        return apply
+
+    def dequeueSegments(self, nzbSegments):
+        """ Explicitly dequeue the specified nzb segments """
+        dequeuedSegments = []
+        for queue in self.queues.itervalues():
+            dequeuedSegments.extend(queue.dequeueSegments(nzbSegments))
+            if len(dequeuedSegments) == len(nzbSegments):
+                # Dequeued them all -- no need to continue
+                return dequeuedSegments
+        return dequeuedSegments
+
+    def currentNZBs(self):
+        """ Return a copy of the list of nzbs currently being downloaded """
+        nzbs = []
+        for queue in self.queues.itervalues():
+            nzbs.extend(queue.currentNZBs())
+        return nzbs
+
+    def _getNZBS(self):
+        """ Return the NZBs in all queues (does not lock) """
+        # FIXME: is this necessary? currentNZBs() does the same thing but locks. Is its
+        # locking necessary?
+        nzbs = []
+        for queue in self.queues.itervalues():
+            nzbs.extend(queue.nzbs)
+        return nzbs
+    nzbs = property(_getNZBS)
+
+    def addQueuedBytes(self, bytes):
+        """ Add to the totalQueuedBytes count. This adds to the main (fillServerPriority 0) queue
+        """
+        self.queues[0].addQueuedBytes(bytes)
+
+    def isNZBDone(self, nzb, postponed = False):
+        """ Determine whether or not all of the specified NZB as been thoroughly downloaded """
+        for queue in self.queues.itervalues():
+            if not queue.isNZBDone(nzb, postponed):
+                return False
+        return True
+        
+    def serverAdd(self, serverFactory):
+        """ Register the specified NZBLeecherFactory """
+        if serverFactory.fillServerPriority not in self.queues:
+            self.queues[serverFactory.fillServerPriority] = queue = NZBSegmentQueue()
+        self.queues[serverFactory.fillServerPriority].serverAdd(serverFactory)
+
+    def serverRemove(self, serverFactory):
+        """ Unregister the specified NZBLeecherFactory """
+        assert(serverFactory.fillServerPriority in queues)
+        self.queues[serverFactory.fillServerPriority].serverRemove(serverFactory)
+        # FIXME: delete the queue if contains no more servers
+
+    def getSmart(self, serverFactory):
+        """ Get the next available segment in the queue according to the specified serverFactory's
+        fillServerPriority """
+        return self.queues[serverFactory.fillServerPriority].getSmart(serverFactory)
+
+    def requeue(self, serverFactory, segment):
+        """ Requeue the segment for download. This differs from requeueMissing as it's for
+        downloads that failed for reasons other than the file or group missing from the
+        server (such as a connection timeout) """
+        queue = self.queues[serverFactory.fillServerPriority]
+        queue.requeue(serverFactory, segment)
+
+    def requeueMissing(self, serverFactory, segment):
+        """ Requeue a missing segment. The segment will be requeued on the next fillServerPriority
+        when all servers under the current server's fillServerPriority fail to download the segment
+        """
+        queue = self.queues[serverFactory.fillServerPriority]
+        try:
+            queue.requeueMissing(serverFactory, segment)
+        except PoolsExhausted:
+            nextPriority = serverFactory.fillServerPriority + 1
+            if len(self.queues) < nextPriority:
+                # Totally exhausted all queues/fill servers
+                raise
+            nextQueue = self.queues[nextPriority]
+            nextQueue.put((segment.priority, segment))
+            queue.totalQueuedBytes -= segment.bytes
+            nextQueue.totalQueuedBytes += segment.bytes
+            nextQueue.nudgeIdleNZBLeechers(segment)
+
+    def segmentDone(self, nzbSegment, dequeue = False):
+        """ Simply decrement the queued byte count and register this nzbSegment as finished
+        downloading, unless the segment is part of a postponed download """
+        if nzbSegment.fromQueue:
+            nzbSegment.fromQueue.segmentDone(nzbSegment, dequeue)
+        else:
+            self.queues[0].segmentDone(nzbSegment, dequeue)
+        
+    def isBeingDownloadedFile(self, segmentFilename):
+        """ Whether or not the file on disk is currently in the middle of being
+        downloaded/assembled. Return the NZBSegment representing the segment specified by
+        the filename """
+        for queue in self.queues.itervalues():
+            isBeing = queue.isBeingDownloadedFile(segmentFilename)
+            if isBeing:
+                return isBeing
+
+    def parseNZB(self, nzb, verbose = True):
+        """ Initialize the queue from the specified nzb file """
+        self.queues[0].parseNZB(nzb, verbose)
 
 DUPE_SEGMENT_RE = re.compile('.*%s\d{1,4}\.segment\d{4}$' % DUPE_SUFFIX)
 class NZBParser(ContentHandler):

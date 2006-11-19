@@ -586,6 +586,9 @@ class NZBSegment:
         # trying to requeue it
         self.dontRequeue = False
 
+        # The NZBSegmentQueue this segment was last pulled from
+        self.fromQueue = None
+
     def getDestination(self):
         """ Where this decoded segment will reside on the fs """
         return self.nzbFile.getDestination() + '.segment' + str(self.number).zfill(4)

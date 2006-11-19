@@ -37,7 +37,7 @@ def decode(segment):
         nuke(segment.getDestination())
         segment.nzbFile.totalReadBytes -= segment.bytes
         segment.nzbFile.nzb.totalReadBytes -= segment.bytes
-        reactor.callFromThread(Hellanzb.queue.put, (segment.priority, segment))
+        reactor.callFromThread(segment.fromQueue.put, (segment.priority, segment))
         return
     except Exception, e:
         if handleCanceledSegment(segment):
@@ -695,15 +695,21 @@ def tryFinishNZB(nzb):
     done, trigger handleNZBDone. We'll call this check everytime we finish processing an
     nzbFile """
     #start = time.time()
-    done = True
+    # XXX:
+    #done = True
 
     # Simply check if there are any more nzbFiles in the queue that belong to this nzb
-    Hellanzb.queue.nzbsLock.acquire()
+    #Hellanzb.queue.nzbsLock.acquire()
+    #postponed = False
+    #if nzb not in Hellanzb.queue.nzbs:
+    #    postponed = True
+    #Hellanzb.queue.nzbsLock.release()
+    # XXX:
     postponed = False
-    if nzb not in Hellanzb.queue.nzbs:
+    if nzb not in Hellanzb.queue.currentNZBs():
         postponed = True
-    Hellanzb.queue.nzbsLock.release()
-        
+
+    """
     Hellanzb.queue.nzbFilesLock.acquire()
     if not postponed:
         queueFilesCopy = Hellanzb.queue.nzbFiles.copy()
@@ -719,6 +725,9 @@ def tryFinishNZB(nzb):
         done = False
         break
 
+    """
+    # XXX:
+    done = Hellanzb.queue.isNZBDone(nzb, postponed)
     if done:
         Hellanzb.queue.nzbDone(nzb)
         debug('tryFinishNZB: finished downloading NZB: ' + nzb.archiveName)

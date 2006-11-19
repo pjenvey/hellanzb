@@ -37,13 +37,14 @@ PHI = 1.6180339887498948 # (1 + math.sqrt(5)) / 2
 class NZBLeecherFactory(ReconnectingClientFactory):
 
     def __init__(self, username, password, activeTimeout, antiIdleTimeout, hostname,
-                 serverPoolName, skipGroupCmd, color = None):
+                 serverPoolName, skipGroupCmd, fillServerPriority = 0, color = None):
         self.username = username
         self.password = password
         self.antiIdleTimeout = antiIdleTimeout
         self.activeTimeout = activeTimeout
         self.hostname = hostname
         self.serverPoolName = serverPoolName
+        self.fillServerPriority = fillServerPriority
 
         self.host = None
         self.port = None
@@ -348,7 +349,7 @@ class NZBLeecher(NNTPClient, TimeoutMixin):
                     not self.currentSegment.dontRequeue:
                 # Only requeue the segment if its archive hasn't been previously postponed
                 debug(str(self) + ' requeueing segment: ' + self.currentSegment.getDestination())
-                Hellanzb.queue.requeue(self.factory.serverPoolName, self.currentSegment)
+                Hellanzb.queue.requeue(self.factory, self.currentSegment)
 
                 self.resetCurrentSegment(removeEncFile = True)
             else:
@@ -449,7 +450,7 @@ class NZBLeecher(NNTPClient, TimeoutMixin):
 
             try:
                 priority, self.currentSegment = \
-                    Hellanzb.queue.getSmart(self.factory.serverPoolName)
+                    Hellanzb.queue.getSmart(self.factory)
                 self.currentSegment.encodedData = \
                     open(os.path.join(Hellanzb.DOWNLOAD_TEMP_DIR,
                                       self.currentSegment.getTempFileName() + '_ENC'),
@@ -495,7 +496,7 @@ class NZBLeecher(NNTPClient, TimeoutMixin):
                 # finding all groups (if so, punt) here instead of getGroupFailed
                 elif self.allGroupsFailed(self.currentSegment.nzbFile.groups):
                     try:
-                        Hellanzb.queue.requeueMissing(self.factory.serverPoolName,
+                        Hellanzb.queue.requeueMissing(self.factory,
                                                       self.currentSegment)
                         debug(str(self) + \
                               ' All groups failed, requeueing to another pool!')
@@ -564,7 +565,7 @@ class NZBLeecher(NNTPClient, TimeoutMixin):
             code, msg = code
             if code in (423, 430):
                 try:
-                    Hellanzb.queue.requeueMissing(self.factory.serverPoolName, self.currentSegment)
+                    Hellanzb.queue.requeueMissing(self.factory, self.currentSegment)
                     debug(str(self) + ' ' + self.currentSegment.nzbFile.showFilename + \
                           ' segment: ' + str(self.currentSegment.number) + \
                           ' Article is missing! Attempting to requeue on a different pool!')
@@ -942,7 +943,10 @@ def initNZBLeecher():
     log.startLogging(fileStream)
 
     # Create the one and only download queue
-    Hellanzb.queue = NZBSegmentQueue()
+    #Hellanzb.queue = NZBSegmentQueue()
+    # XXX:
+    from Hellanzb.NZBLeecher.NZBSegmentQueue import FillServerQueue
+    Hellanzb.queue = FillServerQueue()
 
     # The NZBLeecherFactories
     Hellanzb.nsfs = []
@@ -986,13 +990,15 @@ def connectServer(serverName, serverDict, defaultAntiIdle, defaultIdleTimeout):
         antiIdle = int(setWithDefault(serverDict, 'antiIdle', defaultAntiIdle))
         idleTimeout = int(setWithDefault(serverDict, 'idleTimeout', defaultIdleTimeout))
         skipGroupCmd = setWithDefault(serverDict, 'skipGroupCmd', False)
+        fillServer = setWithDefault(serverDict, 'fillserver', 0)
 
         nsf = NZBLeecherFactory(serverDict['username'], serverDict['password'],
-                                idleTimeout, antiIdle, host, serverName, skipGroupCmd)
+                                idleTimeout, antiIdle, host, serverName, skipGroupCmd,
+                                fillServer)
         color = nsf.color
         Hellanzb.nsfs.append(nsf)
 
-        # FIXME: pass this to the factory constructor
+        # XXX: pass this to the factory constructor
         split = host.split(':')
         host = split[0]
         if len(split) == 2:
@@ -1021,6 +1027,10 @@ def connectServer(serverName, serverDict, defaultAntiIdle, defaultIdleTimeout):
     else:
         suffix = ' connections...'
     msg += suffix
+
+    # XXX:
+    msg += '|%i' % preWrappedNsf.fillServerPriority
+
     logFileMsg += suffix
     logFile(logFileMsg)
     noLogFile(msg)
@@ -1030,7 +1040,8 @@ def connectServer(serverName, serverDict, defaultAntiIdle, defaultIdleTimeout):
     Hellanzb.recentLogs.append(logging.INFO, logFileMsg)
 
     # Let the queue know about this new serverPool
-    Hellanzb.queue.serverAdd(serverName)
+    #Hellanzb.queue.serverAdd(serverName)
+    Hellanzb.queue.serverAdd(preWrappedNsf)
         
     return connectionCount
 

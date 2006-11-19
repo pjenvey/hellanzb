@@ -764,6 +764,10 @@ class FillServerQueue(object):
                 method(queue, *args, **kwargs)
         return apply
 
+    def put(self, item):
+        """ Add a segment to the queue """
+        self.queues[0].put(item)
+
     def dequeueSegments(self, nzbSegments):
         """ Explicitly dequeue the specified nzb segments """
         dequeuedSegments = []

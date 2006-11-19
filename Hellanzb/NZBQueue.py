@@ -474,22 +474,7 @@ def findAndLoadPostponedDir(nzb):
                 move(Hellanzb.WORKING_DIR, name)
 
         move(d, Hellanzb.WORKING_DIR)
-
-        # unpostpone from the queue
-        """
-        #Hellanzb.queue.nzbFilesLock.acquire()
-        #arName = archiveName(nzbfilename)
-        #found = []
-        #for nzbFile in Hellanzb.queue.postponedNzbFiles:
-        #    if nzbFile.nzb.archiveName == arName:
-        #        found.append(nzbFile)
-        #for nzbFile in found:
-        #    Hellanzb.queue.postponedNzbFiles.remove(nzbFile)
-        #Hellanzb.queue.nzbFilesLock.release()
-        """
-        # XXX: commented out to not confuse me while grepping
         Hellanzb.queue.unpostpone(nzb)
-
         ensureSafePostponedLoad(nzb.nzbFileName)
         
         info('Loaded postponed directory: ' + archiveName(nzbfilename))

@@ -27,7 +27,7 @@ from Hellanzb.Logging import LogOutputStream, NZBLeecherTicker
 from Hellanzb.Util import prettySize, rtruncate, truncateToMultiLine, EmptyForThisPool, PoolsExhausted
 from Hellanzb.NZBLeecher.nntp import NNTPClient, extractCode
 from Hellanzb.NZBLeecher.ArticleDecoder import decode
-from Hellanzb.NZBLeecher.NZBSegmentQueue import NZBSegmentQueue
+from Hellanzb.NZBLeecher.NZBSegmentQueue import FillServerQueue, NZBSegmentQueue
 from Hellanzb.NZBLeecher.NZBLeecherUtil import HellaThrottler, HellaThrottlingFactory
 from Queue import Empty
 
@@ -943,9 +943,8 @@ def initNZBLeecher():
     log.startLogging(fileStream)
 
     # Create the one and only download queue
-    #Hellanzb.queue = NZBSegmentQueue()
     # XXX:
-    from Hellanzb.NZBLeecher.NZBSegmentQueue import FillServerQueue
+    #Hellanzb.queue = NZBSegmentQueue()
     Hellanzb.queue = FillServerQueue()
 
     # The NZBLeecherFactories

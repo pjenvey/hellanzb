@@ -763,10 +763,7 @@ class FillServerQueue(object):
 
     def _applyToQueues(self, method):
         def apply(*args, **kwargs):
-            #for queue in self.queues.itervalues():
-            for name, queue in self.queues.iteritems():
-                #info('APPLYING %s TO %s' % (str(method), name))
-                # XXX:
+            for queue in self.queues.itervalues():
                 method(queue, *args, **kwargs)
         return apply
 

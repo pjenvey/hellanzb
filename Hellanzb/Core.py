@@ -388,9 +388,9 @@ def finishShutdown():
     if Hellanzb.shutdownMessage:
         logShutdown(Hellanzb.shutdownMessage)
     
-def shutdownAndExit(returnCode = 0):
+def shutdownAndExit(returnCode = 0, message = None):
     """ Shutdown hellanzb's twisted reactor, AND call sys.exit """
-    shutdown(killPostProcessors = True)
+    shutdown(killPostProcessors = True, message = message)
 
     sys.exit(returnCode)
 

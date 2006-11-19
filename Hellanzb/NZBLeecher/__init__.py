@@ -20,7 +20,7 @@ from twisted.internet.protocol import ReconnectingClientFactory
 from twisted.protocols.basic import LineReceiver
 from twisted.protocols.policies import TimeoutMixin, ThrottlingFactory
 from twisted.python import log
-from Hellanzb.Core import finishShutdown
+from Hellanzb.Core import shutdownAndExit, finishShutdown
 from Hellanzb.Daemon import cancelCurrent, endDownload
 from Hellanzb.Log import *
 from Hellanzb.Logging import LogOutputStream, NZBLeecherTicker
@@ -943,9 +943,10 @@ def initNZBLeecher():
     log.startLogging(fileStream)
 
     # Create the one and only download queue
-    # XXX:
-    #Hellanzb.queue = NZBSegmentQueue()
-    Hellanzb.queue = FillServerQueue()
+    if initFillServers():
+        Hellanzb.queue = FillServerQueue()
+    else:
+        Hellanzb.queue = NZBSegmentQueue()
 
     # The NZBLeecherFactories
     Hellanzb.nsfs = []
@@ -968,6 +969,46 @@ def initNZBLeecher():
     Hellanzb.NZBLF_COLORS = [ACODE.F_DBLUE, ACODE.F_DMAGENTA, ACODE.F_LRED, ACODE.F_DGREEN,
                              ACODE.F_YELLOW, ACODE.F_DCYAN, ACODE.F_BWHITE]
 
+def initFillServers():
+    """ Determine if fill servers are enabled (more than 1 fillserver priorities are set in
+    the config file). Flatten out the fill server priorities so that they begin at 0 and
+    increment by 1 """
+    fillServerPriorities = {}
+    for serverId, serverDict in Hellanzb.SERVERS.iteritems():
+        if serverDict.get('enabled') is False:
+            continue
+        if 'fillserver' in serverDict:
+            fillServerPriority = serverDict.get('fillserver')
+            # Consider = None as = 0
+            if fillServerPriority is None:
+                fillServerPriority = serverDict['fillserver'] = 0
+            try:
+                fillServerPriority = int(fillServerPriority)
+            except ValueError, ve:
+                # Let's not assume what the user wanted -- raise a FatalError so they can
+                # fix the priority value
+                shutdownAndExit(1,
+                                message='There was a problem with the fillserver value of server: %s:\n%s' \
+                                 % (serverId, str(ve)))
+            if fillServerPriority not in fillServerPriorities:
+                fillServerPriorities.setdefault(fillServerPriority, []).append(serverDict)
+            serverDict['fillserver'] = fillServerPriority
+
+    if len(fillServerPriorities) < 2:
+        debug('initFillServers: fillserver support disabled')
+        return False
+
+    # Flatten out the priorities. priority list of [1, 4, 5] will be converted to [0, 1, 2]
+    priorityKeys = fillServerPriorities.keys()
+    priorityKeys.sort()
+    for i in range(len(priorityKeys)):
+        oldPriority = priorityKeys[i]
+        for serverDict in fillServerPriorities[oldPriority]:
+            serverDict['fillserver'] = i
+
+    debug('initFillServers: fillserver support enabled')
+    return True
+    
 def setWithDefault(dict, key, default):
     """ Return value for the specified key set via the config file. Use the default when the
     value is blank or doesn't exist """
@@ -997,7 +1038,6 @@ def connectServer(serverName, serverDict, defaultAntiIdle, defaultIdleTimeout):
         color = nsf.color
         Hellanzb.nsfs.append(nsf)
 
-        # XXX: pass this to the factory constructor
         split = host.split(':')
         host = split[0]
         if len(split) == 2:
@@ -1018,18 +1058,18 @@ def connectServer(serverName, serverDict, defaultAntiIdle, defaultIdleTimeout):
             connectionCount += 1
         preWrappedNsf.setConnectionCount(connectionCount)
 
+    fillServerStatus = ''
+    if isinstance(Hellanzb.queue, FillServerQueue):
+        fillServerStatus = '[fillserver: %i] ' % preWrappedNsf.fillServerPriority
     msg = preWrappedNsf.color + '(' + serverName + ') ' + Hellanzb.ACODE.RESET + \
-        'Opening ' + str(connectionCount)
-    logFileMsg = '(' + serverName + ') Opening ' + str(connectionCount)
+        fillServerStatus + 'Opening ' + str(connectionCount)
+    logFileMsg = '(' + serverName + ') ' + fillServerStatus + 'Opening ' + \
+        str(connectionCount)
     if connectionCount == 1:
         suffix = ' connection...'
     else:
         suffix = ' connections...'
     msg += suffix
-
-    # XXX:
-    msg += '|%i' % preWrappedNsf.fillServerPriority
-
     logFileMsg += suffix
     logFile(logFileMsg)
     noLogFile(msg)

@@ -695,39 +695,9 @@ def tryFinishNZB(nzb):
     done, trigger handleNZBDone. We'll call this check everytime we finish processing an
     nzbFile """
     #start = time.time()
-    # XXX:
-    #done = True
 
-    # Simply check if there are any more nzbFiles in the queue that belong to this nzb
-    #Hellanzb.queue.nzbsLock.acquire()
-    #postponed = False
-    #if nzb not in Hellanzb.queue.nzbs:
-    #    postponed = True
-    #Hellanzb.queue.nzbsLock.release()
-    # XXX:
-    postponed = False
-    if nzb not in Hellanzb.queue.currentNZBs():
-        postponed = True
-
-    """
-    Hellanzb.queue.nzbFilesLock.acquire()
-    if not postponed:
-        queueFilesCopy = Hellanzb.queue.nzbFiles.copy()
-    else:
-        queueFilesCopy = Hellanzb.queue.postponedNzbFiles.copy()
-    Hellanzb.queue.nzbFilesLock.release()
-
-    for nzbFile in queueFilesCopy:
-        if nzbFile not in nzb.nzbFiles:
-            continue
-        
-        debug('tryFinishNZB: NOT DONE: ' + nzbFile.getDestination())
-        done = False
-        break
-
-    """
-    # XXX:
-    done = Hellanzb.queue.isNZBDone(nzb, postponed)
+    # Check if there are any more nzbFiles in the queue that belong to this nzb
+    done = Hellanzb.queue.isNZBDone(nzb)
     if done:
         Hellanzb.queue.nzbDone(nzb)
         debug('tryFinishNZB: finished downloading NZB: ' + nzb.archiveName)

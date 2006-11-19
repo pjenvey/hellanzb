@@ -381,8 +381,14 @@ class NZBSegmentQueue(PriorityQueue):
             pass
         self.nzbsLock.release()
 
-    def isNZBDone(self, nzb, postponed = False):
+    def isNZBDone(self, nzb, postponed = None):
         """ Determine whether or not all of the specified NZB as been thoroughly downloaded """
+        if postponed is None:
+            if nzb not in Hellanzb.queue.currentNZBs():
+                postponed = True
+            else:
+                postponed = False
+
         self.nzbFilesLock.acquire()
         if not postponed:
             queueFilesCopy = self.nzbFiles.copy()
@@ -800,8 +806,12 @@ class FillServerQueue(object):
         """
         self.queues[0].addQueuedBytes(bytes)
 
-    def isNZBDone(self, nzb, postponed = False):
+    def isNZBDone(self, nzb):
         """ Determine whether or not all of the specified NZB as been thoroughly downloaded """
+        postponed = False
+        if nzb not in self.currentNZBs():
+            postponed = True
+
         for queue in self.queues.itervalues():
             if not queue.isNZBDone(nzb, postponed):
                 return False

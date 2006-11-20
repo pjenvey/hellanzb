@@ -6,21 +6,20 @@ downloading NZB
 (c) Copyright 2005 Philip Jenvey
 [See end of file]
 """
-import os, re, time, Hellanzb, Hellanzb.Core, Hellanzb.Daemon
+import os, time, Hellanzb, Hellanzb.Core, Hellanzb.Daemon
 from sets import Set
 from threading import Lock
 from twisted.internet import reactor
 from xml.sax import make_parser, SAXParseException
-from xml.sax.handler import ContentHandler, feature_external_ges, feature_namespaces
+from xml.sax.handler import feature_external_ges, feature_namespaces
 from Hellanzb.Log import *
 from Hellanzb.Util import EmptyForThisPool, PoolsExhausted, PriorityQueue, OutOfDiskSpace, \
-    DUPE_SUFFIX, archiveName, isHellaTemp, prettySize
+    archiveName, isHellaTemp, prettySize
 from Hellanzb.PostProcessorUtil import getParRecoveryName
 from Hellanzb.SmartPar import getParSize, logSkippedPars, smartRequeue
 from Hellanzb.NZBLeecher.ArticleDecoder import assembleNZBFile
-from Hellanzb.NZBLeecher.DupeHandler import handleDupeOnDisk
-from Hellanzb.NZBLeecher.NZBLeecherUtil import validWorkingFile
-from Hellanzb.NZBLeecher.NZBModel import segmentsNeedDownload, NZBFile, NZBSegment
+from Hellanzb.NZBLeecher.NZBModel import segmentsNeedDownload, NZBFile
+from Hellanzb.NZBLeecher.NZBParser import NZBParser
 from Queue import Empty
 
 __id__ = '$Id$'
@@ -884,157 +883,6 @@ class FillServerQueue(object):
         """ Initialize the queue from the specified nzb file """
         self.queues[0].parseNZB(nzb, verbose)
 
-DUPE_SEGMENT_RE = re.compile('.*%s\d{1,4}\.segment\d{4}$' % DUPE_SUFFIX)
-class NZBParser(ContentHandler):
-    """ Parse an NZB 1.0 file into an NZBSegmentQueue
-    http://www.newzbin.com/DTD/nzb/nzb-1.0.dtd """
-    def __init__(self, nzb, needWorkFiles, needWorkSegments):
-        # nzb file to parse
-        self.nzb = nzb
-
-        # to be populated with the files that either need to be downloaded or simply
-        # assembled, and their segments
-        self.needWorkFiles = needWorkFiles
-        self.needWorkSegments = needWorkSegments
-
-        # parsing variables
-        self.file = None
-        self.bytes = None
-        self.number = None
-        self.chars = None
-        self.fileNeedsDownload = None
-        
-        self.fileCount = 0
-        self.segmentCount = 0
-
-        # All encountered segment numbers for the current NZBFile
-        self.segmentNumbers = Set()
-        
-        # Current listing of existing files in the WORKING_DIR
-        self.workingDirListing = []
-        
-        # Map of duplicate filenames -- @see DupeHandler.handleDupeOnDisk
-        self.workingDirDupeMap = {}
-        
-        files = os.listdir(Hellanzb.WORKING_DIR)
-        files.sort()
-        for file in files:
-
-            if DUPE_SEGMENT_RE.match(file):
-                # Sorry duplicate file segments, handling dupes is a pain enough as it is
-                # without segments coming into the mix
-                os.remove(os.path.join(Hellanzb.WORKING_DIR, file))
-                continue
-
-            # Add an entry to the self.workingDirDupeMap if this file looks like a
-            # duplicate, and also skip adding it to self.workingDirListing (dupes are
-            # handled specially so we don't care for them there)
-            if handleDupeOnDisk(file, self.workingDirDupeMap):
-                continue
-            
-            if not validWorkingFile(os.path.join(Hellanzb.WORKING_DIR, file),
-                                    self.nzb.overwriteZeroByteFiles):
-                continue
-
-            self.workingDirListing.append(file)
-            
-    def startElement(self, name, attrs):
-        if name == 'file':
-            subject = self.parseUnicode(attrs.get('subject'))
-            poster = self.parseUnicode(attrs.get('poster'))
-
-            self.file = NZBFile(subject, attrs.get('date'), poster, self.nzb)
-            self.segmentNumbers.clear()
-
-            self.fileNeedsDownload = \
-                self.file.needsDownload(workingDirListing = self.workingDirListing,
-                                        workingDirDupeMap = self.workingDirDupeMap)
-
-            # Special handling for par recovery downloads
-            extraMsg = ''
-            if Hellanzb.SMART_PAR and self.fileNeedsDownload and self.nzb.isParRecovery:
-                if not self.nzb.isSkippedParSubject(subject):
-                    # Only download previously marked pars
-                    self.fileNeedsDownload = False
-                    extraMsg = ' (not on disk but wasn\'t previously marked as an skippedParFile)'
-                    self.file.nzb.firstSegmentsDownloaded += 1
-                elif toUnicode(self.nzb.parPrefix) not in toUnicode(subject):
-                    # Previously marked par -- only download it if it pertains to the
-                    # particular par. We keep it set to needsDownload here so it gets to
-                    # parseNZB -- parseNZB won't actually queue it
-                    self.file.isSkippedPar = True
-                    
-            if not self.fileNeedsDownload:
-                debug('SKIPPING FILE%s: %s subject: %s' % (extraMsg, self.file.getTempFileName(),
-                                                           self.file.subject))
-
-            self.fileCount += 1
-            self.file.number = self.fileCount
-                
-        elif name == 'group':
-            self.chars = []
-                        
-        elif name == 'segment':
-            self.bytes = int(attrs.get('bytes'))
-            self.number = int(attrs.get('number'))
-                        
-            self.chars = []
-        
-    def characters(self, content):
-        if self.chars is not None:
-            self.chars.append(content)
-        
-    def endElement(self, name):
-        if name == 'file':
-            if self.fileNeedsDownload:
-                self.needWorkFiles.append(self.file)
-            else:
-                # done adding all child segments to this NZBFile. make note that none of
-                # them need to be downloaded
-                self.file.nzb.totalSkippedBytes += self.file.totalBytes
-                self.file.todoNzbSegments.clear()
-            
-            self.file = None
-            self.fileNeedsDownload = None
-                
-        elif name == 'group':
-            newsgroup = self.parseUnicode(''.join(self.chars))
-            self.file.groups.append(newsgroup)
-                        
-            self.chars = None
-                
-        elif name == 'segment':
-            if self.number in self.segmentNumbers:
-                # This segment number was already registered
-                return
-            self.segmentNumbers.add(self.number)
-
-            self.segmentCount += 1
-
-            messageId = self.parseUnicode(''.join(self.chars))
-            nzbs = NZBSegment(self.bytes, self.number, messageId, self.file)
-            if self.number == 1:
-                self.file.firstSegment = nzbs
-
-            if self.fileNeedsDownload:
-                # HACK: Maintain the order in which we encountered the segments by adding
-                # segmentCount to the priority. lame afterthought -- after realizing
-                # heapqs aren't ordered. NZB_CONTENT_P must now be large enough so that it
-                # won't ever clash with EXTRA_PAR2_P + i
-                nzbs.priority = NZBSegmentQueue.NZB_CONTENT_P
-                if nzbs.number != 1:
-                    nzbs.priority += self.segmentCount
-                self.needWorkSegments.append(nzbs)
-
-            self.chars = None
-            self.number = None
-            self.bytes = None    
-
-    def parseUnicode(self, unicodeOrStr):
-        if isinstance(unicodeOrStr, unicode):
-            return unicodeOrStr.encode('latin-1')
-        return unicodeOrStr
-    
 """
 Copyright (c) 2005 Philip Jenvey <pjenvey@groovie.org>
 All rights reserved.

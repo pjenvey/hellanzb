@@ -224,6 +224,9 @@ class NZBLeecher(NNTPClient, TimeoutMixin):
     def __init__(self, username, password):
         """ """
         NNTPClient.__init__(self)
+        self._endState() # kill nntp's Passive state
+        self._newState(self._statePassive, self._passiveError, self._headerInitial)
+
         self.username = username
         self.password = password
 
@@ -259,6 +262,11 @@ class NZBLeecher(NNTPClient, TimeoutMixin):
 
         # hold the last chunk's final few bytes for when searching for the EOF char
         self.lastChunk = ''
+
+    def _passiveError(self, err):
+        """ An error occured during the passive state """
+        debug(str(self) + ' PASSIVE state failed: ' + str(err))
+        self.transport.loseConnection()
 
     def authInfo(self):
         """ """

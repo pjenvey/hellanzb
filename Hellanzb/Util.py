@@ -460,7 +460,7 @@ def touch(fileName):
     os.close(fd)
     os.utime(fileName, None)
 
-NEWZBIN_FILE_PREFIX = r'^(?:msgid|NZB)_(\d+)_(.*?)'
+NEWZBIN_FILE_PREFIX = r'^(?:(?:msgid|NZB)_)?(\d+)_(.*)'
 NEWZBIN_FILE_SUFFIX = r'\.nzb$'
 NEWZBIN_FILE_SUFFIX_RE = re.compile(r'\.nzb$', re.I)
 NEWZBIN_FILE_RE = re.compile(NEWZBIN_FILE_PREFIX + NEWZBIN_FILE_SUFFIX, re.I)

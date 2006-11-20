@@ -1,6 +1,10 @@
 v0.11:
 
+o Added support for fillservers (by priority)
+
 o Added optional support for converting MacBinary files
+
+o Now properly parsing v3.newzbin.com NZB names
 
 v0.10:
 

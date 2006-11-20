@@ -626,6 +626,7 @@ class NZBLeecher(NNTPClient, TimeoutMixin):
         
     def deferSegmentDecode(self, segment):
         """ Decode the specified segment in a separate thread """
+        segment.fromServer = self
         reactor.callInThread(decode, segment)
 
     def gotGroup(self, group):
@@ -1110,12 +1111,10 @@ def startNZBLeecher():
     # How large the scroll ticker should be
     Hellanzb.scroller.maxCount = totalCount
 
-    if len(Hellanzb.SERVERS) > 1:
-        # Initialize the retry queue. It contains multiple sub-queues that work within the
-        # NZBQueue, for queueing segments that failed to download on particular
-        # serverPools. Obviously there's no need for this unless we're using multiple
-        # serverPools
-        Hellanzb.queue.initRetryQueue()
+    # Initialize the retry queue, (this only initializes it when it's necessary) for
+    # automatic failover. It contains multiple sub-queues that work within the NZBQueue,
+    # for queueing segments that failed to download on particular serverPools.
+    Hellanzb.queue.initRetryQueue()
 
     # Allocate only one thread, just for decoding
     reactor.suggestThreadPoolSize(1)

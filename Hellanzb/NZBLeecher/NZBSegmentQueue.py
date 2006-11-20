@@ -57,6 +57,11 @@ class RetryQueue:
         """ Remove a serverPool. FIXME: probably never needed, so not implemented """
         raise NotImplementedError()
 
+    def needRetryQueue(self):
+        """ Determine whether or not the RetryQueue is needed (should be
+        enabled). len(serverPoolNames) > 1 """
+        return len(self.serverPoolNames) > 1
+
     def requeue(self, serverPoolName, segment):
         """ Requeue the segment (which failed to download on the specified serverPool) for later
         retry by another serverPool
@@ -410,8 +415,9 @@ class NZBSegmentQueue(PriorityQueue):
 
     def initRetryQueue(self):
         """ Initialize and enable use of the RetryQueue """
-        self.retryQueueEnabled = True
-        self.rQueue.createQueues()
+        self.retryQueueEnabled = self.rQueue.needRetryQueue()
+        if self.retryQueueEnabled:
+            self.rQueue.createQueues()
 
     def serverRemove(self, serverFactory):
         """ Remove the specified server pool """
@@ -848,7 +854,7 @@ class FillServerQueue(object):
             queue.requeueMissing(serverFactory, segment)
         except PoolsExhausted:
             nextPriority = serverFactory.fillServerPriority + 1
-            if len(self.queues) < nextPriority:
+            if len(self.queues) <= nextPriority:
                 # Totally exhausted all queues/fill servers
                 raise
             nextQueue = self.queues[nextPriority]

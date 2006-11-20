@@ -589,6 +589,9 @@ class NZBSegment:
         # The NZBSegmentQueue this segment was last pulled from
         self.fromQueue = None
 
+        # The NZBLeecherFactory this segment was last downloaded from
+        self.fromServer = None
+
     def getDestination(self):
         """ Where this decoded segment will reside on the fs """
         return self.nzbFile.getDestination() + '.segment' + str(self.number).zfill(4)

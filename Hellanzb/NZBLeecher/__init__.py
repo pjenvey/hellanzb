@@ -1090,7 +1090,13 @@ def startNZBLeecher():
     defaultIdleTimeout = 30
     
     totalCount = 0
-    for serverId, serverDict in Hellanzb.SERVERS.iteritems():
+    # Order the initialization of servers by the fillserver priority, if fillserver
+    # support is enabled
+    serverDictsByPriority = Hellanzb.SERVERS.items()
+    if isinstance(Hellanzb.queue, FillServerQueue):
+        serverDictsByPriority.sort(lambda x, y: cmp(x[1].get('fillserver'),
+                                                    y[1].get('fillserver')))
+    for serverId, serverDict in serverDictsByPriority:
         if not serverDict.get('enabled') is False:
             totalCount += connectServer(serverId, serverDict, defaultAntiIdle, defaultIdleTimeout)
 

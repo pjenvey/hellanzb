@@ -44,7 +44,8 @@ defineServer(id = 'changeme',
              #bindTo = '204.31.33.7',    # connect FROM this ip address
              #enabled = False,           # disable this server
              #skipGroupCmd = False,      # skip sending nntp GROUP commands
-             #fillserver = 0             # fillservers must have values > 0
+             #fillserver = 0             # defaults to 0 (a main server).
+                                         # fillservers must have values > 0
                                          # (priority)
              )
 

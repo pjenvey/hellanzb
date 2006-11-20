@@ -18,6 +18,7 @@ from Hellanzb.NZBLeecher.NZBModel import NZBFile, NZBSegment
 __id__ = '$Id$'
 
 DUPE_SEGMENT_RE = re.compile('.*%s\d{1,4}\.segment\d{4}$' % DUPE_SUFFIX)
+FAILED_ALT_SERVER_SEGMENT_RE = re.compile('.*-hellafailed_.*$')
 class NZBParser(ContentHandler):
     """ Parse an NZB 1.0 file into an NZBSegmentQueue
     http://www.newzbin.com/DTD/nzb/nzb-1.0.dtd """
@@ -57,9 +58,9 @@ class NZBParser(ContentHandler):
         files.sort()
         for file in files:
 
-            if DUPE_SEGMENT_RE.match(file):
-                # Sorry duplicate file segments, handling dupes is a pain enough as it is
-                # without segments coming into the mix
+            # Anonymous duplicate file segments lying around are too painful to keep track
+            # of. As are segments that previously failed on different servers
+            if DUPE_SEGMENT_RE.match(file) or FAILED_ALT_SERVER_SEGMENT_RE.match(file):
                 os.remove(os.path.join(Hellanzb.WORKING_DIR, file))
                 continue
 

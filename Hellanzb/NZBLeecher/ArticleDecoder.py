@@ -13,14 +13,14 @@ from Hellanzb.Daemon import handleNZBDone, pauseCurrent
 from Hellanzb.Log import *
 from Hellanzb.Logging import prettyException
 from Hellanzb.Util import BUF_SIZE, checkShutdown, isHellaTemp, nuke, touch, \
-    OutOfDiskSpace
+    OutOfDiskSpace, PoolsExhausted
 from Hellanzb.NZBLeecher.DupeHandler import handleDupeNZBFile, handleDupeNZBSegment
 if Hellanzb.HAVE_C_YENC: import _yenc
 
 __id__ = '$Id$'
 
 # Decode types enum
-UNKNOWN, YENCODE, UUENCODE = range(3)
+UNKNOWN, YENCODE, UUENCODE, YENCODE_CRC_FAILED = range(4)
 
 def decode(segment):
     """ Decode the NZBSegment's articleData to it's destination. Toggle the NZBSegment
@@ -29,7 +29,7 @@ def decode(segment):
     encoding = UNKNOWN
     try:
         segment.loadArticleDataFromDisk()
-        encoding = decodeArticleData(segment)
+        encoding, encodingMessage = decodeArticleData(segment)
         
     except OutOfDiskSpace:
         # Ran out of disk space and the download was paused! Easiest way out of this
@@ -57,16 +57,27 @@ def decode(segment):
         # Segments currently downloading are left in segment.nzbFile.todoNzbSegments
         segment.smartDequeue()
     
-    Hellanzb.queue.segmentDone(segment)
     if Hellanzb.DEBUG_MODE_ENABLED:
         # FIXME: need a better enum
         if encoding == 1:
             encodingName = 'YENC'
         elif encoding == 2:
             encodingName = 'UUENCODE'
+        elif encoding == 3:
+            # FIXME: optimize this for posts with large amounts of CRC errors (say, every
+            # post) -- don't bother crcFailedRequeue if there is only one defined server
+            debug('Decoded (YENCODE_CRC_FAILED): %s' % segment.getDestination())
+            reactor.callFromThread(crcFailedRequeue, segment, encodingMessage)
+            return
         else:
             encodingName = 'UNKNOWN'
         debug('Decoded (encoding: %s): %s' % (encodingName, segment.getDestination()))
+    postDecode(segment)
+
+def postDecode(segment):
+    """ Handle post-decode operations (assembly, detect the NZB is finished downloading, etc)
+    """
+    Hellanzb.queue.segmentDone(segment)
 
     if handleCanceledSegment(segment):
         return
@@ -79,6 +90,36 @@ def decode(segment):
         segment.nzbFile.nzb.logSkippedPars()
 
     tryAssemble(segment.nzbFile)
+
+def crcFailedRequeue(segment, encodingMessage):
+    """ Requeue a segment that failed the CRC verification for download via the twisted main
+    thread """
+    try:
+        Hellanzb.queue.requeueMissing(segment.fromServer.factory, segment)
+    except PoolsExhausted:
+        # All servers failed to get a good copy of this segment
+        error(encodingMessage)
+
+        # Acquire the assembly lock to avoid potential clashing with postpone() 
+        segment.nzbFile.nzb.assembleLock.acquire()
+
+        # Use the largest file (by size) downloaded from the servers, and delete the rest
+        failedFiles = []
+        for serverPoolName in segment.failedServerPools:
+            failedFile = segment.getDestination() + '-hellafailed_%s' % serverPoolName
+            failedFiles.append((os.path.getsize(failedFile), failedFile))
+        failedFiles.sort()
+        largestFile = failedFiles.pop()[1]
+        os.rename(largestFile, segment.getDestination())
+        for failedFile in failedFiles:
+            nuke(failedFile[1])
+
+        segment.nzbFile.nzb.assembleLock.release()
+
+        postDecode(segment)
+    else:
+        debug('%s from server: %s. requeued to alternate server' % \
+              (encodingMessage, segment.fromServer.factory.serverPoolName))
 
 def tryAssemble(nzbFile):
     """ Assemble the specified NZBFile if all its segments have been downloaded """
@@ -360,11 +401,10 @@ def setRealFileName(nzbFile, filename, forceChange = False, settingSegmentNumber
 def yDecodeCRCCheck(segment, decoded):
     """ Validate the CRC of the segment with the yencode keyword """
     passedCRC = False
+    message = None
     if segment.yCrc is None:
-        # FIXME: I've seen CRC errors at the end of archive cause logNow = True to
-        # print I think after handleNZBDone appends a newline (looks like crap)
-        error(segment.nzbFile.showFilename + ' segment: ' + str(segment.number) + \
-              ' does not have a valid CRC/yend line!')
+        message = segment.nzbFile.showFilename + ' segment: ' + str(segment.number) + \
+            ' does not have a valid CRC/yend line!'
     else:
         crc = '%08X' % (crc32(decoded) & 2**32L - 1)
         
@@ -426,23 +466,20 @@ def decodeSegmentToFile(segment, encodingType = YENCODE):
             # CRC check. FIXME: use yDecodeCRCCheck for this!
             if segment.yCrc is None:
                 passedCRC = False
-                # FIXME: I've seen CRC errors at the end of archive cause logNow = True to
-                # print I think after handleNZBDone appends a newline (looks like crap)
-                error(segment.nzbFile.showFilename + ' segment: ' + str(segment.number) + \
-                      ' does not have a valid CRC/yend line!')
+                messsage = segment.nzbFile.showFilename + ' segment: ' + str(segment.number) + \
+                    ' does not have a valid CRC/yend line!'
             else:
                 crc = '%08X' % ((crc ^ -1) & 2**32L - 1)
                 passedCRC = crc == segment.yCrc
                 if not passedCRC:
                     message = segment.nzbFile.showFilename + ' segment ' + str(segment.number) + \
                         ': CRC mismatch ' + crc + ' != ' + segment.yCrc
-                    error(message)
             
         else:
             decoded = yDecode(segment.articleData)
 
             # CRC check
-            passedCRC = yDecodeCRCCheck(segment, decoded)
+            passedCRC, message = yDecodeCRCCheck(segment, decoded)
 
         # Write the decoded segment to disk
         size = len(decoded)
@@ -450,9 +487,12 @@ def decodeSegmentToFile(segment, encodingType = YENCODE):
         # Handle dupes if they exist
         handleDupeNZBSegment(segment)
         if handleCanceledSegment(segment):
-            return YENCODE
-        
-        out = open(segment.getDestination(), 'wb')
+            return YENCODE, None
+
+        filename = segment.getDestination()
+        if not passedCRC:
+            filename += '-hellafailed_%s' % segment.fromServer.factory.serverPoolName
+        out = open(filename, 'wb')
         try:
             out.write(decoded)
         except IOError, ioe:
@@ -465,8 +505,10 @@ def decodeSegmentToFile(segment, encodingType = YENCODE):
             # passed. If the CRC didn't pass the CRC check, the file size check will most
             # likely fail as well, so we skip it
             yDecodeFileSizeCheck(segment, size)
+        else:
+            return YENCODE_CRC_FAILED, message
 
-        return YENCODE
+        return YENCODE, None
 
     elif encodingType == UUENCODE:
         decodedLines = []
@@ -478,12 +520,12 @@ def decodeSegmentToFile(segment, encodingType = YENCODE):
 
         handleDupeNZBSegment(segment)
         if handleCanceledSegment(segment):
-            return UUENCODE
+            return UUENCODE, None
         
         # Write the decoded segment to disk
         writeLines(segment.getDestination(), decodedLines)
 
-        return UUENCODE
+        return UUENCODE, None
 
     elif segment.articleData == '':
         if Hellanzb.DEBUG_MODE_ENABLED:
@@ -491,7 +533,7 @@ def decodeSegmentToFile(segment, encodingType = YENCODE):
 
         handleDupeNZBSegment(segment)
         if handleCanceledSegment(segment):
-            return UNKNOWN
+            return UNKNOWN, None
 
         touch(segment.getDestination())
 
@@ -505,11 +547,11 @@ def decodeSegmentToFile(segment, encodingType = YENCODE):
 
         handleDupeNZBSegment(segment)
         if handleCanceledSegment(segment):
-            return UNKNOWN
+            return UNKNOWN, None
 
         touch(segment.getDestination())
 
-    return UNKNOWN
+    return UNKNOWN, None
 
 # Build the yEnc decode table
 YDEC_TRANS = ''.join([chr((i + 256 - 42) % 256) for i in range(256)])

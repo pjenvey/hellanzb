@@ -1079,7 +1079,6 @@ def connectServer(serverName, serverDict, defaultAntiIdle, defaultIdleTimeout):
     Hellanzb.recentLogs.append(logging.INFO, logFileMsg)
 
     # Let the queue know about this new serverPool
-    #Hellanzb.queue.serverAdd(serverName)
     Hellanzb.queue.serverAdd(preWrappedNsf)
         
     return connectionCount

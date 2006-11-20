@@ -20,14 +20,14 @@ from twisted.internet.protocol import ReconnectingClientFactory
 from twisted.protocols.basic import LineReceiver
 from twisted.protocols.policies import TimeoutMixin, ThrottlingFactory
 from twisted.python import log
-from Hellanzb.Core import finishShutdown
+from Hellanzb.Core import shutdownAndExit, finishShutdown
 from Hellanzb.Daemon import cancelCurrent, endDownload
 from Hellanzb.Log import *
 from Hellanzb.Logging import LogOutputStream, NZBLeecherTicker
 from Hellanzb.Util import prettySize, rtruncate, truncateToMultiLine, EmptyForThisPool, PoolsExhausted
 from Hellanzb.NZBLeecher.nntp import NNTPClient, extractCode
 from Hellanzb.NZBLeecher.ArticleDecoder import decode
-from Hellanzb.NZBLeecher.NZBSegmentQueue import NZBSegmentQueue
+from Hellanzb.NZBLeecher.NZBSegmentQueue import FillServerQueue, NZBSegmentQueue
 from Hellanzb.NZBLeecher.NZBLeecherUtil import HellaThrottler, HellaThrottlingFactory
 from Queue import Empty
 
@@ -37,13 +37,14 @@ PHI = 1.6180339887498948 # (1 + math.sqrt(5)) / 2
 class NZBLeecherFactory(ReconnectingClientFactory):
 
     def __init__(self, username, password, activeTimeout, antiIdleTimeout, hostname,
-                 serverPoolName, skipGroupCmd, color = None):
+                 serverPoolName, skipGroupCmd, fillServerPriority = 0, color = None):
         self.username = username
         self.password = password
         self.antiIdleTimeout = antiIdleTimeout
         self.activeTimeout = activeTimeout
         self.hostname = hostname
         self.serverPoolName = serverPoolName
+        self.fillServerPriority = fillServerPriority
 
         self.host = None
         self.port = None
@@ -348,7 +349,7 @@ class NZBLeecher(NNTPClient, TimeoutMixin):
                     not self.currentSegment.dontRequeue:
                 # Only requeue the segment if its archive hasn't been previously postponed
                 debug(str(self) + ' requeueing segment: ' + self.currentSegment.getDestination())
-                Hellanzb.queue.requeue(self.factory.serverPoolName, self.currentSegment)
+                Hellanzb.queue.requeue(self.factory, self.currentSegment)
 
                 self.resetCurrentSegment(removeEncFile = True)
             else:
@@ -449,7 +450,7 @@ class NZBLeecher(NNTPClient, TimeoutMixin):
 
             try:
                 priority, self.currentSegment = \
-                    Hellanzb.queue.getSmart(self.factory.serverPoolName)
+                    Hellanzb.queue.getSmart(self.factory)
                 self.currentSegment.encodedData = \
                     open(os.path.join(Hellanzb.DOWNLOAD_TEMP_DIR,
                                       self.currentSegment.getTempFileName() + '_ENC'),
@@ -495,7 +496,7 @@ class NZBLeecher(NNTPClient, TimeoutMixin):
                 # finding all groups (if so, punt) here instead of getGroupFailed
                 elif self.allGroupsFailed(self.currentSegment.nzbFile.groups):
                     try:
-                        Hellanzb.queue.requeueMissing(self.factory.serverPoolName,
+                        Hellanzb.queue.requeueMissing(self.factory,
                                                       self.currentSegment)
                         debug(str(self) + \
                               ' All groups failed, requeueing to another pool!')
@@ -564,7 +565,7 @@ class NZBLeecher(NNTPClient, TimeoutMixin):
             code, msg = code
             if code in (423, 430):
                 try:
-                    Hellanzb.queue.requeueMissing(self.factory.serverPoolName, self.currentSegment)
+                    Hellanzb.queue.requeueMissing(self.factory, self.currentSegment)
                     debug(str(self) + ' ' + self.currentSegment.nzbFile.showFilename + \
                           ' segment: ' + str(self.currentSegment.number) + \
                           ' Article is missing! Attempting to requeue on a different pool!')
@@ -942,7 +943,10 @@ def initNZBLeecher():
     log.startLogging(fileStream)
 
     # Create the one and only download queue
-    Hellanzb.queue = NZBSegmentQueue()
+    if initFillServers():
+        Hellanzb.queue = FillServerQueue()
+    else:
+        Hellanzb.queue = NZBSegmentQueue()
 
     # The NZBLeecherFactories
     Hellanzb.nsfs = []
@@ -965,6 +969,46 @@ def initNZBLeecher():
     Hellanzb.NZBLF_COLORS = [ACODE.F_DBLUE, ACODE.F_DMAGENTA, ACODE.F_LRED, ACODE.F_DGREEN,
                              ACODE.F_YELLOW, ACODE.F_DCYAN, ACODE.F_BWHITE]
 
+def initFillServers():
+    """ Determine if fill servers are enabled (more than 1 fillserver priorities are set in
+    the config file). Flatten out the fill server priorities so that they begin at 0 and
+    increment by 1 """
+    fillServerPriorities = {}
+    for serverId, serverDict in Hellanzb.SERVERS.iteritems():
+        if serverDict.get('enabled') is False:
+            continue
+        if 'fillserver' in serverDict:
+            fillServerPriority = serverDict.get('fillserver')
+            # Consider = None as = 0
+            if fillServerPriority is None:
+                fillServerPriority = serverDict['fillserver'] = 0
+            try:
+                fillServerPriority = int(fillServerPriority)
+            except ValueError, ve:
+                # Let's not assume what the user wanted -- raise a FatalError so they can
+                # fix the priority value
+                shutdownAndExit(1,
+                                message='There was a problem with the fillserver value of server: %s:\n%s' \
+                                 % (serverId, str(ve)))
+            if fillServerPriority not in fillServerPriorities:
+                fillServerPriorities.setdefault(fillServerPriority, []).append(serverDict)
+            serverDict['fillserver'] = fillServerPriority
+
+    if len(fillServerPriorities) < 2:
+        debug('initFillServers: fillserver support disabled')
+        return False
+
+    # Flatten out the priorities. priority list of [1, 4, 5] will be converted to [0, 1, 2]
+    priorityKeys = fillServerPriorities.keys()
+    priorityKeys.sort()
+    for i in range(len(priorityKeys)):
+        oldPriority = priorityKeys[i]
+        for serverDict in fillServerPriorities[oldPriority]:
+            serverDict['fillserver'] = i
+
+    debug('initFillServers: fillserver support enabled')
+    return True
+    
 def setWithDefault(dict, key, default):
     """ Return value for the specified key set via the config file. Use the default when the
     value is blank or doesn't exist """
@@ -986,13 +1030,14 @@ def connectServer(serverName, serverDict, defaultAntiIdle, defaultIdleTimeout):
         antiIdle = int(setWithDefault(serverDict, 'antiIdle', defaultAntiIdle))
         idleTimeout = int(setWithDefault(serverDict, 'idleTimeout', defaultIdleTimeout))
         skipGroupCmd = setWithDefault(serverDict, 'skipGroupCmd', False)
+        fillServer = setWithDefault(serverDict, 'fillserver', 0)
 
         nsf = NZBLeecherFactory(serverDict['username'], serverDict['password'],
-                                idleTimeout, antiIdle, host, serverName, skipGroupCmd)
+                                idleTimeout, antiIdle, host, serverName, skipGroupCmd,
+                                fillServer)
         color = nsf.color
         Hellanzb.nsfs.append(nsf)
 
-        # FIXME: pass this to the factory constructor
         split = host.split(':')
         host = split[0]
         if len(split) == 2:
@@ -1013,9 +1058,13 @@ def connectServer(serverName, serverDict, defaultAntiIdle, defaultIdleTimeout):
             connectionCount += 1
         preWrappedNsf.setConnectionCount(connectionCount)
 
+    fillServerStatus = ''
+    if isinstance(Hellanzb.queue, FillServerQueue):
+        fillServerStatus = '[fillserver: %i] ' % preWrappedNsf.fillServerPriority
     msg = preWrappedNsf.color + '(' + serverName + ') ' + Hellanzb.ACODE.RESET + \
-        'Opening ' + str(connectionCount)
-    logFileMsg = '(' + serverName + ') Opening ' + str(connectionCount)
+        fillServerStatus + 'Opening ' + str(connectionCount)
+    logFileMsg = '(' + serverName + ') ' + fillServerStatus + 'Opening ' + \
+        str(connectionCount)
     if connectionCount == 1:
         suffix = ' connection...'
     else:
@@ -1030,7 +1079,7 @@ def connectServer(serverName, serverDict, defaultAntiIdle, defaultIdleTimeout):
     Hellanzb.recentLogs.append(logging.INFO, logFileMsg)
 
     # Let the queue know about this new serverPool
-    Hellanzb.queue.serverAdd(serverName)
+    Hellanzb.queue.serverAdd(preWrappedNsf)
         
     return connectionCount
 
@@ -1040,7 +1089,13 @@ def startNZBLeecher():
     defaultIdleTimeout = 30
     
     totalCount = 0
-    for serverId, serverDict in Hellanzb.SERVERS.iteritems():
+    # Order the initialization of servers by the fillserver priority, if fillserver
+    # support is enabled
+    serverDictsByPriority = Hellanzb.SERVERS.items()
+    if isinstance(Hellanzb.queue, FillServerQueue):
+        serverDictsByPriority.sort(lambda x, y: cmp(x[1].get('fillserver'),
+                                                    y[1].get('fillserver')))
+    for serverId, serverDict in serverDictsByPriority:
         if not serverDict.get('enabled') is False:
             totalCount += connectServer(serverId, serverDict, defaultAntiIdle, defaultIdleTimeout)
 

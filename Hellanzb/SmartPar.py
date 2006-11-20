@@ -214,7 +214,7 @@ def requeueSkippedPars(skippedParFiles):
         for nzbSegment in nzbFile.dequeuedSegments:
             nzbFile.todoNzbSegments.add(nzbSegment)
             Hellanzb.queue.put((nzbSegment.priority, nzbSegment))
-            Hellanzb.queue.totalQueuedBytes += nzbSegment.bytes
+            Hellanzb.queue.addQueuedBytes(nzbSegment.bytes)
             nzbFile.nzb.totalSkippedBytes -= nzbSegment.bytes
 
             # In case we have idle NZBLeechers, turn them back on

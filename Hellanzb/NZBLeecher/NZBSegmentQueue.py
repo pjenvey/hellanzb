@@ -750,8 +750,15 @@ class FillServerQueue(object):
         for methodName in ('cancel', 'clear', 'postpone', 'unpostpone',
                            'calculateTotalQueuedBytes', 'nzbAdd', 'nzbDone',
                            'initRetryQueue', 'nudgeIdleNZBLeechers', 'fileDone'):
-            setattr(self, methodName, self._applyToQueues(getattr(NZBSegmentQueue,
+            setattr(self, methodName, self._cascadeToQueues(getattr(NZBSegmentQueue,
                                                                   methodName)))
+
+    def _cascadeToQueues(self, method):
+        """ Return a function that will call the specified method on all child queues """
+        def cascade(*args, **kwargs):
+            for queue in self.queues.itervalues():
+                method(queue, *args, **kwargs)
+        return cascade
 
     def _getTotalQueuedBytes(self):
         """ Return the total queued bytes of all the queues """
@@ -760,12 +767,6 @@ class FillServerQueue(object):
             totalQueuedBytes += queue.totalQueuedBytes
         return totalQueuedBytes
     totalQueuedBytes = property(_getTotalQueuedBytes)
-
-    def _applyToQueues(self, method):
-        def apply(*args, **kwargs):
-            for queue in self.queues.itervalues():
-                method(queue, *args, **kwargs)
-        return apply
 
     def put(self, item):
         """ Add a segment to the queue """

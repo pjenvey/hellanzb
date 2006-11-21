@@ -52,6 +52,9 @@ class NZB(Archive):
 
         ## Total bytes this NZB represents
         self.totalBytes = 0
+
+        ## Whether the total byte count of this NZB is still being calculated
+        self.calculatingBytes = True
         
         ## How many bytes were skipped for downloading
         self.totalSkippedBytes = 0
@@ -260,6 +263,8 @@ class NZB(Archive):
 
         if self.downloadTime:
             attribs['downloadTime'] = str(self.downloadTime)
+        if not self.calculatingBytes and self.totalBytes > 0:
+            attribs['totalBytes'] = str(self.totalBytes)
 
         return attribs
 
@@ -323,6 +328,9 @@ class NZB(Archive):
                 if key == 'id' or key == 'order':
                     continue
                 if key == 'neededBlocks':
+                    value = int(value)
+                if key == 'totalBytes':
+                    nzb.calculatingBytes = False
                     value = int(value)
                 if key == 'downloadTime':
                     value = float(value)

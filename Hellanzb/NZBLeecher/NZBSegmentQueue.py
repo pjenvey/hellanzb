@@ -583,12 +583,15 @@ class NZBSegmentQueue(PriorityQueue):
         # Tell the parser to use it
         parser.setContentHandler(nzbp)
 
+        nzb.calculatingBytes = True
         # Parse the input
         try:
             parser.parse(fileName)
         except SAXParseException, saxpe:
+            nzb.calculatingBytes = False
             self.nzbDone(nzb)
             raise FatalError('Unable to parse Invalid NZB file: ' + os.path.basename(fileName))
+        nzb.calculatingBytes = False
 
         # We trust the NZB XML's <segment number="111"> attribute, but if the sequence of
         # segments does not begin at "1", the parser wouldn't have found the

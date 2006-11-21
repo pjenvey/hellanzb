@@ -8,7 +8,7 @@ NZBParser - Parses NZB XML into NZBModels
 import os, re, Hellanzb
 from sets import Set
 from xml.sax import make_parser, SAXParseException
-from xml.sax.handler import ContentHandler
+from xml.sax.handler import feature_external_ges, feature_namespaces, ContentHandler
 from Hellanzb.Log import *
 from Hellanzb.Util import DUPE_SUFFIX
 from Hellanzb.NZBLeecher.DupeHandler import handleDupeOnDisk
@@ -172,6 +172,49 @@ class NZBParser(ContentHandler):
         if isinstance(unicodeOrStr, unicode):
             return unicodeOrStr.encode('latin-1')
         return unicodeOrStr
+
+class NZBTotalBytesParser(ContentHandler):
+    """ Parse only the byte count from an NZB file """
+    # FIXME: this should also be used to verify the XML validity of the NZB before
+    # queueing
+    def __init__(self):
+        self.bytes = 0
+        
+    def startElement(self, name, attrs):
+        if name == 'segment' and attrs.has_key('bytes'):
+            try:
+                self.bytes += int(attrs['bytes'])
+            except ValueError:
+                pass
+
+    def getBytes(nzb):
+        """ Return the number of bytes the specified NZB represents """
+        s = time.time()
+        # Create a parser
+        parser = make_parser()
+
+        # No XML namespaces here
+        parser.setFeature(feature_namespaces, 0)
+        parser.setFeature(feature_external_ges, 0)
+
+        # Tell the parser to use it
+        p = NZBTotalBytesParser()
+        parser.setContentHandler(p)
+
+        # Parse the input
+        try:
+            parser.parse(nzb.nzbFileName)
+        except SAXParseException, saxpe:
+            debug('Unable to parse invalid NZB file: %s: %s: exception: %s' % \
+                  (os.path.basename(nzb.nzbFileName), saxpe.getMessage(),
+                   saxpe.getException()))
+            return
+
+        debug('NZBTotalBytesParser(%s) took: %f, bytes: %i' % (nzb.nzbFileName,
+                                                               time.time() - s, p.bytes))
+        nzb.totalBytes = p.bytes
+        nzb.calculatingBytes = False
+    getBytes = staticmethod(getBytes)
     
 """
 Copyright (c) 2005 Philip Jenvey <pjenvey@groovie.org>

@@ -49,10 +49,12 @@ class PostProcessor(Thread):
             self.subDir = subDir
             self.dirName = DirName(pathjoin(archive.archiveDir, self.subDir))
             self.dirName.parentDir = archive.archiveDir
+            self.archiveName = archiveName(self.dirName.parentDir)
         else:
             self.isSubDir = False
             self.dirName = DirName(archive.archiveDir)
             self.archive.postProcessor = self
+            self.archiveName = archiveName(self.dirName)
 
         self.nzbFileName = None
         if self.isNZBArchive():

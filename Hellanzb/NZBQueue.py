@@ -632,6 +632,12 @@ def enqueueNZBs(nzbFileOrFiles, next = False, writeQueue = True):
             msg += ': '
             info(logMsg + nzb.archiveName)
             growlNotify('Queue', 'hellanzb ' + msg, nzb.archiveName, False)
+
+            if nzb.totalBytes == 0 and len(Hellanzb.queue.currentNZBs()) or \
+                    not writeQueue:
+                from Hellanzb.NZBLeecher.NZBParser import NZBTotalBytesParser
+                reactor.callInThread(NZBTotalBytesParser.getBytes, nzb)
+
         else:
             try:
                 shutil.move(nzbFile, Hellanzb.TEMP_DIR + os.sep)
@@ -736,6 +742,8 @@ def listQueue(includeIds = True, convertToUnicode = True):
                 member['rarPassword'] = rarPassword
             if nzb.msgid is not None:
                 member['msgid'] = nzb.msgid
+            if not nzb.calculatingBytes:
+                member['total_mb'] = nzb.totalBytes / 1024 / 1024
         else:
             member = os.path.basename(nzb.nzbFileName)
         members.append(member)

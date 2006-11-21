@@ -36,17 +36,20 @@ class HellaXMLRPCServer(XMLRPC):
         on, so this was needed. not exactly sure why """
         return self
 
-    def makeNZBStruct(self, id, name, rarPass, isParRecovery, msgid):
+    def makeNZBStruct(self, archive):
         """ Create a map (to be an XMLRPC struct) containing NZB meta data (nzb id, name, and
         optionally rarPassword if one exists. Convert potentially Evil(tm) strings to
         unicode """
-        d = {'id': id,
-             'nzbName': toUnicode(name)}
-        if rarPass is not None:
-            d['rarPassword'] = toUnicode(rarPass)
-        if msgid is not None:
-            d['msgid'] = msgid
-        d['is_par_recovery'] = isParRecovery
+        d = {'id': archive.id,
+             'nzbName': toUnicode(archive.archiveName)}
+        if archive.rarPassword is not None:
+            d['rarPassword'] = toUnicode(archive.rarPassword)
+        if archive.msgid is not None:
+            d['msgid'] = archive.msgid
+        d['is_par_recovery'] = archive.isParRecovery
+        if hasattr(archive, 'totalBytes') and hasattr(archive, 'calculatingBytes') and \
+            not archive.calculatingBytes:
+            d['total_mb'] = archive.totalBytes / 1024 / 1024
         return d
 
     def cleanLog(self, logEntry):
@@ -315,15 +318,11 @@ class HellaXMLRPCServer(XMLRPC):
         s['hostname'] = Hellanzb.HOSTNAME
         s['version'] = Hellanzb.version
 
-        s['currently_downloading'] = [self.makeNZBStruct(nzb.id, nzb.archiveName, nzb.rarPassword,
-                                                         nzb.isParRecovery, nzb.msgid) for \
-                                      nzb in currentNZBs]
+        s['currently_downloading'] = [self.makeNZBStruct(nzb) for nzb in currentNZBs]
 
         Hellanzb.postProcessorLock.acquire()
-        s['currently_processing'] = [self.makeNZBStruct(processor.id, archiveName(processor.dirName),
-                                                        processor.rarPassword, processor.isParRecovery,
-                                                        processor.msgid) \
-                                     for processor in Hellanzb.postProcessors]
+        s['currently_processing'] = [self.makeNZBStruct(processor) for processor in \
+                                     Hellanzb.postProcessors]
 
         Hellanzb.postProcessorLock.release()
         s['queued'] = listQueue()
@@ -726,7 +725,9 @@ def statusString(remoteCall, result):
 
     downloading += statusFromList(currentNZBs, len(downloading))
     processing += statusFromList(processingNZBs, len(processing))
-    queued += statusFromList(queuedNZBs, len(queued))
+    queuedMBFunc = lambda item : '(%s) %s [%s MB]' % (item['id'], item['nzbName'],
+                                                      item['total_mb'])
+    queued += statusFromList(queuedNZBs, len(queued), func=queuedMBFunc)
 
     # FIXME: show if any archives failed during processing?
     #f = failedProcessing

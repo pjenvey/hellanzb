@@ -632,6 +632,12 @@ def enqueueNZBs(nzbFileOrFiles, next = False, writeQueue = True):
             msg += ': '
             info(logMsg + nzb.archiveName)
             growlNotify('Queue', 'hellanzb ' + msg, nzb.archiveName, False)
+        else:
+            try:
+                shutil.move(nzbFile, Hellanzb.TEMP_DIR + os.sep)
+            except (IOError, OSError), e:
+                error('Unable to move invalid NZB: %s out of the way' % nzbFile)
+                debug('Unable to move invalid NZB: %s out of the way' % nzbFile, e)
                 
     if writeQueue:
         writeStateXML()

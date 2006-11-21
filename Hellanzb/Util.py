@@ -793,10 +793,13 @@ def validNZB(nzbfilename):
     """ Return true if the specified filename is a valid NZB """
     from Hellanzb.Log import error
     if nzbfilename == None or not os.path.isfile(nzbfilename):
-        error('Invalid NZB file: ' + str(nzbfilename))
+        error('Invalid NZB file: %s' % nzbfilename)
         return False
     elif not os.access(nzbfilename, os.R_OK):
-        error('Unable to read NZB file: ' + str(nzbfilename))
+        error('Unable to read NZB file: %s' % nzbfilename)
+        return False
+    elif archiveName(nzbfilename) == '':
+        error('Invalid NZB file (No archive name): %s' % nzbfilename)
         return False
     return True
 

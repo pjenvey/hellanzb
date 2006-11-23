@@ -238,6 +238,13 @@ def dirHasMusic(dirName):
     """ Determine if the specified directory contains any known music files """
     return dirHasFileTypes(dirName, getMusicTypeExtensions())
 
+def dirHasMacBin(dirName):
+    """ Determine if the specified directory contains any MacBinary files """
+    for file in os.listdir(dirName):
+        if isMacBin(file):
+            return True
+    return False
+
 RAR_HEADER = 'Rar!'
 def isRar(fileName):
     """ Determine if the specified file is a rar """
@@ -1070,8 +1077,10 @@ def assembleSplitFiles(dirName, toAssemble):
 
 def decodeMacBin(postProcessor):
     """ Decode MacBinary files """
-    if Hellanzb.MACBINCONV_CMD is None:
+    if Hellanzb.MACBINCONV_CMD is None or not dirHasMacBin(postProcessor.dirName):
         return
+
+    info(archiveName(postProcessor.dirName) + ': Converting MacBinary files..')
 
     start = time.time()
 
@@ -1092,7 +1101,7 @@ def decodeMacBin(postProcessor):
             if returnCode == 0:
                 moveToProcessed(fullPath)
             else:
-                errMsg = 'There was a problem during macbinconv, output:\n\n'
+                errMsg = 'There was a problem during MacBinary file conversion, output:\n\n'
                 err = ''
                 for line in output:
                     err += line
@@ -1105,7 +1114,7 @@ def decodeMacBin(postProcessor):
     if fileCount > 1:
         macbinTxt += 's'
     e = time.time() - start
-    info('%s: Finished macbinconv (%i %s, took: %s)' % \
+    info('%s: Finished converting MacBinary files (%i %s, took: %s)' % \
          (archiveName(postProcessor.dirName), fileCount, macbinTxt, prettyElapsed(e)))
 
 # segment files on disk

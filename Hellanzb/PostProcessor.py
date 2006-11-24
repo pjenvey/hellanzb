@@ -404,10 +404,13 @@ class PostProcessor(Thread):
             parMessage = ''
             if not handledPars:
                 parMessage = ' (No Pars)'
+            totalTime = ''
+            if self.isNZBArchive():
+                totalTime = ' (total: %s)' % prettyElapsed(e + self.archive.downloadTime)
                 
             archive = archiveName(self.dirName)
-            info('%s: Finished processing (took: %s)%s' % (archive,
-                                                           prettyElapsed(e), parMessage))
+            info('%s: Finished processing (took: %s)%s%s' % (archive, 
+                                                           prettyElapsed(e), totalTime, parMessage))
             dispatchExternalHandler(SUCCESS, archiveName=archive,
                                     destDir=os.path.join(Hellanzb.DEST_DIR, archive),
                                     elapsedTime=prettyElapsed(e),

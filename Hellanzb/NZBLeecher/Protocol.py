@@ -57,8 +57,10 @@ class NZBLeecherFactory(ReconnectingClientFactory):
 
         self.connectionCount = 0
 
+        self.activated = False
         self.idledOut = False
         self.leecherConnectors = []
+
         # server reconnecting drop off factor, by default e. PHI (golden ratio) is a lower
         # factor than e
         self.factor = PHI # (Phi is acceptable for use as a factor if e is too large for
@@ -83,8 +85,10 @@ class NZBLeecherFactory(ReconnectingClientFactory):
         p.factory = self
         p.id = self.clientIds[0]
         self.clientIds.remove(p.id)
-        
+
         # All clients inherit the factory's anti idle timeout setting
+        # FIXME: I don't think there's any reason to copy these values to the
+        # client. (Replace client self.activeTimeout with self.factory.activeTimeout)
         p.activeTimeout = self.activeTimeout
         p.antiIdleTimeout = self.antiIdleTimeout
         
@@ -114,20 +118,44 @@ class NZBLeecherFactory(ReconnectingClientFactory):
 
     def clientConnectionLost(self, connector, reason):
         """ Handle lost connections """
-        # Only append connectors if we have antiIdle disabled
-        if self.antiIdleTimeout == 0:
+        # Connectors are stored in leecherConnectors for later, explicit reconnection
+        # because we are NOT queueing a reconnect at this point in time (antiIdle == 0:
+        # disconnect when idle). We still need to requeue an ASAP reconnection when the
+        # factory is 'activated' (in the middle of downloading) and not in the
+        # downloadPaused state
+        if (not self.activated or Hellanzb.downloadPaused) and \
+                self.antiIdleTimeout == 0:
+            if self.activated and Hellanzb.downloadPaused:
+                # We're paused -- mark the connector as needing to be reconnected when
+                # unpaused
+                connector.pauseIdledOut = True
             self.leecherConnectors.append(connector)
+
         self.clientConnectionFailed(connector, reason, caller = 'clientConnectionLost')
 
     def fetchNextNZBSegment(self):
-        """ Begin or continue downloading on all of this factory's clients """
+        """ Begin or continue downloading on all of this factory's active clients """
         if Hellanzb.downloadPaused:
             # 'continue' is responsible for re-triggerering all clients in this case
             return
 
-        for p in self.clients:
-            if p.isLoggedIn and not p.activated and p.idle:
-                p.fetchNextNZBSegment()
+        foundConnectedClient = False
+        for client in self.clients:
+            if client.isLoggedIn and not client.activated and client.idle:
+                foundConnectedClient = True
+                client.fetchNextNZBSegment()
+        if foundConnectedClient:
+            # At least one connected, deactivated client is present. It should take care
+            # of the next needed segment to be downloaded -- let's avoid reconnecting
+            # other connections until it's necessary
+            return
+
+        if self.idledOut:
+            self.resetDelay()
+        for connector in self.leecherConnectors:
+            connector.connect()
+        self.leecherConnectors = []
+        self.idledOut = False
 
     def beginDownload(self):
         """ Start the download """
@@ -135,7 +163,9 @@ class NZBLeecherFactory(ReconnectingClientFactory):
         self.sessionReadBytes = 0
         self.sessionSpeed = 0
         self.sessionStartTime = now
-        self.fetchNextNZBSegment()
+        if self.fillServerPriority == 0:
+            self.activated = True
+            self.fetchNextNZBSegment()
 
     def setConnectionCount(self, connectionCount):
         """ Set the number of total connections for this factory """
@@ -160,6 +190,7 @@ class NZBLeecherFactory(ReconnectingClientFactory):
             self.sessionReadBytes = 0
             self.sessionSpeed = 0
             self.sessionStartTime = None
+            self.activated = False
 
         # If we got the justThisDownloadPool, that means this serverPool is done, but
         # there are segments left in the queue for other serverPools (we're not completely
@@ -173,6 +204,8 @@ class NZBLeecherFactory(ReconnectingClientFactory):
             totalActiveClients += len(nsf.activeClients)
             
         if totalActiveClients == 0:
+            for nsf in Hellanzb.nsfs:
+                nsf.activated = False
             endDownload()
 
     def getCurrentRate():
@@ -327,7 +360,8 @@ class NZBLeecher(NNTPClient, TimeoutMixin):
         if Hellanzb.SHUTDOWN:
             self.factory.stopTrying()
 
-        if not self.activated and self.antiIdleTimeout == 0:
+        if (not self.factory.activated or Hellanzb.downloadPaused) and \
+                self.antiIdleTimeout == 0:
             self.factory.continueTrying = False
             self.factory.idledOut = True
 
@@ -435,7 +469,10 @@ class NZBLeecher(NNTPClient, TimeoutMixin):
             self.activated = False
 
             # we're now anti idling the connection, set the appropriate timeout
-            self.setTimeout(self.antiIdleTimeout)
+            if self.antiIdleTimeout == 0:
+                self.setTimeout(None)
+            else:
+                self.setTimeout(self.antiIdleTimeout)
 
             self.factory.deactivateClient(self, justThisDownloadPool)
         
@@ -877,20 +914,20 @@ class NZBLeecher(NNTPClient, TimeoutMixin):
         """ Called when the connection times out -- i.e. when we've been idle longer than the
         self.timeOut value. will time out (disconnect) the connection if actively
         downloading, otherwise the timeOut value acts as a the anti idle time out """
-        if self.activated:
+        if self.factory.activated:
             debug(str(self) + ' TIMING OUT connection')
             self.transport.loseConnection()
         elif self.antiIdleTimeout != 0:
             debug(str(self) + ' ANTI IDLING connection')
             self.antiIdleConnection()
+
+            # TimeoutMixin assumes we're done (timed out) after timeoutConnection. Since
+            # we're still connected, manually reset the timeout
+            self.setTimeout(self.antiIdleTimeout)
         else:
             debug(str(self) + ' NOT ANTI IDLING connection')
             return
             
-        # TimeoutMixin assumes we're done (timed out) after timeoutConnection. Since we're
-        # still connected, manually reset the timeout
-        self.setTimeout(self.antiIdleTimeout)
-
     def resetCurrentSegment(self, removeEncFile = False):
         """ Reset the currentSegment to None. close the encodedData file handle if necessary """
         if self.currentSegment == None:

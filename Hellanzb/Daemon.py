@@ -267,14 +267,8 @@ def beginDownload(nzb = None):
     Hellanzb.downloadScannerID = reactor.callLater(5, scanQueueDir, False, True)
     
     for nsf in Hellanzb.nsfs:
-        if nsf.idledOut:
-            nsf.resetDelay()
-            for a in nsf.leecherConnectors:
-                nsf.retry(a)
-            nsf.leecherConnectors = []
-            nsf.idledOut = False
         nsf.beginDownload()
-                
+
     Hellanzb.scroller.started = True
     Hellanzb.scroller.killedHistory = False
 
@@ -463,6 +457,19 @@ def continueCurrent():
                 connectionCount -= 1
                 
         resetConnections += connectionCount
+
+        # Reconnect idledOut NZBLeechers (antiIdleTimeout == 0) during the pause
+        if nsf.idledOut:
+            reconnecting = []
+            for connector in nsf.leecherConnectors:
+                if hasattr(connector, 'pauseIdledOut') and connector.pauseIdledOut:
+                    debug(str(connector) + ' pauseIdledOut')
+                    connector.pauseIdledOut = False
+                    connector.connect()
+                    reconnecting.append(connector)
+            for connector in reconnecting:
+                nsf.leecherConnectors.remove(connector)
+            resetConnections += len(reconnecting)
 
     Hellanzb.downloadPaused = False
     if resetConnections:

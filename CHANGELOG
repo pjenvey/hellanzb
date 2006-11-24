@@ -6,6 +6,9 @@ o Added optional support for converting MacBinary files
 
 o Now properly parsing v3.newzbin.com NZB names
 
+o Fixed a couple issues when antiIdle is disabled, including reconnection
+  failures after connections are lost
+
 v0.10:
 
 o Multiple servers are now represented with different colors in the scroller

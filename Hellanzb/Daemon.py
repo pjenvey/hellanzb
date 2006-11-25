@@ -275,6 +275,9 @@ def beginDownload(nzb = None):
 
 def endDownload():
     """ Finished downloading """
+    for nsf in Hellanzb.nsfs:
+        nsf.endDownload()
+
     Hellanzb.downloading = False
     Hellanzb.totalSpeed = 0
     Hellanzb.scroller.currentLog = None

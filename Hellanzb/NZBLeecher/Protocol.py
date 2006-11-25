@@ -167,6 +167,10 @@ class NZBLeecherFactory(ReconnectingClientFactory):
             self.activated = True
             self.fetchNextNZBSegment()
 
+    def endDownload(self):
+        """ End the download """
+        self.activated = False
+
     def setConnectionCount(self, connectionCount):
         """ Set the number of total connections for this factory """
         self.connectionCount = connectionCount
@@ -204,8 +208,6 @@ class NZBLeecherFactory(ReconnectingClientFactory):
             totalActiveClients += len(nsf.activeClients)
             
         if totalActiveClients == 0:
-            for nsf in Hellanzb.nsfs:
-                nsf.activated = False
             endDownload()
 
     def getCurrentRate():

@@ -47,8 +47,6 @@ class HellaXMLRPCServer(XMLRPC):
         if archive.msgid is not None:
             d['msgid'] = archive.msgid
         d['is_par_recovery'] = archive.isParRecovery
-        # FIXME: 0 is obviously inaccurate in some cases
-        d['total_mb'] = 0
         if hasattr(archive, 'totalBytes') and hasattr(archive, 'calculatingBytes') and \
             not archive.calculatingBytes:
             d['total_mb'] = archive.totalBytes / 1024 / 1024
@@ -727,8 +725,11 @@ def statusString(remoteCall, result):
 
     downloading += statusFromList(currentNZBs, len(downloading))
     processing += statusFromList(processingNZBs, len(processing))
-    queuedMBFunc = lambda item : '(%s) %s [%s MB]' % (item['id'], item['nzbName'],
-                                                      item['total_mb'])
+    def queuedMBFunc(item):
+        msg = '(%s) %s' % (item['id'], item['nzbName'])
+        if 'total_mb' in item:
+            msg += ' [%s MB]' % item['total_mb']
+        return msg
     queued += statusFromList(queuedNZBs, len(queued), func=queuedMBFunc)
 
     # FIXME: show if any archives failed during processing?

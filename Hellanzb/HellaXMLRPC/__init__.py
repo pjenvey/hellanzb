@@ -47,6 +47,8 @@ class HellaXMLRPCServer(XMLRPC):
         if archive.msgid is not None:
             d['msgid'] = archive.msgid
         d['is_par_recovery'] = archive.isParRecovery
+        # FIXME: 0 is obviously inaccurate in some cases
+        d['total_mb'] = 0
         if hasattr(archive, 'totalBytes') and hasattr(archive, 'calculatingBytes') and \
             not archive.calculatingBytes:
             d['total_mb'] = archive.totalBytes / 1024 / 1024

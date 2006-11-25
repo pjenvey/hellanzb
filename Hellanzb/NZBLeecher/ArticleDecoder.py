@@ -417,7 +417,7 @@ def yDecodeCRCCheck(segment, decoded):
             
         del decoded
         
-    return passedCRC
+    return passedCRC, message
 
 def yDecodeFileSizeCheck(segment, size):
     """ Ensure the file size from the yencode keyword """

@@ -9,7 +9,7 @@ import binascii, os, re, shutil, string, time, Hellanzb
 from threading import Lock
 from twisted.internet import reactor
 from zlib import crc32
-from Hellanzb.Daemon import handleNZBDone, pauseCurrent
+from Hellanzb.Daemon import beginDownload, endDownload, handleNZBDone, pauseCurrent
 from Hellanzb.Log import *
 from Hellanzb.Logging import prettyException
 from Hellanzb.Util import BUF_SIZE, checkShutdown, isHellaTemp, nuke, touch, \
@@ -94,9 +94,25 @@ def postDecode(segment):
 def crcFailedRequeue(segment, encodingMessage):
     """ Requeue a segment that failed the CRC verification for download via the twisted main
     thread """
+    restartedDownloader = False
     try:
+        if not Hellanzb.downloading:
+            # We need to requeue after downloading everything in this NZB. Readd the NZB
+            # to the queue, for tryFinishNZB
+            debug('crcFailedRequeue: Downloader stopped and we need to attempt requeue: '
+                  'restarting downloader')
+            beginDownload(segment.nzbFile.nzb)
+            restartedDownloader = True
+
         Hellanzb.queue.requeueMissing(segment.fromServer.factory, segment)
     except PoolsExhausted:
+        if restartedDownloader and len(Hellanzb.queue.nzbs) == 1 and \
+                segment.nzbFile.nzb in Hellanzb.queue.nzbs:
+            # We restarted the downloader for no reason -- stop it
+            debug('crcFailedRequeue: Restarted downloader and caught PoolsExhausted: '
+                  ' stopping downloader')
+            endDownload()
+
         # All servers failed to get a good copy of this segment
         error(encodingMessage)
 

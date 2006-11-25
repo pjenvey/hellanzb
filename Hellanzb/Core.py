@@ -263,6 +263,9 @@ def init(options = {}):
     # Whether or not this is a hellanzb download daemon process
     Hellanzb.isDaemon = False
 
+    # Whether or not we're currently downloading an NZB
+    Hellanzb.downloading = False
+
     # The name of the loaded config file
     Hellanzb.CONFIG_FILENAME = None
 

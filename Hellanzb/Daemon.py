@@ -271,9 +271,11 @@ def beginDownload(nzb = None):
 
     Hellanzb.scroller.started = True
     Hellanzb.scroller.killedHistory = False
+    Hellanzb.downloading = True
 
 def endDownload():
     """ Finished downloading """
+    Hellanzb.downloading = False
     Hellanzb.totalSpeed = 0
     Hellanzb.scroller.currentLog = None
 
@@ -437,6 +439,8 @@ def continueCurrent():
     resetConnections = 0
     for nsf in Hellanzb.nsfs:
         connectionCount = nsf.connectionCount
+        # XXX:
+        debug('%s: connectionCount: %i' % (nsf.serverPoolName, connectionCount))
         for client in nsf.clients:
 
             # When we pause a download, we simply stop reading from the socket. That
@@ -457,6 +461,9 @@ def continueCurrent():
                 connectionCount -= 1
                 
         resetConnections += connectionCount
+        # XXX:
+        debug('resetConnections(%s): %i: added %i' % (nsf.serverPoolName, resetConnections,
+                                                      connectionCount))
 
         # Reconnect idledOut NZBLeechers (antiIdleTimeout == 0) during the pause
         if nsf.idledOut:
@@ -469,7 +476,10 @@ def continueCurrent():
                     reconnecting.append(connector)
             for connector in reconnecting:
                 nsf.leecherConnectors.remove(connector)
-            resetConnections += len(reconnecting)
+            # XXX:
+            #resetConnections += len(reconnecting)
+            debug('>resetConnections(%s): %i: added %i' % (nsf.serverPoolName, resetConnections,
+                                                           len(reconnecting)))
 
     Hellanzb.downloadPaused = False
     if resetConnections:

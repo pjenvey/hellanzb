@@ -19,19 +19,8 @@ __id__ = '$Id$'
 
 class PostProcessor(Thread):
     """ A post processor (formerly troll) instance runs in its own thread """
-    dirName = None
-    decompressionThreadPool = None
-    decompressorCondition = None
-    background = None
-    musicFiles = None
-    brokenFiles = None
 
-    failedLock = None
-    failedToProcesses = None
-    
-    msgId = None
-    nzbFile = None
-
+    # These attributes are routed to self.archive via __getattr__/__setattr__
     archiveAttrs = ('id', 'isParRecovery', 'rarPassword', 'deleteProcessed', 'skipUnrar',
                     'toStateXML', 'msgid')
 
@@ -77,10 +66,17 @@ class PostProcessor(Thread):
         self.decompressorLock = RLock()
         self.decompressorCondition = Condition(self.decompressorLock)
 
+        self.musicFiles = []
+        self.brokenFiles = []
         self.movedSamples = []
-        
+
+        self.msgId = None
         self.startTime = None
 
+        # Failed decompress threads put their file names in this list
+        self.failedLock = Lock()
+        self.failedToProcesses = []
+        
         # Whether or not this PostProcessor's Topen processes were explicitly kill()'ed
         self.killed = False
 
@@ -272,7 +268,6 @@ class PostProcessor(Thread):
             return
         
         # Determine the music files to decompress
-        self.musicFiles = []
         for file in os.listdir(self.dirName):
             absPath = os.path.join(self.dirName, file)
             if os.path.isfile(absPath) and getMusicType(file) and getMusicType(file).shouldDecompress():
@@ -295,10 +290,6 @@ class PostProcessor(Thread):
         fileCount = len(self.musicFiles)
         info(archiveName(self.dirName) + ': Decompressing ' + str(fileCount) + \
              ' ' + filesTxt + ' via ' + str(threadCount) + ' ' + threadsTxt + '..')
-
-        # Failed decompress threads put their file names in this list
-        self.failedToProcesses = []
-        self.failedLock = Lock()
 
         start = time.time()
         # Maintain a pool of threads of the specified size until we've exhausted the
@@ -350,12 +341,6 @@ class PostProcessor(Thread):
         # Move other cruft out of the way
         deleteDuplicates(self.dirName)
         
-        if self.nzbFile is not None:
-            if os.path.isfile(os.path.join(self.dirName, self.nzbFile)) and \
-                    os.access(os.path.join(self.dirName, self.nzbFile), os.R_OK):
-                move(os.path.join(self.dirName, self.nzbFile),
-                     os.path.join(self.dirName, Hellanzb.PROCESSED_SUBDIR, self.nzbFile))
-
         # Move out anything else that's broken, a dupe or tagged as
         # not required
         for file in self.brokenFiles:
@@ -459,9 +444,7 @@ class PostProcessor(Thread):
             raise FatalError('Unable to create processed dir, a non dir already exists there: ' + \
                              processedDir)
     
-        # First, find broken files, in prep for repair. Grab the msg id and nzb
-        # file names while we're at it
-        self.brokenFiles = []
+        # First, find broken files, in prep for repair. Grab the msg id while we're at it
         files = os.listdir(self.dirName)
         for file in files:
             absoluteFile = os.path.join(self.dirName, file)
@@ -472,9 +455,6 @@ class PostProcessor(Thread):
                     
                 elif len(file) > 7 and file[0:len('.msgid_')] == '.msgid_':
                     self.msgId = file[len('.msgid_'):]
-    
-                elif len(file) > 3 and file.find('.') > -1 and getFileExtension(file).lower() == 'nzb':
-                    self.nzbFile = file
     
         # If there are required broken files and we lack pars, punt
         if len(self.brokenFiles) > 0 and containsRequiredFiles(self.brokenFiles) and \

@@ -35,7 +35,14 @@ def findAndLoadConfig(optionalConfigFile = None):
             sys.exit(1)
 
     # look for conf in this order: sys.prefix, ./, or ./etc/
-    confDirs = [ os.path.join(sys.prefix, 'etc'), os.path.join(os.getcwd(), 'etc'), os.getcwd() ]
+    confDirs = [os.path.join(sys.prefix, 'etc')]
+    try:
+        confDirs.append(os.path.join(os.getcwd(), 'etc'))
+        confDirs.append(os.getcwd())
+    except OSError, ose:
+        if ose.errno != 2:
+            raise
+        # OSError: [Errno 2] No such file or directory. cwd doesn't exist
 
     # hard coding preferred Darwin config file location, kind of lame. but I'd rather do
     # this then make an etc dir in os x's Python.framework directory

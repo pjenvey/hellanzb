@@ -407,10 +407,11 @@ class PostProcessor(Thread):
             totalTime = ''
             if self.isNZBArchive():
                 totalTime = ' (total: %s)' % prettyElapsed(e + self.archive.downloadTime)
-                
+
+            elapsed = prettyElapsed(e)
             archive = archiveName(self.dirName)
             info('%s: Finished processing (took: %s)%s%s' % (archive, 
-                                                           prettyElapsed(e), totalTime, parMessage))
+                                                           elapsed, totalTime, parMessage))
             dispatchExternalHandler(SUCCESS, archiveName=archive,
                                     destDir=os.path.join(Hellanzb.DEST_DIR, archive),
                                     elapsedTime=prettyElapsed(e),
@@ -418,8 +419,8 @@ class PostProcessor(Thread):
 
             if parMessage != '':
                 parMessage = '\n' + parMessage
-            growlNotify('Archive Success', 'hellanzb Done Processing' + parMessage + ':',
-                        archive, True)
+            growlNotify('Archive Success', 'hellanzb Done Processing%s:' % parMessage,
+                        '%s\ntook: %s%s' % (archive, elapsed, totalTime), True)
                        #self.background)
         # FIXME: could unsticky the message if we're running hellanzb.py -p
         # and preferably if the post processing took say over 30 seconds

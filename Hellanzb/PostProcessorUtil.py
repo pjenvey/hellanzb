@@ -114,6 +114,9 @@ class MusicType(object):
 
         self.decompressToType = decompressToType
 
+    def __cmp__(self, other):
+        return cmp(self.extension, other.extension)
+
     def shouldDecompress(self):
         if self.decompressor == None:
             return False
@@ -418,8 +421,6 @@ def decompressMusicFile(postProcessor, fileName, musicType, archive = None):
     if archive == None:
         archive = archiveName(os.path.dirname(fileName))
     
-    info(archive + ': Decompressing to ' + str(musicType.decompressToType) + ': ' + \
-         os.path.basename(fileName))
     cmd = cmd.replace('<DESTFILE>', '"' + destFileName + '"')
 
     t = Topen(cmd, postProcessor)

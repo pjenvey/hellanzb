@@ -268,10 +268,15 @@ class PostProcessor(Thread):
             return
         
         # Determine the music files to decompress
+        musicTypes = []
         for file in os.listdir(self.dirName):
             absPath = os.path.join(self.dirName, file)
-            if os.path.isfile(absPath) and getMusicType(file) and getMusicType(file).shouldDecompress():
+            musicType = getMusicType(file)
+            if os.path.isfile(absPath) and musicType and musicType.shouldDecompress():
                 self.musicFiles.append(absPath)
+                if musicType not in musicTypes:
+                    musicTypes.append(musicType)
+        musicTypes.sort()
     
         if len(self.musicFiles) == 0:
             return
@@ -282,15 +287,19 @@ class PostProcessor(Thread):
         
         filesTxt = 'file'
         threadsTxt = 'thread'
+        musicTypesPrefix = 'Format'
         if len(self.musicFiles) != 1:
             filesTxt += 's'
         if threadCount != 1:
             threadsTxt += 's'
+        if len(musicTypes) > 1:
+            musicTypesPrefix += 's'
 
         fileCount = len(self.musicFiles)
-        info(archiveName(self.dirName) + ': Decompressing ' + str(fileCount) + \
-             ' ' + filesTxt + ' via ' + str(threadCount) + ' ' + threadsTxt + '..')
-
+        musicTypesTxt = ', '.join([musicType.extension for musicType in musicTypes])
+        info('%s: Decompressing %i %s (%s: %s) via %i %s..' % \
+             (archiveName(self.dirName), fileCount, filesTxt, musicTypesPrefix, musicTypesTxt,
+              threadCount, threadsTxt))
         start = time.time()
         # Maintain a pool of threads of the specified size until we've exhausted the
         # musicFiles list

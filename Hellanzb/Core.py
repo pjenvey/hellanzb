@@ -418,15 +418,7 @@ def marquee():
         options.append('MacBinary')
 
     optionLen = len(options)
-    msg += ' ('
-
-    i = 0
-    for option in options:
-        msg += option
-        i += 1
-        if i < optionLen:
-            msg += ', '
-    msg += ')'
+    msg += ' (%s)' % ', '.join(options)
 
     info(msg)
     debug(msg)

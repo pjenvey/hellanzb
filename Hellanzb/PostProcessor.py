@@ -287,7 +287,7 @@ class PostProcessor(Thread):
         
         filesTxt = 'file'
         threadsTxt = 'thread'
-        musicTypesPrefix = 'Format'
+        musicTypesPrefix = 'format'
         if len(self.musicFiles) != 1:
             filesTxt += 's'
         if threadCount != 1:

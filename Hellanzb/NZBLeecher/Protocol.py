@@ -539,8 +539,11 @@ class NZBLeecher(NNTPClient, TimeoutMixin):
                         reactor.callLater(0, self.fetchNextNZBSegment)
 
                     except PoolsExhausted:
-                        error('Unable to retrieve *any* groups for file (subject: ' + \
-                              self.currentSegment.nzbFile.subject + ')')
+                        error('(' + self.factory.serverPoolName + \
+                              '): Unable to retrieve *any* groups for file (subject: ' + \
+                              self.currentSegment.nzbFile.subject + \
+                              '). If this shouldn\'t happen, enable skipGroupCmd=True in your '
+                              'config\'s defineServer line')
                         msg = 'Groups:'
                         for group in self.currentSegment.nzbFile.groups:
                             msg += ' ' + group

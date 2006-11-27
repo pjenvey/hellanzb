@@ -106,10 +106,10 @@ class RecoveredState(object):
         return recoveredDict
 
     def __str__(self):
-        data = 'RecoveredState: version: %s newzbinCookie: %s\ndownloading: %s\n' + \
+        data = 'RecoveredState: version: %s newzbinCookie keys: %s\ndownloading: %s\n' + \
             'processing: %s\nqueued: %s'
-        data = data % (self.version, self.newzbinCookie, str(self.downloading),
-             str(self.processing), str(self.queued))
+        data = data % (self.version, self.newzbinCookie.keys(), str(self.downloading),
+                       str(self.processing), str(self.queued))
         return data
 
 def isOldEnough(nzbFile):

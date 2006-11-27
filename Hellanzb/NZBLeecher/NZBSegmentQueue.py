@@ -260,6 +260,8 @@ class NZBSegmentQueue(PriorityQueue):
 
         self.totalQueuedBytes = 0
 
+        self.fillServerPriority = 0
+
         self.retryQueueEnabled = False
         self.rQueue = RetryQueue()
 
@@ -462,7 +464,7 @@ class NZBSegmentQueue(PriorityQueue):
         # received Empty from the queue, then afterwards the connection is lost (say the
         # connection timed out), causing the requeue. Find and reactivate them because
         # they now have work to do
-        self.parent.nudgeIdleNZBLeechers(segment)
+        self.nudgeIdleNZBLeechers(segment)
 
     def requeueMissing(self, serverFactory, segment):
         """ Requeue a missing segment. This segment will be added to the RetryQueue (if enabled),
@@ -476,7 +478,7 @@ class NZBSegmentQueue(PriorityQueue):
 
             # We might have just requeued a segment onto an idle server pool. Reactivate
             # any idle connections pertaining to this segment
-            self.parent.nudgeIdleNZBLeechers(segment)
+            self.nudgeIdleNZBLeechers(segment)
         else:
             raise PoolsExhausted()
 
@@ -490,6 +492,8 @@ class NZBSegmentQueue(PriorityQueue):
         segment """
         if not Hellanzb.downloadPaused and not requeuedSegment.nzbFile.nzb.canceled:
             for nsf in Hellanzb.nsfs:
+                if nsf.fillServerPriority != self.fillServerPriority:
+                    continue
                 if nsf.serverPoolName not in requeuedSegment.failedServerPools:
                     nsf.fetchNextNZBSegment()
 
@@ -757,7 +761,7 @@ class FillServerQueue(object):
         # XXX: postpone should probably be locked
         for methodName in ('cancel', 'clear', 'postpone', 'unpostpone',
                            'calculateTotalQueuedBytes', 'nzbAdd', 'nzbDone',
-                           'initRetryQueue', 'nudgeIdleNZBLeechers', 'fileDone'):
+                           'initRetryQueue', 'fileDone'):
             setattr(self, methodName, self._cascadeToQueues(getattr(NZBSegmentQueue,
                                                                   methodName)))
 
@@ -827,6 +831,7 @@ class FillServerQueue(object):
         """ Register the specified NZBLeecherFactory """
         if serverFactory.fillServerPriority not in self.queues:
             self.queues[serverFactory.fillServerPriority] = queue = NZBSegmentQueue()
+            queue.fillServerPriority = serverFactory.fillServerPriority
         self.queues[serverFactory.fillServerPriority].serverAdd(serverFactory)
 
     def serverRemove(self, serverFactory):
@@ -864,6 +869,9 @@ class FillServerQueue(object):
             queue.totalQueuedBytes -= segment.bytes
             nextQueue.totalQueuedBytes += segment.bytes
             nextQueue.nudgeIdleNZBLeechers(segment)
+
+    def nudgeIdleNZBLeechers(self, requeuedSegment):
+        self.queues[0].nudgeIdleNZBLeechers(requeuedSegment)
 
     def segmentDone(self, nzbSegment, dequeue = False):
         """ Simply decrement the queued byte count and register this nzbSegment as finished

@@ -12,6 +12,7 @@ Freddie (freddie@madcowdisease.org) utilizing the twisted framework
 import logging, os, sys, Hellanzb
 from twisted.copyright import version as twistedVersion
 from twisted.internet import reactor
+from twisted.internet.tcp import Connector
 from twisted.python import log
 from Hellanzb.Core import shutdownAndExit, finishShutdown
 from Hellanzb.Log import *
@@ -30,7 +31,8 @@ def initNZBLeecher():
         from twisted.web import __version__ as twistedWebVersion
         twistedVersionMsg += ', TwistedWeb-%s' % twistedWebVersion
     debug(twistedVersionMsg)
-    debug('python: %s' % sys.version)
+    pythonVersion = 'python: %s' % sys.version
+    [debug(line) for line in pythonVersion.splitlines()]
     uname = os.uname()
     debug('os: %s-%s (%s)' % (uname[0], uname[2], uname[4]))
     
@@ -125,6 +127,7 @@ def connectServer(serverName, serverDict, defaultAntiIdle, defaultIdleTimeout):
     """ Establish connections to the specified server according to the server information dict
     (constructed from the config file). Returns the number of connections that were attempted
     to be made """
+    defaultConnectTimeout = 30
     connectionCount = 0
     hosts = serverDict['hosts']
     connections = int(serverDict['connections'])
@@ -155,25 +158,43 @@ def connectServer(serverName, serverDict, defaultAntiIdle, defaultIdleTimeout):
         for connection in range(connections):
             if serverDict.has_key('bindTo') and serverDict['bindTo'] != None and \
                     serverDict['bindTo'] != '':
-                reactor.connectTCP(host, port, nsf, bindAddress = (serverDict['bindTo'], 0))
+                if antiIdle != 0:
+                    reactor.connectTCP(host, port, nsf,
+                                       bindAddress = (serverDict['bindTo'], 0))
+                else:
+                    connector = Connector(host, port, nsf, defaultConnectTimeout,
+                                          (serverDict['bindTo'], 0), reactor=reactor)
             else:
-                reactor.connectTCP(host, port, nsf)
+                if antiIdle != 0:
+                    reactor.connectTCP(host, port, nsf)
+                else:
+                    connector = Connector(host, port, nsf, defaultConnectTimeout, None,
+                                          reactor=reactor)
+            if antiIdle == 0:
+                preWrappedNsf.leecherConnectors.append(connector)
             connectionCount += 1
         preWrappedNsf.setConnectionCount(connectionCount)
 
+    if antiIdle == 0:
+        action = ''
+    else:
+        action = 'Opening '
     fillServerStatus = ''
     if isinstance(Hellanzb.queue, FillServerQueue):
         fillServerStatus = '[fillserver: %i] ' % preWrappedNsf.fillServerPriority
     msg = preWrappedNsf.color + '(' + serverName + ') ' + Hellanzb.ACODE.RESET + \
-        fillServerStatus + 'Opening ' + str(connectionCount)
+        fillServerStatus + action + str(connectionCount)
     logFileMsg = '(' + serverName + ') ' + fillServerStatus + 'Opening ' + \
         str(connectionCount)
     if connectionCount == 1:
-        suffix = ' connection...'
+        suffix = ' connection'
     else:
-        suffix = ' connections...'
+        suffix = ' connections'
     msg += suffix
     logFileMsg += suffix
+    if antiIdle != 0:
+        msg += '...'
+        logFileMsg += '...'
     logFile(logFileMsg)
     noLogFile(msg)
     # HACK: remove this as a recentLog entry -- replace it with the version without color

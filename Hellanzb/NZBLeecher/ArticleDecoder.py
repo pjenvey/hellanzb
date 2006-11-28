@@ -476,6 +476,7 @@ def decodeSegmentToFile(segment, encodingType = YENCODE):
     decodedLines = []
 
     if encodingType == YENCODE:
+        message = None
         if Hellanzb.HAVE_C_YENC:
             decoded, crc, cruft = yDecode(segment.articleData)
             

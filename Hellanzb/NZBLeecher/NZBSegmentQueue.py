@@ -547,7 +547,7 @@ class NZBSegmentQueue(PriorityQueue):
                 debug('*** segmentDone called on dequeued nzbSegment -- removing from '
                       'nzbFile.dequeuedSegments!')
                 nzbSegment.nzbFile.dequeuedSegments.remove(nzbSegment)
-            if nzbSegment.nzbFile.nzb in self.nzbs:
+            if nzbSegment.nzbFile.nzb in Hellanzb.queue.nzbs:
                 self.totalQueuedBytes -= nzbSegment.bytes
         self.nzbsLock.release()
         
@@ -758,10 +758,11 @@ class FillServerQueue(object):
         # Segments curently on disk
         self.onDiskSegments = {}
 
+        self.nzbFilesLock = Lock()
+
         # XXX: postpone should probably be locked
         for methodName in ('cancel', 'clear', 'postpone', 'unpostpone',
-                           'calculateTotalQueuedBytes', 'nzbAdd', 'nzbDone',
-                           'initRetryQueue', 'fileDone'):
+                           'calculateTotalQueuedBytes', 'initRetryQueue', 'fileDone'):
             setattr(self, methodName, self._cascadeToQueues(getattr(NZBSegmentQueue,
                                                                   methodName)))
 
@@ -796,20 +797,26 @@ class FillServerQueue(object):
 
     def currentNZBs(self):
         """ Return a copy of the list of nzbs currently being downloaded """
-        nzbs = []
-        for queue in self.queues.itervalues():
-            nzbs.extend(queue.currentNZBs())
-        return nzbs
+        # Only queues[0] houses the list of nzbs we are downloading!
+        return self.queues[0].currentNZBs()
 
     def _getNZBS(self):
         """ Return the NZBs in all queues (does not lock) """
         # FIXME: is this necessary? currentNZBs() does the same thing but locks. Is its
         # locking necessary?
-        nzbs = []
-        for queue in self.queues.itervalues():
-            nzbs.extend(queue.nzbs)
-        return nzbs
+        # Only queues[0] houses the list of nzbs we are downloading!
+        return self.queues[0].nzbs
     nzbs = property(_getNZBS)
+
+    def nzbAdd(self, nzb):
+        """ Denote this nzb as currently being downloaded """
+        # Only queues[0] houses the list of nzbs we are downloading!
+        self.queues[0].nzbAdd(nzb)
+        
+    def nzbDone(self, nzb):
+        """ NZB finished """
+        # Only queues[0] houses the list of nzbs we are downloading!
+        self.queues[0].nzbDone(nzb)
 
     def addQueuedBytes(self, bytes):
         """ Add to the totalQueuedBytes count. This adds to the main (fillServerPriority 0) queue
@@ -866,6 +873,13 @@ class FillServerQueue(object):
                 raise
             nextQueue = self.queues[nextPriority]
             nextQueue.put((segment.priority, segment))
+
+            # Note: the old queue still contains the segment's nzbFile in its nzbFiles Set
+            # -- but we call fileDone on all NZBSegmentQueues, ensuring its removal
+            nextQueue.nzbFilesLock.acquire()
+            nextQueue.nzbFiles.add(segment.nzbFile)
+            nextQueue.nzbFilesLock.release()
+
             queue.totalQueuedBytes -= segment.bytes
             nextQueue.totalQueuedBytes += segment.bytes
             nextQueue.nudgeIdleNZBLeechers(segment)

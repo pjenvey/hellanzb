@@ -15,7 +15,7 @@ long_description hellanzb is an easy to use app designed to retrieve nzb \
                  to the queue directory. The rest: downloading, \
                  par-checking, un-raring, etc. is done automatically by \
                  hellanzb.
-homepage         http://www.hellanzb.com/
+homepage         http://www.hellanzb.com
 platforms        darwin
 
 master_sites     ${homepage}/distfiles/

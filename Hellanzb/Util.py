@@ -5,7 +5,7 @@ Util - hellanzb misc functions
 (c) Copyright 2005 Philip Jenvey, Ben Bangert
 [See end of file]
 """
-import os, popen2, pty, re, signal, string, sys, thread, threading, time, Hellanzb
+import os, popen2, re, signal, string, sys, thread, threading, time, Hellanzb
 try:
     from distutils import spawn
 except:
@@ -208,6 +208,7 @@ class Ptyopen(popen2.Popen3):
         instead of pipes, to allow inline reading (instead of potential i/o buffering) of
         output from the child process. It also stores the cmd its running (as a string)
         and the thread that created the object, for later use """
+        import pty
         # NOTE: most of this is cutnpaste from Popen3 minus the openpty calls
         #popen2._cleanup()
         self.prettyCmd = cmd
@@ -306,6 +307,7 @@ class Ptyopen2(Ptyopen):
         instead of pipes, to allow inline reading (instead of potential i/o buffering) of
         output from the child process. It also stores the cmd its running (as a string)
         and the thread that created the object, for later use """
+        import pty
         #popen2._cleanup()
         self.prettyCmd = cmd
         cmd = self.parseCmdToList(cmd)

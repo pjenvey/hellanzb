@@ -9,14 +9,13 @@ the twisted reactor loop, except for initialization functions
 import os, re, sys, time, Hellanzb, PostProcessor, PostProcessorUtil
 from shutil import copy, move, rmtree
 from twisted.internet import reactor
-from twisted.scripts.twistd import daemonize
 from Hellanzb.HellaXMLRPC import initXMLRPCServer, HellaXMLRPCServer
 from Hellanzb.Log import *
 from Hellanzb.Logging import prettyException, LogOutputStream
 from Hellanzb.NZBQueue import dequeueNZBs, recoverStateFromDisk, parseNZB, \
     scanQueueDir, writeStateXML
-from Hellanzb.Util import archiveName, ensureDirs, getMsgId, hellaRename, prettyElapsed, \
-    prettySize, touch, validNZB, IDPool
+from Hellanzb.Util import archiveName, ensureDirs, getMsgId, hellaRename, isWindows, \
+    prettyElapsed, prettySize, touch, validNZB, IDPool
 
 __id__ = '$Id$'
 
@@ -96,10 +95,11 @@ def initDaemon():
         scanQueueDir(True)
     reactor.callLater(0, recoverStateAndBegin)
 
-    if Hellanzb.DAEMONIZE:
+    if not isWindows() and Hellanzb.DAEMONIZE:
+        from twisted.scripts.twistd import daemonize
         daemonize()
 
-    if hasattr(Hellanzb, 'UMASK'):
+    if not isWindows() and hasattr(Hellanzb, 'UMASK'):
         # umask here, as daemonize() might have just reset the value
         os.umask(Hellanzb.UMASK)
 

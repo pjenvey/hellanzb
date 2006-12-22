@@ -726,6 +726,10 @@ def isPy2App():
     except AttributeError:
         return find_packager() == 'py2app'
 
+def isWindows():
+    """ Whether or not this process is running in Windows (not cygwin) """
+    return sys.platform.startswith('win')
+
 ONE_MB = float(1024*3)
 try:
     import statvfs

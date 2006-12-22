@@ -458,8 +458,9 @@ def parseArgs():
     parser.add_option('-d', '--debug-file', type='string', dest='debugLogFile',
                       help='specify the debug log file (turns on debugging output/overwrites the ' + \
                       'Hellanzb.DEBUG_MODE config file setting)')
-    parser.add_option('-D', '--daemon', action='store_true', dest='daemonize',
-                      help='run hellanzb as a daemon process (fork and exit)')
+    if not isWindows():
+        parser.add_option('-D', '--daemon', action='store_true', dest='daemonize',
+                          help='run hellanzb as a daemon process (fork and exit)')
     #parser.add_option('-n', '--just-download-nzb', type='string', dest='justDownload',
     #                  help='download the specified nzb and exit the program (do not post process)')
     parser.add_option('-p', '--post-process-dir', type='string', dest='postProcessDir',
@@ -484,7 +485,7 @@ def processArgs(options, args):
     if not len(args) and not options.postProcessDir:
         Hellanzb.IS_DOWNLOADER = True
         
-        if options.daemonize:
+        if getattr(options, 'daemonize', False):
             # Run as a daemon process (fork)
             Hellanzb.DAEMONIZE = True
 

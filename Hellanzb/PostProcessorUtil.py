@@ -10,7 +10,6 @@ from os.path import join as pathjoin
 from shutil import move
 from threading import Thread
 from time import time
-from twisted.scripts.twistd import daemonize
 from Hellanzb.Log import *
 from Hellanzb.Util import *
 
@@ -1185,9 +1184,11 @@ def isFreshState(dirName, stateName):
 
 def dispatchExternalHandler(type, **info):
     """ Execute an external script after post processing """
-    if Hellanzb.EXTERNAL_HANDLER_SCRIPT is None:
+    if isWindows() or Hellanzb.EXTERNAL_HANDLER_SCRIPT is None:
         return
 
+    # FIXME: daemonize/os.fork/etc doesn't work on Windows
+    from twisted.scripts.twistd import daemonize
     type = type is SUCCESS and 'SUCCESS' or 'ERROR'
 
     # the info dict should include four params, archive name, archive dest dir, elapsed

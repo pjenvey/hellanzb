@@ -272,9 +272,12 @@ def init(options = {}):
     # hostname we're running on
     Hellanzb.HOSTNAME = gethostname()
 
-    (sysname, nodename, release, version, machine) = os.uname()
-    # The OS in use
-    Hellanzb.SYSNAME = sysname
+    if isWindows():
+        Hellanzb.SYSNAME = None
+    else:
+        (sysname, nodename, release, version, machine) = os.uname()
+        # The OS in use
+        Hellanzb.SYSNAME = sysname
 
     # Only add anonymous NZB files placed in the QUEUE_DIR to the NZBQueue after this
     # number have seconds have passed since the files modification time

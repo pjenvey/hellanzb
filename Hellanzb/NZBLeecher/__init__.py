@@ -17,6 +17,7 @@ from twisted.python import log
 from Hellanzb.Core import shutdownAndExit, finishShutdown
 from Hellanzb.Log import *
 from Hellanzb.Logging import LogOutputStream, NZBLeecherTicker
+from Hellanzb.Util import isWindows
 from Hellanzb.NZBLeecher.NZBSegmentQueue import FillServerQueue, NZBSegmentQueue
 from Hellanzb.NZBLeecher.NZBLeecherUtil import HellaThrottler, HellaThrottlingFactory
 from Hellanzb.NZBLeecher.Protocol import NZBLeecherFactory
@@ -33,8 +34,11 @@ def initNZBLeecher():
     debug(twistedVersionMsg)
     pythonVersion = 'python: %s' % sys.version
     [debug(line) for line in pythonVersion.splitlines()]
-    uname = os.uname()
-    debug('os: %s-%s (%s)' % (uname[0], uname[2], uname[4]))
+    if isWindows():
+        debug('platform: %s' % sys.platform)
+    else:
+        uname = os.uname()
+        debug('os: %s-%s (%s)' % (uname[0], uname[2], uname[4]))
     
     # Direct twisted log output to the debug level
     twistedTimestampLen = len('2006/02/10 23:59 PST ')

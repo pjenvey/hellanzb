@@ -12,7 +12,11 @@ handling is only enabled when SCROLL has been turned on (via scrollBegin())
 (c) Copyright 2005 Philip Jenvey
 [See end of file]
 """
-import heapq, logging, os, sys, termios, thread, types
+import heapq, logging, os, sys, thread, types
+try:
+    import termios
+except ImportError:
+    termios = None
 from logging import StreamHandler
 from logging.handlers import RotatingFileHandler
 from threading import Condition, Lock, RLock, Thread
@@ -380,7 +384,7 @@ class NZBLeecherTicker:
 
 def stdinEchoOff():
     """ ECHO OFF standard input """
-    if Hellanzb.DAEMONIZE or Hellanzb.DISABLE_SCROLLER:
+    if not termios or Hellanzb.DAEMONIZE or Hellanzb.DISABLE_SCROLLER:
         return
     
     from Hellanzb.Log import debug
@@ -404,7 +408,7 @@ def stdinEchoOff():
     
 def stdinEchoOn():
     """ ECHO ON standard input """
-    if Hellanzb.DAEMONIZE or Hellanzb.DISABLE_SCROLLER:
+    if not termios or Hellanzb.DAEMONIZE or Hellanzb.DISABLE_SCROLLER:
         return
     
     from Hellanzb.Log import debug

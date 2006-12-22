@@ -10,7 +10,6 @@ import distutils.util, md5, os, setup, shutil, sys, tarfile
 if sys.version >= '2.5':
     from hashlib import sha256
 from Hellanzb.Log import *
-from Hellanzb.Util import Ptyopen2
 
 __id__ = '$Id$'
 
@@ -18,6 +17,144 @@ VERSION_FILENAME = './Hellanzb/__init__.py'
 # rpm builds aren't very portable when built from FreeBSD machines.
 # srpms are useless
 #BDIST_RPM_REQUIRES = 'python >= 2.3 python-twisted pararchive rar flac shorten'
+
+import popen2, pty, re, signal, thread, time
+from Hellanzb.Util import SPLIT_CMDLINE_ARGS_RE
+# FIXME: Ptyopen has been deprecated by Topen (because we now used twisted all of the
+# time, all processes are ran through twisted). However it is still used by the build
+# scripts. they should be converted to normal popen, or the Ptyopen code should be moved
+# into the build code
+    
+# NOTE: Ptyopen, like popens, is odd with return codes and their status. You seem to be
+# able to get the correct *return code* from a Ptyopen.wait(), but you won't be able to
+# get the correct WCOREDUMP *status*. This is because pty/popen run your executable via
+# /bin/sh. The shell will relay the *return code* of the process back to python correctly,
+# but I suspect when you check for WCOREDUMP you're checking whether or not /bin/sh core
+# dumped, not your process. The solution to this is to pass the cmd as a list -- the cmd
+# and its args. This tells pty/popen to run the process directly instead of via /bin/sh,
+# and you get the right WCOREDUMP *status*
+class Ptyopen(popen2.Popen3):
+    def __init__(self, cmd, capturestderr = False, bufsize = -1):
+        """ Popen3 class (isn't this actually Popen4, capturestderr = False?) that uses ptys
+        instead of pipes, to allow inline reading (instead of potential i/o buffering) of
+        output from the child process. It also stores the cmd its running (as a string)
+        and the thread that created the object, for later use """
+        import pty
+        # NOTE: most of this is cutnpaste from Popen3 minus the openpty calls
+        #popen2._cleanup()
+        self.prettyCmd = cmd
+        cmd = self.parseCmdToList(cmd)
+        self.cmd = cmd
+        self.threadIdent = thread.get_ident()
+
+        p2cread, p2cwrite = pty.openpty()
+        c2pread, c2pwrite = pty.openpty()
+        if capturestderr:
+            errout, errin = pty.openpty()
+        self.pid = os.fork()
+        if self.pid == 0:
+            # Child
+            os.dup2(p2cread, 0)
+            os.dup2(c2pwrite, 1)
+            if capturestderr:
+                os.dup2(errin, 2)
+            self._run_child(cmd)
+        os.close(p2cread)
+        self.tochild = os.fdopen(p2cwrite, 'w', bufsize)
+        os.close(c2pwrite)
+        self.fromchild = os.fdopen(c2pread, 'r', bufsize)
+        if capturestderr:
+            os.close(errin)
+            self.childerr = os.fdopen(errout, 'r', bufsize)
+        else:
+            self.childerr = None
+
+    def parseCmdToList(self, cmd):
+        cleanDoubleQuotesRe = re.compile(r'^"|"$')
+        args = []
+        fields = SPLIT_CMDLINE_ARGS_RE.split(cmd)
+        for field in fields:
+            if field == '' or field == ' ':
+                continue
+            args.append(cleanDoubleQuotesRe.sub('', field))
+        return args
+
+    def getPid(self):
+        return self.pid
+
+    def kill(self):
+        os.kill(self.pid, signal.SIGKILL)
+
+    def poll(self):
+        """Return the exit status of the child process if it has finished,
+        or -1 if it hasn't finished yet."""
+        if self.sts < 0:
+            try:
+                pid, sts = os.waitpid(self.pid, os.WNOHANG)
+                if pid == self.pid:
+                    self.sts = sts
+            except os.error:
+                pass
+        return self.sts
+
+    def wait(self):
+        """Wait for and return the exit status of the child process."""
+        if self.sts < 0:
+            pid, sts = os.waitpid(self.pid, 0)
+            if pid == self.pid:
+                self.sts = sts
+        return self.sts
+
+    def readlinesAndWait(self):
+        """ Read lines and wait for the process to finish. Don't read the lines too
+        quickly, otherwise we could cause a deadlock with the scroller. Slow down the
+        reading by pausing shortly after every read """
+        output = []
+        while True:
+            line = self.fromchild.readline()
+            if line == '': # EOF
+                break
+            output.append(line)
+
+            # Somehow the scroll locks end up getting blocked unless their consumers pause
+            # as short as around 1/100th of a milli every loop. You might notice this
+            # delay when nzbget scrolling looks like a slightly different FPS from within
+            # hellanzb than running it directly
+            time.sleep(.0001)
+
+        returnStatus = self.wait()
+        return output, os.WEXITSTATUS(returnStatus)
+
+class Ptyopen2(Ptyopen):
+    """ Ptyopen = Popen3
+        Ptyopen2 = Popen4
+        Python was lame for naming it that way and I am just as lame
+        for following suit """
+    def __init__(self, cmd, bufsize = -1):
+        """ Popen3 class (isn't this actually Popen4, capturestderr = False?) that uses ptys
+        instead of pipes, to allow inline reading (instead of potential i/o buffering) of
+        output from the child process. It also stores the cmd its running (as a string)
+        and the thread that created the object, for later use """
+        import pty
+        #popen2._cleanup()
+        self.prettyCmd = cmd
+        cmd = self.parseCmdToList(cmd)
+        self.cmd = cmd
+        self.threadIdent = thread.get_ident()
+
+        p2cread, p2cwrite = pty.openpty()
+        c2pread, c2pwrite = pty.openpty()
+        self.pid = os.fork()
+        if self.pid == 0:
+            # Child
+            os.dup2(p2cread, 0)
+            os.dup2(c2pwrite, 1)
+            os.dup2(c2pwrite, 2)
+            self._run_child(cmd)
+        os.close(p2cread)
+        self.tochild = os.fdopen(p2cwrite, 'w', bufsize)
+        os.close(c2pwrite)
+        self.fromchild = os.fdopen(c2pread, 'r', bufsize)
 
 def assertUpToDate(workingCopyDir = None):
     """ Ensure the working copy is up to date with the repository """

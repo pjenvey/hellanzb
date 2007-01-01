@@ -432,14 +432,17 @@ def flattenDoc(docString):
 
 RENAME_SUFFIX = '_hellanzb_renamed'
 def hellaRename(filename):
-    """ rename a dupe file to filename _hellanzb_renamedX """
+    """ Rename a dupe file to filename _hellanzb_renamedX, and return the renamed filename
+    """
     if os.path.exists(filename):
         # Rename the dir if it exists already
-        renamedDir = filename + RENAME_SUFFIX
+        renamedPrefix = filename + RENAME_SUFFIX
         i = 0
-        while os.path.exists(renamedDir + str(i)):
+        while os.path.exists(renamedPrefix + str(i)):
             i += 1
-        move(filename, renamedDir + str(i))
+        renamed = renamedPrefix + str(i)
+        move(filename, renamed)
+        return renamed
 
 DUPE_SUFFIX = '_hellanzb_dupe'
 DUPE_SUFFIX_RE = re.compile('(.*)' + DUPE_SUFFIX + '(\d{1,4})$')

@@ -9,6 +9,8 @@ o Added optional support for converting MacBinary files
 
 o Now properly parsing v3.newzbin.com NZB names
 
+o No longer overwriting pre-existing files during rar extraction
+
 o Fixed a couple issues when antiIdle is disabled, including reconnection
   failures after connections are lost
 

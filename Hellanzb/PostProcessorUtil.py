@@ -513,7 +513,8 @@ def unrar(postProcessor, fileName, pathToExtract = None):
     if postProcessor.rarPassword != None:
         # Specify the password during the listing, in the case that the data AND headers
         # are passworded
-        listCmd = '%s l -y "-p%s" -- "%s"' % (Hellanzb.UNRAR_CMD, postProcessor.rarPassword, fileName)
+        listCmd = '%s l -y "-p%s" -- "%s"' % (Hellanzb.UNRAR_CMD,
+                                              postProcessor.rarPassword, fileName)
     else:
         listCmd = '%s l -y -p- -- "%s"' % (Hellanzb.UNRAR_CMD, fileName)
     t = Topen(listCmd, postProcessor)
@@ -523,10 +524,12 @@ def unrar(postProcessor, fileName, pathToExtract = None):
         # For CRC_ERROR (password failed) example:
         # Encrypted file:  CRC failed in h.rar (password incorrect ?)
         # FIXME: only sticky this growl if we're a background processor
-        growlNotify('Archive Error', 'hellanzb requires password', archiveName(postProcessor.dirName) + \
+        growlNotify('Archive Error', 'hellanzb requires password',
+                    archiveName(postProcessor.dirName) + \
                     ' requires a rar password for extraction', True)
-        raise FatalError('Cannot continue, this archive requires a RAR password. Run ' + sys.argv[0] + \
-                         ' -p on the archive directory with the -P option to specify a password')
+        raise FatalError('Cannot continue, this archive requires a RAR password. Run ' + \
+                             sys.argv[0] + \
+                             ' -p on the archive directory with the -P option to specify a password')
         
     elif listReturnCode > 0:
         errMsg = 'There was a problem during the rar listing, output:\n'
@@ -565,6 +568,29 @@ def unrar(postProcessor, fileName, pathToExtract = None):
         raise FatalError('Cannot continue, this archive requires a RAR password. Run ' + \
                          sys.argv[0] + \
                          ' -p on the archive directory with the -P option to specify a password')
+
+    # Ensure no files in this rar already exist on the filesystem (rename the ones on the
+    # filesystem that clash)
+    if postProcessor.rarPassword != None:
+        listCmd = '%s lb -y "-p%s" -- "%s"' % (Hellanzb.UNRAR_CMD,
+                                               postProcessor.rarPassword, fileName)
+    else:
+        listCmd = '%s lb -y -p- -- "%s"' % (Hellanzb.UNRAR_CMD, fileName)
+    t = Topen(listCmd, postProcessor)
+    output, listReturnCode = t.readlinesAndWait()
+    for line in output:
+        raredFile = line.rstrip('\r\n')
+        if not raredFile:
+            continue
+        pathToExtractPrefixLen = len(pathToExtract)
+        if not pathToExtract.endswith(os.sep):
+            pathToExtractPrefixLen = len(pathToExtract) + 1
+        clash = os.path.join(pathToExtract, raredFile)
+        if os.path.exists(clash):
+            renamed = hellaRename(clash)[pathToExtractPrefixLen:]
+            warn('%s: Renamed %s to %s (rar: %s has the same file)' % \
+                     (archiveName(postProcessor.dirName), raredFile, renamed,
+                      os.path.basename(fileName)))
 
     if isPassworded:
         cmd = '%s x -y -idp "-p%s" -- "%s" "%s"' % \

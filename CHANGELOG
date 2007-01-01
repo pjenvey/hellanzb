@@ -16,7 +16,8 @@ o Fixed a couple issues when antiIdle is disabled, including reconnection
 
 o antiIdle disabled connections now avoid connecting at startup, and
   disconnect immediately when there is nothing left to download. i.e. they
-  only are connected to the server when necessary.
+  only are connected to the server when necessary. antiIdle disabled fill
+  servers only connect when they have something to download. 
 
 v0.10:
 

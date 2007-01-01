@@ -571,6 +571,7 @@ def unrar(postProcessor, fileName, pathToExtract = None):
 
     # Ensure no files in this rar already exist on the filesystem (rename the ones on the
     # filesystem that clash)
+    renamedFiles = {}
     if postProcessor.rarPassword != None:
         listCmd = '%s lb -y "-p%s" -- "%s"' % (Hellanzb.UNRAR_CMD,
                                                postProcessor.rarPassword, fileName)
@@ -587,7 +588,8 @@ def unrar(postProcessor, fileName, pathToExtract = None):
             pathToExtractPrefixLen = len(pathToExtract) + 1
         clash = os.path.join(pathToExtract, raredFile)
         if os.path.exists(clash):
-            renamed = hellaRename(clash)[pathToExtractPrefixLen:]
+            renamed = renamedFiles[clash] = hellaRename(clash)
+            renamed = renamed[pathToExtractPrefixLen:]
             warn('%s: Renamed %s to %s (rar: %s has the same file)' % \
                      (archiveName(postProcessor.dirName), raredFile, renamed,
                       os.path.basename(fileName)))
@@ -601,7 +603,13 @@ def unrar(postProcessor, fileName, pathToExtract = None):
     
     info(archiveName(postProcessor.dirName) + ': Unraring ' + os.path.basename(fileName) + '..')
     t = Topen(cmd, postProcessor)
-    output, unrarReturnCode = t.readlinesAndWait()
+    try:
+        output, unrarReturnCode = t.readlinesAndWait()
+    except SystemExit:
+        # Rename the renamed files
+        for orig, renamed in renamedFiles.iteritems():
+            move(renamed, orig)
+        raise
 
     if unrarReturnCode > 0:
         errMsg = 'There was a problem during unrar, output:\n\n'

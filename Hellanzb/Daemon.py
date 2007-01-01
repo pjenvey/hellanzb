@@ -289,9 +289,32 @@ def endDownload():
     writeStateXML()
     # END
 
+def disconnectUnAntiIdleFactories():
+    """ Disconnect antiIdle==0 factories when there's nothing left to download """
+    if len(Hellanzb.queue.nzbs):
+        return
+
+    # Nothing left to download. Immediately disconnect antiIdleTimeout factories
+    for nsf in Hellanzb.nsfs:
+        debug('Empty NZB queue: disconnecting %s (antiIdle is 0)' % nsf.serverPoolName)
+        if nsf.antiIdleTimeout == 0:
+            for client in nsf.clients:
+                client.transport.loseConnection()
+
+                # NOTE: WEIRD: after pool-coop branch, I have to force this to prevent
+                # fetchNextNZBSegment from re-calling the fetch loop (it gets called
+                # twice. the parseNZB->beginDownload->fetchNext call is made before
+                # the client gets to call connectionLost). or has this problem always
+                # existed??? See r403
+                client.isLoggedIn = False
+
+                client.deactivate()
+
 def handleNZBDone(nzb):
     """ Hand-off from the downloader -- make a dir for the NZB with its contents, then post
     process it in a separate thread"""
+    disconnectUnAntiIdleFactories()
+
     downloadTime = 0
     # Print download statistics when something was downloaded (have an
     # nzb.downloadStartTime). Otherwise we might have simply parsed the NZB and found the

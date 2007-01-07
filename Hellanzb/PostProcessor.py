@@ -28,6 +28,9 @@ class PostProcessor(Thread):
         """ Ensure sanity of this instance before starting """
         # The archive to post process
         self.archive = archive
+	
+	# Determine the newzbin catagory of the archive
+	self.catagory = archive.catagory
     
         # DirName is a hack printing out the correct directory name when running nested
         # post processors on sub directories
@@ -179,7 +182,7 @@ class PostProcessor(Thread):
 
             elif os.path.isdir(self.dirName):
                 # A dir in the processing dir, move it to DEST
-                newdir = os.path.join(Hellanzb.DEST_DIR, os.path.basename(self.dirName))
+                newdir = os.path.join(Hellanzb.DEST_DIR, self.catagory, os.path.basename(self.dirName))
                 hellaRename(newdir)
                 move(self.dirName, newdir)
                 
@@ -237,7 +240,7 @@ class PostProcessor(Thread):
 
             e = time.time() - self.startTime 
             dispatchExternalHandler(ERROR, archiveName=archive,
-                                    destDir=os.path.join(Hellanzb.DEST_DIR, archive),
+                                    destDir=os.path.join(Hellanzb.DEST_DIR, self.catagory, archive),
                                     elapsedTime=prettyElapsed(e),
                                     parMessage='A problem occurred: %s' % pe)
 
@@ -407,7 +410,7 @@ class PostProcessor(Thread):
             info('%s: Finished processing (took: %s)%s%s' % (archive, 
                                                            elapsed, totalTime, parMessage))
             dispatchExternalHandler(SUCCESS, archiveName=archive,
-                                    destDir=os.path.join(Hellanzb.DEST_DIR, archive),
+                                    destDir=os.path.join(Hellanzb.DEST_DIR, self.catagory, archive),
                                     elapsedTime=prettyElapsed(e),
                                     parMessage=parMessage)
 

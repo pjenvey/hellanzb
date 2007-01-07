@@ -181,7 +181,14 @@ class PostProcessor(Thread):
                 os.remove(self.dirName)
 
             elif os.path.isdir(self.dirName):
-                # A dir in the processing dir, move it to DEST
+		if not os.path.isdir(os.path.join(Hellanzb.DEST_DIR, self.catagory)):
+            		try:
+               			os.makedirs(os.path.join(Hellanzb.DEST_DIR, self.catagory))
+            		except OSError, ose:
+                		raise FatalError('Unable to create directory for catagory: ' + \
+                                os.path.join(Hellanzb.DEST_DIR, self.catagory)  + \
+				' error: ' + str(ose))                
+		# A dir in the processing dir, move it to DEST
                 newdir = os.path.join(Hellanzb.DEST_DIR, self.catagory, os.path.basename(self.dirName))
                 hellaRename(newdir)
                 move(self.dirName, newdir)

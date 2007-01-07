@@ -93,6 +93,10 @@ Hellanzb.PROCESSED_SUBDIR = 'processed'
 # for a record of what hellanzb deletes
 Hellanzb.DELETE_PROCESSED = True
 
+# Save NZBs into Newzbin catagory in DEST_DIR when queued
+# using enqueuenewzbin XMLRPC call
+Hellanzb.CATAGORY = True
+
 # Disable SMART_PAR (download all PAR files)
 #Hellanzb.SMART_PAR = False
 

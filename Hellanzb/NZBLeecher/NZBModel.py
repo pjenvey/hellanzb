@@ -38,7 +38,6 @@ class NZB(Archive):
         self.nzbFiles = []
         self.skippedParFiles = []
 	self.catagory = catagory
-	info('The catagory of this nzb is: ' + catagory)
 
         ## Where the nzb files will be downloaded
         self.destDir = Hellanzb.WORKING_DIR

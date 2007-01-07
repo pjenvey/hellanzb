@@ -295,7 +295,7 @@ class NZB(Archive):
                     xmlWriter.element('skippedPar', skippedParFileSubject)
         xmlWriter.end(type)
 
-    def fromStateXML(type, target, catagory):
+    def fromStateXML(type, target, catagory = ''):
         """ Factory method, returns a new NZB object for the specified target, and recovers
         the NZB state from the RecoveredState object if the target exists there for
         the specified type (such as 'processing', 'downloading') """

@@ -6,7 +6,7 @@ I don't particularly like this feature -- it's bound to break the minute newzbin
 its website around, and I personally don't find it all that useful. Alas I see why some
 people might want it so here it is -pjenvey
 
-(c) Copyright 2007 Dan Bordello
+(c) Copyright 2007 Dan Borello
 [See end of file]
 """
 import os, httplib, threading, urllib, Hellanzb.NZBQueue
@@ -75,7 +75,7 @@ class NewzbinDownloader(NZBDownloader, threading.Thread):
     canDownload = staticmethod(canDownload)
 
 """
-Copyright (c) 2007 Dan Bordello
+Copyright (c) 2007 Dan Borello
 All rights reserved.
 
 Redistribution and use in source and binary forms, with or without

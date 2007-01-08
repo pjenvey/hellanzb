@@ -22,16 +22,13 @@ class PostProcessor(Thread):
 
     # These attributes are routed to self.archive via __getattr__/__setattr__
     archiveAttrs = ('id', 'isParRecovery', 'rarPassword', 'deleteProcessed', 'skipUnrar',
-                    'toStateXML', 'msgid')
+                    'toStateXML', 'msgid', 'category')
 
     def __init__(self, archive, background = True, subDir = None):
         """ Ensure sanity of this instance before starting """
         # The archive to post process
         self.archive = archive
 	
-	# Determine the newzbin category of the archive
-	self.category = archive.category
-    
         # DirName is a hack printing out the correct directory name when running nested
         # post processors on sub directories
         if subDir:
@@ -183,13 +180,15 @@ class PostProcessor(Thread):
             elif os.path.isdir(self.dirName):
 		if not os.path.isdir(os.path.join(Hellanzb.DEST_DIR, self.category)):
             		try:
-               			os.makedirs(os.path.join(Hellanzb.DEST_DIR, self.category))
+               			os.makedirs(os.path.join(Hellanzb.DEST_DIR,
+                                                         self.category))
             		except OSError, ose:
                 		raise FatalError('Unable to create directory for category: ' + \
                                 os.path.join(Hellanzb.DEST_DIR, self.category)  + \
 				' error: ' + str(ose))                
 		# A dir in the processing dir, move it to DEST
-                newdir = os.path.join(Hellanzb.DEST_DIR, self.category, os.path.basename(self.dirName))
+                newdir = os.path.join(Hellanzb.DEST_DIR, self.category,
+                                      os.path.basename(self.dirName))
                 hellaRename(newdir)
                 move(self.dirName, newdir)
                 

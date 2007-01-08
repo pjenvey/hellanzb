@@ -24,7 +24,8 @@ __id__ = '$Id$'
 class NZB(Archive):
     """ Representation of an nzb file -- the root <nzb> tag """
     
-    def __init__(self, nzbFileName, id = None, rarPassword = None, archiveDir = None, category = ''):
+    def __init__(self, nzbFileName, id = None, rarPassword = None, archiveDir = None,
+                 category = None):
         Archive.__init__(self, archiveDir, id, None, rarPassword)
             
         ## NZB file general information
@@ -266,6 +267,8 @@ class NZB(Archive):
             attribs['downloadTime'] = str(self.downloadTime)
         if not self.calculatingBytes and self.totalBytes > 0:
             attribs['totalBytes'] = str(self.totalBytes)
+        if self.category:
+            attribs['category'] = self.category
 
         return attribs
 
@@ -295,7 +298,7 @@ class NZB(Archive):
                     xmlWriter.element('skippedPar', skippedParFileSubject)
         xmlWriter.end(type)
 
-    def fromStateXML(type, target, category = ''):
+    def fromStateXML(type, target):
         """ Factory method, returns a new NZB object for the specified target, and recovers
         the NZB state from the RecoveredState object if the target exists there for
         the specified type (such as 'processing', 'downloading') """
@@ -319,7 +322,7 @@ class NZB(Archive):
         if recoveredDict:
             nzbId = recoveredDict['id']
 
-        nzb = NZB(target, nzbId, category = category)
+        nzb = NZB(target, nzbId)
         
         if type == 'processing':
             nzb.archiveDir = archiveDir

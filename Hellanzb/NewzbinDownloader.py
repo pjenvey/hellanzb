@@ -16,48 +16,51 @@ from Hellanzb.NZBDownloader import NZBDownloader
 __id__ = '$Id$'
 
 class NewzbinDownloader(object):
+    """Download the NZB file with the specified msgid from newzbin.com via
+    their DirectNZB interface, by instantiating this class and calling
+    download()"""
 
-        def download(self, msgId):
-                """Fetch an NZB from newzbin.com and add it to the queue."""
-                info('Downloading newzbin ID: ' + msgId)
-                params = urllib.urlencode({'username': Hellanzb.NEWZBIN_USERNAME,
-                                           'password': Hellanzb.NEWZBIN_PASSWORD,
-                                           'reportid': msgId})
-                headers = {"Content-type": "application/x-www-form-urlencoded",
-                           "Accept": "text/plain"}
-                conn = httplib.HTTPConnection("v3.newzbin.com")
-                conn.request("POST", "/dnzb/", params, headers)
-                response = conn.getresponse()
-                if not response.getheader('X-DNZB-RCode') == '200':             
-                        error('Unable to download newzbin NZB: %s (%s: %s)' % \
-                                      (msgId, response.getheader('X-DNZB-RCode', 'No Code'),
-                                       response.getheader('X-DNZB-RText', 'No Error Text')))
-                                                                 
-                        return
-                cleanName = response.getheader('X-DNZB-Name').replace('/','').replace('\\','')
-                dest = os.path.join(Hellanzb.QUEUE_DIR, '%s_%s.nzb' % (msgId, cleanName))
+    def download(self, msgId):
+        """Fetch an NZB from newzbin.com and add it to the queue."""
+        info('Downloading newzbin ID: ' + msgId)
+        params = urllib.urlencode({'username': Hellanzb.NEWZBIN_USERNAME,
+                                   'password': Hellanzb.NEWZBIN_PASSWORD,
+                                   'reportid': msgId})
+        headers = {"Content-type": "application/x-www-form-urlencoded",
+                   "Accept": "text/plain"}
+        conn = httplib.HTTPConnection("v3.newzbin.com")
+        conn.request("POST", "/dnzb/", params, headers)
+        response = conn.getresponse()
+        if not response.getheader('X-DNZB-RCode') == '200':
+                error('Unable to download newzbin NZB: %s (%s: %s)' % \
+                              (msgId, response.getheader('X-DNZB-RCode', 'No Code'),
+                               response.getheader('X-DNZB-RText', 'No Error Text')))
 
-                # Pass category information on
-                category = None
-                if Hellanzb.CATEGORIZE_DEST:
-                        category = response.getheader('X-DNZB-Category')                
-                
-                out = open(dest, 'wb')
-                out.write(response.read())
-                out.close
-                conn.close()
-                
-                Hellanzb.NZBQueue.enqueueNZBs(dest, category = category)
-                return True
+                return
+        cleanName = response.getheader('X-DNZB-Name').replace('/','').replace('\\','')
+        dest = os.path.join(Hellanzb.QUEUE_DIR, '%s_%s.nzb' % (msgId, cleanName))
+         # Pass category information on
+        category = None
 
-        def canDownload():
-                """ Whether or not the conf file supplied www.newzbin.com login info """
-                noInfo = lambda var : not hasattr(Hellanzb, var) or getattr(Hellanzb, var) == None
-                if noInfo('NEWZBIN_USERNAME') or noInfo('NEWZBIN_PASSWORD'):
-                        return False
-                return True
+        if Hellanzb.CATEGORIZE_DEST:
+                category = response.getheader('X-DNZB-Category')
 
-        canDownload = staticmethod(canDownload)
+        out = open(dest, 'wb')
+        out.write(response.read())
+        out.close()
+        conn.close()
+
+        Hellanzb.NZBQueue.enqueueNZBs(dest, category = category)
+        return True
+
+    def canDownload():
+        """ Whether or not the conf file supplied www.newzbin.com login info """
+        noInfo = lambda var : not hasattr(Hellanzb, var) or getattr(Hellanzb, var) == None
+        if noInfo('NEWZBIN_USERNAME') or noInfo('NEWZBIN_PASSWORD'):
+                return False
+        return True
+
+    canDownload = staticmethod(canDownload)
 
 """
 Copyright (c) 2007 Dan Bordello

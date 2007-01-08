@@ -1,10 +1,7 @@
 """
 
-NewzbinDownloader - Downloads NZBs directly from www.newzbin.com
-
-I don't particularly like this feature -- it's bound to break the minute newzbin changes
-its website around, and I personally don't find it all that useful. Alas I see why some
-people might want it so here it is -pjenvey
+NewzbinDownloader - Downloads NZBs directly from v3.newzbin.com via the
+DirectNZB API.
 
 (c) Copyright 2007 Dan Borello
 [See end of file]

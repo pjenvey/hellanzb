@@ -320,16 +320,6 @@ def _writeStateXML(outFile):
     
     h = writer.start('hellanzbState', {'version': Hellanzb.version})
 
-    filteredCookie = {}
-    for cookieKey in ('PHPSESSID', 'expires', 'Hellanzb-NEWZBIN_USERNAME',
-                      'Hellanzb-ENCRYPTED_NEWZBIN_PASSWORD'):
-        val = NewzbinDownloader.cookies.get(cookieKey)
-        if val is not None:
-            filteredCookie[cookieKey] = val
-
-    if len(filteredCookie):
-        writer.element('newzbinCookie', None, filteredCookie)
-
     Hellanzb.postProcessorLock.acquire()
     postProcessors = Hellanzb.postProcessors[:]
     Hellanzb.postProcessorLock.release()

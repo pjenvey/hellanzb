@@ -140,8 +140,8 @@ class HellaXMLRPCServer(XMLRPC):
             faultMsg = 'Unable to enqueue NZB, Hellanzb.NEWZBIN_USERNAME and or ' \
                 'Hellanzb.NEWZBIN_PASSWORD were not supplied in the conf file'
             raise Fault(9001, faultMsg)
-        newzdl = NewzbinDownloader(str(nzbId))
-        newzdl.download()
+        newzdl = NewzbinDownloader()
+        newzdl.download(str(nzbId))
         return self.xmlrpc_status()
 
     xmlrpc_enqueuenewzbin.signature = [ ['struct', 'string'],

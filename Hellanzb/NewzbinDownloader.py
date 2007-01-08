@@ -9,36 +9,45 @@ people might want it so here it is -pjenvey
 (c) Copyright 2007 Dan Bordello
 [See end of file]
 """
-import os, httplib, urllib, Hellanzb.NZBQueue
+import os, httplib, threading, urllib, Hellanzb.NZBQueue
 from Hellanzb.Log import *
 from Hellanzb.NZBDownloader import NZBDownloader
 
 __id__ = '$Id$'
 
-class NewzbinDownloader(object):
+class NewzbinDownloader(NZBDownloader, threading.Thread):
     """Download the NZB file with the specified msgid from newzbin.com via
     their DirectNZB interface, by instantiating this class and calling
     download()"""
 
-    def download(self, msgId):
+    def __init__(self, msgId):
+        threading.Thread.__init__(self)
+        self.msgId = msgId
+
+    def download(self):
+        self.start()
+
+    def run(self):
         """Fetch an NZB from newzbin.com and add it to the queue."""
-        info('Downloading newzbin ID: ' + msgId)
+        info('Downloading newzbin ID: ' + self.msgId)
         params = urllib.urlencode({'username': Hellanzb.NEWZBIN_USERNAME,
                                    'password': Hellanzb.NEWZBIN_PASSWORD,
-                                   'reportid': msgId})
-        headers = {"Content-type": "application/x-www-form-urlencoded",
-                   "Accept": "text/plain"}
+                                   'reportid': self.msgId})
+        headers = {'User-Agent': self.AGENT,
+                   'Content-type': 'application/x-www-form-urlencoded',
+                   'Accept': 'text/plain'}
         conn = httplib.HTTPConnection("v3.newzbin.com")
-        conn.request("POST", "/dnzb/", params, headers)
+        conn.request("POST", '/dnzb/', params, headers)
         response = conn.getresponse()
         if not response.getheader('X-DNZB-RCode') == '200':
                 error('Unable to download newzbin NZB: %s (%s: %s)' % \
-                              (msgId, response.getheader('X-DNZB-RCode', 'No Code'),
+                              (self.msgId,
+                               response.getheader('X-DNZB-RCode', 'No Code'),
                                response.getheader('X-DNZB-RText', 'No Error Text')))
 
                 return
         cleanName = response.getheader('X-DNZB-Name').replace('/','').replace('\\','')
-        dest = os.path.join(Hellanzb.QUEUE_DIR, '%s_%s.nzb' % (msgId, cleanName))
+        dest = os.path.join(Hellanzb.TEMP_DIR, '%s_%s.nzb' % (self.msgId, cleanName))
          # Pass category information on
         category = None
 
@@ -52,6 +61,9 @@ class NewzbinDownloader(object):
 
         Hellanzb.NZBQueue.enqueueNZBs(dest, category = category)
         return True
+    
+    def __str__(self): 
+        return '%s(%s):' % (self.__class__.__name__, self.msgId) 
 
     def canDownload():
         """ Whether or not the conf file supplied www.newzbin.com login info """

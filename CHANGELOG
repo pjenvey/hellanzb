@@ -1,5 +1,10 @@
 v0.11:
 
+o Added the Hellanzb.CATEGORIZE_DEST option. Enabling it saves archives
+  into a sub directory of DEST_DIR named after their newzbin.com
+  category (when queued using the enqueuenewzbin XMLRPC call); e.g. Apps,
+  Movies, Music
+
 o Added support for fillservers (by priority)
 
 o Now requeueing segments to other servers when they fail yDecode CRC

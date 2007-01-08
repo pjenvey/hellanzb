@@ -28,7 +28,7 @@ class PostProcessor(Thread):
         """ Ensure sanity of this instance before starting """
         # The archive to post process
         self.archive = archive
-	
+        
         # DirName is a hack printing out the correct directory name when running nested
         # post processors on sub directories
         if subDir:
@@ -178,15 +178,15 @@ class PostProcessor(Thread):
                 os.remove(self.dirName)
 
             elif os.path.isdir(self.dirName):
-		if not os.path.isdir(os.path.join(Hellanzb.DEST_DIR, self.category)):
-            		try:
-               			os.makedirs(os.path.join(Hellanzb.DEST_DIR,
+                if not os.path.isdir(os.path.join(Hellanzb.DEST_DIR, self.category)):
+                        try:
+                                os.makedirs(os.path.join(Hellanzb.DEST_DIR,
                                                          self.category))
-            		except OSError, ose:
-                		raise FatalError('Unable to create directory for category: ' + \
+                        except OSError, ose:
+                                raise FatalError('Unable to create directory for category: ' + \
                                 os.path.join(Hellanzb.DEST_DIR, self.category)  + \
-				' error: ' + str(ose))                
-		# A dir in the processing dir, move it to DEST
+                                ' error: ' + str(ose))                
+                # A dir in the processing dir, move it to DEST
                 newdir = os.path.join(Hellanzb.DEST_DIR, self.category,
                                       os.path.basename(self.dirName))
                 hellaRename(newdir)

@@ -118,8 +118,8 @@ def loadConfig(fileName):
         if not hasattr(Hellanzb, 'SMART_PAR'):
             Hellanzb.SMART_PAR = True
 
-        if not hasattr(Hellanzb, 'CATAGORY'):
-            Hellanzb.CATAGORY = False
+        if not hasattr(Hellanzb, 'CATEGORIZE_DEST'):
+            Hellanzb.CATEGORIZE_DEST = False
 
         if not hasattr(Hellanzb, 'OTHER_NZB_FILE_TYPES'):
             # By default, just match .nzb files in the queue dir

@@ -23,17 +23,17 @@ class NewzbinDownloader(NZBDownloader):
 		info('Newzbin nzb ID: ' + msgId + ' downloaded successfully')
 		dest = Hellanzb.QUEUE_DIR  + response.getheader('X-DNZB-Name').replace('/','').replace('\\','') + '.nzb'
 
-		#Pass catagory information on
-		catagory = ''		
-		if Hellanzb.CATAGORY:
-			catagory = response.getheader('X-DNZB-Category')		
+		#Pass category information on
+		category = ''		
+		if Hellanzb.CATEGORIZE_DEST:
+			category = response.getheader('X-DNZB-Category')		
 		
 		out = open(dest, 'wb')
 		out.write(response.read())
 		out.close
 		conn.close()
 		
-		Hellanzb.NZBQueue.enqueueNZBs(dest, catagory = catagory )
+		Hellanzb.NZBQueue.enqueueNZBs(dest, category = category)
 
 		return True
 

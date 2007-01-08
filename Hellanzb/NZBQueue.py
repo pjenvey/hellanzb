@@ -581,7 +581,7 @@ def enqueueNZBData(nzbFilename, nzbData):
     enqueueNZBs(tempLocation)
     os.remove(tempLocation)
     
-def enqueueNZBs(nzbFileOrFiles, next = False, writeQueue = True, catagory = ''):
+def enqueueNZBs(nzbFileOrFiles, next = False, writeQueue = True, category = ''):
     """ add one or a list of nzb files to the end of the queue """
     if isinstance(nzbFileOrFiles, list) or isinstance(nzbFileOrFiles, tuple):
         newNzbFiles = nzbFileOrFiles
@@ -608,7 +608,7 @@ def enqueueNZBs(nzbFileOrFiles, next = False, writeQueue = True, catagory = ''):
 
             from Hellanzb.NZBLeecher.NZBModel import NZB
             name = os.path.basename(nzbFile)
-            nzb = NZB.fromStateXML('queued', nzbFile, catagory = catagory)
+            nzb = NZB.fromStateXML('queued', nzbFile, category = category)
             if not next:
                 Hellanzb.nzbQueue.append(nzb)
             else:

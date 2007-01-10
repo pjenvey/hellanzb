@@ -6,7 +6,7 @@ DirectNZB API.
 (c) Copyright 2007 Dan Borello
 [See end of file]
 """
-import os, httplib, threading, urllib, Hellanzb.NZBQueue
+import os, time, random, httplib, threading, urllib, Hellanzb.NZBQueue
 from Hellanzb.Log import *
 from Hellanzb.NZBDownloader import NZBDownloader
 
@@ -26,17 +26,21 @@ class NewzbinDownloader(NZBDownloader, threading.Thread):
 
     def run(self):
         """Fetch an NZB from newzbin.com and add it to the queue."""
-        info('Downloading newzbin ID: ' + self.msgId)
-        params = urllib.urlencode({'username': Hellanzb.NEWZBIN_USERNAME,
-                                   'password': Hellanzb.NEWZBIN_PASSWORD,
-                                   'reportid': self.msgId})
-        headers = {'User-Agent': self.AGENT,
-                   'Content-type': 'application/x-www-form-urlencoded',
-                   'Accept': 'text/plain'}
-        conn = httplib.HTTPConnection("v3.newzbin.com")
-        conn.request("POST", '/dnzb/', params, headers)
-        response = conn.getresponse()
-        if not response.getheader('X-DNZB-RCode') == '200':
+	response = self.attemptDownload()
+        attempt = 1
+        while not response.getheader('X-DNZB-RCode') == '200':
+            if response.getheader('X-DNZB-RCode') == '450':
+		if attempt >= 5:
+		    error('Unable to download newzbin NZB: %s due to rate limiting.  Will not retry' % (self.msgId))
+		    return
+		#This is a poor way to do this.  Should actually calculate wait time.
+                wait = round(int(response.getheader('X-DNZB-RText').split(' ')[3]) + \
+			random.random()*30,0)
+                error('Unable to download newzbin NZB: %s (Attempt: %s) will retry in %i seconds' % (self.msgId, attempt, wait))
+		time.sleep(wait)
+		response = self.attemptDownload()
+		attempt += 1		
+            else:    
                 error('Unable to download newzbin NZB: %s (%s: %s)' % \
                               (self.msgId,
                                response.getheader('X-DNZB-RCode', 'No Code'),
@@ -54,7 +58,7 @@ class NewzbinDownloader(NZBDownloader, threading.Thread):
         out = open(dest, 'wb')
         out.write(response.read())
         out.close()
-        conn.close()
+        
 
         Hellanzb.NZBQueue.enqueueNZBs(dest, category = category)
         return True
@@ -68,6 +72,21 @@ class NewzbinDownloader(NZBDownloader, threading.Thread):
         if noInfo('NEWZBIN_USERNAME') or noInfo('NEWZBIN_PASSWORD'):
                 return False
         return True
+
+    def attemptDownload(self):
+        """Attempt to fetch nzb, return headers and nzb"""
+        info('Downloading newzbin ID: ' + self.msgId)
+        params = urllib.urlencode({'username': Hellanzb.NEWZBIN_USERNAME,
+                                   'password': Hellanzb.NEWZBIN_PASSWORD,
+                                   'reportid': self.msgId})
+        headers = {'User-Agent': self.AGENT,
+                   'Content-type': 'application/x-www-form-urlencoded',
+                   'Accept': 'text/plain'}
+        conn = httplib.HTTPConnection("v3.newzbin.com")
+        conn.request("POST", '/dnzb/', params, headers)
+	response = conn.getresponse()
+	conn.close()
+	return response
 
     canDownload = staticmethod(canDownload)
 

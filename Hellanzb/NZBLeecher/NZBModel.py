@@ -25,7 +25,7 @@ class NZB(Archive):
     """ Representation of an nzb file -- the root <nzb> tag """
     
     def __init__(self, nzbFileName, id = None, rarPassword = None, archiveDir = None,
-                 category = None):
+                 category = ''):
         Archive.__init__(self, archiveDir, id, None, rarPassword)
             
         ## NZB file general information

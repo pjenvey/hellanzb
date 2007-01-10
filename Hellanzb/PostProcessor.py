@@ -142,6 +142,9 @@ class PostProcessor(Thread):
             if not self.killed and not self.isSubDir and self.background:
                 Hellanzb.writeStateXML()
 
+        # When a Post Processor fails, we end up moving the destDir here
+        self.moveDestDir() 
+
         # FIXME: This isn't the best place to GC. The best place would be when a download
         # is finished (idle NZBLeecher) but with smartpar, finding an idle NZBLeecher is
         # tricky
@@ -155,9 +158,6 @@ class PostProcessor(Thread):
                 self.callback()
                 return
             
-        # When a Post Processor fails, we end up moving the destDir here
-        self.moveDestDir() 
-
         if not self.background and not self.isSubDir:
             # We're not running in the background of a downloader -- we're post processing
             # and then immeidately exiting (-Lp)

@@ -14,8 +14,8 @@ from Hellanzb.Log import *
 from Hellanzb.Logging import prettyException, LogOutputStream
 from Hellanzb.NZBQueue import dequeueNZBs, recoverStateFromDisk, parseNZB, \
     scanQueueDir, writeStateXML
-from Hellanzb.Util import archiveName, ensureDirs, getMsgId, hellaRename, isWindows, \
-    prettyElapsed, prettySize, touch, validNZB, IDPool
+from Hellanzb.Util import archiveName, daemonize, ensureDirs, getMsgId, hellaRename, \
+    isWindows, prettyElapsed, prettySize, touch, validNZB, IDPool
 
 __id__ = '$Id$'
 
@@ -96,7 +96,6 @@ def initDaemon():
     reactor.callLater(0, recoverStateAndBegin)
 
     if not isWindows() and Hellanzb.DAEMONIZE:
-        from twisted.scripts.twistd import daemonize
         daemonize()
 
     if not isWindows() and hasattr(Hellanzb, 'UMASK'):

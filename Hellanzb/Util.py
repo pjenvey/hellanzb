@@ -5,7 +5,7 @@ Util - hellanzb misc functions
 (c) Copyright 2005 Philip Jenvey, Ben Bangert
 [See end of file]
 """
-import os, re, signal, string, sys, thread, Hellanzb
+import errno, os, re, signal, string, sys, thread, Hellanzb
 try:
     from distutils import spawn
 except:
@@ -797,6 +797,24 @@ def cmVersion(version = Hellanzb.version):
 def cmHella(version = Hellanzb.version):
     """ brand the ascii with a properly formatted version number """
     return Hellanzb.CMHELLA_VERSIONED % (cmVersion(version))
+
+def daemonize():
+    """ From twisted's twisted.scripts.twistd """
+    # See http://www.erlenstar.demon.co.uk/unix/faq_toc.html#TOC16
+    if os.fork():   # launch child and...
+        os._exit(0) # kill off parent
+    os.setsid()
+    if os.fork():   # launch child and...
+        os._exit(0) # kill off parent again.
+    os.umask(077)
+    null=os.open('/dev/null', os.O_RDWR)
+    for i in range(3):
+        try:
+            os.dup2(null, i)
+        except OSError, e:
+            if e.errno != errno.EBADF:
+                raise
+    os.close(null)
 
 """
 Copyright (c) 2005 Philip Jenvey <pjenvey@groovie.org>

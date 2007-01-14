@@ -1223,7 +1223,6 @@ def dispatchExternalHandler(type, **info):
         return
 
     # FIXME: daemonize/os.fork/etc doesn't work on Windows
-    from twisted.scripts.twistd import daemonize
     type = type is SUCCESS and 'SUCCESS' or 'ERROR'
 
     # the info dict should include four params, archive name, archive dest dir, elapsed

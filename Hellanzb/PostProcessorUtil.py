@@ -307,7 +307,17 @@ def isMacBin(fileName):
     ext = getFileExtension(fileName)
     if not ext:
         return False
-    return ext.lower() == 'bin'
+    if not ext.lower() == 'bin':
+        return False
+
+    fh = open(fileName)
+    fh.seek(102)
+    mark = fh.read(4)
+    fh.close()
+    if mark == 'mBIN':
+        return True
+
+    return False
 
 def getParName(parType):
     """ Return the name of the given parType """

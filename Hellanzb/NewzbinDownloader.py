@@ -47,7 +47,7 @@ class NewzbinDownloader(NZBDownloader, threading.Thread):
                                response.getheader('X-DNZB-RText', 'No Error Text')))
 
                 return
-        cleanName = response.getheader('X-DNZB-Name').replace('/','').replace('\\','')
+        cleanName = response.getheader('X-DNZB-Name').replace('/','_').replace('\\','_')
         dest = os.path.join(Hellanzb.TEMP_DIR, '%s_%s.nzb' % (self.msgId, cleanName))
          # Pass category information on
         category = None

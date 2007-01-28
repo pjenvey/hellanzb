@@ -6,7 +6,8 @@ DirectNZB API.
 (c) Copyright 2007 Dan Borello
 [See end of file]
 """
-import os, time, random, httplib, threading, urllib, Hellanzb.NZBQueue
+import httplib, os, random, shutil, time, threading, urllib, Hellanzb.NZBQueue
+from twisted.internet import reactor
 from Hellanzb.Log import *
 from Hellanzb.NZBDownloader import NZBDownloader
 
@@ -56,15 +57,20 @@ class NewzbinDownloader(NZBDownloader, threading.Thread):
                 category = response.getheader('X-DNZB-Category')
 
         out = open(dest, 'wb')
-        out.write(response.read())
+        shutil.copyfileobj(response, out)
         out.close()
-        
 
-        Hellanzb.NZBQueue.enqueueNZBs(dest, category = category)
+        reactor.callFromThread(self.enqueue, dest, category)
         return True
     
-    def __str__(self): 
-        return '%s(%s):' % (self.__class__.__name__, self.msgId) 
+    def __str__(self):
+        return '%s(%s):' % (self.__class__.__name__, self.msgId)
+
+    def enqueue(self, file, category):
+        """ Enqueue the file, then delete it when finished. Intended to be called within
+        the reactor """
+        Hellanzb.NZBQueue.enqueueNZBs(file, category = category)
+        os.remove(file)
 
     def canDownload():
         """ Whether or not the conf file supplied www.newzbin.com login info """

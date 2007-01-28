@@ -51,7 +51,7 @@ class Archive(object):
 
         self.isParRecovery = False # always False for normal Archives
         self.msgid = None # always None for Archives
-        self.category = None # always None for Archives
+        self.category = '' # always '' for Archives
         
     def getName(self):
         """ Return the name of this archive for display """

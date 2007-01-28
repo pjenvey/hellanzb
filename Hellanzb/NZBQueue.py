@@ -8,7 +8,7 @@ Hellanzb.nzbQueue
 (c) Copyright 2005 Philip Jenvey
 [See end of file]
 """
-import gc, os, re, shutil, time, zipfile, Hellanzb, Hellanzb.Daemon
+import gc, gzip, os, re, shutil, time, zipfile, Hellanzb, Hellanzb.Daemon
 from shutil import copy, move, rmtree
 from twisted.internet import reactor
 from xml.sax import make_parser, SAXParseException
@@ -141,50 +141,20 @@ def scanQueueDir(firstRun = False, justScan = False):
         queuedMap[os.path.normpath(nzb.nzbFileName)] = nzb
 
     for file in os.listdir(Hellanzb.QUEUE_DIR):
+        if file in Hellanzb.queueDirIgnore or \
+                not isOldEnough(os.path.join(Hellanzb.QUEUE_DIR, file)):
+            continue
+
         if Hellanzb.NZB_FILE_RE.search(file):
             if os.path.normpath(os.path.join(Hellanzb.QUEUE_DIR, file)) not in queuedMap:
-                # Delay enqueueing recently modified NZBs
-                if not isOldEnough(os.path.join(Hellanzb.QUEUE_DIR, file)):
-                    continue
                 
                 newNZBs.append(os.path.join(Hellanzb.QUEUE_DIR, file))
 
             elif os.path.normpath(os.path.join(Hellanzb.QUEUE_DIR, file)) in queuedMap:
                 queuedMap.pop(os.path.normpath(os.path.join(Hellanzb.QUEUE_DIR, file)))
 
-        elif file.lower().endswith('.zip'):
-            filepath = os.path.join(Hellanzb.QUEUE_DIR, file)
-            # Delay unzipping recently modified zips
-            if not isOldEnough(filepath):
-                continue
-            
-            try:
-                z = zipfile.ZipFile(filepath)
-            except zipfile.BadZipFile, bzf:
-                error('Error reading ZipFile: "%s"' % file, bzf)
-                continue
-
-            info('Extracting NZBs from %s...' % (file))
-            
-            zipfiles = z.namelist()
-            nzbcount = 0
-            for zipname in zipfiles:
-                if Hellanzb.NZB_FILE_RE.search(zipname):
-                    zippath = os.path.join(Hellanzb.QUEUE_DIR, zipname)
-                    if os.path.exists(zippath):
-                        debug('Not extracting "%s" from "%s": file already exists.' % \
-                              (zipname, file))
-                        continue
-                    newNZB = open(zippath, 'w')
-                    newNZB.write(z.read(zipname))
-                    newNZB.close()
-                    enqueueNZBs(zippath)
-                    nzbcount += 1
-            
-            if nzbcount > 0:
-                os.remove(filepath)
-            
-            z.close()
+        elif not nzbZipSearch(file) and not nzbGzipSearch(file):
+            Hellanzb.queueDirIgnore.append(file)
 
     # Remove anything no longer in the queue directory
     for nzb in queuedMap.itervalues():
@@ -261,6 +231,83 @@ def scanQueueDir(firstRun = False, justScan = False):
         parseNZB(nzb)
     else:
         parseNZB(nzb, quiet = True)
+
+def nzbZipSearch(file):
+    """ Attempt to extract NZBs from the specified file in Hellanzb.QUEUE_DIR when
+    it appears to be a .zip file (according to the Hellanzb.NZB_ZIPS suffix)
+    """
+    if not Hellanzb.NZB_ZIPS or not file.lower().endswith(Hellanzb.NZB_ZIPS):
+        return False
+
+    filepath = os.path.join(Hellanzb.QUEUE_DIR, file)
+
+    try:
+        z = zipfile.ZipFile(filepath)
+    except zipfile.BadZipFile, bzf:
+        error('Error reading ZipFile: "%s"' % file, bzf)
+        return False
+
+    info('Searching %s for NZBs...' % (file))
+
+    zipfiles = z.namelist()
+    nzbcount = 0
+    for zipname in zipfiles:
+        if Hellanzb.NZB_FILE_RE.search(zipname):
+            zippath = os.path.join(Hellanzb.QUEUE_DIR, zipname)
+            if os.path.exists(zippath):
+                debug('Not extracting "%s" from "%s": file already exists.' % \
+                      (zipname, file))
+                continue
+            newNZB = open(zippath, 'w')
+            newNZB.write(z.read(zipname))
+            newNZB.close()
+            enqueueNZBs(zippath)
+            nzbcount += 1
+
+    if nzbcount > 0:
+        os.remove(filepath)
+        result = True
+    else:
+        result = False
+
+    z.close()
+    return result
+
+def nzbGzipSearch(file):
+    """ Attempt to extract NZBs from the specified file in Hellanzb.QUEUE_DIR when
+    it appears to be a .gz file (according to the Hellanzb.NZB_GZIPS suffix)
+    """
+    if not Hellanzb.NZB_GZIPS or not file.lower().endswith(Hellanzb.NZB_GZIPS):
+        return False
+
+    filepath = os.path.join(Hellanzb.QUEUE_DIR, file)
+
+    z = gzip.GzipFile(filepath)
+
+    info('Searching %s for an NZB...' % (file))
+
+    ufilepath = os.path.join(Hellanzb.QUEUE_DIR, file[:-3])
+    if not ufilepath.lower().endswith('.nzb'):
+        ufilepath += '.nzb'
+    if os.path.exists(ufilepath):
+       debug('Not extracting "%s" to "%s": file already exists.' % \
+                      (file, ufilepath))
+       z.close()
+       return False
+    newNZB = open(ufilepath, 'w')
+    try:
+        newNZB.write(z.read())
+    except IOError, ioe:
+        error('Error reading ZipFile: "%s", %s' % file, ioe)
+        newNZB.close()
+        os.remove(ufilepath)
+        return False
+    newNZB.close()
+    enqueueNZBs(ufilepath)
+
+    z.close()
+    os.remove(filepath)
+    return True
 
 def sortQueueFromRecoveredState(queuedRecoveredState):
     """ Sort the queue from the order recovered from the on disk STATE_XML_FILE """

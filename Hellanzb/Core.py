@@ -121,6 +121,11 @@ def loadConfig(fileName):
         if not hasattr(Hellanzb, 'CATEGORIZE_DEST'):
             Hellanzb.CATEGORIZE_DEST = False
 
+        if not hasattr(Hellanzb, 'NZB_ZIPS'):
+            Hellanzb.NZB_ZIPS = '.nzb.zip'
+        if not hasattr(Hellanzb, 'NZB_GZIPS'):
+            Hellanzb.NZB_GZIPS = '.nzb.gz'
+
         if not hasattr(Hellanzb, 'OTHER_NZB_FILE_TYPES'):
             # By default, just match .nzb files in the queue dir
             Hellanzb.NZB_FILE_RE = re.compile(r'(?i)\.(nzb)$')

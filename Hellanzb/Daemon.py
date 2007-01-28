@@ -72,6 +72,7 @@ def initDaemon():
     """ Start the daemon """
     Hellanzb.isDaemon = True
     Hellanzb.nzbQueue = []
+    Hellanzb.queueDirIgnore = []
     Hellanzb.loggedIdleMessage = True
 
     try:

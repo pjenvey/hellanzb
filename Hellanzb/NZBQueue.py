@@ -297,7 +297,7 @@ def nzbGzipSearch(file):
        return False
     newNZB = open(ufilepath, 'w')
     try:
-        newNZB.write(z.read())
+        shutil.copyfileobj(z, newNZB)
     except IOError, ioe:
         error('Error reading GzipFile: "%s"' % file)
         newNZB.close()

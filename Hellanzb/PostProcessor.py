@@ -70,7 +70,6 @@ class PostProcessor(Thread):
         self.brokenFiles = []
         self.movedSamples = []
 
-        self.msgId = None
         self.startTime = None
 
         # Failed decompress threads put their file names in this list
@@ -466,13 +465,9 @@ class PostProcessor(Thread):
         files = os.listdir(self.dirName)
         for file in files:
             absoluteFile = os.path.join(self.dirName, file)
-            if os.path.isfile(absoluteFile):
-                if file.endswith('_broken'):
-                    # Keep track of the broken files
-                    self.brokenFiles.append(absoluteFile)
-                    
-                elif len(file) > 7 and file[0:len('.msgid_')] == '.msgid_':
-                    self.msgId = file[len('.msgid_'):]
+            if os.path.isfile(absoluteFile) and file.endswith('_broken'):
+                # Keep track of the broken files
+                self.brokenFiles.append(absoluteFile)
     
         # If there are required broken files and we lack pars, punt
         if len(self.brokenFiles) > 0 and containsRequiredFiles(self.brokenFiles) and \

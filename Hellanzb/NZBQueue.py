@@ -141,20 +141,21 @@ def scanQueueDir(firstRun = False, justScan = False):
         queuedMap[os.path.normpath(nzb.nzbFileName)] = nzb
 
     for file in os.listdir(Hellanzb.QUEUE_DIR):
-        if file in Hellanzb.queueDirIgnore or \
-                not isOldEnough(os.path.join(Hellanzb.QUEUE_DIR, file)):
+        if file in Hellanzb.queueDirIgnore:
             continue
 
         if Hellanzb.NZB_FILE_RE.search(file):
             if os.path.normpath(os.path.join(Hellanzb.QUEUE_DIR, file)) not in queuedMap:
-                
+                if not isOldEnough(os.path.join(Hellanzb.QUEUE_DIR, file)):
+                    continue
                 newNZBs.append(os.path.join(Hellanzb.QUEUE_DIR, file))
 
             elif os.path.normpath(os.path.join(Hellanzb.QUEUE_DIR, file)) in queuedMap:
                 queuedMap.pop(os.path.normpath(os.path.join(Hellanzb.QUEUE_DIR, file)))
 
-        elif not nzbZipSearch(file) and not nzbGzipSearch(file):
-            Hellanzb.queueDirIgnore.append(file)
+        elif isOldEnough(os.path.join(Hellanzb.QUEUE_DIR, file)):
+            if not nzbZipSearch(file) and not nzbGzipSearch(file):
+                Hellanzb.queueDirIgnore.append(file)
 
     # Remove anything no longer in the queue directory
     for nzb in queuedMap.itervalues():
@@ -298,7 +299,7 @@ def nzbGzipSearch(file):
     try:
         newNZB.write(z.read())
     except IOError, ioe:
-        error('Error reading ZipFile: "%s"' % file)
+        error('Error reading GzipFile: "%s"' % file)
         newNZB.close()
         os.remove(ufilepath)
         return False

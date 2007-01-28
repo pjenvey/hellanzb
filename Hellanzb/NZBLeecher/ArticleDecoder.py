@@ -483,7 +483,7 @@ def decodeSegmentToFile(segment, encodingType = YENCODE):
             # CRC check. FIXME: use yDecodeCRCCheck for this!
             if segment.yCrc is None:
                 passedCRC = False
-                messsage = segment.nzbFile.showFilename + ' segment: ' + str(segment.number) + \
+                message = segment.nzbFile.showFilename + ' segment: ' + str(segment.number) + \
                     ' does not have a valid CRC/yend line!'
             else:
                 crc = '%08X' % ((crc ^ -1) & 2**32L - 1)

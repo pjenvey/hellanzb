@@ -185,14 +185,17 @@ class NZB(Archive):
         another download """
         # nzbFiles aren't needed for another download
         for nzbFile in self.nzbFiles:
-            del nzbFile.todoNzbSegments
-            del nzbFile.dequeuedSegments
-            if not justClean:
-                # This could be a postponed download, which would need the nzbFile. The
-                # actual nzbFile here will be available, it will just have a reference
-                # count decremented by del
+            # The following two sets used to be del'd. This was changed in r961
+            # for the associated ticket; but the fix is really a bandaid. If
+            # the root cause is mitigated, go back to del
+            if justClean:
+                nzbFile.todoNzbSegments.clear()
+                nzbFile.dequeuedSegments.clear()
+            else:
+                del nzbFile.todoNzbSegments
+                del nzbFile.dequeuedSegments
                 del nzbFile.nzb
-            del nzbFile
+                del nzbFile
 
         if justClean:
             self.nzbFiles = []

@@ -176,6 +176,14 @@ Hellanzb.KEEP_FILE_TYPES = [ 'nfo', 'txt' ]
 # The 'nzb' file extension is always matched
 #Hellanzb.OTHER_NZB_FILE_TYPES = [ 'xml' ]
 
+# Support extracting NZBs from ZIP files with this suffix (case insensitive) in
+# QUEUE_DIR. Defaults to '.nzb.zip'. Set to False to disable.
+#Hellanzb.NZB_ZIPS = '.nzb.zip'
+
+# Support extracting NZBs from GZIP files with this suffix (case insensitive)
+# in QUEUE_DIR. Defaults to '.nzb.gz'. Set to False to disable.
+#Hellanzb.NZB_GZIPS = '.nzb.gz'
+
 # Delay enqueueing new, recently modified NZB files added to the QUEUE_DIR until
 # this many seconds have passed since the NZB's last modification time (defaults
 # to 10 seconds)

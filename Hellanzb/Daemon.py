@@ -72,6 +72,7 @@ def initDaemon():
     """ Start the daemon """
     Hellanzb.isDaemon = True
     Hellanzb.nzbQueue = []
+    Hellanzb.queueDirIgnore = []
     Hellanzb.loggedIdleMessage = True
 
     try:
@@ -336,9 +337,6 @@ def handleNZBDone(nzb):
     # Make our new directory, minus the .nzb
     processingDir = Hellanzb.PROCESSING_DIR + nzb.archiveName
     
-    # Grab the message id, we'll store it in the processingDir for later use
-    msgId = getMsgId(nzb.nzbFileName)
-
     # Move our nzb contents to their new location for post processing
     hellaRename(processingDir)
         
@@ -349,9 +347,6 @@ def handleNZBDone(nzb):
     move(nzb.nzbFileName, processingDir)
     nzb.nzbFileName = os.path.join(processingDir, nzb.nzbFileName)
 
-    if msgId:
-        touch(os.path.join(processingDir, '.msgid_' + msgId))
-    
     os.mkdir(Hellanzb.WORKING_DIR)
 
     # The list of skipped pars is maintained in the state XML as only the subjects of the

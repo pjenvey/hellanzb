@@ -298,7 +298,7 @@ def nzbGzipSearch(file):
     try:
         newNZB.write(z.read())
     except IOError, ioe:
-        error('Error reading ZipFile: "%s", %s' % file, ioe)
+        error('Error reading ZipFile: "%s"' % file)
         newNZB.close()
         os.remove(ufilepath)
         return False

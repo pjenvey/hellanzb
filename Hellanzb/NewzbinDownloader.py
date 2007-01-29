@@ -6,7 +6,8 @@ DirectNZB API.
 (c) Copyright 2007 Dan Borello
 [See end of file]
 """
-import httplib, os, random, shutil, time, threading, urllib, Hellanzb.NZBQueue
+import gzip, httplib, os, random, shutil, time, threading, urllib, zlib, \
+    Hellanzb.NZBQueue
 from twisted.internet import reactor
 from Hellanzb.Log import *
 from Hellanzb.NZBDownloader import NZBDownloader
@@ -49,17 +50,40 @@ class NewzbinDownloader(NZBDownloader, threading.Thread):
                            response.getheader('X-DNZB-RCode', 'No Code'),
                            response.getheader('X-DNZB-RText', 'No Error Text')))
                 return
+
+        gzipped = False
+        if response.getheader('Content-Encoding') == 'gzip':
+            gzipped = True
         cleanName = response.getheader('X-DNZB-Name').replace('/','_').replace('\\','_')
         dest = os.path.join(Hellanzb.TEMP_DIR, '%s_%s.nzb' % (self.msgId, cleanName))
+        if gzipped:
+            dest += '.gz'
+
          # Pass category information on
         category = None
-
         if Hellanzb.CATEGORIZE_DEST:
             category = response.getheader('X-DNZB-Category')
 
         out = open(dest, 'wb')
         shutil.copyfileobj(response, out)
         out.close()
+
+        if gzipped:
+            # Gunzip the data. The the gzipped data is written to disk first so
+            # that GzipFile can be used (GzipFile can't handle file-like
+            # streams that lack seek and tell)
+            gzippedDest = dest
+            dest = dest[:-3]
+
+            # Reopen the file: GzipFile expects the mode to begin with 'r'
+            gzippedNZB = open(gzippedDest, 'rb')
+            gzippedStream = gzip.GzipFile(fileobj=gzippedNZB)
+
+            gunzippedNZB = open(dest, 'wb')
+            shutil.copyfileobj(gzippedStream, gunzippedNZB)
+            gunzippedNZB.close()
+            gzippedNZB.close()
+            os.remove(gzippedDest)
 
         reactor.callFromThread(self.enqueue, dest, category)
         return True
@@ -88,6 +112,7 @@ class NewzbinDownloader(NZBDownloader, threading.Thread):
                                    'reportid': self.msgId})
         headers = {'User-Agent': self.AGENT,
                    'Content-type': 'application/x-www-form-urlencoded',
+                   'Accept-Encoding': 'gzip',
                    'Accept': 'text/plain'}
         conn = httplib.HTTPConnection("v3.newzbin.com")
         conn.request("POST", '/dnzb/', params, headers)

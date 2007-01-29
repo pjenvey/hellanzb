@@ -27,22 +27,22 @@ class NewzbinDownloader(NZBDownloader, threading.Thread):
 
     def run(self):
         """Fetch an NZB from newzbin.com and add it to the queue."""
-	response = self.attemptDownload()
+        response = self.attemptDownload()
         attempt = 1
         while not response.getheader('X-DNZB-RCode') == '200':
             if response.getheader('X-DNZB-RCode') == '450':
-		if attempt >= 5:
-		    error('Unable to download newzbin NZB: %s due to rate limiting. Will '
+                if attempt >= 5:
+                    error('Unable to download newzbin NZB: %s due to rate limiting. Will '
                           'not retry' % (self.msgId))
-		    return
-		# This is a poor way to do this.  Should actually calculate wait time.
+                    return
+                # This is a poor way to do this.  Should actually calculate wait time.
                 wait = round(int(response.getheader('X-DNZB-RText').split(' ')[3]) + \
-			random.random()*30,0)
+                        random.random()*30,0)
                 error('Unable to download newzbin NZB: %s (Attempt: %s) will retry in %i '
                       'seconds' % (self.msgId, attempt, wait))
-		time.sleep(wait)
-		response = self.attemptDownload()
-		attempt += 1		
+                time.sleep(wait)
+                response = self.attemptDownload()
+                attempt += 1            
             else:    
                 error('Unable to download newzbin NZB: %s (%s: %s)' % \
                           (self.msgId,
@@ -91,9 +91,9 @@ class NewzbinDownloader(NZBDownloader, threading.Thread):
                    'Accept': 'text/plain'}
         conn = httplib.HTTPConnection("v3.newzbin.com")
         conn.request("POST", '/dnzb/', params, headers)
-	response = conn.getresponse()
-	conn.close()
-	return response
+        response = conn.getresponse()
+        conn.close()
+        return response
 
     canDownload = staticmethod(canDownload)
 

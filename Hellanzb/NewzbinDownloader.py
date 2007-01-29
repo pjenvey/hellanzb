@@ -32,21 +32,22 @@ class NewzbinDownloader(NZBDownloader, threading.Thread):
         while not response.getheader('X-DNZB-RCode') == '200':
             if response.getheader('X-DNZB-RCode') == '450':
 		if attempt >= 5:
-		    error('Unable to download newzbin NZB: %s due to rate limiting.  Will not retry' % (self.msgId))
+		    error('Unable to download newzbin NZB: %s due to rate limiting. Will '
+                          'not retry' % (self.msgId))
 		    return
-		#This is a poor way to do this.  Should actually calculate wait time.
+		# This is a poor way to do this.  Should actually calculate wait time.
                 wait = round(int(response.getheader('X-DNZB-RText').split(' ')[3]) + \
 			random.random()*30,0)
-                error('Unable to download newzbin NZB: %s (Attempt: %s) will retry in %i seconds' % (self.msgId, attempt, wait))
+                error('Unable to download newzbin NZB: %s (Attempt: %s) will retry in %i '
+                      'seconds' % (self.msgId, attempt, wait))
 		time.sleep(wait)
 		response = self.attemptDownload()
 		attempt += 1		
             else:    
                 error('Unable to download newzbin NZB: %s (%s: %s)' % \
-                              (self.msgId,
-                               response.getheader('X-DNZB-RCode', 'No Code'),
-                               response.getheader('X-DNZB-RText', 'No Error Text')))
-
+                          (self.msgId,
+                           response.getheader('X-DNZB-RCode', 'No Code'),
+                           response.getheader('X-DNZB-RText', 'No Error Text')))
                 return
         cleanName = response.getheader('X-DNZB-Name').replace('/','_').replace('\\','_')
         dest = os.path.join(Hellanzb.TEMP_DIR, '%s_%s.nzb' % (self.msgId, cleanName))
@@ -54,7 +55,7 @@ class NewzbinDownloader(NZBDownloader, threading.Thread):
         category = None
 
         if Hellanzb.CATEGORIZE_DEST:
-                category = response.getheader('X-DNZB-Category')
+            category = response.getheader('X-DNZB-Category')
 
         out = open(dest, 'wb')
         shutil.copyfileobj(response, out)

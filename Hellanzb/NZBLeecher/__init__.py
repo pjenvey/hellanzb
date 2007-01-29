@@ -86,22 +86,21 @@ def initFillServers():
     for serverId, serverDict in Hellanzb.SERVERS.iteritems():
         if serverDict.get('enabled') is False:
             continue
-        if 'fillserver' in serverDict:
-            fillServerPriority = serverDict.get('fillserver')
-            # Consider = None as = 0
-            if fillServerPriority is None:
-                fillServerPriority = serverDict['fillserver'] = 0
-            try:
-                fillServerPriority = int(fillServerPriority)
-            except ValueError, ve:
-                # Let's not assume what the user wanted -- raise a FatalError so they can
-                # fix the priority value
-                shutdownAndExit(1,
-                                message='There was a problem with the fillserver value of server: %s:\n%s' \
-                                 % (serverId, str(ve)))
-            if fillServerPriority not in fillServerPriorities:
-                fillServerPriorities.setdefault(fillServerPriority, []).append(serverDict)
-            serverDict['fillserver'] = fillServerPriority
+        fillServerPriority = serverDict.get('fillserver')
+        # Consider = None as = 0
+        if fillServerPriority is None:
+            fillServerPriority = serverDict['fillserver'] = 0
+        try:
+            fillServerPriority = int(fillServerPriority)
+        except ValueError, ve:
+            # Let's not assume what the user wanted -- raise a FatalError so they can
+            # fix the priority value
+            shutdownAndExit(1,
+                            message='There was a problem with the fillserver value of server: %s:\n%s' \
+                             % (serverId, str(ve)))
+        if fillServerPriority not in fillServerPriorities:
+            fillServerPriorities.setdefault(fillServerPriority, []).append(serverDict)
+        serverDict['fillserver'] = fillServerPriority
 
     if len(fillServerPriorities) < 2:
         debug('initFillServers: fillserver support disabled')

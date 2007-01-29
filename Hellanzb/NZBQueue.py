@@ -146,6 +146,7 @@ def scanQueueDir(firstRun = False, justScan = False):
 
         if Hellanzb.NZB_FILE_RE.search(file):
             if os.path.normpath(os.path.join(Hellanzb.QUEUE_DIR, file)) not in queuedMap:
+                # Delay enqueueing recently modified NZBs
                 if not isOldEnough(os.path.join(Hellanzb.QUEUE_DIR, file)):
                     continue
                 newNZBs.append(os.path.join(Hellanzb.QUEUE_DIR, file))

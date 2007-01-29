@@ -118,6 +118,9 @@ def loadConfig(fileName):
         if not hasattr(Hellanzb, 'SMART_PAR'):
             Hellanzb.SMART_PAR = True
 
+        if not hasattr(Hellanzb, 'CATEGORIZE_DEST'):
+            Hellanzb.CATEGORIZE_DEST = True
+
         if not hasattr(Hellanzb, 'NZB_ZIPS'):
             Hellanzb.NZB_ZIPS = '.nzb.zip'
         if not hasattr(Hellanzb, 'NZB_GZIPS'):

@@ -22,13 +22,13 @@ class PostProcessor(Thread):
 
     # These attributes are routed to self.archive via __getattr__/__setattr__
     archiveAttrs = ('id', 'isParRecovery', 'rarPassword', 'deleteProcessed', 'skipUnrar',
-                    'toStateXML', 'msgid')
+                    'toStateXML', 'msgid', 'category')
 
     def __init__(self, archive, background = True, subDir = None):
         """ Ensure sanity of this instance before starting """
         # The archive to post process
         self.archive = archive
-    
+        
         # DirName is a hack printing out the correct directory name when running nested
         # post processors on sub directories
         if subDir:
@@ -141,6 +141,9 @@ class PostProcessor(Thread):
             if not self.killed and not self.isSubDir and self.background:
                 Hellanzb.writeStateXML()
 
+        # When a Post Processor fails, we end up moving the destDir here
+        self.moveDestDir() 
+
         # FIXME: This isn't the best place to GC. The best place would be when a download
         # is finished (idle NZBLeecher) but with smartpar, finding an idle NZBLeecher is
         # tricky
@@ -154,9 +157,6 @@ class PostProcessor(Thread):
                 self.callback()
                 return
             
-        # When a Post Processor fails, we end up moving the destDir here
-        self.moveDestDir() 
-
         if not self.background and not self.isSubDir:
             # We're not running in the background of a downloader -- we're post processing
             # and then immeidately exiting (-Lp)
@@ -177,8 +177,16 @@ class PostProcessor(Thread):
                 os.remove(self.dirName)
 
             elif os.path.isdir(self.dirName):
+                if not os.path.isdir(os.path.join(Hellanzb.DEST_DIR, self.category)):
+                    try:
+                        os.makedirs(os.path.join(Hellanzb.DEST_DIR, self.category))
+                    except OSError, ose:
+                        raise FatalError('Unable to create directory for category: ' + \
+                                os.path.join(Hellanzb.DEST_DIR, self.category)  + \
+                                ' error: ' + str(ose))                
                 # A dir in the processing dir, move it to DEST
-                newdir = os.path.join(Hellanzb.DEST_DIR, os.path.basename(self.dirName))
+                newdir = os.path.join(Hellanzb.DEST_DIR, self.category,
+                                      os.path.basename(self.dirName))
                 hellaRename(newdir)
                 move(self.dirName, newdir)
                 
@@ -236,7 +244,7 @@ class PostProcessor(Thread):
 
             e = time.time() - self.startTime 
             dispatchExternalHandler(ERROR, archiveName=archive,
-                                    destDir=os.path.join(Hellanzb.DEST_DIR, archive),
+                                    destDir=os.path.join(Hellanzb.DEST_DIR, self.category, archive),
                                     elapsedTime=prettyElapsed(e),
                                     parMessage='A problem occurred: %s' % pe)
 
@@ -406,7 +414,7 @@ class PostProcessor(Thread):
             info('%s: Finished processing (took: %s)%s%s' % (archive, 
                                                            elapsed, totalTime, parMessage))
             dispatchExternalHandler(SUCCESS, archiveName=archive,
-                                    destDir=os.path.join(Hellanzb.DEST_DIR, archive),
+                                    destDir=os.path.join(Hellanzb.DEST_DIR, self.category, archive),
                                     elapsedTime=prettyElapsed(e),
                                     parMessage=parMessage)
 

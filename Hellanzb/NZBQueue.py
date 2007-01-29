@@ -368,16 +368,6 @@ def _writeStateXML(outFile):
     
     h = writer.start('hellanzbState', {'version': Hellanzb.version})
 
-    filteredCookie = {}
-    for cookieKey in ('PHPSESSID', 'expires', 'Hellanzb-NEWZBIN_USERNAME',
-                      'Hellanzb-ENCRYPTED_NEWZBIN_PASSWORD'):
-        val = NewzbinDownloader.cookies.get(cookieKey)
-        if val is not None:
-            filteredCookie[cookieKey] = val
-
-    if len(filteredCookie):
-        writer.element('newzbinCookie', None, filteredCookie)
-
     Hellanzb.postProcessorLock.acquire()
     postProcessors = Hellanzb.postProcessors[:]
     Hellanzb.postProcessorLock.release()
@@ -639,7 +629,7 @@ def enqueueNZBData(nzbFilename, nzbData):
     enqueueNZBs(tempLocation)
     os.remove(tempLocation)
     
-def enqueueNZBs(nzbFileOrFiles, next = False, writeQueue = True):
+def enqueueNZBs(nzbFileOrFiles, next = False, writeQueue = True, category = None):
     """ add one or a list of nzb files to the end of the queue """
     if isinstance(nzbFileOrFiles, list) or isinstance(nzbFileOrFiles, tuple):
         newNzbFiles = nzbFileOrFiles
@@ -667,16 +657,21 @@ def enqueueNZBs(nzbFileOrFiles, next = False, writeQueue = True):
             from Hellanzb.NZBLeecher.NZBModel import NZB
             name = os.path.basename(nzbFile)
             nzb = NZB.fromStateXML('queued', nzbFile)
+            logMsg = msg = 'Found new nzb'
+            extraLog = []
             if not next:
                 Hellanzb.nzbQueue.append(nzb)
             else:
                 Hellanzb.nzbQueue.insert(0, nzb)
 
-            logMsg = msg = 'Found new nzb'
             if nzb.msgid is not None:
-                logMsg += ' (msgid: %i): ' % nzb.msgid
-            else:
-                logMsg += ': '
+                extraLog.append('msgid: %s' % nzb.msgid)
+            if category:
+                nzb.category = category
+                extraLog.append('category: %s' % category)
+            if extraLog:
+                logMsg += ' (%s)' % ', '.join(extraLog)
+            logMsg += ': '
             msg += ': '
             info(logMsg + nzb.archiveName)
             growlNotify('Queue', 'hellanzb ' + msg, nzb.archiveName, False)

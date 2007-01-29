@@ -24,7 +24,8 @@ __id__ = '$Id$'
 class NZB(Archive):
     """ Representation of an nzb file -- the root <nzb> tag """
     
-    def __init__(self, nzbFileName, id = None, rarPassword = None, archiveDir = None):
+    def __init__(self, nzbFileName, id = None, rarPassword = None, archiveDir = None,
+                 category = ''):
         Archive.__init__(self, archiveDir, id, None, rarPassword)
             
         ## NZB file general information
@@ -37,6 +38,7 @@ class NZB(Archive):
             self.msgid = int(self.msgid)
         self.nzbFiles = []
         self.skippedParFiles = []
+        self.category = category
 
         ## Where the nzb files will be downloaded
         self.destDir = Hellanzb.WORKING_DIR
@@ -268,6 +270,8 @@ class NZB(Archive):
             attribs['downloadTime'] = str(self.downloadTime)
         if not self.calculatingBytes and self.totalBytes > 0:
             attribs['totalBytes'] = str(self.totalBytes)
+        if self.category:
+            attribs['category'] = self.category
 
         return attribs
 

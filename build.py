@@ -27,9 +27,7 @@ try:
     options, args = parser.parse_args()
 
     if sys.version <= '2.5':
-        # NOTE: The use of the 'sha' executable in build_util.sha256File is specific to
-        # this sha binary: http://www.saddi.com/software/sha
-        assertIsExe('sha')
+        assertIsExe('sha256')
     
     if not options.local:
         assertIsExe('svn')

@@ -311,9 +311,9 @@ def sha256File(fileName):
         file.close()
         return s.hexdigest()
     else:
-        p = Ptyopen2('sha -2 ' + fileName)
+        p = Ptyopen2('sha256 -q ' + fileName)
         output, status = p.readlinesAndWait()
-        return output[0].split()[0]
+        return output[0].rstrip()
 
 def uploadToHost(version, host, dir):
     """ Upload the new build of version to the UPLOAD_HOST """

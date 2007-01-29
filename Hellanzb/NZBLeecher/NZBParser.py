@@ -40,7 +40,7 @@ class NZBParser(ContentHandler):
         
         self.fileCount = 0
         self.segmentCount = 0
-        self.fileSegmentCount = 0
+        self.fileSegmentNumber = 1
 
         # All encountered segment numbers for the current NZBFile
         self.segmentNumbers = Set()
@@ -109,7 +109,7 @@ class NZBParser(ContentHandler):
 
             self.fileCount += 1
             self.file.number = self.fileCount
-            self.fileSegmentCount = 0
+            self.fileSegmentNumber = 1
                 
         elif name == 'group':
             self.chars = []
@@ -122,9 +122,9 @@ class NZBParser(ContentHandler):
             try:
                 self.number = int(attrs.get('number'))
             except ValueError:
-                self.number = self.fileSegmentCount
+                self.number = self.fileSegmentNumber
                         
-            self.fileSegmentCount += 1
+            self.fileSegmentNumber += 1
             self.chars = []
         
     def characters(self, content):

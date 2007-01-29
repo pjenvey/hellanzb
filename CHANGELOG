@@ -5,8 +5,8 @@ o Added the Hellanzb.CATEGORIZE_DEST option. Enabling it saves archives
   category (when queued using the enqueuenewzbin XMLRPC call); e.g. Apps,
   Movies, Music
 
-o Now downloading newzbin.com NZBs via the new v3 DirectNZB interface
-  (Thanks DBordello and Thomas Hurst)
+o enqueuenewzbin now downloads gzipped newzbin.com NZBs via the new v3
+  DirectNZB interface (Thanks DBordello and Thomas Hurst)
 
 o Added support for fillservers (by priority)
 

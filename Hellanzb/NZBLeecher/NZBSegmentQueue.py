@@ -7,7 +7,10 @@ downloading NZB
 [See end of file]
 """
 import os, time, Hellanzb, Hellanzb.Core, Hellanzb.Daemon
-from sets import Set
+try:
+    set
+except NameError:
+    from sets import Set as set
 from threading import Lock
 from twisted.internet import reactor
 from xml.sax import make_parser, SAXParseException
@@ -251,8 +254,8 @@ class NZBSegmentQueue(PriorityQueue):
 
         # Maintain a collection of the known nzbFiles belonging to the segments in this
         # queue. Set is much faster for _put & __contains__
-        self.nzbFiles = Set()
-        self.postponedNzbFiles = Set()
+        self.nzbFiles = set()
+        self.postponedNzbFiles = set()
         self.nzbFilesLock = Lock()
 
         self.nzbs = []
@@ -289,7 +292,7 @@ class NZBSegmentQueue(PriorityQueue):
         self.nzbFilesLock.acquire()
 
         if not cancel:
-            self.postponedNzbFiles.union_update(self.nzbFiles)
+            self.postponedNzbFiles.update(self.nzbFiles)
         self.nzbFiles.clear()
         
         self.nzbFilesLock.release()

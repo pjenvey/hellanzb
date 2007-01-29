@@ -6,7 +6,10 @@ NZBModel - Representations of the NZB file format in memory
 [See end of file]
 """
 import os, re, Hellanzb
-from sets import Set
+try:
+    set
+except NameError:
+    from sets import Set as set
 from shutil import move
 from threading import Lock, RLock
 from Hellanzb.Log import *
@@ -377,12 +380,12 @@ class NZBFile:
         ## TO download segments --
         # we'll remove from this set everytime a segment is found completed (on the FS)
         # during NZB parsing, or later written to the FS
-        self.todoNzbSegments = Set()
+        self.todoNzbSegments = set()
 
         ## Segments that have been dequeued on the fly (during download). These are kept
         ## track of in the rare case that an nzb file is dequeued when all segments have
         ## actually been downloaded
-        self.dequeuedSegments = Set()
+        self.dequeuedSegments = set()
 
         ## NZBFile statistics
         self.number = len(self.nzb.nzbFiles)
@@ -666,7 +669,7 @@ def segmentsNeedDownload(segmentList, overwriteZeroByteSegments = False):
 
     onDiskSegmentsByNumber = {}
     
-    needDlFiles = Set() # for speed while iterating
+    needDlFiles = set() # for speed while iterating
     needDlSegments = []
     onDiskSegments = []
 

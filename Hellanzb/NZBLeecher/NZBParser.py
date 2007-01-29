@@ -6,6 +6,10 @@ NZBParser - Parses NZB XML into NZBModels
 [See end of file]
 """
 import os, re, Hellanzb
+try:
+    set
+except NameError:
+    from sets import Set as set
 from sets import Set
 from xml.sax import make_parser, SAXParseException
 from xml.sax.handler import feature_external_ges, feature_namespaces, ContentHandler
@@ -43,7 +47,7 @@ class NZBParser(ContentHandler):
         self.fileSegmentNumber = 1
 
         # All encountered segment numbers for the current NZBFile
-        self.segmentNumbers = Set()
+        self.segmentNumbers = set()
         
         # Current listing of existing files in the WORKING_DIR
         self.workingDirListing = []

@@ -6,7 +6,10 @@ Protocol - The NZBLeecher twisted factory and protocol
 [See end of file]
 """
 import os, time, Hellanzb
-from sets import Set
+try:
+    set
+except NameError:
+    from sets import Set as set
 from twisted.internet import reactor
 from twisted.internet.error import ConnectionDone, ConnectionLost, ConnectionRefusedError, \
     DNSLookupError
@@ -49,8 +52,8 @@ class NZBLeecherFactory(ReconnectingClientFactory):
         # clients
         self.clientIds = []
 
-        # all clients that are actively leeching FIXME: is a Set necessary here?
-        self.activeClients = Set()
+        # all clients that are actively leeching FIXME: is a set necessary here?
+        self.activeClients = set()
 
         # Maximum delay before reconnecting after disconnection
         self.maxDelay = 2 * 60

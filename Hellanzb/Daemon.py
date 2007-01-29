@@ -479,25 +479,30 @@ def continueCurrent():
                 debug(str(client) + ' startReading')
                 client.transport.startReading()
                 connectionCount -= 1
-                
-        resetConnections += connectionCount
+
+        if nsf.clients:        
+            resetConnections += connectionCount
         # XXX:
         debug('resetConnections(%s): %i: added %i' % (nsf.serverPoolName, resetConnections,
                                                       connectionCount))
 
-        # Reconnect idledOut NZBLeechers (antiIdleTimeout == 0) during the pause
-        if nsf.idledOut:
+        # Reconnect (antiIdleTimeout == 0) NZBLeechers
+        if nsf.antiIdleTimeout == 0:
             reconnecting = []
             for connector in nsf.leecherConnectors:
-                if hasattr(connector, 'pauseIdledOut') and connector.pauseIdledOut:
+                # Reconnect if it's the main (fillserver==0) factory, or the
+                # client explicitly idled out during the connection
+                # (pauseIdledOut)
+                if nsf.fillServerPriority == 0 or getattr(connector, 'pauseIdledOut',
+                                                          False):
                     debug(str(connector) + ' pauseIdledOut')
                     connector.pauseIdledOut = False
                     connector.connect()
                     reconnecting.append(connector)
             for connector in reconnecting:
                 nsf.leecherConnectors.remove(connector)
+            resetConnections += len(reconnecting)
             # XXX:
-            #resetConnections += len(reconnecting)
             debug('>resetConnections(%s): %i: added %i' % (nsf.serverPoolName, resetConnections,
                                                            len(reconnecting)))
 

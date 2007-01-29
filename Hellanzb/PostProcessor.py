@@ -178,11 +178,10 @@ class PostProcessor(Thread):
 
             elif os.path.isdir(self.dirName):
                 if not os.path.isdir(os.path.join(Hellanzb.DEST_DIR, self.category)):
-                        try:
-                                os.makedirs(os.path.join(Hellanzb.DEST_DIR,
-                                                         self.category))
-                        except OSError, ose:
-                                raise FatalError('Unable to create directory for category: ' + \
+                    try:
+                        os.makedirs(os.path.join(Hellanzb.DEST_DIR, self.category))
+                    except OSError, ose:
+                        raise FatalError('Unable to create directory for category: ' + \
                                 os.path.join(Hellanzb.DEST_DIR, self.category)  + \
                                 ' error: ' + str(ose))                
                 # A dir in the processing dir, move it to DEST

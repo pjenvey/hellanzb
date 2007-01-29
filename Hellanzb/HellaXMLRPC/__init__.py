@@ -160,7 +160,7 @@ class HellaXMLRPCServer(XMLRPC):
         """ Force hellanzb to begin downloading the NZB with the specified ID immediately,
         interrupting the current download """
         from Hellanzb.Daemon import forceNZBId
-        forceNZBId(nzbId)
+        reactor.callLater(0, forceNZBId, nzbId)
         return self.xmlrpc_status()
 
     xmlrpc_force.signature = [ ['struct', 'string'],

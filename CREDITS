@@ -47,6 +47,14 @@ o Hellanzb.Util.walk was written by Robin Parmar
 o Hellanzb.external.elementtree.SimpleXMLWriter is from Fredrik Lundh's
   elementtree-1.2.6, with added support for writing indented XML
 
+o Thanks to everyone who's contributed patches
+
+o Thanks to the various people who maintain hellanzb/hellahella packages
+  for different distrbutions
+
+o Thanks to the community (in particular #hellanzb on irc.freenode.net) for
+  all the support 
+
       ________________________
 o     \   |    /  ___/_   _  /
       |   _   /  \_   /   _  \

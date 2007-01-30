@@ -1,5 +1,9 @@
 v0.11:
 
+o Fixed the error:
+  ImportError: cannot import name daemonize
+  with Twisted 2.5
+
 o Added the Hellanzb.CATEGORIZE_DEST option. Enabling it saves archives
   into a sub directory of DEST_DIR named after their newzbin.com
   category (when queued using the enqueuenewzbin XMLRPC call); e.g. Apps,
@@ -17,7 +21,16 @@ o Added optional support for converting MacBinary files
 
 o Now properly parsing v3.newzbin.com NZB names
 
+o Fixed the enqueuenewzbin error:
+  exceptions.AttributeError: 'module' object has no attribute 'b64encode'
+  on Python 2.3
+
 o No longer overwriting pre-existing files during rar extraction
+
+o Fixed handling of NZB files with invalid segment number and bytes
+  attributes
+
+o Fixed .zip files in the QUEUE_DIR constantly being rescanned for NZBs
 
 o Fixed a couple issues when antiIdle is disabled, including reconnection
   failures after connections are lost

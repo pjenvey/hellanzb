@@ -1,1 +1,1 @@
-version = '0.11-trunk'
+version = '0.12-trunk'

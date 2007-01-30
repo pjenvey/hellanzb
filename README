@@ -9,7 +9,7 @@ hellanzb                                                                  README
      :  l$$$F   :$$$$$  8$$$l"""""` l$$$l  l$$$l l$$$l   $$$L | ) /_ |_)
      :  $$$$:   l$$$$$L `4$$$bcmang;ACID$::$$$88:`4$$$bmm$$$$;.     ...
      :    ```      ```""              ```    ```    .    ```.     ..:::..
-     :..............................................:   v 0 . 1 0  `:::`
+     :..............................................:   v 0 . 1 1  `:::`
                                                                      `
 
                  hands-free nzb downloader and post processor
@@ -127,6 +127,11 @@ o In the rare case that something unexpected happens, try reproducing it with
   Hellanzb.DEBUG_MODE (or hellanzb.py -d) enabled. This will produce a
   highly verbose DEBUG file that will contain any unexpected errors that were
   not picked up by the normal log file
+
+o The Hellanzb.DEBUG_MODE log file may become rather large. It (and the normal
+  log file) can be automatically trimmed and optionally rolled over via the
+  Hellanzb.LOG_FILE_MAX_BYTES and Hellanzb.LOG_FILE_BACKUP_COUNT config
+  variables
 
 
 SAFE USAGE

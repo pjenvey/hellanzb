@@ -38,7 +38,10 @@ o Fixed a couple issues when antiIdle is disabled, including reconnection
 o antiIdle disabled connections now avoid connecting at startup, and
   disconnect immediately when there is nothing left to download. i.e. they
   only are connected to the server when necessary. antiIdle disabled fill
-  servers only connect when they have something to download. 
+  servers only connect when they have something to download
+
+o Windows compatibility changes -- hellanzb has been reported to work on
+  Windows as of the 0.11 changes (thanks hax)
 
 v0.10:
 

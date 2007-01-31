@@ -420,7 +420,7 @@ class PostProcessor(Thread):
 
             if parMessage != '':
                 parMessage = '\n' + parMessage
-            growlNotify('Archive Success', 'hellanzb Done Processing%s:' % parMessage,
+            notify('Archive Success', 'hellanzb Done Processing %s:' % parMessage,
                         '%s\ntook: %s%s' % (archive, elapsed, totalTime), True)
                        #self.background)
         # FIXME: could unsticky the message if we're running hellanzb.py -p

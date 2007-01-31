@@ -447,7 +447,7 @@ def handleIOError(ioe):
         if not Hellanzb.downloadPaused:
             error('No space left on device!')
             pauseCurrent()
-            growlNotify('Error', 'hellanzb Download Paused', 'No space left on device!', True)
+            notify('Error', 'hellanzb Download Paused', 'No space left on device!', True)
         raise OutOfDiskSpace('LOL BURN SOME DVDS LOL')
     else:
         debug('handleIOError: got: %s' % str(ioe))

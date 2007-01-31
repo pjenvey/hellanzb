@@ -148,6 +148,10 @@ Hellanzb.GROWL_SERVER = 'IP'
 Hellanzb.GROWL_PASSWORD = 'password'
 
 
+# Enable libNotify Daemon notifications
+Hellanzb.LIBNOTIFY_NOTIFY = False
+
+
 # Hostname for the XMLRPC client to connect to. By default, localhost
 Hellanzb.XMLRPC_SERVER = 'localhost'
 

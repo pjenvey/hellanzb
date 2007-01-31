@@ -535,7 +535,7 @@ def unrar(postProcessor, fileName, pathToExtract = None):
         # For CRC_ERROR (password failed) example:
         # Encrypted file:  CRC failed in h.rar (password incorrect ?)
         # FIXME: only sticky this growl if we're a background processor
-        growlNotify('Archive Error', 'hellanzb requires password',
+        notify('Archive Error', 'hellanzb requires password',
                     archiveName(postProcessor.dirName) + \
                     ' requires a rar password for extraction', True)
         raise FatalError('Cannot continue, this archive requires a RAR password. Run ' + \
@@ -573,7 +573,7 @@ def unrar(postProcessor, fileName, pathToExtract = None):
 
     if isPassworded and postProcessor.rarPassword == None:
         # FIXME: only sticky this growl if we're a background processor
-        growlNotify('Archive Error', 'hellanzb requires password',
+        notify('Archive Error', 'hellanzb requires password',
                     archiveName(postProcessor.dirName) + \
                     ' requires a rar password for extraction', True)
         raise FatalError('Cannot continue, this archive requires a RAR password. Run ' + \
@@ -886,7 +886,7 @@ def par2(postProcessor, parFiles, wildcard, needAssembly = None):
 
         # The archive is only totally broken when we're missing required files
         if len(damagedAndRequired) > 0:
-            growlNotify('Error', 'hellanzb Cannot par repair:', archiveName(dirName) + \
+            notify('Error', 'hellanzb Cannot par repair:', archiveName(dirName) + \
                         '\nNeed ' + neededBlocks + ' more recovery ' + needType, True)
             raise FatalError('Unable to par repair: archive requires ' + neededBlocks + \
                              ' more recovery ' + needType + ' for repair')

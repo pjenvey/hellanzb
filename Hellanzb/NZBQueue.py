@@ -190,7 +190,7 @@ def scanQueueDir(firstRun = False, justScan = False):
             Hellanzb.downloadScannerID = reactor.callLater(5, scanQueueDir)
 
             if not firstRun and not justScan and not Hellanzb.loggedIdleMessage:
-                growlNotify('Queue', 'hellanzb', 'No more nzbs left to download', False)
+                notify('Queue', 'hellanzb', 'No more nzbs left to download', False)
                 Hellanzb.loggedIdleMessage = True
             return
 
@@ -415,7 +415,7 @@ def parseNZB(nzb, notification = 'Downloading', quiet = False):
     processed at the end of parseNZB, tell the factory to start downloading it """
     if not quiet:
         info(notification + ': ' + nzb.archiveName)
-        growlNotify('Queue', 'hellanzb ' + notification + ':', nzb.archiveName,
+        notify('Queue', 'hellanzb ' + notification + ':', nzb.archiveName,
                     False)
 
     try:
@@ -429,8 +429,8 @@ def parseNZB(nzb, notification = 'Downloading', quiet = False):
 
     except FatalError, fe:
         error('Problem while parsing the NZB', fe)
-        growlNotify('Error', 'hellanzb', 'Problem while parsing the NZB: ' + prettyException(fe),
-                    True)
+        notify('Error', 'hellanzb', 'Problem while parsing the NZB: ' \
+                  + prettyException(fe), True)
         error('Moving bad NZB out of queue into TEMP_DIR: ' + Hellanzb.TEMP_DIR)
         move(nzb.nzbFileName, Hellanzb.TEMP_DIR + os.sep)
         reactor.callLater(5, scanQueueDir)
@@ -675,7 +675,7 @@ def enqueueNZBs(nzbFileOrFiles, next = False, writeQueue = True, category = None
             logMsg += ': '
             msg += ': '
             info(logMsg + nzb.archiveName)
-            growlNotify('Queue', 'hellanzb ' + msg, nzb.archiveName, False)
+            notify('Queue', 'hellanzb ' + msg, nzb.archiveName, False)
 
             if nzb.totalBytes == 0 and len(Hellanzb.queue.currentNZBs()) or \
                     not writeQueue:

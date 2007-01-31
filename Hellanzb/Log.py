@@ -13,6 +13,10 @@ Log - The basic log API functions, only -- to discourage polluting namespaces, e
 [See end of file]
 """
 import logging, time, Hellanzb
+try:
+    import pynotify
+except ImportError:
+    pynotify = None
 from socket import AF_INET, SOCK_DGRAM, socket, error as socket_error
 from threading import Lock
 from traceback import print_exc
@@ -86,6 +90,24 @@ def noLogFile(message, appendLF = True):
     if appendLF:
         message = '%s\n' % message
     Hellanzb.logger.log(ScrollableHandler.NOLOGFILE, message)
+
+def notify(type, title, description, sticky = False):
+    """ send the notification message to both Growl and LibNotify Daemon """
+    growlNotify(type, title, description, sticky)
+    libnotifyNotify(type, title, description, sticky)
+
+def libnotifyNotify(type, title, description, sticky = False):
+    """ send a message to libnotify daemon """
+    if not Hellanzb.LIBNOTIFY_NOTIFY:
+        return
+
+    n = pynotify.Notification(title, description)
+    n.set_category(type)
+    if not sticky:
+        n.set_timeout(10000) # 10 Seconds
+
+    if not n.show():
+        debug('Failed to send libnotify notification')
 
 def growlNotify(type, title, description, sticky = False):
     """ send a message to the remote growl daemon via udp """

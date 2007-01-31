@@ -342,6 +342,19 @@ def init(options = {}):
             error('Config file option: Hellanzb.UMASK is not a valid integer')
             sys.exit(1)
 
+    if not hasattr(Hellanzb, 'LIBNOTIFY_NOTIFY'):
+        Hellanzb.LIBNOTIFY_NOTIFY = False
+    elif Hellanzb.LIBNOTIFY_NOTIFY:
+        try:
+            import pynotify
+        except ImportError:
+            error('Please install notify-python or disable Hellanzb.LIBNOTIFY_NOTIFY')
+            sys.exit(1)
+
+        if not pynotify.init('hellanzb'):
+            error('Cannot initialize libnotify')
+            sys.exit(1)
+
     if not hasattr(Hellanzb, 'GROWL_NOTIFY'):
         error('Required option not defined in config file: Hellanzb.GROWL_NOTIFY')
         sys.exit(1)

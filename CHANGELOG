@@ -1,3 +1,8 @@
+v1.0:
+
+o Added support for libnotify notifications (patch submitted by Ruben
+  Fonseca)
+
 v0.11:
 
 o Fixed the error:

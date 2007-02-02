@@ -790,9 +790,11 @@ def cmVersion(version = Hellanzb.version):
     version = version.replace('-trunk', '')
     muck = lambda v : 'v' + v.replace('', ' ').rstrip()
     if len(version) == len('0.10') and version.startswith('0.'):
-        v = muck(version)
-
-    return v
+        version = muck(version)
+    elif len(version) == len('1.0'):
+        version = muck(version)
+        version = ' %s ' % version
+    return version
 
 def cmHella(version = Hellanzb.version):
     """ brand the ascii with a properly formatted version number """

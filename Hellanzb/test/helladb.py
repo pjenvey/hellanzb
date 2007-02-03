@@ -1020,7 +1020,9 @@ def makeOverviewSQL():
 
 
 from twisted.internet import protocol, reactor
-import nntp
+import Hellanzb
+Hellanzb.HAVE_C_YENC = True
+from Hellanzb.NZBLeecher import nntp
 class NNTPFactory(protocol.ServerFactory):
     """A factory for NNTP server protocols."""
 

@@ -67,6 +67,9 @@ def ensureCleanDirs():
             # del the var so Core.shutdown() does not attempt to rmtree() the dir
             delattr(Hellanzb, var)
             raise
+        except OSError, ose:
+            if var != 'DOWNLOAD_TEMP_DIR':
+                raise
 
 def initDaemon():
     """ Start the daemon """
@@ -287,6 +290,17 @@ def endDownload():
     Hellanzb.downloadScannerID.cancel()
     Hellanzb.totalArchivesDownloaded += 1
     writeStateXML()
+
+    nzb = Hellanzb.queue.currentNZBs()[0]
+    if nzb.downloadStartTime:
+        downloadTime = time.time() - nzb.downloadStartTime
+        speed = nzb.totalReadBytes / 1024.0 / downloadTime
+        
+        # NOTE: This is now the total time to transfer & fully decode the archive, as
+        # opposed to how long to just transfer (which this used to be)
+        debug('Transferred %s in %s at %.1fKB/s (%s)' % \
+             (prettySize(nzb.totalReadBytes), prettyElapsed(downloadTime), speed,
+              nzb.archiveName))
     # END
 
 def disconnectUnAntiIdleFactories():

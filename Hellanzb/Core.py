@@ -415,7 +415,10 @@ def finishShutdown():
         # Remove the temporary files with the encoded data. Any errors causing hellanzb to
         # shut down prematurely (like can't bind to specific port -- maybe another
         # hellanzb is running?) should unset this var so this doesn't get called
-        rmtree(Hellanzb.DOWNLOAD_TEMP_DIR)
+        try:
+            rmtree(Hellanzb.DOWNLOAD_TEMP_DIR)
+        except OSError:
+            pass
     if hasattr(Hellanzb, 'DEQUEUED_NZBS_DIR'):
         rmtree(Hellanzb.DEQUEUED_NZBS_DIR)
 

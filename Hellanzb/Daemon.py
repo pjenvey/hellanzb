@@ -291,6 +291,8 @@ def endDownload():
     Hellanzb.totalArchivesDownloaded += 1
     writeStateXML()
 
+    if not len(Hellanzb.queue.currentNZBs()):
+        return
     nzb = Hellanzb.queue.currentNZBs()[0]
     if nzb.downloadStartTime:
         downloadTime = time.time() - nzb.downloadStartTime

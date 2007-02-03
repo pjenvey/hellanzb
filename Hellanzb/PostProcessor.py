@@ -220,6 +220,7 @@ class PostProcessor(Thread):
             # REACTOR STOPPED IF NOT BACKGROUND/SUBIDR
             if self.background:
                 logStateXML(debug)
+            category = self.category
             self.stop()
 
             # Propagate up to the original Post Processor
@@ -244,7 +245,7 @@ class PostProcessor(Thread):
 
             e = time.time() - self.startTime 
             dispatchExternalHandler(ERROR, archiveName=archive,
-                                    destDir=os.path.join(Hellanzb.DEST_DIR, self.category, archive),
+                                    destDir=os.path.join(Hellanzb.DEST_DIR, category, archive),
                                     elapsedTime=prettyElapsed(e),
                                     parMessage='A problem occurred: %s' % pe)
 

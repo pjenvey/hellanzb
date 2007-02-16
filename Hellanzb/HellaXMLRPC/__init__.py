@@ -11,13 +11,11 @@ from logging import getLevelName
 from time import strftime
 from twisted.internet import reactor
 from twisted.internet.error import CannotListenError, ConnectionRefusedError, DNSLookupError
-from twisted.python import log
 from twisted.web import xmlrpc, server
 from twisted.web.server import Site
 from xmlrpclib import DateTime, Fault
 from Hellanzb.HellaXMLRPC.xmlrpc import Proxy, XMLRPC # was twisted.web.xmlrpc
 from Hellanzb.HellaXMLRPC.HtPasswdAuth import HtPasswdWrapper
-from Hellanzb.Logging import LogOutputStream
 from Hellanzb.Log import *
 from Hellanzb.PostProcessor import PostProcessor
 from Hellanzb.PostProcessorUtil import Archive
@@ -664,10 +662,6 @@ def hellaRemote(options, args):
 
     Hellanzb.serverUrl = 'http://hellanzb:%s@%s:%i' % (Hellanzb.XMLRPC_PASSWORD, Hellanzb.XMLRPC_SERVER,
                                                        Hellanzb.XMLRPC_PORT)
-
-    fileStream = LogOutputStream(debug)
-    log.startLogging(fileStream)
-    
     funcName = args[0]
     args.remove(funcName)
     RemoteCall.options = options

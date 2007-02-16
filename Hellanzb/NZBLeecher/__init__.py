@@ -13,10 +13,9 @@ import logging, os, sys, Hellanzb
 from twisted.copyright import version as twistedVersion
 from twisted.internet import reactor
 from twisted.internet.tcp import Connector
-from twisted.python import log
 from Hellanzb.Core import shutdownAndExit, finishShutdown
 from Hellanzb.Log import *
-from Hellanzb.Logging import LogOutputStream, NZBLeecherTicker
+from Hellanzb.Logging import NZBLeecherTicker
 from Hellanzb.Util import isWindows
 from Hellanzb.NZBLeecher.NZBSegmentQueue import FillServerQueue, NZBSegmentQueue
 from Hellanzb.NZBLeecher.NZBLeecherUtil import HellaThrottler, HellaThrottlingFactory
@@ -39,17 +38,6 @@ def initNZBLeecher():
     else:
         uname = os.uname()
         debug('os: %s-%s (%s)' % (uname[0], uname[2], uname[4]))
-    
-    # Direct twisted log output to the debug level
-    twistedTimestampLen = len('2006/02/10 23:59 PST ')
-    def debugNoLF(message):
-        # The twisted timestamp is pretty annoying and I don't want to implement a
-        # FileLogObserver at the moment
-        message = message[twistedTimestampLen:]
-        
-        debug(message, appendLF = False)
-    fileStream = LogOutputStream(debugNoLF)
-    log.startLogging(fileStream)
 
     # Create the one and only download queue
     if initFillServers():

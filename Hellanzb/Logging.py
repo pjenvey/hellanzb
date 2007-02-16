@@ -21,6 +21,8 @@ from logging import StreamHandler
 from logging.handlers import RotatingFileHandler
 from threading import Condition, Lock, RLock, Thread
 from twisted.internet import reactor
+from twisted.python import reflect, util
+from twisted.python.log import startLoggingWithObserver, FileLogObserver
 from Hellanzb.Util import *
 
 __id__ = '$Id$'
@@ -152,6 +154,40 @@ class LogOutputStream:
     def truncate(self, size = None): raise NotImplementedError()
     def writelines(self, list): raise NotImplementedError()
 
+class HellaTwistedLogObserver(FileLogObserver):
+    """ Custom twisted LogObserver. It emits twisted log entries to the debug log
+    function, unless they are failures (Exceptions), which are emited to the error log
+    function """
+    def __init__(self):
+        from Hellanzb.Log import error, debug
+        self.error = error
+        self.debug = debug
+
+    def emit(self, eventDict):
+        isFailure = False
+        edm = eventDict['message']
+        if not edm:
+            if eventDict['isError'] and eventDict.has_key('failure'):
+                isFailure = True
+                text = ((eventDict.get('why') or 'Unhandled Error')
+                        + '\n' + eventDict['failure'].getTraceback())
+            elif eventDict.has_key('format'):
+                text = self._safeFormat(eventDict['format'], eventDict)
+            else:
+                # we don't know how to log this
+                return
+        else:
+            text = ' '.join(map(reflect.safe_str, edm))
+
+        fmtDict = {'system': eventDict['system'], 'text': text}
+        msgStr = self._safeFormat("[%(system)s] %(text)s\n", fmtDict)
+
+        if isFailure:
+            util.untilConcludes(self.error, msgStr, appendLF=False)
+        else:
+            util.untilConcludes(self.debug, msgStr, appendLF=False)
+    __call__ = emit
+
 class ASCIICodes:
     def __init__(self):
         # f/b_ = fore/background
@@ -234,7 +270,8 @@ class NZBLeecherTicker:
         # Even if passed multiple lines, ensure all lines are max 80 chars
         lines = message.split('\n')
         for line in lines:
-            self.scrollHeaders.append(truncateToMultiLine(line, length = 80))
+            line = truncateToMultiLine(line, length = 80).expandtabs()
+            self.scrollHeaders.append(line)
 
         if Hellanzb.SHUTDOWN:
             return
@@ -556,6 +593,9 @@ def initLogFile(logFile = None, debugLogFile = None):
         debugFileHdlr.setLevel(logging.DEBUG)
         debugFileHdlr.addFilter(DebugFileFilter())
         Hellanzb.logger.addHandler(debugFileHdlr)
+    
+    # Direct twisted log output via the custom LogObserver
+    startLoggingWithObserver(HellaTwistedLogObserver())
 
 """
 Copyright (c) 2005 Philip Jenvey <pjenvey@groovie.org>

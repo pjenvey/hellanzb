@@ -105,7 +105,7 @@ class NZBDownloader(object):
 
         reactor.connectTCP(self.host, self.port, httpd)
     
-    def handleEnqueueNZB(self, page):
+    def handleEnqueueNZB(self, page, category=None):
         """ Add the new NZB to the queue"""
         debug(str(self) + ' handleEnqueueNZB')
 
@@ -118,7 +118,7 @@ class NZBDownloader(object):
         dest = os.path.join(os.path.dirname(self.tempFilename), self.nzbFilename)
         os.rename(self.tempFilename, dest)
         
-        Hellanzb.NZBQueue.enqueueNZBs(dest)
+        Hellanzb.NZBQueue.enqueueNZBs(dest, category=category)
 
         os.remove(dest)
         return True

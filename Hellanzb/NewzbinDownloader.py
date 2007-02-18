@@ -41,6 +41,8 @@ class NewzbinDownloader(NZBDownloader):
 
         # The real NZB filename determined from HTTP headers
         self.nzbFilename = None
+        # The NZB category (e.g. 'Apps')
+        self.nzbCategory = None
 
         # Whether or not it appears that this NZB with the msgId does not exist on newzbin
         self.nonExistantNZB = False
@@ -66,6 +68,7 @@ class NewzbinDownloader(NZBDownloader):
             self.nzbFilename = None
             if headers.has_key('x-dnzb-rcode') and headers.get('x-dnzb-rcode')[0] == '404':
                 self.nonExistantNZB = True
+        self.nzbCategory = headers.get('x-dnzb-category')[0]
 
     def download(self):
         """ Start the NZB download process """
@@ -97,7 +100,7 @@ class NewzbinDownloader(NZBDownloader):
 
     def handleEnqueueNZB(self, page):
         """ Add the new NZB to the queue"""
-        if super(self.__class__, self).handleEnqueueNZB(page):
+        if super(self.__class__, self).handleEnqueueNZB(page, self.nzbCategory):
             Hellanzb.NZBQueue.writeStateXML()
         else:
             msg = 'Unable to download newzbin NZB: %s' % self.msgId

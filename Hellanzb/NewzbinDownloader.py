@@ -8,6 +8,10 @@ people might want it so here it is -pjenvey
 
 (c) Copyright 2005 Philip Jenvey
 [See end of file]
+
+
+Updated 2007-01-12 by Thomas Hurst <freaky@newzbin.com>
+ -- Use Newzbin v3's DNZB interface, documented at http://docs.newzbin.com/Newzbin::DirectNZB
 """
 import base64, md5, os, time, Hellanzb.NZBQueue
 from twisted.internet import reactor
@@ -20,41 +24,12 @@ from Hellanzb.Util import tempFilename
 
 __id__ = '$Id$'
 
-class StoreCookieHTTPClientFactory(HTTPClientFactory):
-    """ Extract the cookies from the received page and pass them to the cookieListener """
-    
-    def __init__(self, url, cookieListener = None, *args, **kargs):
-        self.cookieListener = cookieListener
-        
-        HTTPClientFactory.__init__(self, url, *args, **kargs)
-
-    def gotHeaders(self, headers):
-        if headers.has_key('set-cookie'):
-            self.cookieListener.gotCookies(self.parseCookies(headers['set-cookie']))
-            
-        HTTPClientFactory.gotHeaders(self, headers)
-
-    def parseCookies(self, cookieHeader):
-        """ Parse the cookies into a dict and return it """
-        cookies = {}
-        for cookie in cookieHeader:
-            cookparts = cookie.split(';')
-            for cookpart in cookparts:
-                cookpart.lstrip()
-                k, v = cookpart.split('=', 1)
-                cookies[k.lstrip()] = v.lstrip()
-
-        return cookies
-
 class NewzbinDownloader(NZBDownloader):
     """ Download the NZB file with the specified msgid from www.newzbin.com, by instantiating
     this class and calling download() """
 
     HEADERS = { 'Content-Type': 'application/x-www-form-urlencoded'}
-    GET_NZB_URL = 'http://www.newzbin.com/browse/post/____ID____/msgids/msgidlist_post____ID____.nzb'
-    UNCONFIRMED_COOKIE_KEY = 'Hellanzb.UNCONFIRMED'
-
-    cookies = {}
+    url = 'http://v3.newzbin.com/dnzb/'
     
     def __init__(self, msgId):
         """ Initialize the downloader with the specified msgId string """
@@ -70,63 +45,28 @@ class NewzbinDownloader(NZBDownloader):
         # Whether or not it appears that this NZB with the msgId does not exist on newzbin
         self.nonExistantNZB = False
 
-    def getNZBURL(self):
-        if not self.msgId:
-            return ''
-        return self.GET_NZB_URL.replace('____ID____', self.msgId)
-    url = property(getNZBURL)
-
-    def encryptedNewzbinPass(self):
-        """ Return an encrypted version of the NEWZBIN_PASSWORD """
-        m = md5.new()
-        m.update(Hellanzb.NEWZBIN_PASSWORD)
-        return base64.b64encode(m.digest())        
-
-    def gotCookies(self, cookies):
-        """ The downloader will feeds cookies via this function """
-        # Grab the cookies for the PHPSESSID
-        if NewzbinDownloader.cookies.get('PHPSESSID') != cookies.get('PHPSESSID'):
-            # We haven't confirmed the login process tied to this cookie was successful
-            # yet
-            cookies[self.UNCONFIRMED_COOKIE_KEY] = True
-
-        # Store the username/pass associated with this cookie info
-        cookies['Hellanzb-NEWZBIN_USERNAME'] = Hellanzb.NEWZBIN_USERNAME
-        cookies['Hellanzb-ENCRYPTED_NEWZBIN_PASSWORD'] = self.encryptedNewzbinPass()
-        
-        NewzbinDownloader.cookies = cookies
-        debug(str(self) + ' gotCookies: ' + str(NewzbinDownloader.cookies))
+        # DNZB error message
+        self.errMessage = False
 
     def gotHeaders(self, headers):
         """ The downloader will feeds headers via this function """
         super(self.__class__, self).gotHeaders(headers)
-        if self.nzbFilename == 'msgid_%s_.nzb' % self.msgId or \
-                self.nzbFilename == 'NZB_%s_.nzb' % self.msgId: # V3 support -- (if it actually does this?)
-            debug('gotHeaders: bad nzb filename: %s' % self.nzbFilename)
-            self.nzbFilename = None
-            self.nonExistantNZB = True
-            
-    def haveValidSession(self):
-        c = NewzbinDownloader.cookies
-        if c.has_key('PHPSESSID') and \
-            c.get('Hellanzb-NEWZBIN_USERNAME') == Hellanzb.NEWZBIN_USERNAME and \
-            c.get('Hellanzb-ENCRYPTED_NEWZBIN_PASSWORD') == self.encryptedNewzbinPass() and \
-            c.has_key('expires'):
-            expireTime = NewzbinDownloader.cookies['expires']
-            
-            try:
-                # Sun, 08-Aug-2004 08:57:42 GMT
-                expireTime = time.strptime(expireTime, '%a, %d-%b-%Y %H:%M:%S %Z')
-            except ValueError:
-                # Sun, 08 Aug 2004 08:57:42 GMT (ARGH)
-                expireTime = time.strptime(expireTime, '%a, %d %b %Y %H:%M:%S %Z')
+        if headers.has_key('x-dnzb-name'):
+            name = headers.get('x-dnzb-name')[0]
+            # XXX may want to sanitize a little more
+            self.nzbFilename = name.replace('/', '_') + '.nzb'
+        else:
+            # The failure case will go to the generic error handler atm, so this is most likely unused
+            if headers.has_key('x-dnzb-rtext'):
+                self.errMessage = headers.get('x-dnzb-rtext')[0]
+            else:
+                self.errMessage = 'DNZB service error'
 
-            if time.gmtime() <= expireTime:
-                # Hasn't expired yet
-                return True
-            
-        return False
-        
+            info('DNZB request failed: %s' % self.errMessage)
+            self.nzbFilename = None
+            if headers.has_key('x-dnzb-rcode') and headers.get('x-dnzb-rcode')[0] == '404':
+                self.nonExistantNZB = True
+
     def download(self):
         """ Start the NZB download process """
         debug(str(self) + ' Downloading from newzbin.com..')
@@ -135,65 +75,39 @@ class NewzbinDownloader(NZBDownloader):
             return
 
         info('Downloading newzbin NZB: %s ' % self.msgId)
-        if self.haveValidSession():
-            # We have a good session (logged in). Proceed to getting the NZB
-            debug(str(self) + ' have a valid newzbin session, downloading..')
-            self.handleNZBDownloadFromNewzbin(None)
-        else:
-            # We have no session or it has expired (not logged in). Login to newzbin
-            httpc = StoreCookieHTTPClientFactory('http://www.newzbin.com/account/login/',
-                                                 cookieListener = self, agent = self.AGENT)
-            httpc.deferred.addCallback(self.handleNewzbinLogin)
-            httpc.deferred.addErrback(self.errBack)
+        self.handleNZBDownloadFromNewzbin(None)
 
-            reactor.connectTCP('www.newzbin.com', 80, httpc)
+    def handleNZBDownloadFromNewzbin(self, page):
+        """ Download the NZB """
+        debug(str(self) + ' handleNZBDownloadFromNewzbin')
 
-    def handleNewzbinLogin(self, page):
-        """ Login to newzbin """
-        debug(str(self) + ' handleNewzbinLogin')
-        if not NewzbinDownloader.cookies.has_key('PHPSESSID'):
-            debug(str(self) + ' handleNewzbinLogin: There was a problem, no PHPSESSID provided')
-            return
-
+        # XXX erm, URL encoding needed?
         postdata = 'username=' + Hellanzb.NEWZBIN_USERNAME
         postdata += '&password=' + Hellanzb.NEWZBIN_PASSWORD
-        
-        httpc = HTTPClientFactory('http://www.newzbin.com/account/login/', method = 'POST',
-                                  headers = self.HEADERS, postdata = postdata,
-                                  agent = self.AGENT)
-        httpc.cookies = {'PHPSESSID' : NewzbinDownloader.cookies['PHPSESSID']}
-        httpc.deferred.addCallback(self.handleNZBDownloadFromNewzbin)
-        httpc.deferred.addErrback(self.errBack)
+        postdata += '&reportid=' + self.msgId
 
-        reactor.connectTCP('www.newzbin.com', 80, httpc)    
-    
-    def handleNZBDownloadFromNewzbin(self, page):
-        """ Download the NZB after successful login """
-        debug(str(self) + ' handleNZBDownloadFromNewzbin')
-                         
-        httpd = StoreHeadersHTTPDownloader(self.getNZBURL(),
-                                           self.tempFilename, headerListener = self,
+        # This will be www.newzbin.com eventually
+        httpd = StoreHeadersHTTPDownloader(self.url, self.tempFilename, method = 'POST',
+                                           headerListener = self, headers = self.HEADERS, postdata = postdata,
                                            agent = self.AGENT)
-        httpd.cookies = {'PHPSESSID' : NewzbinDownloader.cookies['PHPSESSID']}
         httpd.deferred.addCallback(self.handleEnqueueNZB)
         httpd.deferred.addErrback(self.errBack)
 
-        reactor.connectTCP('www.newzbin.com', 80, httpd)
+        reactor.connectTCP('v3.newzbin.com', 80, httpd)
 
     def handleEnqueueNZB(self, page):
         """ Add the new NZB to the queue"""
         if super(self.__class__, self).handleEnqueueNZB(page):
-            if self.UNCONFIRMED_COOKIE_KEY in self.cookies:
-                del self.cookies[self.UNCONFIRMED_COOKIE_KEY]
-                Hellanzb.NZBQueue.writeStateXML()
+            Hellanzb.NZBQueue.writeStateXML()
         else:
             msg = 'Unable to download newzbin NZB: %s' % self.msgId
-            if self.nonExistantNZB:
+            if self.errMessage:
+                error('%s (%s)' % [msg, self.errMessage])
+            elif self.nonExistantNZB:
                 error('%s (This appears to be an invalid msgid)' % msg)
             else:
                 error('%s (Incorrect NEWZBIN_USERNAME/PASSWORD?)' % msg)
                 # Invalidate the cached cookies
-                NewzbinDownloader.cookies = {}
                 Hellanzb.NZBQueue.writeStateXML()
     
     def __str__(self):

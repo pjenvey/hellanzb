@@ -211,7 +211,7 @@ class NZBLeecher(NNTPClient):
         #if code is not None and code in ('423', '430'):
             # FIXME: show filename and segment number
             #Hellanzb.scroller.prefixScroll(self.currentSegment.showFilename + ' Article is missing!')
-            #Hellanzb.scroller.updateLog(logNow = True)
+            #Hellanzb.scroller.updateLog()
         #    pass
         
         #reactor.callLater(0, self.processBodyAndContinue, '')

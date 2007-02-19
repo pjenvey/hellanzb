@@ -238,10 +238,6 @@ class NZBLeecherTicker:
 
         self.maxCount = 0 # FIXME: var name
 
-        # Only bother doing the whole UI update after running updateStats this many times
-        self.delay = 3
-        self.wait = 0
-
         ACODE = Hellanzb.ACODE
         self.connectionPrefix = ACODE.F_DBLUE + '[' + ACODE.RESET + '%s' + \
                                 ACODE.F_DBLUE + ']' + ACODE.RESET
@@ -278,7 +274,7 @@ class NZBLeecherTicker:
 
         if Hellanzb.SHUTDOWN:
             return
-        self.updateLog(True)
+        self.updateLog()
 
     def killHistory(self):
         """ clear scroll off the screen """
@@ -298,30 +294,19 @@ class NZBLeecherTicker:
 
     # FIXME: probably doesn't matter much, but should be using StringIO for concatenation
     # here, anyway
-    def updateLog(self, logNow = False):
+    def updateLog(self):
         """ Log ticker """
         if Hellanzb.DAEMONIZE or Hellanzb.DISABLE_SCROLLER:
             return
         
-        # Delay the actual log work -- so we don't over-log (too much CPU work in the
-        # async loop)
-        if not logNow:
-            self.wait += 1
-            if self.wait < self.delay:
-                return
-            else:
-                self.wait = 0
-
         ACODE = Hellanzb.ACODE
-        currentLog = self.currentLog
         if self.currentLog != None:
             # Kill previous lines,
-            self.currentLog = '\r\033[%iA' % self.maxCount
+            currentLog = '\r\033[%iA' % self.maxCount
         else:
             # unless we have just began logging. and in that case, explicitly log the
             # first message
-            self.currentLog = ''
-            logNow = True
+            currentLog = ''
 
         # Log information we want to prefix the scroll (so it stays on the screen)
         if len(self.scrollHeaders) > 0:
@@ -330,7 +315,7 @@ class NZBLeecherTicker:
                 message = NEWLINE_RE.sub(ACODE.KILL_LINE + '\n', message)
                 scrollHeader = '%s%s%s\n' % (scrollHeader, message, ACODE.KILL_LINE)
                 
-            self.currentLog = '%s%s' % (self.currentLog, scrollHeader)
+            currentLog = '%s%s' % (currentLog, scrollHeader)
 
         # listing sorted via heapq
         heap = self.segments[:]
@@ -370,18 +355,18 @@ class NZBLeecherTicker:
             prefix = connectionPrefix % prettyId
             if lastSegment != None and lastSegment.nzbFile == segment.nzbFile:
                 # 57 line width -- approximately 80 - 5 (prefix) - 18 (max suffix)
-                self.currentLog = '%s%s %s%s' % (self.currentLog, prefix,
+                currentLog = '%s%s %s%s' % (currentLog, prefix,
                                                  rtruncate(segment.nzbFile.showFilename,
                                                            length = 57), ACODE.KILL_LINE)
             else:
-                self.currentLog = '%s%s %s - %s%2d%%%s%s @ %s%s%.1fKB/s%s' % \
-                    (self.currentLog, prefix, rtruncate(segment.nzbFile.showFilename,
+                currentLog = '%s%s %s - %s%2d%%%s%s @ %s%s%.1fKB/s%s' % \
+                    (currentLog, prefix, rtruncate(segment.nzbFile.showFilename,
                                                         length = 57), ACODE.F_DGREEN,
                      segment.nzbFile.downloadPercentage, ACODE.RESET, ACODE.F_DBLUE,
                      ACODE.RESET, ACODE.F_DRED, segment.nzbFile.getCurrentRate(),
                      ACODE.KILL_LINE)
 
-            self.currentLog = '%s\n\r' % self.currentLog
+            currentLog = '%s\n\r' % currentLog
 
             lastSegment = segment
 
@@ -397,7 +382,7 @@ class NZBLeecherTicker:
                 connectionPrefix = color + '[' + ACODE.RESET + '%s' + \
                                     color + ']' + ACODE.RESET
                 prefix = connectionPrefix % prettyId
-                self.currentLog = '%s%s%s\n\r' % (self.currentLog, prefix, ACODE.KILL_LINE)
+                currentLog = '%s%s%s\n\r' % (currentLog, prefix, ACODE.KILL_LINE)
 
         paused = ''
         if Hellanzb.downloadPaused:
@@ -412,14 +397,14 @@ class NZBLeecherTicker:
 
         prefix = self.connectionPrefix % 'Total'
 
-        self.currentLog = '%s%s%s %.1fKB/s%s, %s%i MB%s queued, ETA: %s%s%s%s%s' % \
-            (self.currentLog, prefix, ACODE.F_DRED, totalSpeed, ACODE.RESET,
+        currentLog = '%s%s%s %.1fKB/s%s, %s%i MB%s queued, ETA: %s%s%s%s%s' % \
+            (currentLog, prefix, ACODE.F_DRED, totalSpeed, ACODE.RESET,
              ACODE.F_DGREEN, Hellanzb.queue.totalQueuedBytes / 1024 / 1024, ACODE.RESET,
              ACODE.F_YELLOW, eta, ACODE.RESET, paused, ACODE.KILL_LINE)
 
-        if logNow or self.currentLog != currentLog:
-            self.logger(self.currentLog)
-            self.scrollHeaders = []
+        self.logger(currentLog)
+        self.currentLog = currentLog
+        self.scrollHeaders = []
 
 def stdinEchoOff():
     """ ECHO OFF standard input """

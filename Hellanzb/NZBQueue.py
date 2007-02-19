@@ -677,8 +677,13 @@ def enqueueNZBs(nzbFileOrFiles, next = False, writeQueue = True, category = None
             info(logMsg + nzb.archiveName)
             notify('Queue', 'hellanzb ' + msg, nzb.archiveName, False)
 
-            if nzb.totalBytes == 0 and len(Hellanzb.queue.currentNZBs()) or \
-                    not writeQueue:
+            # Determine the total bytes of the NZB if it's not already
+            # known. If there's no NZBs in the queue (we're about to parse the
+            # NZB and begin downloading), there's no point in parsing
+            # now. Unless it's the first run of scanQueue (not writeQueue),
+            # then we FIXME: probably need to scan it
+            if nzb.totalBytes == 0 and (len(Hellanzb.queue.currentNZBs()) or \
+                    not writeQueue):
                 from Hellanzb.NZBLeecher.NZBParser import NZBTotalBytesParser
                 reactor.callInThread(NZBTotalBytesParser.getBytes, nzb)
 

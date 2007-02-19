@@ -32,6 +32,9 @@ class NewzbinDownloader(NZBDownloader):
         """ Initialize the downloader with the specified msgId string """
         self.msgId = msgId
 
+        # The HTTPDownloader
+        self.downloader = None
+
         # Write the downloaded NZB here temporarily
         self.tempFilename = os.path.join(Hellanzb.TEMP_DIR,
                                          tempFilename(self.TEMP_FILENAME_PREFIX) + '.nzb')
@@ -45,13 +48,17 @@ class NewzbinDownloader(NZBDownloader):
         # DNZB error message
         self.errMessage = False
 
+        # Number of attempts to download this NZB
+        self.attempt = 0
+
     def gotHeaders(self, headers):
         """ The downloader will feeds headers via this function """
         super(self.__class__, self).gotHeaders(headers)
         if headers.has_key('x-dnzb-name'):
             name = headers.get('x-dnzb-name')[0]
             # XXX may want to sanitize a little more
-            self.nzbFilename = name.replace('/', '_') + '.nzb'
+            cleanName = name.replace('/', '_').replace('\\','_')
+            self.nzbFilename = '%s_%s.nzb' % (self.msgId, cleanName)
         else:
             # The failure case will go to the generic error handler atm, so this is most likely unused
             if headers.has_key('x-dnzb-rtext'):
@@ -73,9 +80,9 @@ class NewzbinDownloader(NZBDownloader):
             return
 
         info('Downloading newzbin NZB: %s ' % self.msgId)
-        self.handleNZBDownloadFromNewzbin(None)
+        self.handleNZBDownloadFromNewzbin()
 
-    def handleNZBDownloadFromNewzbin(self, page):
+    def handleNZBDownloadFromNewzbin(self):
         """ Download the NZB """
         debug(str(self) + ' handleNZBDownloadFromNewzbin')
 
@@ -85,17 +92,43 @@ class NewzbinDownloader(NZBDownloader):
         postdata += '&reportid=' + self.msgId
 
         # This will be www.newzbin.com eventually
-        httpd = StoreHeadersHTTPDownloader(self.url, self.tempFilename, method = 'POST',
-                                           headerListener = self, headers = self.HEADERS, postdata = postdata,
-                                           agent = self.AGENT)
-        httpd.deferred.addCallback(self.handleEnqueueNZB)
-        httpd.deferred.addErrback(self.errBack)
+        self.downloader = StoreHeadersHTTPDownloader(self.url, self.tempFilename, method = 'POST',
+                                                     headers = self.HEADERS, postdata = postdata,
+                                                     agent = self.AGENT)
+        self.downloader.deferred.addCallback(self.handleEnqueueNZB)
+        self.downloader.deferred.addErrback(self.errBack)
 
-        reactor.connectTCP('v3.newzbin.com', 80, httpd)
+        reactor.connectTCP('v3.newzbin.com', 80, self.downloader)
 
     def handleEnqueueNZB(self, page):
         """ Add the new NZB to the queue"""
-        if super(self.__class__, self).handleEnqueueNZB(page, self.nzbCategory):
+        headers = self.downloader.response_headers
+        rcode = headers.get('x-dnzb-rcode', [None])[0]
+        if rcode == '450':
+            self.attempt += 1
+            if attempt >= 5:
+                error('Unable to download newzbin NZB: %s due to rate limiting. Will '
+                      'not retry' % (self.msgId))
+                return
+            # This is a poor way to do this.  Should actually calculate wait time.
+            try:
+                wait = round(int(headers.get('X-DNZB-RText')[0].split(' ')[3]) + \
+                                 random.random() * 30,0)
+            except IndexError:
+                # No DNZB-RText was sent
+                wait = 15
+            error('Unable to download newzbin NZB: %s (Attempt: %s) will retry in %i '
+                  'seconds' % (self.msgId, self.attempt, wait))
+            reactor.callLater(wait, self.handleNZBDownloadFromNewzbin)
+            return
+        elif rcode != '200':
+            error('Unable to download newzbin NZB: %s (%s: %s)' % \
+                      (self.msgId,
+                       headers.get('X-DNZB-RCode', ['No Code'])[0],
+                       headers.get('X-DNZB-RText', ['No Error Text'])[0]))
+            return
+
+        if super(self.__class__, self).handleEnqueueNZB(page):
             Hellanzb.NZBQueue.writeStateXML()
         else:
             msg = 'Unable to download newzbin NZB: %s' % self.msgId

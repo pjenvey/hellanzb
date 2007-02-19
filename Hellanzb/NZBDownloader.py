@@ -17,13 +17,9 @@ from Hellanzb.Util import tempFilename
 __id__ = '$Id$'
 
 class StoreHeadersHTTPDownloader(HTTPDownloader):
-    """ Give the headers to the headerListener """
-    def __init__(self, url, fileOrName, headerListener = None, *args, **kargs):
-        self.headerListener = headerListener
-        HTTPDownloader.__init__(self, url, fileOrName, *args, **kargs)
-        
+    """ Store the response headers in self.response_headers """
     def gotHeaders(self, headers):
-        self.headerListener.gotHeaders(headers)
+        self.response_headers = headers
         HTTPDownloader.gotHeaders(self, headers)
 
 class NZBDownloader(object):
@@ -51,6 +47,8 @@ class NZBDownloader(object):
         self.nzbFilename = os.path.basename(path)
         self.tempFilename = os.path.join(Hellanzb.TEMP_DIR,
                                          tempFilename(self.TEMP_FILENAME_PREFIX) + '.nzb')
+        # The HTTPDownloader
+        self.downloader = None
         # The NZB category (e.g. 'Apps')
         self.nzbCategory = None
         # Whether or not the NZB file data is gzipped
@@ -102,17 +100,18 @@ class NZBDownloader(object):
             auth = string.join(string.split(auth), "") # get rid of whitespace
             headers['Authorization'] = 'Basic ' + auth
 
-        httpd = StoreHeadersHTTPDownloader(self.url, self.tempFilename,
-                                           headerListener = self, headers = headers,
-                                           agent = self.AGENT)
-        httpd.deferred.addCallback(self.handleEnqueueNZB)
-        httpd.deferred.addErrback(self.errBack)
+        self.downloader = StoreHeadersHTTPDownloader(self.url, self.tempFilename,
+                                                     headers = headers,
+                                                     agent = self.AGENT)
+        self.downloader.deferred.addCallback(self.handleEnqueueNZB)
+        self.downloader.deferred.addErrback(self.errBack)
 
-        reactor.connectTCP(self.host, self.port, httpd)
+        reactor.connectTCP(self.host, self.port, self.downloader)
     
-    def handleEnqueueNZB(self, page, category=None):
+    def handleEnqueueNZB(self, page):
         """ Add the new NZB to the queue"""
         debug(str(self) + ' handleEnqueueNZB')
+        self.gotHeaders(self.downloader.response_headers)
 
         if not self.nzbFilename:
             debug(str(self) + ' handleEnqueueNZB: no nzbFilename found, aborting!')
@@ -136,7 +135,7 @@ class NZBDownloader(object):
             gzipped.close()
             os.remove(self.tempFilename)            
         
-        Hellanzb.NZBQueue.enqueueNZBs(dest, category=category)
+        Hellanzb.NZBQueue.enqueueNZBs(dest, category=self.nzbCategory)
 
         os.remove(dest)
         return True

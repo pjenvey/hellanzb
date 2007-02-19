@@ -154,7 +154,7 @@ class LogOutputStream:
     def truncate(self, size = None): raise NotImplementedError()
     def writelines(self, list): raise NotImplementedError()
 
-class ASCIICodes(object):
+class ANSICodes(object):
     # f/b_ = fore/background
     # d/l/b  = dark/light/bright
     map = {
@@ -534,7 +534,7 @@ def initLogging():
     Hellanzb.DISABLE_SCROLLER = False
     
     # map of ascii colors. for the kids
-    Hellanzb.ACODE = ASCIICodes()
+    Hellanzb.ACODE = ANSICodes()
 
     Hellanzb.recentLogs = RecentLogEntries(20)
 

@@ -216,6 +216,9 @@ class NZBLeecherFactory(ReconnectingClientFactory):
     getCurrentRate = staticmethod(getCurrentRate)
             
 
+delimiter = '\r\n'
+EOF = delimiter + '.' + delimiter
+EOFLen = len(EOF)
 QUIET_CONNECTION_LOST_FAILURES = (ConnectionDone, ConnectionLost)
 class NZBLeecher(NNTPClient, TimeoutMixin):
     """ Extends twisted NNTPClient to download NZB segments from the queue, until the queue
@@ -225,22 +228,8 @@ class NZBLeecher(NNTPClient, TimeoutMixin):
     # Twisted 2.0 dataReceived (now dataReceivedToLines)
     line_mode = 1
     __buffer = ''
-    delimiter = '\r\n'
-    EOF = delimiter + '.' + delimiter
-    EOFLen = len(EOF)
+    delimiter = delimiter
     paused = False
-
-    # This value exists in twisted and doesn't do much (except call lineLimitExceeded
-    # when a line that long is exceeded). Knowing twisted that function is probably a
-    # hook for defering processing when it might take too long with too much received
-    # data. hellanzb can definitely receive much longer lines than LineReceiver's
-    # default value. i doubt higher limits degrade its performance much
-    MAX_LENGTH = 262144
-    
-    # End twisted.basic.LineReceiver 
-        
-    # usenet EOF char minus the final '\r\n'
-    RSTRIPPED_END = delimiter + '.'
 
     def __init__(self, username, password):
         """ """
@@ -260,6 +249,8 @@ class NZBLeecher(NNTPClient, TimeoutMixin):
 
         # current article (<segment>) we're dealing with
         self.currentSegment = None
+        # function to write to the current segment
+        self.write = None
 
         self.isLoggedIn = False
         self.setReaderAfterLogin = False
@@ -387,6 +378,7 @@ class NZBLeecher(NNTPClient, TimeoutMixin):
                 # Don't resetCurrentSegment -- the encodedData file would have already
                 # been closed by ensureSafePostponedLoad
                 self.currentSegment = None
+                self.write = None
         
         # Continue being quiet about things if we're shutting down. Don't bother plaguing
         # the log with typical disconnection reasons
@@ -488,6 +480,7 @@ class NZBLeecher(NNTPClient, TimeoutMixin):
                     open(os.path.join(Hellanzb.DOWNLOAD_TEMP_DIR,
                                       self.currentSegment.getTempFileName() + '_ENC'),
                          'w')
+                self.write = self.currentSegment.encodedData.write
                 debug(str(self) + ' PULLED FROM QUEUE: ' + self.currentSegment.getDestination())
 
                 # got a segment - set ourselves as active unless we're already set as so
@@ -808,7 +801,7 @@ class NZBLeecher(NNTPClient, TimeoutMixin):
         else:
             self.__buffer=self.__buffer[lastoffset:]
 
-    def dataReceivedToFile(self, data):
+    def dataReceivedToFile(self, data, EOF=EOF, EOFLen=EOFLen):
         """ Dump the raw recieved data to the current segment's encoded-data-temp file. This
         function is faster than parsing the received data into individual lines
         (dataReceivedToLines) -- it simply dumps the data to file, and looks for the EOF
@@ -858,16 +851,16 @@ class NZBLeecher(NNTPClient, TimeoutMixin):
                 self.lastChunk = ''
 
         # write data to disk
-        self.currentSegment.encodedData.write(data)
+        self.write(data)
 
-        # save last self.EOFLen of current article in lastChunk
+        # save last EOFLen of current article in lastChunk
         dataLen = len(data)
-        if dataLen >= self.EOFLen:
-            self.lastChunk = data[-self.EOFLen:]
+        if dataLen >= EOFLen:
+            self.lastChunk = data[-EOFLen:]
         else:
-            self.lastChunk = self.lastChunk[-(self.EOFLen - dataLen):] + data
+            self.lastChunk = self.lastChunk[-(EOFLen - dataLen):] + data
 
-        if self.lastChunk == self.EOF:
+        if self.lastChunk == EOF:
             self.gotResponseCode = False
             self.lastChunk = ''
             self.gotBody(self._endState())
@@ -910,6 +903,7 @@ class NZBLeecher(NNTPClient, TimeoutMixin):
                     pass
 
         self.currentSegment = None
+        self.write = None
 
     def __str__(self):
         """ Return the name of this NZBLeecher instance """

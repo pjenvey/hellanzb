@@ -7,11 +7,10 @@ DirectNZB API: http://docs.newzbin.com/Newzbin::DirectNZB
                         Dan Borello
 [See end of file]
 """
-import base64, md5, os, time, Hellanzb.NZBQueue
+import os, Hellanzb.NZBQueue
 from twisted.internet import reactor
 from twisted.internet.error import ConnectionRefusedError, DNSLookupError, TimeoutError
 from twisted.web.client import HTTPClientFactory
-from urllib import splitattr, splitvalue
 from Hellanzb.Log import *
 from Hellanzb.NZBDownloader import NZBDownloader, StoreHeadersHTTPDownloader
 from Hellanzb.Util import tempFilename

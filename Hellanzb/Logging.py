@@ -154,6 +154,43 @@ class LogOutputStream:
     def truncate(self, size = None): raise NotImplementedError()
     def writelines(self, list): raise NotImplementedError()
 
+class ASCIICodes(object):
+    # f/b_ = fore/background
+    # d/l/b  = dark/light/bright
+    map = {
+        'ESCAPE': '\033',
+
+        'RESET': '0',
+        'KILL_LINE': 'K',
+
+        'F_DRED': '31',
+        'F_LRED': '31;1',
+        'F_DGREEN': '32',
+        'F_LGREEN': '32;1',
+        'F_BROWN': '33',
+        'F_YELLOW': '33;1',
+        'F_DBLUE': '34',
+        'F_LBLUE': '34;1',
+        'F_DMAGENTA': '35',
+        'F_LMAGENTA': '35;1',
+        'F_DCYAN': '36',
+        'F_LCYAN': '36;1',
+        'F_WHITE': '37',
+        'F_BWHITE': '37;1',
+        }
+
+    def __init__(self):
+        for key, val in self.map.iteritems():
+            self.__dict__[key] = self.code(key)
+        
+    def code(self, name):
+        val = self.map[name]
+        if name != 'ESCAPE':
+            val = '%s[%s' % (self.map['ESCAPE'], val)
+            if name != 'KILL_LINE':
+                val = '%sm' % val
+        return val
+
 class HellaTwistedLogObserver(FileLogObserver):
     """ Custom twisted LogObserver. It emits twisted log entries to the debug log
     function, unless they are failures (Exceptions), which are emited to the error log
@@ -187,40 +224,6 @@ class HellaTwistedLogObserver(FileLogObserver):
         else:
             util.untilConcludes(self.debug, msgStr, appendLF=False)
     __call__ = emit
-
-class ASCIICodes:
-    def __init__(self):
-        # f/b_ = fore/background
-        # d/l/b  = dark/light/bright
-        self.map = {
-            'ESCAPE': '\033',
-            
-            'RESET': '0',
-            'KILL_LINE': 'K',
-            
-            'F_DRED': '31',
-            'F_LRED': '31;1',
-            'F_DGREEN': '32',
-            'F_LGREEN': '32;1',
-            'F_BROWN': '33',
-            'F_YELLOW': '33;1',
-            'F_DBLUE': '34',
-            'F_LBLUE': '34;1',
-            'F_DMAGENTA': '35',
-            'F_LMAGENTA': '35;1',
-            'F_DCYAN': '36',
-            'F_LCYAN': '36;1',
-            'F_WHITE': '37',
-            'F_BWHITE': '37;1',
-            }
-        
-    def __getattr__(self, name):
-        val = self.map[name]
-        if name != 'ESCAPE':
-            val = '%s[%s' % (self.map['ESCAPE'], val)
-            if name != 'KILL_LINE':
-                val = '%sm' % val
-        return val
 
 NEWLINE_RE = re.compile('\n')
 class NZBLeecherTicker:
@@ -375,7 +378,8 @@ class NZBLeecherTicker:
                     (self.currentLog, prefix, rtruncate(segment.nzbFile.showFilename,
                                                         length = 57), ACODE.F_DGREEN,
                      segment.nzbFile.downloadPercentage, ACODE.RESET, ACODE.F_DBLUE,
-                     ACODE.RESET, ACODE.F_DRED, segment.nzbFile.speed, ACODE.KILL_LINE)
+                     ACODE.RESET, ACODE.F_DRED, segment.nzbFile.getCurrentRate(),
+                     ACODE.KILL_LINE)
 
             self.currentLog = '%s\n\r' % self.currentLog
 
@@ -399,9 +403,7 @@ class NZBLeecherTicker:
         if Hellanzb.downloadPaused:
             paused = '%s [Paused]%s' % (ACODE.F_DCYAN, ACODE.RESET)
 
-        totalSpeed = 0
-        for nsf in Hellanzb.nsfs:
-            totalSpeed += nsf.sessionSpeed
+        totalSpeed = Hellanzb.getCurrentRate()
 
         if totalSpeed == 0:
             eta = '00:00:00'

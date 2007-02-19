@@ -65,10 +65,8 @@ class HellaReactor(SelectReactor):
         error.ConnectionDone: failure.Failure(error.ConnectionDone()),
         error.ConnectionLost: failure.Failure(error.ConnectionLost())
         }):
-        """ set the preReadTime value before running doRead (socket.recv). To emulate
-        pyNewsleecher's timing/statistics """
+        """ Handle IOErrors/out of disk space """
         try:
-            Hellanzb.preReadTime = time.time()
             why = getattr(selectable, method)()
             handfn = getattr(selectable, 'fileno', None)
             if not handfn:

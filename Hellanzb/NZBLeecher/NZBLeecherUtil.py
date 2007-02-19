@@ -17,7 +17,6 @@ class HellaThrottler:
     provides global bandwidth throttling for all twisted HellaThrottlingFactories """
     def __init__(self, readLimit=None, writeLimit=None):
         self.connectionCount = 0
-        #self.maxConnectionCount = maxConnectionCount
         self.readLimit = readLimit # max bytes we should read per second
         self.writeLimit = writeLimit # max bytes we should write per second
         self.readThisSecond = 0
@@ -29,26 +28,53 @@ class HellaThrottler:
         
         self.factories = [] # All throttling factories
 
+        # The current download rate
+        self.rate = 0
+
     def registerWritten(self, length):
         """Called by protocol to tell us more bytes were written."""
         self.writtenThisSecond += length
-
+        
     def registerRead(self, length):
         """Called by protocol to tell us more bytes were read."""
         self.readThisSecond += length
 
     def checkReadBandwidth(self):
         """Checks if we've passed bandwidth limits."""
-        if self.readThisSecond > self.readLimit:
+        if self.readLimit and self.readThisSecond > self.readLimit:
             self.throttleReads()
             throttleTime = (float(self.readThisSecond) / self.readLimit) - 1.0
             self.unthrottleReadsID = reactor.callLater(throttleTime,
                                                        self.unthrottleReads)
+
+        nzbFiles = []
+        if Hellanzb.downloading:
+            # Update the total download rate and each NZBFiles rate and d/l percentage
+            self.rate = self.readThisSecond
+            for nsf in Hellanzb.nsfs:
+                for activeClient in nsf.activeClients:
+                    if activeClient.currentSegment and \
+                            activeClient.currentSegment.nzbFile not in nzbFiles:
+                        nzbFile = activeClient.currentSegment.nzbFile
+                        nzbFile.rate = nzbFile.readThisSecond
+
+                        talliedBytes = float(nzbFile.totalReadBytes + nzbFile.totalSkippedBytes)
+                        percentage = int(talliedBytes / max(1, nzbFile.totalBytes) * 100)
+                        nzbFile.downloadPercentage = min(100, percentage)
+
+                        nzbFiles.append(nzbFile)
+
+            Hellanzb.scroller.updateLog()
+
+        # Reset the rate counters
         self.readThisSecond = 0
+        for nzbFile in nzbFiles:
+            nzbFile.readThisSecond = 0
+
         self.checkReadBandwidthID = reactor.callLater(1, self.checkReadBandwidth)
 
     def checkWriteBandwidth(self):
-        if self.writtenThisSecond > self.writeLimit:
+        if self.writeLimit and self.writtenThisSecond > self.writeLimit:
             self.throttleWrites()
             throttleTime = (float(self.writtenThisSecond) / self.writeLimit) - 1.0
             self.unthrottleWritesID = reactor.callLater(throttleTime,
@@ -125,9 +151,9 @@ class HellaThrottlingFactory(WrappingFactory):
 
     def buildProtocol(self, addr):
         if self.ht.connectionCount == 0:
-            if self.ht.readLimit:
+            if self.ht.readLimit is not None:
                 self.ht.checkReadBandwidth()
-            if self.ht.writeLimit:
+            if self.ht.writeLimit is not None:
                 self.ht.checkWriteBandwidth()
 
         if self.connectionCount < self.maxConnectionCount:

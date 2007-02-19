@@ -278,7 +278,12 @@ def beginDownload(nzb = None):
 
 def endDownload():
     """ Finished downloading """
+    sessionStartTime = None
+    sessionReadBytes = 0
     for nsf in Hellanzb.nsfs:
+        sessionReadBytes += nsf.sessionReadBytes
+        if nsf.fillServerPriority == 0:
+            sessionStartTime = nsf.sessionStartTime
         nsf.endDownload()
 
     Hellanzb.downloading = False
@@ -292,17 +297,15 @@ def endDownload():
     writeStateXML()
 
     if not len(Hellanzb.queue.currentNZBs()):
+        # END
         return
-    nzb = Hellanzb.queue.currentNZBs()[0]
-    if nzb.downloadStartTime:
-        downloadTime = time.time() - nzb.downloadStartTime
-        speed = nzb.totalReadBytes / 1024.0 / downloadTime
-        
-        # NOTE: This is now the total time to transfer & fully decode the archive, as
-        # opposed to how long to just transfer (which this used to be)
-        debug('Transferred %s in %s at %.1fKB/s (%s)' % \
-             (prettySize(nzb.totalReadBytes), prettyElapsed(downloadTime), speed,
-              nzb.archiveName))
+
+    currentNZB = Hellanzb.queue.currentNZBs()[0]
+    downloadTime = time.time() - sessionStartTime
+    speed = sessionReadBytes / 1024.0 / downloadTime
+    info('Transferred %s in %s at %.1fKB/s (%s)' % \
+         (prettySize(sessionReadBytes), prettyElapsed(downloadTime), speed,
+          currentNZB.archiveName))
     # END
 
 def disconnectUnAntiIdleFactories():
@@ -335,15 +338,15 @@ def handleNZBDone(nzb):
     # Print download statistics when something was downloaded (have an
     # nzb.downloadStartTime). Otherwise we might have simply parsed the NZB and found the
     # archive was assembled (required no downloading)
-    if nzb.downloadStartTime:
-        downloadTime = time.time() - nzb.downloadStartTime
-        speed = nzb.totalReadBytes / 1024.0 / downloadTime
+    #if nzb.downloadStartTime:
+        #downloadTime = time.time() - nzb.downloadStartTime
+        #speed = nzb.totalReadBytes / 1024.0 / downloadTime
         
-        # NOTE: This is now the total time to transfer & fully decode the archive, as
-        # opposed to how long to just transfer (which this used to be)
-        info('Transferred %s in %s at %.1fKB/s (%s)' % \
-             (prettySize(nzb.totalReadBytes), prettyElapsed(downloadTime), speed,
-              nzb.archiveName))
+        ## NOTE: This is now the total time to transfer & fully decode the archive, as
+        ## opposed to how long to just transfer (which this used to be)
+        #info('Transferred %s in %s at %.1fKB/s (%s)' % \
+        #     (prettySize(nzb.totalReadBytes), prettyElapsed(downloadTime), speed,
+        #      nzb.archiveName))
 
     if not nzb.isParRecovery:
         nzb.downloadTime = downloadTime

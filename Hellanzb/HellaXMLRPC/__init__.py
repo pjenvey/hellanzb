@@ -275,16 +275,11 @@ class HellaXMLRPCServer(XMLRPC):
         """ Return hellanzb's current status text """
         from Hellanzb.NZBQueue import listQueue
         s = {}
-    
-        totalSpeed = 0
-        activeClients = 0
-        # FIXME: rename nsfs. call it factories
-        for nsf in Hellanzb.nsfs:
-            totalSpeed += nsf.sessionSpeed
-            activeClients += len(nsf.activeClients)
 
         if Hellanzb.downloadPaused:
             totalSpeed = 0
+        else:
+            totalSpeed = Hellanzb.getCurrentRate()
 
         s['time'] = DateTime()
         s['uptime'] = secondsToUptime(time.time() - Hellanzb.BEGIN_TIME)

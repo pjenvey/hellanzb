@@ -41,9 +41,9 @@ class NZBLeecherFactory(ReconnectingClientFactory):
         self.port = None
 
         # statistics for the current session (sessions end when downloading stops on all
-        # clients). used for the more accurate total speeds shown in the UI
+        # clients). sessionReadBytes and sessionStartime are used to calculate the average
+        # rate of the download session when a download is finished
         self.sessionReadBytes = 0
-        self.sessionSpeed = 0
         self.sessionStartTime = None
 
         # all of this factory's clients 
@@ -162,10 +162,8 @@ class NZBLeecherFactory(ReconnectingClientFactory):
 
     def beginDownload(self):
         """ Start the download """
-        now = time.time()
         self.sessionReadBytes = 0
-        self.sessionSpeed = 0
-        self.sessionStartTime = now
+        self.sessionStartTime = time.time()
         if self.fillServerPriority == 0:
             self.activated = True
             self.fetchNextNZBSegment()
@@ -194,9 +192,8 @@ class NZBLeecherFactory(ReconnectingClientFactory):
         
         # Reset stats if necessary
         if not len(self.activeClients):
-            self.sessionReadBytes = 0
-            self.sessionSpeed = 0
-            self.sessionStartTime = None
+            # XXX:
+            #self.sessionReadBytes = 0
             self.activated = False
 
         # If we got the justThisDownloadPool, that means this serverPool is done, but
@@ -214,11 +211,8 @@ class NZBLeecherFactory(ReconnectingClientFactory):
             endDownload()
 
     def getCurrentRate():
-        """ Return the current download rate """
-        totalSpeed = 0
-        for nsf in Hellanzb.nsfs:
-            totalSpeed += nsf.sessionSpeed
-        return totalSpeed
+        """ Return the current download rate in KB/s """
+        return Hellanzb.ht.rate / 1024
     getCurrentRate = staticmethod(getCurrentRate)
             
 
@@ -233,6 +227,7 @@ class NZBLeecher(NNTPClient, TimeoutMixin):
     __buffer = ''
     delimiter = '\r\n'
     EOF = delimiter + '.' + delimiter
+    EOFLen = len(EOF)
     paused = False
 
     # This value exists in twisted and doesn't do much (except call lineLimitExceeded
@@ -573,16 +568,7 @@ class NZBLeecher(NNTPClient, TimeoutMixin):
         debug(str(self) + ' getting BODY: <' + self.currentSegment.messageId + '> ' + \
               self.currentSegment.getDestination())
 
-        # Reset the file's start time if it doesn't exist
-        # KLUDGE: OR if we're downloading segment #2. Otherwise segment 1 downloads mess
-        # up the downloadStartTime value. However this makes it inaccurate in regards to
-        # the amount downloaded (when was it ever that accurate anyway?)
-        if self.currentSegment.nzbFile.downloadStartTime == None or \
-                self.currentSegment.number == 2:
-            self.currentSegment.nzbFile.downloadStartTime = Hellanzb.preReadTime
-        
         Hellanzb.scroller.addClient(self.currentSegment, self.factory.color)
-
         NNTPClient.fetchBody(self, '<' + index + '>')
 
     def gotBody(self, notUsed):
@@ -735,43 +721,11 @@ class NZBLeecher(NNTPClient, TimeoutMixin):
     def updateByteCount(self, lineLen):
         Hellanzb.totalBytesDownloaded += lineLen
         self.factory.sessionReadBytes += lineLen
-        if self.currentSegment != None:
-            self.currentSegment.nzbFile.totalReadBytes += lineLen
-            self.currentSegment.nzbFile.nzb.totalReadBytes += lineLen
-
-    def updateStats(self, now):
-        if self.currentSegment == None or self.currentSegment.nzbFile.downloadStartTime == None:
-            return
-
-        oldPercentage = self.currentSegment.nzbFile.downloadPercentage
-        self.currentSegment.nzbFile.downloadPercentage = min(100,
-                                                             int(float(self.currentSegment.nzbFile.totalReadBytes + \
-                                                                       self.currentSegment.nzbFile.totalSkippedBytes) /
-                                                                 max(1, self.currentSegment.nzbFile.totalBytes) * 100))
-
-        # NOTE: we now look for the downloadPercentage to be zero. SmartPar made it so we
-        # download every first segment at the beginning of the download. For larger files,
-        # all those segments will have a percentage of 0. Since the percentage doesn't
-        # change, the logger would stall pretty much until all the first segments were
-        # done. The checks for 0 avoid that situation and hopefully doesn't cause too much
-        # logging
-        if self.currentSegment.nzbFile.downloadPercentage > oldPercentage or \
-                self.currentSegment.nzbFile.downloadPercentage == 0:
-            elapsed = max(0.1, now - self.currentSegment.nzbFile.downloadStartTime)
-            #elapsedSession = max(0.1, now - self.factory.sessionStartTime)
-
-            self.currentSegment.nzbFile.speed = self.currentSegment.nzbFile.totalReadBytes / elapsed / 1024.0
-            ##self.factory.sessionSpeed = self.factory.sessionReadBytes / elapsedSession / 1024.0
-            elapsed = now - self.factory.sessionStartTime
-            if elapsed > 5:
-                self.factory.sessionSpeed = self.factory.sessionReadBytes / max(0.1, elapsed) / 1024.0
-                self.factory.sessionReadBytes = 0
-                self.factory.sessionStartTime = now
-                if self.currentSegment.nzbFile.downloadPercentage == 0:
-                    Hellanzb.scroller.updateLog(logNow = True)
-
-            if self.currentSegment.nzbFile.downloadPercentage != 0:
-                Hellanzb.scroller.updateLog()
+        if self.currentSegment is not None:
+            self.currentSegment.nzbFile.readThisSecond += lineLen
+            nzbFile = self.currentSegment.nzbFile
+            nzbFile.totalReadBytes += lineLen
+            nzbFile.nzb.totalReadBytes += lineLen
 
     def antiIdleConnection(self):
         """ anti idle the connection """
@@ -801,7 +755,6 @@ class NZBLeecher(NNTPClient, TimeoutMixin):
         """ Receive data from the usenet server """
         # Update statistics
         self.updateByteCount(len(data))
-        self.updateStats(Hellanzb.preReadTime)
 
         # got data -- reset the anti idle timeout
         self.resetTimeout()
@@ -907,11 +860,12 @@ class NZBLeecher(NNTPClient, TimeoutMixin):
         # write data to disk
         self.currentSegment.encodedData.write(data)
 
-        # save last len(self.EOF) of current article in lastChunk
-        if len(data) >= len(self.EOF):
-            self.lastChunk = data[-len(self.EOF):]
+        # save last self.EOFLen of current article in lastChunk
+        dataLen = len(data)
+        if dataLen >= self.EOFLen:
+            self.lastChunk = data[-self.EOFLen:]
         else:
-            self.lastChunk = self.lastChunk[-(len(self.EOF) - len(data)):] + data
+            self.lastChunk = self.lastChunk[-(self.EOFLen - dataLen):] + data
 
         if self.lastChunk == self.EOF:
             self.gotResponseCode = False

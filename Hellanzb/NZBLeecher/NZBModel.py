@@ -182,7 +182,6 @@ class NZB(Archive):
             nzbFile.totalReadBytes = 0
             nzbFile.downloadPercentage = 0
             nzbFile.speed = 0
-            nzbFile.downloadStartTime = None
 
     def finalize(self, justClean = False):
         """ Delete any potential cyclic references existing in this NZB, then garbage
@@ -248,12 +247,13 @@ class NZB(Archive):
     def getETA(self):
         """ Return the amount of time needed to finish downloadling this NZB at the current rate
         """
+        # FIXME: this isn't used anywhere. could be broken
         currentRate = Hellanzb.getCurrentRate()
         if self.totalBytes == 0 or currentRate == 0:
             return 0
         else:
             return int(((self.totalBytes - self.totalReadBytes - self.totalSkippedBytes) \
-                       / 1024) / currentRate)
+                       / 1024) / currentRate * 1024)
 
     def getStateAttribs(self):
         """ Return attributes to be written out to the """
@@ -394,7 +394,6 @@ class NZBFile:
         self.totalReadBytes = 0
         self.downloadPercentage = 0
         self.speed = 0
-        self.downloadStartTime = None
 
         ## yEncode header keywords. Optional (not used for UUDecoded segments)
         # the expected file size, as reported from yencode headers
@@ -440,6 +439,12 @@ class NZBFile:
         self.isPar = False
         self.isExtraPar = False
         self.isSkippedPar = False
+
+        ## Download statistics
+        # The current download rate for this NZBFile
+        self.rate = 0
+        # Tally of the amount of data read within the last second
+        self.readThisSecond = 0
 
     def getDestination(self):
         """ Return the full pathname of where this NZBFile should be written to on disk """
@@ -548,6 +553,10 @@ class NZBFile:
         if self.isSkippedPar:
             return not len(self.dequeuedSegments) and not len(self.todoNzbSegments)
         return not len(self.todoNzbSegments)
+
+    def getCurrentRate(self):
+        """ Returns the current download rate for ONLY this NZBFile """
+        return self.rate / 1024
     
     def tryAssemble(self):
         """ Call the ArticleDecoder function of the same name """

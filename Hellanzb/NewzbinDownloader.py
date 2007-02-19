@@ -1,17 +1,11 @@
 """
+NewzbinDownloader - Downloads NZBs directly from v3.newzbin.com via the
+DirectNZB API: http://docs.newzbin.com/Newzbin::DirectNZB
 
-NewzbinDownloader - Downloads NZBs directly from www.newzbin.com
-
-I don't particularly like this feature -- it's bound to break the minute newzbin changes
-its website around, and I personally don't find it all that useful. Alas I see why some
-people might want it so here it is -pjenvey
-
-(c) Copyright 2005 Philip Jenvey
+(c) Copyright 2005-2007 Philip Jenvey
+                        Thomas Hurst <freaky@newzbin.com>
+                        Dan Borello
 [See end of file]
-
-
-Updated 2007-01-12 by Thomas Hurst <freaky@newzbin.com>
- -- Use Newzbin v3's DNZB interface, documented at http://docs.newzbin.com/Newzbin::DirectNZB
 """
 import base64, md5, os, time, Hellanzb.NZBQueue
 from twisted.internet import reactor
@@ -28,7 +22,11 @@ class NewzbinDownloader(NZBDownloader):
     """ Download the NZB file with the specified msgid from www.newzbin.com, by instantiating
     this class and calling download() """
 
-    HEADERS = { 'Content-Type': 'application/x-www-form-urlencoded'}
+    HEADERS = {
+        'Content-Type': 'application/x-www-form-urlencoded',
+        'Accept-Encoding': 'gzip',
+        'Accept': 'text/plain'
+        }
     url = 'http://v3.newzbin.com/dnzb/'
     
     def __init__(self, msgId):
@@ -41,8 +39,6 @@ class NewzbinDownloader(NZBDownloader):
 
         # The real NZB filename determined from HTTP headers
         self.nzbFilename = None
-        # The NZB category (e.g. 'Apps')
-        self.nzbCategory = None
 
         # Whether or not it appears that this NZB with the msgId does not exist on newzbin
         self.nonExistantNZB = False
@@ -126,7 +122,9 @@ class NewzbinDownloader(NZBDownloader):
     canDownload = staticmethod(canDownload)
 
 """
-Copyright (c) 2005 Philip Jenvey <pjenvey@groovie.org>
+Copyright (c) 2005-2007 Philip Jenvey <pjenvey@groovie.org>
+                        Thomas Hurst <freaky@newzbin.com>
+                        Dan Borello
 All rights reserved.
 
 Redistribution and use in source and binary forms, with or without

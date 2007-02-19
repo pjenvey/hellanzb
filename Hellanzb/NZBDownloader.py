@@ -6,7 +6,7 @@ FIXME: NewzbinDownloader should extend NZBDownloader
 (c) Copyright 2005 Philip Jenvey
 [See end of file]
 """
-import base64, os, string, urllib, urlparse, Hellanzb.NZBQueue
+import base64, gzip, os, string, shutil, urllib, urlparse, Hellanzb.NZBQueue
 from twisted.internet import reactor
 from twisted.internet.error import ConnectionRefusedError, DNSLookupError, TimeoutError
 from twisted.web.client import HTTPDownloader
@@ -51,6 +51,10 @@ class NZBDownloader(object):
         self.nzbFilename = os.path.basename(path)
         self.tempFilename = os.path.join(Hellanzb.TEMP_DIR,
                                          tempFilename(self.TEMP_FILENAME_PREFIX) + '.nzb')
+        # The NZB category (e.g. 'Apps')
+        self.nzbCategory = None
+        # Whether or not the NZB file data is gzipped
+        self.isGzipped = False
 
     def download(self):
         """ Start the NZB download process """
@@ -63,6 +67,7 @@ class NZBDownloader(object):
     def gotHeaders(self, headers):
         """ The downloader will feeds headers via this function """
         debug(str(self) + ' gotHeaders')
+        self.isGzipped = headers.get('content-encoding', [None])[0] == 'gzip'
         # Grab the file name of the NZB via content-disposition header
         keys = headers.keys()
 
@@ -116,7 +121,20 @@ class NZBDownloader(object):
             return False
 
         dest = os.path.join(os.path.dirname(self.tempFilename), self.nzbFilename)
-        os.rename(self.tempFilename, dest)
+        if not self.isGzipped:
+            os.rename(self.tempFilename, dest)
+        else:
+            from Hellanzb.Log import info
+            # Gunzip the data. The the gzipped data must have been written to
+            # disk first so that GzipFile can be used (GzipFile can't handle
+            # file-like streams that lack seek and tell)
+            gzipped = gzip.open(self.tempFilename)
+
+            gunzipped = open(dest, 'wb')
+            shutil.copyfileobj(gzipped, gunzipped)
+            gunzipped.close()
+            gzipped.close()
+            os.remove(self.tempFilename)            
         
         Hellanzb.NZBQueue.enqueueNZBs(dest, category=category)
 

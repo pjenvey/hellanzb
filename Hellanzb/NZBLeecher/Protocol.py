@@ -2,7 +2,7 @@
 
 Protocol - The NZBLeecher twisted factory and protocol
 
-(c) Copyright 2006 Philip Jenvey
+(c) Copyright 2005-2007 Philip Jenvey
 [See end of file]
 """
 import os, time, Hellanzb
@@ -910,7 +910,7 @@ class NZBLeecher(NNTPClient, TimeoutMixin):
         return self.factory.serverPoolName + '[' + str(self.id) + ']'
     
 """
-Copyright (c) 2005 Philip Jenvey <pjenvey@groovie.org>
+Copyright (c) 2005-2007 Philip Jenvey <pjenvey@groovie.org>
 All rights reserved.
 
 Redistribution and use in source and binary forms, with or without

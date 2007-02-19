@@ -222,6 +222,8 @@ class NZBTotalBytesParser(ContentHandler):
                   (os.path.basename(nzb.nzbFileName), saxpe.getMessage(),
                    saxpe.getException()))
             return
+        from Hellanzb.Daemon import writeStateXML
+        writeStateXML()
 
         debug('NZBTotalBytesParser(%s) took: %f, bytes: %i' % (nzb.nzbFileName,
                                                                time.time() - s, p.bytes))

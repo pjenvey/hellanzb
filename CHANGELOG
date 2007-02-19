@@ -1,7 +1,14 @@
 v1.0:
 
+o Fixed v3.newzbin.com's DirectNZB support which was broken as of
+  2007-02-18
+
 o Added support for libnotify notifications (patch submitted by Ruben
   Fonseca)
+
+o No longer hiding exceptions; many were previously only shown in the
+  debug log file.
+
 
 v0.11:
 
@@ -83,6 +90,7 @@ o Better handling of slow NZB copies to the queue directory (won't queue the
 o Rars within rars are no longer deleted by the PostProcessor in some cases
 
 o A few misc. lockup/stability related fixes
+
 
 v0.9:
 

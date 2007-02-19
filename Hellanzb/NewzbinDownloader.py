@@ -7,10 +7,11 @@ DirectNZB API: http://docs.newzbin.com/Newzbin::DirectNZB
                         Dan Borello
 [See end of file]
 """
-import os, Hellanzb.NZBQueue
+import os, random, Hellanzb.NZBQueue
 from twisted.internet import reactor
 from twisted.internet.error import ConnectionRefusedError, DNSLookupError, TimeoutError
 from twisted.web.client import HTTPClientFactory
+from twisted.web.error import Error
 from Hellanzb.Log import *
 from Hellanzb.NZBDownloader import NZBDownloader, StoreHeadersHTTPDownloader
 from Hellanzb.Util import tempFilename
@@ -102,32 +103,6 @@ class NewzbinDownloader(NZBDownloader):
 
     def handleEnqueueNZB(self, page):
         """ Add the new NZB to the queue"""
-        headers = self.downloader.response_headers
-        rcode = headers.get('x-dnzb-rcode', [None])[0]
-        if rcode == '450':
-            self.attempt += 1
-            if attempt >= 5:
-                error('Unable to download newzbin NZB: %s due to rate limiting. Will '
-                      'not retry' % (self.msgId))
-                return
-            # This is a poor way to do this.  Should actually calculate wait time.
-            try:
-                wait = round(int(headers.get('X-DNZB-RText')[0].split(' ')[3]) + \
-                                 random.random() * 30,0)
-            except IndexError:
-                # No DNZB-RText was sent
-                wait = 15
-            error('Unable to download newzbin NZB: %s (Attempt: %s) will retry in %i '
-                  'seconds' % (self.msgId, self.attempt, wait))
-            reactor.callLater(wait, self.handleNZBDownloadFromNewzbin)
-            return
-        elif rcode != '200':
-            error('Unable to download newzbin NZB: %s (%s: %s)' % \
-                      (self.msgId,
-                       headers.get('X-DNZB-RCode', ['No Code'])[0],
-                       headers.get('X-DNZB-RText', ['No Error Text'])[0]))
-            return
-
         if super(self.__class__, self).handleEnqueueNZB(page):
             Hellanzb.NZBQueue.writeStateXML()
         else:
@@ -140,6 +115,41 @@ class NewzbinDownloader(NZBDownloader):
                 error('%s (Incorrect NEWZBIN_USERNAME/PASSWORD?)' % msg)
                 # Invalidate the cached cookies
                 Hellanzb.NZBQueue.writeStateXML()
+
+    def errBack(self, reason):
+        if not reason.check(Error):
+            return super(self.__class__, self).errBack()
+
+        headers = self.downloader.response_headers
+        rcode = headers.get('x-dnzb-rcode', [None])[0]
+        if rcode == '450':
+            self.attempt += 1
+            if self.attempt >= 5:
+                error('Unable to download newzbin NZB: %s due to rate limiting. Will '
+                      'not retry' % (self.msgId))
+                return
+
+            rtext = headers.get('x-dnzb-rtext', [''])[0]
+            try:
+                newzbinWait = int(rtext.split(' ')[3])
+            except IndexError, ValueError:
+                # Invalid DNZB-RText
+                newzbinWait = 60
+            wait = round(newzbinWait + random.random() * 15, 0)
+
+            if not rtext:
+                rtext = "'no error message'"
+            error('Unable to download newzbin NZB: %s (newzbin said: %s) will '
+                  'retry in %i seconds (attempt: %i)' % \
+                      (self.msgId, rtext, wait, self.attempt))
+            reactor.callLater(wait, self.download)
+            return
+        elif rcode != '200':
+            error('Unable to download newzbin NZB: %s (%s: %s)' % \
+                      (self.msgId,
+                       headers.get('x-dnzb-rcode', ['No Code'])[0],
+                       headers.get('x-dnzb-rtext', ['No Error Text'])[0]))
+            return
     
     def __str__(self):
         return '%s(%s):' % (self.__class__.__name__, self.msgId)

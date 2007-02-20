@@ -6,14 +6,12 @@
 # $Id$
 
 import sys
-assert sys.version >= '2', "Install Python 2.0 or greater" # don't know of this is
-                                                           # necessary
 from distutils.core import setup, Extension
 import Hellanzb
 try:
     import py2app
 except ImportError:
-    pass
+    py2app = None
 
 __id__ = '$Id$'
 
@@ -21,7 +19,7 @@ __id__ = '$Id$'
 version = Hellanzb.version
 
 def runSetup():
-    setup(
+    options = dict(
         name = 'hellanzb',
         version = version,
         author = 'Philip Jenvey',
@@ -42,8 +40,8 @@ def runSetup():
         scripts = [ 'hellanzb.py' ],
         data_files = [ ( 'etc', [ 'etc/hellanzb.conf.sample' ] ),
                        ( 'share/doc/hellanzb', [ 'CHANGELOG', 'CREDITS', 'README', 'LICENSE' ] ) ],
-
-        # py2app options
+        )
+    py2app_options = dict(
         app = [ 'hellanzb.py' ],
         options = dict(py2app = dict(
                 argv_emulation = True,
@@ -51,6 +49,9 @@ def runSetup():
                 # py2app from detecting its use
                 includes = [ 'syslog' ])),
         )
+    if py2app:
+        options.update(py2app_options)
+    setup(**options)
 
 if __name__ == '__main__':
     runSetup()

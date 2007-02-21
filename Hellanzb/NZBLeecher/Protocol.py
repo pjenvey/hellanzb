@@ -479,7 +479,7 @@ class NZBLeecher(NNTPClient, TimeoutMixin):
                 self.currentSegment.encodedData = \
                     open(os.path.join(Hellanzb.DOWNLOAD_TEMP_DIR,
                                       self.currentSegment.getTempFileName() + '_ENC'),
-                         'w')
+                         'wb')
                 self.write = self.currentSegment.encodedData.write
                 debug(str(self) + ' PULLED FROM QUEUE: ' + self.currentSegment.getDestination())
 

@@ -258,7 +258,7 @@ def isRar(fileName):
     if ext and ext.lower() == 'rar':
         return True
 
-    fh = open(fileName)
+    fh = open(fileName, 'rb')
     firstFourBytes = fh.read(4)
     fh.close()
 
@@ -311,7 +311,7 @@ def isMacBin(fileName):
     if not ext.lower() == 'bin':
         return False
 
-    fh = open(fileName)
+    fh = open(fileName, 'rb')
     fh.seek(102)
     mark = fh.read(4)
     fh.close()
@@ -1079,11 +1079,11 @@ def assembleSplitFiles(dirName, toAssemble):
         info(msg)
         debug(msg + ' ' + str(parts))
         
-        assembledFile = open(os.path.join(dirName, key), 'w')
+        assembledFile = open(os.path.join(dirName, key), 'wb')
         write = assembledFile.write
         
         for file in parts:
-            partFile = open(os.path.join(dirName, file))
+            partFile = open(os.path.join(dirName, file), 'rb')
             read = partFile.read
             try:
                 while True:

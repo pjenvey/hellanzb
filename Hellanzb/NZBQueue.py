@@ -260,7 +260,7 @@ def nzbZipSearch(file):
                 debug('Not extracting "%s" from "%s": file already exists.' % \
                       (zipname, file))
                 continue
-            newNZB = open(zippath, 'w')
+            newNZB = open(zippath, 'wb')
             newNZB.write(z.read(zipname))
             newNZB.close()
             enqueueNZBs(zippath)
@@ -296,7 +296,7 @@ def nzbGzipSearch(file):
                       (file, ufilepath))
        z.close()
        return False
-    newNZB = open(ufilepath, 'w')
+    newNZB = open(ufilepath, 'wb')
     try:
         shutil.copyfileobj(z, newNZB)
     except IOError, ioe:
@@ -394,7 +394,7 @@ def writeStateXML():
             move(file, file + '.bak')
             backedUp = True
 
-        outFile = open(file, 'w')
+        outFile = open(file, 'wb')
         _writeStateXML(outFile)
         try:
             outFile.close()
@@ -618,7 +618,7 @@ def enqueueNZBData(nzbFilename, nzbData):
         else:
             os.remove(tempLocation)
 
-    f = open(tempLocation, 'w')
+    f = open(tempLocation, 'wb')
     if isinstance(nzbData, file):
         nzbData.seek(0)
         shutil.copyfileobj(nzbData, f)

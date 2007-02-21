@@ -641,7 +641,8 @@ class NZBSegment:
         """ Load the previously downloaded article BODY from disk, as a list to the .articleData
         variable. Removes the on disk version upon loading """
         # downloaded encodedData was written to disk by NZBLeecher
-        encodedData = open(os.path.join(Hellanzb.DOWNLOAD_TEMP_DIR, self.getTempFileName() + '_ENC'))
+        encodedData = open(os.path.join(Hellanzb.DOWNLOAD_TEMP_DIR,
+                                        self.getTempFileName() + '_ENC'), 'rb')
         # remove crlfs. FIXME: might be quicker to do this during a later loop
         self.articleData = [line[:-2] for line in encodedData]
         encodedData.close()

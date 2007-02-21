@@ -909,7 +909,7 @@ class FillServerQueue(object):
 
     def parseNZB(self, nzb, verbose = True):
         """ Initialize the queue from the specified nzb file """
-        self.queues[0].parseNZB(nzb, verbose)
+        return self.queues[0].parseNZB(nzb, verbose)
 
 """
 Copyright (c) 2005 Philip Jenvey <pjenvey@groovie.org>

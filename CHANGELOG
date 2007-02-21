@@ -1,5 +1,7 @@
 v0.13:
 
+o Fixed PostProcessor handling of filenames containing double quotes
+
 o Fixed the following error triggered after failed yenc CRC checks:
 
   File "hellanzb-0.12/Hellanzb/NZBLeecher/ArticleDecoder.py", line 685,

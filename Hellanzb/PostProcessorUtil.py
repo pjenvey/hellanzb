@@ -423,15 +423,18 @@ def getMusicType(fileName):
 
 def decompressMusicFile(postProcessor, fileName, musicType, archive = None):
     """ Decompress the specified file according to its musicType """
-    cmd = musicType.decompressor.replace('<FILE>', '"' + fileName + '"')
-
     extLen = len(getFileExtension(fileName))
     destFileName = fileName[:-extLen] + musicType.decompressToType
 
     if archive == None:
         archive = archiveName(os.path.dirname(fileName))
-    
-    cmd = cmd.replace('<DESTFILE>', '"' + destFileName + '"')
+
+    cmd = musicType.decompressor.split()
+    replace_token = lambda item: \
+        item == '<FILE>' and fileName or \
+        item == '<DESTFILE>' and destFileName or \
+        item
+    cmd = map(replace_token, cmd)
 
     t = Topen(cmd, postProcessor)
     output, returnCode = t.readlinesAndWait()
@@ -524,10 +527,10 @@ def unrar(postProcessor, fileName, pathToExtract = None):
     if postProcessor.rarPassword != None:
         # Specify the password during the listing, in the case that the data AND headers
         # are passworded
-        listCmd = '%s l -y "-p%s" -- "%s"' % (Hellanzb.UNRAR_CMD,
-                                              postProcessor.rarPassword, fileName)
+        listCmd = [Hellanzb.UNRAR_CMD, 'l', '-y', '-p%s' % postProcessor.rarPassword,
+                   '--', fileName]
     else:
-        listCmd = '%s l -y -p- -- "%s"' % (Hellanzb.UNRAR_CMD, fileName)
+        listCmd = [Hellanzb.UNRAR_CMD, 'l', '-y', '-p-', '--', fileName]
     t = Topen(listCmd, postProcessor)
     output, listReturnCode = t.readlinesAndWait()
 
@@ -584,10 +587,10 @@ def unrar(postProcessor, fileName, pathToExtract = None):
     # filesystem that clash)
     renamedFiles = {}
     if postProcessor.rarPassword != None:
-        listCmd = '%s lb -y "-p%s" -- "%s"' % (Hellanzb.UNRAR_CMD,
-                                               postProcessor.rarPassword, fileName)
+        listCmd = [Hellanzb.UNRAR_CMD, 'lb', '-y', '-p%s' % postProcessor.rarPassword,
+                   '--', fileName]
     else:
-        listCmd = '%s lb -y -p- -- "%s"' % (Hellanzb.UNRAR_CMD, fileName)
+        listCmd = [Hellanzb.UNRAR_CMD, 'lb', '-y', '-p-', '--', fileName]
     t = Topen(listCmd, postProcessor)
     output, listReturnCode = t.readlinesAndWait()
     for line in output:
@@ -606,11 +609,11 @@ def unrar(postProcessor, fileName, pathToExtract = None):
                       os.path.basename(fileName)))
 
     if isPassworded:
-        cmd = '%s x -y -idp "-p%s" -- "%s" "%s"' % \
-            (Hellanzb.UNRAR_CMD, postProcessor.rarPassword, fileName, pathToExtract)
+        cmd = [Hellanzb.UNRAR_CMD, 'x', '-y', '-idp', '-p%s', postProcessor.rarPassword,
+               '--', fileName, pathToExtract]
     else:
-        cmd = '%s x -y -idp -p- -- "%s" "%s"' % (Hellanzb.UNRAR_CMD, fileName,
-                                                 pathToExtract)
+        cmd = [Hellanzb.UNRAR_CMD, 'x', '-y', '-idp', '-p-', '--', fileName,
+               pathToExtract]
     
     info(archiveName(postProcessor.dirName) + ': Unraring ' + os.path.basename(fileName) + '..')
     t = Topen(cmd, postProcessor)
@@ -826,9 +829,9 @@ def par2(postProcessor, parFiles, wildcard, needAssembly = None):
     if needAssembly == None:
         needAssembly = {}
         
-    repairCmd = Hellanzb.PAR2_CMD + ' r --'
+    repairCmd = [Hellanzb.PAR2_CMD, 'r', '--']
     for parFile in parFiles:
-        repairCmd += ' "%s" "*._hellanzb_dupe.*"' % (pathjoin(dirName, parFile))
+        repairCmd.extend([pathjoin(dirName, parFile), '*._hellanzb_dupe.*'])
         
     t = Topen(repairCmd, postProcessor)
     output, returnCode = t.readlinesAndWait()
@@ -895,7 +898,7 @@ def par2(postProcessor, parFiles, wildcard, needAssembly = None):
         # Abnormal behavior -- let the user deal with it
         raise FatalError('par2 repair failed: returned code: ' + str(returnCode) + \
                          '. Please run par2 manually for more information, par2 cmd: ' + \
-                         repairCmd)
+                         t.prettyCmd)
 
 RAR_NOT_FOUND_RE = re.compile(r'.*File:\ "(.*)"\ -\ no\ data\ found\..*')
 RAR_DAMAGED_RE = re.compile(r'"\ -\ damaged\.\ Found\ \d+\ of\ \d+\ data\ blocks\.')
@@ -1137,8 +1140,7 @@ def decodeMacBin(postProcessor):
 
             output = fullPath[:-4]
             hellaRename(output)
-            macbinCmd = '%s -mb "%s" -mac "%s"' % \
-                (Hellanzb.MACBINCONV_CMD, fullPath, output)
+            macbinCmd = [Hellanzb.MACBINCONV_CMD, '-mb', fullPath, '-mac', output]
         
             t = Topen(macbinCmd, postProcessor)
             output, returnCode = t.readlinesAndWait()

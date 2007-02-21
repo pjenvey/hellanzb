@@ -70,9 +70,7 @@ class Topen(protocol.ProcessProtocol):
         # problem. this class should probably always capture stderr, optionally to another
         # stream
         self.cmd = cmd
-        self.prettyCmd = cmd # FIXME: for compat. with ptyopen
         self.captureStdErr = captureStdErr
-        self.args = self.parseCmdToList(cmd)
         self.outBuf = StringIO()
         self.finished = Condition()
         self.returnCode = None
@@ -85,6 +83,13 @@ class Topen(protocol.ProcessProtocol):
         if hasattr(protocol.ProcessProtocol, '__init__') and \
                 callable(protocol.ProcessProtocol.__init__):
             protocol.ProcessProtocol.__init__(self)
+
+    def getPrettyCmd(self):
+        """ Return a pretty representation of this command (one that could be ran via the
+        command line) """
+        quote = lambda item: ' ' in item and '"%s"' % item.replace('"', r'\"') or item
+        return ' '.join(map(quote, self.cmd))
+    prettyCmd = property(getPrettyCmd)
 
     def received(self, data):
         self.outBuf.write(data)
@@ -104,11 +109,11 @@ class Topen(protocol.ProcessProtocol):
 
         from Hellanzb.Log import debug
         import thread
-        debug('processEnded THREAD ID: ' + str(thread.get_ident()) + ' (' + self.cmd + ') ' + \
-              'aquiring lock')
+        debug('processEnded THREAD ID: ' + str(thread.get_ident()) + ' (' + \
+                  self.prettyCmd + ') ' + 'aquiring lock')
         self.finished.acquire()
-        debug('processEnded THREAD ID: ' + str(thread.get_ident()) + ' (' + self.cmd + ')' + \
-              ' (pid: ' + str(self.transport.pid) + ')')
+        debug('processEnded THREAD ID: ' + str(thread.get_ident()) + ' (' + \
+                  self.prettyCmd + ')' + ' (pid: ' + str(self.transport.pid) + ')')
         self.finished.notify()
         self.finished.release()
 
@@ -122,9 +127,9 @@ class Topen(protocol.ProcessProtocol):
                 os.kill(self.transport.pid, signal.SIGKILL)
             except OSError, ose:
                 error('Unexpected problem while kill -9ing pid: ' + str(self.transport.pid) + \
-                      ' process: ' + self.cmd, ose)
+                      ' process: ' + self.prettyCmd, ose)
             except Exception, e:
-                debug('could not kill process: ' + self.cmd + ': ' + str(e))
+                debug('could not kill process: ' + self.prettyCmd + ': ' + str(e))
 
         self.postProcessor.killed = True
                 
@@ -150,7 +155,8 @@ class Topen(protocol.ProcessProtocol):
         self.finished.acquire()
         from Hellanzb.Log import debug
         import thread
-        debug('spawnProcess THREAD ID: ' + str(thread.get_ident()) + ' (' + self.cmd + ')')
+        debug('spawnProcess THREAD ID: ' + str(thread.get_ident()) + ' (' + \
+                  self.prettyCmd + ')')
 
         # The reactor could have fallen asleep on us in -Lp mode! Why? I'm not sure, but
         # it dies after the first par2 process (Topen call) =[
@@ -163,7 +169,7 @@ class Topen(protocol.ProcessProtocol):
         # trouble. We also MUST usePTY, otherwise the processes receive signals (in
         # particular, SIGINT, rendering our first CTRL-C ignoring code useless, as it ends
         # up killing our sub processes)
-        reactor.callFromThread(reactor.spawnProcess, self, self.args[0], self.args, os.environ,
+        reactor.callFromThread(reactor.spawnProcess, self, self.cmd[0], self.cmd, os.environ,
                                usePTY = 1)
 
         self.finished.wait()

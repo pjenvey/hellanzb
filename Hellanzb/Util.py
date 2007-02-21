@@ -113,7 +113,7 @@ class Topen(protocol.ProcessProtocol):
                   self.prettyCmd + ') ' + 'aquiring lock')
         self.finished.acquire()
         debug('processEnded THREAD ID: ' + str(thread.get_ident()) + ' (' + \
-                  self.prettyCmd + ')' + ' (pid: ' + str(self.transport.pid) + ')')
+                  self.prettyCmd + ')' + ' (pid: ' + str(self.getPid()) + ')')
         self.finished.notify()
         self.finished.release()
 
@@ -122,11 +122,14 @@ class Topen(protocol.ProcessProtocol):
 
     def kill(self):
         from Hellanzb.Log import debug, error
+        if isWindows():
+            warn('Left running process: %s' % self.prettyCmd)
+            return
         if self.isRunning:
             try:
-                os.kill(self.transport.pid, signal.SIGKILL)
+                os.kill(self.getPid(), signal.SIGKILL)
             except OSError, ose:
-                error('Unexpected problem while kill -9ing pid: ' + str(self.transport.pid) + \
+                error('Unexpected problem while kill -9ing pid: ' + str(self.getPid()) + \
                       ' process: ' + self.prettyCmd, ose)
             except Exception, e:
                 debug('could not kill process: ' + self.prettyCmd + ': ' + str(e))
@@ -186,7 +189,7 @@ class Topen(protocol.ProcessProtocol):
     def getPid(self):
         """ Return the pid of the process if it exists """
         if self.transport:
-            return self.transport.pid
+            return getattr(self.transport, 'pid', None)
         return None
     
     def killAll():

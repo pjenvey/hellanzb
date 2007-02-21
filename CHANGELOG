@@ -1,5 +1,12 @@
 v0.13:
 
+o Fixed download problems on Windows, which would repeatedly
+  produce errors such as:
+
+  Archive segment: 2 does not have a valid CRC/yend line!
+
+  (thanks Ryan van Barneveld)
+
 o Fixed total archive time reported at the end of PostProcessing
   (downloadTime was tallied as 0)
 

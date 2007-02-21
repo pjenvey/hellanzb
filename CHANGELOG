@@ -1,5 +1,8 @@
 v0.13:
 
+o Fixed the Hellanzb.CATEGORIZE_DEST option: it was impossible to
+  disable in v0.12
+
 o Fixed PostProcessor handling of filenames containing double quotes
 
 o Fixed the following error triggered after failed yenc CRC checks:

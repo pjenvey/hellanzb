@@ -89,7 +89,9 @@ class PostProcessor(Thread):
 
     def __getattr__(self, name):
         """ Forward specific attribute lookups to the Archive object """
-        if name in self.archiveAttrs:
+        if name == 'category' and not Hellanzb.CATEGORIZE_DEST:
+            return ''
+        elif name in self.archiveAttrs:
             return getattr(self.archive, name)
         raise AttributeError, name
 

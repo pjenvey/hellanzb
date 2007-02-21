@@ -152,7 +152,11 @@ Hellanzb.GROWL_PASSWORD = 'password'
 Hellanzb.LIBNOTIFY_NOTIFY = False
 
 
-# Disable ANSI color codes in the main screen
+# Disable ANSI color codes in the main screen (preserves the in place scroller)
+#Hellanzb.DISABLE_COLORS = False
+
+# Disable ALL ANSI color codes in the main screen (for terminals that don't
+# support ANY ANSI codes
 #Hellanzb.DISABLE_ANSI = False
 
 

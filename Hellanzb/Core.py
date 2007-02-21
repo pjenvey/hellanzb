@@ -126,6 +126,9 @@ def loadConfig(fileName):
         if not hasattr(Hellanzb, 'NZB_GZIPS'):
             Hellanzb.NZB_GZIPS = '.nzb.gz'
 
+        if not hasattr(Hellanzb, 'DISABLE_COLORS'):
+            Hellanzb.DISABLE_COLORS = False
+
         if not hasattr(Hellanzb, 'DISABLE_ANSI'):
             Hellanzb.DISABLE_ANSI = False
 

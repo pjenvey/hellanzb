@@ -195,6 +195,10 @@ class ANSICodes(object):
                 val = '%sm' % val
         return val
 
+    def moveUp(self, count):
+        """ Return ANSI codes to move the cursor up count lines """
+        return not Hellanzb.DISABLE_ANSI and '\r\033[%iA' % count or ''
+
 class HellaTwistedLogObserver(FileLogObserver):
     """ Custom twisted LogObserver. It emits twisted log entries to the debug log
     function, unless they are failures (Exceptions), which are emited to the error log
@@ -283,10 +287,10 @@ class NZBLeecherTicker:
     def killHistory(self):
         """ clear scroll off the screen """
         if not self.killedHistory and self.started:
-            msg = '\r\033[%iA' % (self.maxCount + 1)
+            msg = Hellanzb.ACODE.moveUp(self.maxCount + 1)
             for i in range(self.maxCount + 1):
                 msg = '%s\n%s' % (msg, Hellanzb.ACODE.KILL_LINE)
-            msg = '%s\r\033[%iA' % (msg, self.maxCount + 1)
+            msg = '%s%s' % (msg, Hellanzb.ACODE.moveUp(self.maxCount + 1))
             
             if not Hellanzb.DAEMONIZE:
                 self.logger(msg)
@@ -306,7 +310,10 @@ class NZBLeecherTicker:
         ACODE = Hellanzb.ACODE
         if self.currentLog != None:
             # Kill previous lines,
-            currentLog = '\r\033[%iA' % self.maxCount
+            if Hellanzb.DISABLE_ANSI:
+                currentLog = '\n'
+            else:
+                currentLog = Hellanzb.ACODE.moveUp(self.maxCount)
         else:
             # unless we have just began logging. and in that case, explicitly log the
             # first message

@@ -39,8 +39,11 @@ def error(message, exception = None, appendLF = True):
     prettyEx = prettyException(exception)
     if prettyEx != '':
         message = '%s: %s' % (message, prettyEx)
-        
-    Hellanzb.recentLogs.append(logging.ERROR, message)
+
+    try:
+        Hellanzb.recentLogs.append(logging.ERROR, message)
+    except AttributeError: # an error occured during startup
+        pass
     
     if appendLF:
         message = '%s\n' % message

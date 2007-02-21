@@ -181,7 +181,11 @@ class ANSICodes(object):
 
     def __init__(self):
         for key, val in self.map.iteritems():
-            self.__dict__[key] = self.code(key)
+            if Hellanzb.DISABLE_ANSI:
+                code = ''
+            else:
+                code = self.code(key)
+            self.__dict__[key] = code
         
     def code(self, name):
         val = self.map[name]
@@ -432,7 +436,8 @@ def stdinEchoOff():
     
 def stdinEchoOn():
     """ ECHO ON standard input """
-    if not termios or Hellanzb.DAEMONIZE or Hellanzb.DISABLE_SCROLLER:
+    if not termios or getattr(Hellanzb, 'DAEMONIZE', False) \
+            or getattr(Hellanzb, 'DISABLE_SCROLLER', False):
         return
     
     from Hellanzb.Log import debug
@@ -518,13 +523,15 @@ def initLogging():
     # Whether or not the scroller functionality is completely disabled
     Hellanzb.DISABLE_SCROLLER = False
     
-    # map of ascii colors. for the kids
-    Hellanzb.ACODE = ANSICodes()
-
     Hellanzb.recentLogs = RecentLogEntries(20)
 
 def initLogFile(logFile = None, debugLogFile = None):
     """ Initialize the log file. This has to be done after the config is loaded """
+    # map of ascii colors. for the kids
+    # This is initialized here, instead of initLogging, because it requires the config
+    # file to be loaded
+    Hellanzb.ACODE = ANSICodes()
+
     maxBytes = backupCount = 0
     if hasattr(Hellanzb, 'LOG_FILE_MAX_BYTES'):
         maxBytes = Hellanzb.LOG_FILE_MAX_BYTES

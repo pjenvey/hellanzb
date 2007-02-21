@@ -126,6 +126,9 @@ def loadConfig(fileName):
         if not hasattr(Hellanzb, 'NZB_GZIPS'):
             Hellanzb.NZB_GZIPS = '.nzb.gz'
 
+        if not hasattr(Hellanzb, 'DISABLE_ANSI'):
+            Hellanzb.DISABLE_ANSI = False
+
         if not hasattr(Hellanzb, 'OTHER_NZB_FILE_TYPES'):
             # By default, just match .nzb files in the queue dir
             Hellanzb.NZB_FILE_RE = re.compile(r'(?i)\.(nzb)$')
@@ -392,7 +395,7 @@ def shutdown(killPostProcessors = False, message = None):
         # here
         Topen.killAll()
 
-    if not Hellanzb.shutdownMessage:
+    if not getattr(Hellanzb, 'shutdownMessage', None):
         Hellanzb.shutdownMessage = message
     
     # stop the twisted reactor

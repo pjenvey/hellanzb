@@ -152,6 +152,10 @@ Hellanzb.GROWL_PASSWORD = 'password'
 Hellanzb.LIBNOTIFY_NOTIFY = False
 
 
+# Disable ANSI color codes in the main screen
+#Hellanzb.DISABLE_ANSI = False
+
+
 # Hostname for the XMLRPC client to connect to. By default, localhost
 Hellanzb.XMLRPC_SERVER = 'localhost'
 

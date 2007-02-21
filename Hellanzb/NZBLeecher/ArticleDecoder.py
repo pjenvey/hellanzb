@@ -59,20 +59,22 @@ def decode(segment):
     
     if Hellanzb.DEBUG_MODE_ENABLED:
         # FIXME: need a better enum
-        if encoding == 1:
+        if encoding == YENCODE:
             encodingName = 'YENC'
-        elif encoding == 2:
+        elif encoding == UUENCODE:
             encodingName = 'UUENCODE'
-        elif encoding == 3:
-            # FIXME: optimize this for posts with large amounts of CRC errors (say, every
-            # post) -- don't bother crcFailedRequeue if there is only one defined server
-            debug('Decoded (YENCODE_CRC_FAILED): %s' % segment.getDestination())
-            reactor.callFromThread(crcFailedRequeue, segment, encodingMessage)
-            return
+        elif encoding == YENCODE_CRC_FAILED:
+            encodingName = 'YENCODE_CRC_FAILED'
         else:
             encodingName = 'UNKNOWN'
         debug('Decoded (encoding: %s): %s' % (encodingName, segment.getDestination()))
-    postDecode(segment)
+        
+    if encoding == YENCODE_CRC_FAILED:
+        # FIXME: optimize this for posts with large amounts of CRC errors (say, every
+        # post) -- don't bother crcFailedRequeue if there is only one defined server
+        reactor.callFromThread(crcFailedRequeue, segment, encodingMessage)
+    else:
+        postDecode(segment)
 
 def postDecode(segment):
     """ Handle post-decode operations (assembly, detect the NZB is finished downloading, etc)
@@ -119,16 +121,22 @@ def crcFailedRequeue(segment, encodingMessage):
         # Acquire the assembly lock to avoid potential clashing with postpone() 
         segment.nzbFile.nzb.assembleLock.acquire()
 
-        # Use the largest file (by size) downloaded from the servers, and delete the rest
-        failedFiles = []
-        for serverPoolName in segment.failedServerPools:
-            failedFile = segment.getDestination() + '-hellafailed_%s' % serverPoolName
-            failedFiles.append((os.path.getsize(failedFile), failedFile))
-        failedFiles.sort()
-        largestFile = failedFiles.pop()[1]
-        os.rename(largestFile, segment.getDestination())
-        for failedFile in failedFiles:
-            nuke(failedFile[1])
+        if len(segment.failedServerPools) > 1:
+            # Use the largest file (by size) downloaded from the servers, and delete the
+            # rest
+            failedFiles = []
+            for serverPoolName in segment.failedServerPools:
+                failedFile = segment.getDestination() + '-hellafailed_%s' % serverPoolName
+                failedFiles.append((os.path.getsize(failedFile), failedFile))
+            failedFiles.sort()
+            useFile = failedFiles.pop()[1]
+            for failedFile in failedFiles:
+                nuke(failedFile[1])
+        else:
+            # FIXME: crcFailedRequeue should really never be triggered when there's only
+            # one server to fail on
+            useFile = segment.getDestination() + '-hellafailed_%s' % segment.failedServerPools[0]
+        os.rename(useFile, segment.getDestination())
 
         segment.nzbFile.nzb.assembleLock.release()
 

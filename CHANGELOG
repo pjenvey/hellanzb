@@ -1,3 +1,15 @@
+v0.13:
+
+o Fixed the following error triggered after failed yenc CRC checks:
+
+  File "hellanzb-0.12/Hellanzb/NZBLeecher/ArticleDecoder.py", line 685,
+          in assembleNZBFile
+      decodedSegmentFile = open(nzbSegment.getDestination(), 'rb')
+  exceptions.IOError: [Errno 2] No such file or directory: 
+
+  This issue was introduced in v0.11.
+
+
 v0.12:
 
 o Fixed v3.newzbin.com's DirectNZB support which was broken as of

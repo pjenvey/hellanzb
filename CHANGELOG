@@ -1,5 +1,11 @@
 v0.13:
 
+o Fixed the PostProcessor on Windows, which would produce the
+  error:
+
+  exceptions.ValueError: The usePTY parameter is not supported
+                         on Windows.
+
 o Fixed download problems on Windows, which would repeatedly
   produce errors such as:
 

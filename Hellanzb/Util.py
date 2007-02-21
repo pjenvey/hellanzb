@@ -170,7 +170,7 @@ class Topen(protocol.ProcessProtocol):
         # particular, SIGINT, rendering our first CTRL-C ignoring code useless, as it ends
         # up killing our sub processes)
         reactor.callFromThread(reactor.spawnProcess, self, self.cmd[0], self.cmd, os.environ,
-                               usePTY = 1)
+                               usePTY = not isWindows() and 1 or 0)
 
         self.finished.wait()
         self.finished.release()

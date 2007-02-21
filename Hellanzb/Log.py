@@ -156,6 +156,8 @@ def growlNotify(type, title, description, sticky = False):
 def _scrollBegin():
     """ Let the logger know we're beginning to scroll """
     ScrollableHandler.scrollFlag = True
+    Hellanzb.scroller.started = True
+    Hellanzb.scroller.killedHistory = False
     if not Hellanzb.SHUTDOWN:
         stdinEchoOff()
 

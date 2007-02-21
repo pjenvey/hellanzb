@@ -272,8 +272,6 @@ def beginDownload(nzb = None):
     for nsf in Hellanzb.nsfs:
         nsf.beginDownload()
 
-    Hellanzb.scroller.started = True
-    Hellanzb.scroller.killedHistory = False
     Hellanzb.downloading = True
 
 def endDownload():

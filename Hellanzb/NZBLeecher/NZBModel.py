@@ -68,7 +68,9 @@ class NZB(Archive):
         ## Time this NZB began downloading
         self.downloadStartTime = None
         ## Amount of time taken to download the NZB
-        self.downloadTime = None
+        self.downloadTime = 0
+        ## Amount of time taken to download AND decode the NZB
+        self.downloadAndDecodeTime = 0
 
         ## Whether or not we should redownload NZBFile and NZBSegment files on disk that
         ## are 0 bytes in size

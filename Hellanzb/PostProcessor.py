@@ -410,7 +410,8 @@ class PostProcessor(Thread):
                 parMessage = ' (No Pars)'
             totalTime = ''
             if self.isNZBArchive():
-                totalTime = ' (total: %s)' % prettyElapsed(e + self.archive.downloadTime)
+                totalTime = ' (total: %s)' % \
+                    prettyElapsed(e + self.archive.downloadAndDecodeTime)
 
             elapsed = prettyElapsed(e)
             archive = archiveName(self.dirName)

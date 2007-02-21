@@ -299,11 +299,15 @@ def endDownload():
         return
 
     currentNZB = Hellanzb.queue.currentNZBs()[0]
-    downloadTime = time.time() - sessionStartTime
+    downloadTime = time.time() - currentNZB.downloadStartTime
     speed = sessionReadBytes / 1024.0 / downloadTime
     info('Transferred %s in %s at %.1fKB/s (%s)' % \
          (prettySize(sessionReadBytes), prettyElapsed(downloadTime), speed,
           currentNZB.archiveName))
+    if not currentNZB.isParRecovery:
+        currentNZB.downloadTime = downloadTime
+    else:
+        currentNZB.downloadTime += downloadTime
     # END
 
 def disconnectUnAntiIdleFactories():
@@ -332,24 +336,12 @@ def handleNZBDone(nzb):
     process it in a separate thread"""
     disconnectUnAntiIdleFactories()
 
-    downloadTime = 0
-    # Print download statistics when something was downloaded (have an
-    # nzb.downloadStartTime). Otherwise we might have simply parsed the NZB and found the
-    # archive was assembled (required no downloading)
-    #if nzb.downloadStartTime:
-        #downloadTime = time.time() - nzb.downloadStartTime
-        #speed = nzb.totalReadBytes / 1024.0 / downloadTime
-        
-        ## NOTE: This is now the total time to transfer & fully decode the archive, as
-        ## opposed to how long to just transfer (which this used to be)
-        #info('Transferred %s in %s at %.1fKB/s (%s)' % \
-        #     (prettySize(nzb.totalReadBytes), prettyElapsed(downloadTime), speed,
-        #      nzb.archiveName))
-
-    if not nzb.isParRecovery:
-        nzb.downloadTime = downloadTime
-    else:
-        nzb.downloadTime += downloadTime
+    if nzb.downloadStartTime:
+        downloadAndDecodeTime = time.time() - nzb.downloadStartTime
+        if not nzb.isParRecovery:
+            nzb.downloadAndDecodeTime = downloadAndDecodeTime
+        else:
+            nzb.downloadAndDecodeTime += downloadAndDecodeTime
     
     # Make our new directory, minus the .nzb
     processingDir = Hellanzb.PROCESSING_DIR + nzb.archiveName

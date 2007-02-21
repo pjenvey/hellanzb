@@ -1,5 +1,8 @@
 v0.13:
 
+o Fixed total archive time reported at the end of PostProcessing
+  (downloadTime was tallied as 0)
+
 o Fixed the Hellanzb.CATEGORIZE_DEST option: it was impossible to
   disable in v0.12
 

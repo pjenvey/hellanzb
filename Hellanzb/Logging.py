@@ -285,7 +285,7 @@ class NZBLeecherTicker:
         if not self.killedHistory and self.started:
             msg = '\r\033[%iA' % (self.maxCount + 1)
             for i in range(self.maxCount + 1):
-                msg = '%s\n\r%s' % (msg, Hellanzb.ACODE.KILL_LINE)
+                msg = '%s\n%s' % (msg, Hellanzb.ACODE.KILL_LINE)
             msg = '%s\r\033[%iA' % (msg, self.maxCount + 1)
             
             if not Hellanzb.DAEMONIZE:

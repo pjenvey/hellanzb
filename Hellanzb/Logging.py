@@ -370,7 +370,7 @@ class NZBLeecherTicker:
                      ACODE.RESET, ACODE.F_DRED, segment.nzbFile.getCurrentRate(),
                      ACODE.KILL_LINE)
 
-            currentLog = '%s\n\r' % currentLog
+            currentLog = '%s\n' % currentLog
 
             lastSegment = segment
 
@@ -386,7 +386,7 @@ class NZBLeecherTicker:
                 connectionPrefix = color + '[' + ACODE.RESET + '%s' + \
                                     color + ']' + ACODE.RESET
                 prefix = connectionPrefix % prettyId
-                currentLog = '%s%s%s\n\r' % (currentLog, prefix, ACODE.KILL_LINE)
+                currentLog = '%s%s%s\n' % (currentLog, prefix, ACODE.KILL_LINE)
 
         paused = ''
         if Hellanzb.downloadPaused:

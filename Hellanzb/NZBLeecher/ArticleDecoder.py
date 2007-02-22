@@ -28,6 +28,7 @@ def decode(segment):
     decoded segment filenames exist """
     if Hellanzb.SHUTDOWN:
         return
+
     encoding = UNKNOWN
     try:
         segment.loadArticleDataFromDisk()

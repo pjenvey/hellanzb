@@ -26,6 +26,8 @@ def decode(segment):
     """ Decode the NZBSegment's articleData to it's destination. Toggle the NZBSegment
     instance as having been decoded, then assemble all the segments together if all their
     decoded segment filenames exist """
+    if Hellanzb.SHUTDOWN:
+        return
     encoding = UNKNOWN
     try:
         segment.loadArticleDataFromDisk()

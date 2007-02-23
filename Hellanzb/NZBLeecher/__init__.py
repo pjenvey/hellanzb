@@ -128,6 +128,7 @@ def connectServer(serverName, serverDict, defaultAntiIdle, defaultIdleTimeout):
         idleTimeout = int(setWithDefault(serverDict, 'idleTimeout', defaultIdleTimeout))
         skipGroupCmd = setWithDefault(serverDict, 'skipGroupCmd', False)
         fillServer = setWithDefault(serverDict, 'fillserver', 0)
+        useSSL = setWithDefault(serverDict, 'ssl', False)
 
         nsf = NZBLeecherFactory(serverDict['username'], serverDict['password'],
                                 idleTimeout, antiIdle, host, serverName, skipGroupCmd,
@@ -146,21 +147,51 @@ def connectServer(serverName, serverDict, defaultAntiIdle, defaultIdleTimeout):
         preWrappedNsf = nsf
         nsf = HellaThrottlingFactory(nsf)
 
+        ctxf = None
+        if useSSL:
+            try:
+                from twisted.internet.ssl import Connector as SSLConnector
+                from twisted.internet.ssl import ClientContextFactory
+            except ImportError, ie:
+                error('Unable to use SSL for server: %s\npyOpenSSL is not '
+                      'installed: %s' % (serverName, str(ie)))
+                shutdownAndExit(1)
+            ctxf = ClientContextFactory()
+
         for connection in range(connections):
             if serverDict.has_key('bindTo') and serverDict['bindTo'] != None and \
                     serverDict['bindTo'] != '':
                 if antiIdle != 0:
-                    reactor.connectTCP(host, port, nsf,
-                                       bindAddress = (serverDict['bindTo'], 0))
+                    if useSSL:
+                        reactor.connectSSL(host, port, nsf, ctxf, 
+                                           bindAddress = (serverDict['bindTo'], 0))
+                    else:
+                        reactor.connectTCP(host, port, nsf,
+                                           bindAddress = (serverDict['bindTo'], 0))
                 else:
-                    connector = Connector(host, port, nsf, defaultConnectTimeout,
-                                          (serverDict['bindTo'], 0), reactor=reactor)
+                    if useSSL:
+                        connector = SSLConnector(host, port, nsf, ctxf, 
+                                                 defaultConnectTimeout, 
+                                                 (serverDict['bindTo'], 0), reactor=reactor)
+                    else:
+                        connector = Connector(host, port, nsf, defaultConnectTimeout,
+                                              (serverDict['bindTo'], 0), reactor=reactor)
             else:
                 if antiIdle != 0:
-                    reactor.connectTCP(host, port, nsf)
+                    if useSSL:
+                        reactor.connectSSL(host, port, nsf, ctxf)
+                    else:
+                        reactor.connectTCP(host, port, nsf)
                 else:
-                    connector = Connector(host, port, nsf, defaultConnectTimeout, None,
-                                          reactor=reactor)
+                    if useSSL:
+                        connector = SSLConnector(host, port, nsf, ctxf, 
+                                                 defaultConnectTimeout, None, 
+                                                 reactor=reactor)
+                    else:
+                        connector = Connector(host, port, nsf, 
+                                              defaultConnectTimeout, None, 
+                                              reactor=reactor)
+
             if antiIdle == 0:
                 preWrappedNsf.leecherConnectors.append(connector)
             connectionCount += 1

@@ -1,5 +1,8 @@
 v0.13:
 
+o Added SSL NNTP support: defineServer ssl=True. (patch
+  submitted by Oscar H)
+
 o Fixed the PostProcessor on Windows, which would produce the
   error:
 

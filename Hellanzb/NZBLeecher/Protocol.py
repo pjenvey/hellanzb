@@ -481,7 +481,10 @@ class NZBLeecher(NNTPClient, TimeoutMixin):
                                       self.currentSegment.getTempFileName() + '_ENC'),
                          'wb')
                 self.write = self.currentSegment.encodedData.write
-                debug(str(self) + ' PULLED FROM QUEUE: ' + self.currentSegment.getDestination())
+
+                if Hellanzb.DEBUG_MODE_ENABLED:
+                    debug(str(self) + ' PULLED FROM QUEUE: ' + \
+                              self.currentSegment.getDestination())
 
                 # got a segment - set ourselves as active unless we're already set as so
                 self.activate()
@@ -558,25 +561,29 @@ class NZBLeecher(NNTPClient, TimeoutMixin):
         NNTPClient.fetchGroup(self, group)
         
     def fetchBody(self, index):
-        debug(str(self) + ' getting BODY: <' + self.currentSegment.messageId + '> ' + \
-              self.currentSegment.getDestination())
+        if Hellanzb.DEBUG_MODE_ENABLED:
+            debug(str(self) + ' getting BODY: <' + self.currentSegment.messageId + \
+                      '> ' + self.currentSegment.getDestination())
 
         Hellanzb.scroller.addClient(self.currentSegment, self.factory.color)
         NNTPClient.fetchBody(self, '<' + index + '>')
 
     def gotBody(self, notUsed):
         """ Queue the article body for decoding and continue fetching the next article """
-        debug(str(self) + ' got BODY: ' + ' <' + self.currentSegment.messageId + '> ' + \
-              self.currentSegment.getDestination())
+        if Hellanzb.DEBUG_MODE_ENABLED:
+            debug(str(self) + ' got BODY: ' + ' <' + self.currentSegment.messageId + \
+                      '> ' + self.currentSegment.getDestination())
 
         self.finishedSegmentDownload()
 
     def getBodyFailed(self, err):
         """ Handle a failure of the BODY command. Ensure the failed segment gets a 0 byte file
         written to the filesystem when this occurs """
-        debug(str(self) + ' get BODY FAILED, errno: ' + str(err) + ' for messageId: <' + \
-              self.currentSegment.messageId + '> ' + self.currentSegment.getDestination() + \
-              ' expected size: ' + str(self.currentSegment.bytes))
+        if Hellanzb.DEBUG_MODE_ENABLED:
+            debug(str(self) + ' get BODY FAILED, errno: ' + str(err) + \
+                      ' for messageId: <' + self.currentSegment.messageId + '> ' + \
+                      self.currentSegment.getDestination() + ' expected size: ' + \
+                      str(self.currentSegment.bytes))
         self.gotResponseCode = False # for dataReceivedToFile
         self.lastChunk = ''
         

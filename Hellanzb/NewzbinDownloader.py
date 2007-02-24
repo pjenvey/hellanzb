@@ -118,7 +118,7 @@ class NewzbinDownloader(NZBDownloader):
 
     def errBack(self, reason):
         if not reason.check(Error):
-            return super(self.__class__, self).errBack()
+            return super(self.__class__, self).errBack(reason)
 
         headers = self.downloader.response_headers
         rcode = headers.get('x-dnzb-rcode', [None])[0]

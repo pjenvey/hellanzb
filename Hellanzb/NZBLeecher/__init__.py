@@ -90,10 +90,6 @@ def initFillServers():
             fillServerPriorities.setdefault(fillServerPriority, []).append(serverDict)
         serverDict['fillserver'] = fillServerPriority
 
-    if len(fillServerPriorities) < 2:
-        debug('initFillServers: fillserver support disabled')
-        return False
-
     # Flatten out the priorities. priority list of [1, 4, 5] will be converted to [0, 1, 2]
     priorityKeys = fillServerPriorities.keys()
     priorityKeys.sort()
@@ -101,6 +97,10 @@ def initFillServers():
         oldPriority = priorityKeys[i]
         for serverDict in fillServerPriorities[oldPriority]:
             serverDict['fillserver'] = i
+
+    if len(fillServerPriorities) < 2:
+        debug('initFillServers: fillserver support disabled')
+        return False
 
     debug('initFillServers: fillserver support enabled')
     return True

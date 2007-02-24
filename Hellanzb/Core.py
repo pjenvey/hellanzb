@@ -10,10 +10,11 @@ from Hellanzb.HellaReactor import HellaReactor
 HellaReactor.install()
 
 import optparse, os, signal, sys, time, thread, threading, Hellanzb, Hellanzb.PostProcessor
+import Hellanzb.PostProcessor
 from distutils import spawn
 from shutil import rmtree
 from socket import gethostname
-from threading import Lock
+from threading import Lock, Semaphore
 from twisted.internet import reactor
 from Hellanzb.Daemon import initDaemon, postProcess
 from Hellanzb.HellaXMLRPC import hellaRemote, initXMLRPCClient
@@ -131,6 +132,20 @@ def loadConfig(fileName):
 
         if not hasattr(Hellanzb, 'DISABLE_ANSI'):
             Hellanzb.DISABLE_ANSI = False
+
+        if not hasattr(Hellanzb, 'MAX_POSTPROCESSOR_THREADS'):
+            Hellanzb.MAX_POSTPROCESSOR_THREADS = 0
+        try:
+            Hellanzb.MAX_POSTPROCESSOR_THREADS = \
+                int(Hellanzb.MAX_POSTPROCESSOR_THREADS)
+        except ValueError:
+            error('Config file option: Hellanzb.MAX_POSTPROCESSOR_THREADS is not a '
+                  'valid integer')
+            sys.exit(1)
+        if Hellanzb.MAX_POSTPROCESSOR_THREADS < 1:
+            Hellanzb.MAX_POSTPROCESSOR_THREADS = sys.maxint
+        Hellanzb.PostProcessor.availableSlots = \
+            Semaphore(Hellanzb.MAX_POSTPROCESSOR_THREADS)
 
         if not hasattr(Hellanzb, 'OTHER_NZB_FILE_TYPES'):
             # By default, just match .nzb files in the queue dir

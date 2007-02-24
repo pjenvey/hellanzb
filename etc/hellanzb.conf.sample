@@ -94,6 +94,11 @@ Hellanzb.PROCESSED_SUBDIR = 'processed'
 # for a record of what hellanzb deletes
 Hellanzb.DELETE_PROCESSED = True
 
+
+# Max number of concurrent PostProcessors (par2/decompression/assembly). Setting
+# this value too high could easily eat up system resources (especially i/o)
+Hellanzb.MAX_POSTPROCESSOR_THREADS = 2
+
 # Save archives into a sub directory of DEST_DIR named after their newzbin.com
 # category (when queued using the enqueuenewzbin XMLRPC call); e.g. Apps,
 # Movies, Music
@@ -135,7 +140,8 @@ defineMusicType('mp3', None, None)
 #defineMusicType('flac', 'flac -d -- <FILE>', 'wav')
 #defineMusicType('shn', 'shorten -x < <FILE> > <DESTFILE>', 'wav')
 
-# Max files we should decompress at the same time
+# Max music files we should decompress concurrently with defineMusicType
+# executables
 Hellanzb.MAX_DECOMPRESSION_THREADS = 2
 
 

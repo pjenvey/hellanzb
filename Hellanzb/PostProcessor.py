@@ -9,13 +9,17 @@ nzbget
 import gc, os, re, sys, time, Hellanzb
 from os.path import join as pathjoin
 from shutil import move, rmtree
-from threading import Thread, Condition, Lock, RLock
+from threading import Condition, Lock, RLock, Thread
 from Hellanzb.Log import *
 from Hellanzb.Logging import prettyException
 from Hellanzb.PostProcessorUtil import *
 from Hellanzb.Util import *
 
 __id__ = '$Id$'
+
+# Semaphore for limiting the number of active PostProcessors. Core creates this after
+# loading the config file
+availableSlots = None
 
 class PostProcessor(Thread):
     """ A post processor (formerly troll) instance runs in its own thread """
@@ -84,7 +88,10 @@ class PostProcessor(Thread):
         self.forcedRecovery = False
         # Function to call the twisted thread to force a par recovery download
         self.callback = None
-    
+
+        # Whether or not this PostProcessor is waiting for an available slot
+        self.waitingForSlot = True
+                
         Thread.__init__(self)
 
     def __getattr__(self, name):
@@ -126,6 +133,13 @@ class PostProcessor(Thread):
         self.decompressorCondition.release()
 
     def stop(self):
+        try:
+            self._stop()
+        finally:
+            if not self.isSubDir:
+                availableSlots.release()
+            
+    def _stop(self):
         """ Perform any cleanup and remove ourself from the pool before exiting """
         moveBackSamples(self)
         
@@ -196,6 +210,10 @@ class PostProcessor(Thread):
     
     def run(self):
         """ do the work """
+        if not self.isSubDir:
+            availableSlots.acquire()
+        self.waitingForSlot = False
+
         if not self.isSubDir:
             Hellanzb.postProcessorLock.acquire()
             # FIXME: could block if there are too many processors going

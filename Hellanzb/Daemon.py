@@ -113,7 +113,7 @@ def initDaemon():
     initNZBLeecher()
     startNZBLeecher()
 
-def initHellaHella(configFile, verbose = False):
+def initHellaHella(configFile, verbose=False):
     """ Initialize hellahella, the web UI """
     Hellanzb.HELLAHELLA_PORT = 8750
     try:
@@ -247,7 +247,7 @@ def resumePostProcessors():
         info('Resuming post processor: ' + archiveName(archiveDirName))
         troll.start()
 
-def beginDownload(nzb = None):
+def beginDownload(nzb=None):
     """ Initialize the download. Notify the downloaders to begin their work, etc """
     # BEGIN
     Hellanzb.loggedIdleMessage = False
@@ -373,7 +373,7 @@ def handleNZBDone(nzb):
     reactor.callLater(0, writeStateXML)
     reactor.callLater(0, scanQueueDir)
 
-def postProcess(options, isQueueDaemon = False):
+def postProcess(options, isQueueDaemon=False):
     """ Call the post processor via twisted """
     from Hellanzb.Core import shutdown
     if not os.path.isdir(options.postProcessDir):
@@ -393,8 +393,8 @@ def postProcess(options, isQueueDaemon = False):
     # UNIX: realpath
     # FIXME: I don't recall why realpath is even necessary
     dirName = os.path.realpath(options.postProcessDir)
-    archive = PostProcessorUtil.Archive(dirName, rarPassword = rarPassword)
-    troll = Hellanzb.PostProcessor.PostProcessor(archive, background = False)
+    archive = PostProcessorUtil.Archive(dirName, rarPassword=rarPassword)
+    troll = Hellanzb.PostProcessor.PostProcessor(archive, background=False)
 
     reactor.callLater(0, info, '')
     reactor.callLater(0, info, 'Starting post processor')
@@ -534,7 +534,7 @@ def continueCurrent():
 def clearCurrent(andCancel):
     """ Clear the queue -- optionally clear what's currently being downloaded (cancel it) """
     info('Clearing queue')
-    dequeueNZBs([nzb.id for nzb in Hellanzb.nzbQueue], quiet = True)
+    dequeueNZBs([nzb.id for nzb in Hellanzb.nzbQueue], quiet=True)
     
     if andCancel:
         cancelCurrent()
@@ -626,7 +626,7 @@ def forceNZBId(nzbId):
     
     forceNZB(foundNZB.nzbFileName)
 
-def forceNZB(nzbfilename, notification = 'Forcing download'):
+def forceNZB(nzbfilename, notification='Forcing download'):
     """ Interrupt the current download, if necessary, to start the specified nzb """
     if not validNZB(nzbfilename):
         return

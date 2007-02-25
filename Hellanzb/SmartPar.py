@@ -15,7 +15,7 @@ from Hellanzb.Util import cleanDupeName, inMainThread, isHellaTemp, prettySize, 
 
 __id__ = '$Id$'
 
-def smartDequeue(segment, readOnlyQueue = False, verbose = False):
+def smartDequeue(segment, readOnlyQueue=False, verbose=False):
     """ This function is called after downloading the first segment of every nzbFile
 
     It determines whether or not the segment's parent nzbFile is part of a par archive. If

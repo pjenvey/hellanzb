@@ -344,7 +344,7 @@ def handleNZBDone(nzb):
             nzb.downloadAndDecodeTime += downloadAndDecodeTime
     
     # Make our new directory, minus the .nzb
-    processingDir = Hellanzb.PROCESSING_DIR + nzb.archiveName
+    processingDir = os.path.join(Hellanzb.PROCESSING_DIR, nzb.archiveName)
     
     # Move our nzb contents to their new location for post processing
     hellaRename(processingDir)

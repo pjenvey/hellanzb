@@ -632,6 +632,20 @@ def prettyElapsed(seconds):
     else:
         return shiftTo(seconds, 60 * 60, 'h')
 
+def unPrettyBytes(prettyBytes):
+    """ Convert a string representing a count in KB, MB, or GB to actual bytes as
+    an integer """
+    reStr = '^(\d+)%sB?$'
+    res = {re.compile(reStr % 'K'): 2 ** 10,
+               re.compile(reStr % 'M'): 2 ** 20,
+               re.compile(reStr % 'G'): 2 ** 30}
+               
+    prettyBytes = str(prettyBytes).upper()
+    for size_re, size in res.iteritems():
+        if size_re.match(prettyBytes):
+            return int(size_re.sub(r'\1', prettyBytes)) * size
+    return int(prettyBytes)
+
 def toUnicode(str):
     """ Convert the specified string to a unicode string """
     if str == None:

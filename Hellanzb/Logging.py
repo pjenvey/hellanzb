@@ -227,10 +227,9 @@ class HellaTwistedLogObserver(FileLogObserver):
         fmtDict = {'system': eventDict['system'], 'text': text}
         msgStr = self._safeFormat("[%(system)s] %(text)s\n", fmtDict)
 
+        util.untilConcludes(self.debug, msgStr, appendLF=False)
         if isFailure:
             util.untilConcludes(self.error, msgStr, appendLF=False)
-        else:
-            util.untilConcludes(self.debug, msgStr, appendLF=False)
     __call__ = emit
 
 NEWLINE_RE = re.compile('\n')
@@ -541,7 +540,7 @@ def initLogFile(logFile = None, debugLogFile = None):
 
     maxBytes = backupCount = 0
     if hasattr(Hellanzb, 'LOG_FILE_MAX_BYTES'):
-        maxBytes = Hellanzb.LOG_FILE_MAX_BYTES
+        maxBytes = unPrettyBytes(Hellanzb.LOG_FILE_MAX_BYTES)
     if hasattr(Hellanzb, 'LOG_FILE_BACKUP_COUNT'):
         backupCount = Hellanzb.LOG_FILE_BACKUP_COUNT
 

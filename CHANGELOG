@@ -1,5 +1,12 @@
 v0.13:
 
+o Can now optionally store encoded article segments in memory,
+  instead of disk. This can improve performance and CPU usage in
+  some cases. Set CACHE_LIMIT to a non zero value to enable.
+  
+  Hellanzb.CACHE_LIMIT = -1 # for an unlimited sized cache, or
+  Hellanzb.CACHE_LIMIT = '100MB' # for a certain size
+
 o Added SSL NNTP support: defineServer ssl=True. (patch
   submitted by Oscar H)
 

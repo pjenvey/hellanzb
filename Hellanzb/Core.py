@@ -132,6 +132,8 @@ def loadConfig(fileName):
         if not hasattr(Hellanzb, 'DISABLE_ANSI'):
             Hellanzb.DISABLE_ANSI = False
 
+        Hellanzb.CACHE_LIMIT = unPrettyBytes(getattr(Hellanzb, 'CACHE_LIMIT', 0))
+
         if not hasattr(Hellanzb, 'OTHER_NZB_FILE_TYPES'):
             # By default, just match .nzb files in the queue dir
             Hellanzb.NZB_FILE_RE = re.compile(r'(?i)\.(nzb)$')

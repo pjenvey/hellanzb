@@ -94,6 +94,17 @@ Hellanzb.PROCESSED_SUBDIR = 'processed'
 # for a record of what hellanzb deletes
 Hellanzb.DELETE_PROCESSED = True
 
+
+# Maximum amount of memory used to cache encoded Article data segments.
+# hellanzb will write article data to disk when this cache is exceeded
+# Available settings:
+# -1: Unlimited size
+#  0: Disable cache (only cache to disk)
+# >0: Limit cache to this size, in bytes, KB, MB, e.g.:
+#     1024 '1024KB' '100MB' '1GB'
+Hellanzb.CACHE_LIMIT = 0
+
+
 # Save archives into a sub directory of DEST_DIR named after their newzbin.com
 # category (when queued using the enqueuenewzbin XMLRPC call); e.g. Apps,
 # Movies, Music

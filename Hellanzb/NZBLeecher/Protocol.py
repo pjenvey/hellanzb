@@ -371,14 +371,10 @@ class NZBLeecher(NNTPClient, TimeoutMixin):
                 # Only requeue the segment if its archive hasn't been previously postponed
                 debug(str(self) + ' requeueing segment: ' + self.currentSegment.getDestination())
                 Hellanzb.queue.requeue(self.factory, self.currentSegment)
-
-                self.resetCurrentSegment(removeEncFile = True)
             else:
-                debug(str(self) + ' DID NOT requeue existing segment: ' + self.currentSegment.getDestination())
-                # Don't resetCurrentSegment -- the encodedData file would have already
-                # been closed by ensureSafePostponedLoad
-                self.currentSegment = None
-                self.write = None
+                debug(str(self) + ' DID NOT requeue existing segment: ' + \
+                          self.currentSegment.getDestination())
+            self.resetCurrentSegment(removeEncFile = True)
         
         # Continue being quiet about things if we're shutting down. Don't bother plaguing
         # the log with typical disconnection reasons
@@ -476,11 +472,18 @@ class NZBLeecher(NNTPClient, TimeoutMixin):
             try:
                 priority, self.currentSegment = \
                     Hellanzb.queue.getSmart(self.factory)
-                self.currentSegment.encodedData = \
-                    open(os.path.join(Hellanzb.DOWNLOAD_TEMP_DIR,
-                                      self.currentSegment.getTempFileName() + '_ENC'),
-                         'wb')
-                self.write = self.currentSegment.encodedData.write
+                cachedArticleDataBytes = self.currentSegment.nzbFile.nzb.cachedArticleDataBytes
+                if Hellanzb.CACHE_LIMIT < 0 or cachedArticleDataBytes < Hellanzb.CACHE_LIMIT:
+                    self.currentSegment.cachedToDisk = False
+                    self.currentSegment.encodedDataList = []
+                    self.write = self.currentSegment.encodedDataList.append
+                else:
+                    self.currentSegment.cachedToDisk = True
+                    self.currentSegment.encodedDataFile = \
+                        open(os.path.join(Hellanzb.DOWNLOAD_TEMP_DIR,
+                                          self.currentSegment.getTempFileName() + \
+                                              '_ENC'), 'wb')
+                    self.write = self.currentSegment.encodedDataFile.write
 
                 if Hellanzb.DEBUG_MODE_ENABLED:
                     debug(str(self) + ' PULLED FROM QUEUE: ' + \
@@ -574,6 +577,9 @@ class NZBLeecher(NNTPClient, TimeoutMixin):
             debug(str(self) + ' got BODY: ' + ' <' + self.currentSegment.messageId + \
                       '> ' + self.currentSegment.getDestination())
 
+        if not self.currentSegment.cachedToDisk:
+            self.currentSegment.nzbFile.nzb.cachedArticleDataBytes += \
+                self.currentSegment.readBytes
         self.finishedSegmentDownload()
 
     def getBodyFailed(self, err):
@@ -631,8 +637,8 @@ class NZBLeecher(NNTPClient, TimeoutMixin):
         return False
 
     def finishedSegmentDownload(self):
-        """ Defer decoding of the encodedData of the specified currentSegment, reset our state and
-        continue fetching the next queued segment """
+        """ Defer decoding of the encodedDataFile of the specified currentSegment, reset
+        our state and continue fetching the next queued segment """
         Hellanzb.scroller.removeClient(self.currentSegment, self.factory.color)
 
         segment = self.currentSegment
@@ -722,8 +728,9 @@ class NZBLeecher(NNTPClient, TimeoutMixin):
         Hellanzb.totalBytesDownloaded += lineLen
         self.factory.sessionReadBytes += lineLen
         if self.currentSegment is not None:
-            self.currentSegment.nzbFile.readThisSecond += lineLen
+            self.currentSegment.readBytes += lineLen
             nzbFile = self.currentSegment.nzbFile
+            nzbFile.readThisSecond += lineLen
             nzbFile.totalReadBytes += lineLen
             nzbFile.nzb.totalReadBytes += lineLen
 
@@ -841,7 +848,7 @@ class NZBLeecher(NNTPClient, TimeoutMixin):
             if code is None or (not (200 <= code[0] < 400) and code[0] != 100): # An error!
                 try:
                     # getBodyFailed or finishedSegmentDownload will close it
-                    ##self.currentSegment.encodedData.close()
+                    ##self.currentSegment.encodedDataFile.close()
                     self._error[0](line)
                 # FIXME: why is this exception thrown? it was previously breaking
                 # connections -- this is now caught to avoid the completely breaking of
@@ -891,14 +898,15 @@ class NZBLeecher(NNTPClient, TimeoutMixin):
             return
             
     def resetCurrentSegment(self, removeEncFile = False):
-        """ Reset the currentSegment to None. close the encodedData file handle if necessary """
+        """ Reset the currentSegment to None. close the encodedDataFile file handle if
+        necessary """
         if self.currentSegment == None:
             return
         
-        if self.currentSegment.encodedData != None:
+        if self.currentSegment.encodedDataFile != None:
             # Close the file handle if it's still open
             try:
-                self.currentSegment.encodedData.close()
+                self.currentSegment.encodedDataFile.close()
             except Exception, e:
                 pass
 

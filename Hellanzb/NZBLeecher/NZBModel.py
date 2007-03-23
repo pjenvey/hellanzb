@@ -65,6 +65,8 @@ class NZB(Archive):
         self.totalSkippedBytes = 0
         ## How many bytes have been downloaded for this NZB
         self.totalReadBytes = 0
+        ## How many bytes of encoded article data is currently cached to memory
+        self.cachedArticleDataBytes = 0
         ## Time this NZB began downloading
         self.downloadStartTime = None
         ## Amount of time taken to download the NZB
@@ -176,6 +178,7 @@ class NZB(Archive):
         self.totalBytes = 0
         self.totalSkippedBytes = 0
         self.totalReadBytes = 0
+        self.cachedArticleDataBytes = 0
         self.firstSegmentsDownloaded = 0
         ##self.neededBlocks = 0 # ?
         self.queuedBlocks = 0
@@ -591,12 +594,25 @@ class NZBSegment:
         self.nzbFile.totalBytes += self.bytes
         self.nzbFile.nzb.totalBytes += self.bytes
 
+        ## Downloaded article data is written to this list immediately as it's received
+        ## from the other end
+        self.encodedDataList = None
         ## To-be a file object. Downloaded article data will be written to this file
-        ## immediately as it's received from the other end
-        self.encodedData = None
+        ## instead of encodedDataList when cachedToDisk is True
+        self.encodedDataFile = None
+        # Whether or not decoded data for this segment is written to disk, or
+        # kept in memory
+        self.cachedToDisk = False
         
         ## Downloaded article data stored as an array of lines whose CRLFs are stripped
+        ## NOTE: encodedDataList and encodedDataFile are splitlines() into this list for
+        ## use by the ArticleDecoder. In the future we should avoid this translation,
+        ## somehow. Also note that NZBFile.getFilename relies on this variable being None
+        ## until the entire segment has been downloaded and put here.
         self.articleData = None
+
+        ## Number of bytes downloaded
+        self.readBytes = 0
 
         ## yEncoder header keywords used for validation. Optional, obviously not used for
         ## UUDecoded segments
@@ -637,15 +653,26 @@ class NZBSegment:
             raise FatalError('Could not getFilenameFromArticleData, file:' + str(self.nzbFile) +
                              ' segment: ' + str(self))
 
+    def loadArticleData(self):
+        if self.cachedToDisk:
+            self.loadArticleDataFromDisk()
+        else:
+            self.loadArticleDataFromMem()
+
+    def loadArticleDataFromMem(self):
+        articleData = ''.join(self.encodedDataList)
+        self.articleData = articleData.splitlines()
+        self.encodedDataList = None
+        
     def loadArticleDataFromDisk(self):
         """ Load the previously downloaded article BODY from disk, as a list to the .articleData
         variable. Removes the on disk version upon loading """
-        # downloaded encodedData was written to disk by NZBLeecher
-        encodedData = open(os.path.join(Hellanzb.DOWNLOAD_TEMP_DIR,
+        # downloaded encodedDataFile was written to disk by NZBLeecher
+        encodedDataFile = open(os.path.join(Hellanzb.DOWNLOAD_TEMP_DIR,
                                         self.getTempFileName() + '_ENC'), 'rb')
         # remove crlfs. FIXME: might be quicker to do this during a later loop
-        self.articleData = [line[:-2] for line in encodedData]
-        encodedData.close()
+        self.articleData = [line[:-2] for line in encodedDataFile]
+        encodedDataFile.close()
 
         # Delete the copy on disk ASAP
         nuke(os.path.join(Hellanzb.DOWNLOAD_TEMP_DIR, self.getTempFileName() + '_ENC'))

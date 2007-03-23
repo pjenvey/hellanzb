@@ -466,17 +466,6 @@ def ensureSafePostponedLoad(nzbFileName):
                 # cancelCurrent() does
                 nzbl.transport.loseConnection()
                 nzbl.isLoggedIn = False
-                
-                if nzbl.currentSegment is not None and \
-                        nzbl.currentSegment.encodedData is not None:
-                    try:
-                        name = nzbl.currentSegment.getTempFileName() + '_ENC'
-                        debug('%s Closing encodedData file: %s' % (str(nzbl), name))
-                        nzbl.currentSegment.encodedData.close()
-                        debug('%s Closed encodedData file' % str(nzbl))
-                    except Exception, e:
-                        debug('%s Error while closing encodedData file' % str(nzbl), e)
-                        pass
 
     if shouldCancel:
         # Also reset the state of the queue if we had to do any cleanup

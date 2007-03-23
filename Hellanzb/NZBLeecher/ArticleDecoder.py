@@ -31,15 +31,17 @@ def decode(segment):
 
     encoding = UNKNOWN
     try:
-        segment.loadArticleDataFromDisk()
+        segment.loadArticleData()
         encoding, encodingMessage = decodeArticleData(segment)
         
     except OutOfDiskSpace:
         # Ran out of disk space and the download was paused! Easiest way out of this
         # sticky situation is to requeue the segment
         nuke(segment.getDestination())
-        segment.nzbFile.totalReadBytes -= segment.bytes
-        segment.nzbFile.nzb.totalReadBytes -= segment.bytes
+        segment.nzbFile.totalReadBytes -= segment.readBytes
+        if not segment.cachedToDisk:
+            segment.nzbFile.nzb.cachedArticleDataBytes -= segment.readBytes
+        segment.nzbFile.nzb.totalReadBytes -= segment.readBytes
         reactor.callFromThread(segment.fromQueue.put, (segment.priority, segment))
         return
     except Exception, e:
@@ -50,6 +52,10 @@ def decode(segment):
 
         error(segment.nzbFile.showFilename + ' segment: ' + str(segment.number) + \
               ' a problem occurred during decoding', e)
+        del segment.articleData
+        segment.articleData = ''
+        if not segment.cachedToDisk:
+            segment.nzbFile.nzb.cachedArticleDataBytes -= segment.readBytes
         touch(segment.getDestination())
 
     if Hellanzb.SMART_PAR and segment.isFirstSegment():
@@ -346,6 +352,8 @@ def parseArticleData(segment, justExtractFilename = False):
     encodingType = decodeSegmentToFile(segment, encodingType)
     del segment.articleData
     segment.articleData = '' # We often check it for is None
+    if not segment.cachedToDisk:
+        segment.nzbFile.nzb.cachedArticleDataBytes -= segment.readBytes
     return encodingType
 decodeArticleData=parseArticleData
 
@@ -440,7 +448,6 @@ def yDecodeCRCCheck(segment, decoded):
         else:
             message = segment.nzbFile.showFilename + ' segment ' + str(segment.number) + \
                 ': CRC mismatch ' + crc + ' != ' + segment.yCrc
-            error(message)
             
         del decoded
         

@@ -31,6 +31,12 @@ o Fixed the Hellanzb.CATEGORIZE_DEST option: it was impossible to
 
 o Fixed PostProcessor handling of filenames containing double quotes
 
+o Fixed the error message:
+
+ exceptions.TypeError: errBack() takes exactly 2 arguments (1 given)
+
+ occurring during failed newzbin download attempts (thanks mke & JJ2)
+
 o Fixed the following error triggered after failed yenc CRC checks:
 
   File "hellanzb-0.12/Hellanzb/NZBLeecher/ArticleDecoder.py", line 685,

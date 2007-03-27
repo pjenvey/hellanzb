@@ -47,7 +47,7 @@ defineServer(id = 'changeme',
              #fillserver = 0,            # defaults to 0 (a main server).
                                          # fillservers must have values > 0
                                          # (priority)
-             ssl = False,
+             ssl = False
              )
 
 # Uncomment this line to limit all server connections to the specified KB/s

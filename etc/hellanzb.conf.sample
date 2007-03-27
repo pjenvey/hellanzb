@@ -102,7 +102,7 @@ Hellanzb.DELETE_PROCESSED = True
 #  0: Disable cache (only cache to disk)
 # >0: Limit cache to this size, in bytes, KB, MB, e.g.:
 #     1024 '1024KB' '100MB' '1GB'
-Hellanzb.CACHE_LIMIT = 0
+#Hellanzb.CACHE_LIMIT = 0
 
 
 # Save archives into a sub directory of DEST_DIR named after their newzbin.com

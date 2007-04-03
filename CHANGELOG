@@ -1,3 +1,10 @@
+v0.14:
+
+o Fixed a potential lockup with multiple defineServers that occurs
+  when an article does not exist on one server and failed the CRC
+  check on another server (thanks jon at sd - 6, others)
+
+
 v0.13:
 
 o Can now optionally store encoded article segments in memory,

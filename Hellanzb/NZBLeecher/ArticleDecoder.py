@@ -136,6 +136,10 @@ def crcFailedRequeue(segment, encodingMessage):
             failedFiles = []
             for serverPoolName in segment.failedServerPools:
                 failedFile = segment.getDestination() + '-hellafailed_%s' % serverPoolName
+                if not os.path.exists(failedFile):
+                    # Failed files won't exist in the case the server reported
+                    # the article as missing
+                    continue
                 failedFiles.append((os.path.getsize(failedFile), failedFile))
             failedFiles.sort()
             useFile = failedFiles.pop()[1]

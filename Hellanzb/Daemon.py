@@ -25,7 +25,7 @@ def ensureDaemonDirs():
     dirNames = {}
     for arg in dir(Hellanzb):
         if arg.endswith("_DIR") and arg == arg.upper():
-            exec 'dirName = Hellanzb.' + arg
+            dirName = getattr(Hellanzb, arg)
             if dirName is None:
                 raise FatalError('Required directory not defined in config file: Hellanzb.' + arg)
             dirNames[arg] = dirName

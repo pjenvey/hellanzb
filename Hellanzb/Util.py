@@ -392,7 +392,7 @@ def defineServer(**args):
     Hellanzb.SERVERS[id] = {}
     
     for var in (args):
-        exec 'Hellanzb.SERVERS[id][\'' + var + '\'] = args[\'' + var + '\']'
+        Hellanzb.SERVERS[id][var] = args[var]
 
 def truncate(str, length = 60, reverse = False):
     """ Truncate a string to the specified length. Appends '...' to the string if truncated --

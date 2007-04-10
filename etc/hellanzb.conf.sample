@@ -110,8 +110,8 @@ Hellanzb.DELETE_PROCESSED = True
 # Movies, Music
 Hellanzb.CATEGORIZE_DEST = True
 
-# Disable SMART_PAR (download all PAR files)
-#Hellanzb.SMART_PAR = False
+# Whether or not SMART_PAR is enabled (only download PAR files when needed)
+#Hellanzb.SMART_PAR = True
 
 # Supply a path to the (un)rar command
 #Hellanzb.UNRAR_CMD = None

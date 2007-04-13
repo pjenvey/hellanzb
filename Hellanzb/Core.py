@@ -44,10 +44,13 @@ def findAndLoadConfig(optionalConfigFile = None):
             raise
         # OSError: [Errno 2] No such file or directory. cwd doesn't exist
 
-    # hard coding preferred Darwin config file location, kind of lame. but I'd rather do
-    # this then make an etc dir in os x's Python.framework directory
+    # Most OS X python installs have odd locations
+    # (e.g. /System/Library/Frameworks/Python.framework), allow the more
+    # typical ones too
     if Hellanzb.SYSNAME == "Darwin":
-        confDirs[0] = '/opt/local/etc'
+        for confDir in ('/usr/local/etc', '/opt/local/etc'):
+            if confDir not in confDirs:
+                confDirs.insert(1, confDir)
 
     for dir in confDirs:
         file = os.path.join(dir, 'hellanzb.conf')

@@ -1,5 +1,8 @@
 v0.14:
 
+o Report SAXException information when an invalid NZB could not be
+  parsed (noticed by TU)
+
 o Fixed a potential lockup with multiple defineServers that occurs
   when an article does not exist on one server and failed the CRC
   check on another server (thanks jon at sd - 6, others)

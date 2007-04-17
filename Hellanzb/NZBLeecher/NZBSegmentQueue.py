@@ -597,7 +597,9 @@ class NZBSegmentQueue(PriorityQueue):
         except SAXParseException, saxpe:
             nzb.calculatingBytes = False
             self.nzbDone(nzb)
-            raise FatalError('Unable to parse Invalid NZB file: ' + os.path.basename(fileName))
+            msg = 'Unable to parse invalid NZB file: %s: %s' % \
+                (os.path.basename(fileName), saxpe.getException())
+            raise FatalError(msg)
         nzb.calculatingBytes = False
 
         # We trust the NZB XML's <segment number="111"> attribute, but if the sequence of

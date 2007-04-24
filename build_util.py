@@ -6,10 +6,9 @@ build_util.py - Build related functions
 (c) Copyright 2005 Philip Jenvey
 [See end of file]
 """
-import distutils.util, md5, os, setup, shutil, sys, tarfile
+import distutils.util, distutils.spawn, md5, os, re, setup, shutil, sys, tarfile
 if sys.version >= '2.5':
     from hashlib import sha256
-from Hellanzb.Log import *
 
 __id__ = '$Id$'
 
@@ -19,7 +18,7 @@ VERSION_FILENAME = './Hellanzb/__init__.py'
 #BDIST_RPM_REQUIRES = 'python >= 2.3 python-twisted pararchive rar flac shorten'
 
 import popen2, pty, re, signal, thread, time
-from Hellanzb.Util import SPLIT_CMDLINE_ARGS_RE
+SPLIT_CMDLINE_ARGS_RE = re.compile(r'( |"[^"]*")')
 # FIXME: Ptyopen has been deprecated by Topen (because we now used twisted all of the
 # time, all processes are ran through twisted). However it is still used by the build
 # scripts. they should be converted to normal popen, or the Ptyopen code should be moved
@@ -156,6 +155,27 @@ class Ptyopen2(Ptyopen):
         os.close(c2pwrite)
         self.fromchild = os.fdopen(c2pread, 'r', bufsize)
 
+def assertIsExe(exe_list):
+    """ Abort the program if none of the specified files are executable """
+    if not isinstance(exe_list, (list, tuple)):
+        exe_list = [exe_list]
+    if exe_list:
+        for exe in exe_list:
+            if exe == os.path.basename(exe):
+                try:
+                    fullPath = distutils.spawn.find_executable(exe)
+                except:
+                    raise Exception(
+                        'Cannot continue program, your platform does not support '
+                        'searching the path for an executable and you did not supply '
+                        'the full path to the %s executable.' % exe)
+            else:
+                fullPath = exe
+            if fullPath != None and os.access(fullPath, os.X_OK):
+                return fullPath
+    raise Exception('Cannot continue program, required executable not found: \'' + \
+                     exe + '\'')
+
 def assertUpToDate(workingCopyDir = None):
     """ Ensure the working copy is up to date with the repository """
     if workingCopyDir == None:
@@ -290,7 +310,7 @@ def getRepository():
         if len(line) > 3 and line[0:3] == 'URL':
             return line[5:].rstrip()
         
-    raise FatalError('Could not determine SVN repository')
+    raise Exception('Could not determine SVN repository')
 
 def md5File(fileName):
     """ Return the md5 checksum of the specified file """

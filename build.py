@@ -11,7 +11,6 @@ Can do local builds with -lt
 """
 import optparse, os, re, setup, sys
 from build_util import *
-from Hellanzb.Util import assertIsExe
 
 __id__ = '$Id$'
 

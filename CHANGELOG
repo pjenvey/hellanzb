@@ -1,5 +1,11 @@
 v0.14:
 
+o hellanzb now looks for the hellanzb.conf file in the following
+  places/order:
+
+  local paths: ./, ./etc/, or ~/.hellanzb/
+  system paths: sys.prefix, /etc, /etc/hellanzb
+
 o Report SAXException information when an invalid NZB could not be
   parsed (noticed by TU)
 

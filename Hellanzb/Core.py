@@ -34,11 +34,16 @@ def findAndLoadConfig(optionalConfigFile = None):
             error('Unable to load specified config file: ' + optionalConfigFile)
             sys.exit(1)
 
-    # look for conf in this order: sys.prefix, ./, or ./etc/
-    confDirs = [os.path.join(sys.prefix, 'etc')]
+    # look for conf files in this order
+    # local paths: ./, ./etc/, or ~/.hellanzb/
+    # system paths: sys.prefix, /etc, /etc/hellanzb
+    confDirs = [os.getcwd()]
     try:
         confDirs.append(os.path.join(os.getcwd(), 'etc'))
-        confDirs.append(os.getcwd())
+        confDirs.append(os.path.join(os.path.expanduser('~'), '.hellanzb'))
+        confDirs.append(os.path.join(sys.prefix, 'etc'))
+        confDirs.append('/etc')
+        confDirs.append(os.path.join('/etc', 'hellanzb'))
     except OSError, ose:
         if ose.errno != 2:
             raise

@@ -13,7 +13,7 @@ __id__ = '$Id$'
 class Codez:
     allCodez = {}
     aolSays = []
-    
+
     def __init__(self, name, codez):
         self.codez = codez
         Codez.allCodez[name] = self.codez
@@ -29,7 +29,7 @@ class Codez:
             return Codez.aolSays[random.randint(0, len(Codez.aolSays) - 1)]
         return None
     aolSay = staticmethod(aolSay)
-    
+
 C = Codez
 
 C('cmhella', cmHella())
@@ -48,9 +48,9 @@ C('k0w0', """
 
 C('k0w1', """
                     Mo000O0oo0OOO
-        
+
          (__) BBBBBB--EEEEEEE-EEEEEEE-FFFFFFF
-         /oo\\\\BB---BB-EE------EE------FF-----\\\\ 
+         /oo\\\\BB---BB-EE------EE------FF-----\\\\
          \\\\  /~BBBBB--EEEEEE--EEEEEE--FFFFF-- |
           oo  BB---BB-EE------EE------FF----- |
               BBBBBB--EEEEEEE-EEEEEEE-FF----- ^
@@ -60,30 +60,30 @@ C('k0w1', """
   
 C('roflcopter', """
           ROFL:ROFL:LOL:ROFL:ROFL
-                    /\ 
+                    /\
           L   /-----------
-         LOL===        [] \ 
-          L   \            \ 
+         LOL===        [] \
+          L   \            \
                \___________ ]
                   I     I
-              -----------------/ 
+              -----------------/
                ROFL COPTER!!!
 """)
 
 C('donotfeedtrolls0', """
-         +-------------------+             .:\:\:/:/:.            
-         |   PLEASE DO NOT   |            :.:\:\:/:/:.:           
-         |  FEED THE TROLLS  |           :=.' -   - '.=:          
-         |                   |           '=(\ 9   9 /)='          
-         |   Thank you,      |              (  (_)  )             
-         |       Management  |              /`-vvv-'\             
-         +-------------------+             /         \            
-                 |  |        @@@          / /|,,,,,|\ \           
-                 |  |        @@@         /_//  /^\  \\_\          
-   @x@@x@        |  |         |/         WW(  (   )  )WW          
-   \||||/        |  |        \|           __\,,\ /,,/__           
-    \||/         |  |         |          (______Y______)          
-/\/\/\/\/\/\/\/\//\/\\/\/\/\/\/\/\/\/\/\/\/\/\/\/\/\/\/\/\/\/\/\/\ 
+         +-------------------+             .:\:\:/:/:.
+         |   PLEASE DO NOT   |            :.:\:\:/:/:.:
+         |  FEED THE TROLLS  |           :=.' -   - '.=:
+         |                   |           '=(\ 9   9 /)='
+         |   Thank you,      |              (  (_)  )
+         |       Management  |              /`-vvv-'\
+         +-------------------+             /         \
+                 |  |        @@@          / /|,,,,,|\ \
+                 |  |        @@@         /_//  /^\  \\_\
+   @x@@x@        |  |         |/         WW(  (   )  )WW
+   \||||/        |  |        \|           __\,,\ /,,/__
+    \||/         |  |         |          (______Y______)
+/\/\/\/\/\/\/\/\//\/\\/\/\/\/\/\/\/\/\/\/\/\/\/\/\/\/\/\/\/\/\/\/\
 ==================================================================
 """)
 
@@ -94,9 +94,9 @@ C('donotfeedtrolls1', """
                        | FEED THE |
                        |  TROLLS  |
                        +----------+
-                           |  |    
-                           |  |    
-                         .\|.||/.. 
+                           |  |
+                           |  |
+                         .\|.||/..
 """)
 
 C('bmwplonk', """

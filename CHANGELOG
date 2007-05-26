@@ -1,5 +1,14 @@
 v0.14:
 
+o New remote call: log
+  (From hellanzb.py --help)
+
+  log logLvl logMsg     Add the specified message to the HellaNZB
+                        logfile. LogLvl should be INFO, WARNING, or
+                        ERROR.
+
+  (Patch by ashleywbone)
+
 o hellanzb now looks for the hellanzb.conf file in the following
   places/order:
 

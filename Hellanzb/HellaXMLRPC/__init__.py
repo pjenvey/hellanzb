@@ -185,6 +185,22 @@ class HellaXMLRPCServer(XMLRPC):
         '. Returns a list of structs (nzbid -> nzbName). Excluding the NZB IDs returns a ' \
         'list of nzbName strings'
     
+    def xmlrpc_log(self, logLvl, logMsg):
+        """ Add the specified message to the HellaNZB logfile. LogLvl should be INFO,
+        WARNING, or ERROR."""
+        if logLvl == 'INFO':
+            info(logMsg)
+        elif logLvl == 'WARNING':
+            warn(logMsg)
+        elif logLvl == 'ERROR':
+            error(logMsg)
+        else:
+            error('Invalid log level %s specified by XML RPC Client.' % logLvl)
+
+        return self.xmlrpc_status()
+
+    xmlrpc_log.signature = [ ['struct', 'string', 'string'] ]
+
     def xmlrpc_maxrate(self, rate = None):
         """ Return the Hellanzb.MAX_RATE (maximum download rate) value. Specify a second argument
         to change the value -- a value of zero denotes no maximum rate """
@@ -640,6 +656,9 @@ def initXMLRPCClient():
     r = RemoteCall('up', printQueueListAndExit)
     r.addRequiredArg('nzbid')
     r.addOptionalArg('shift')
+    r = RemoteCall('log', statusString)
+    r.addRequiredArg('logLvl')
+    r.addRequiredArg('logMsg')
 
 def hellaRemote(options, args):
     """ execute the remote RPC call with the specified cmd line args. args can be None """

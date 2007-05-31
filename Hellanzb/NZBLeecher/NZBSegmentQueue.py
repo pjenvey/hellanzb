@@ -498,6 +498,7 @@ class NZBSegmentQueue(PriorityQueue):
                 if nsf.fillServerPriority != self.fillServerPriority:
                     continue
                 if nsf.serverPoolName not in requeuedSegment.failedServerPools:
+                    nsf.activated = True
                     nsf.fetchNextNZBSegment()
 
     def fileDone(self, nzbFile):
@@ -688,7 +689,7 @@ class NZBSegmentQueue(PriorityQueue):
                 except OutOfDiskSpace:
                     self.nzbDone(nzb)
                     # FIXME: Shouldn't exit here
-                    error('Cannot assemble ' + nzb.getFilename() + ': No space left on device! Exiting..')
+                    error('Cannot assemble ' + nzbFile.getFilename() + ': No space left on device! Exiting..')
                     Hellanzb.Core.shutdown(True)
 
         for nzbSegment in needDlSegments:

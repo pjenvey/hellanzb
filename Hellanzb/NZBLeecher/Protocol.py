@@ -196,19 +196,19 @@ class NZBLeecherFactory(ReconnectingClientFactory):
             #self.sessionReadBytes = 0
             self.activated = False
 
-        # If we got the justThisDownloadPool, that means this serverPool is done, but
-        # there are segments left in the queue for other serverPools (we're not completely
-        # done)
         if justThisDownloadPool:
+            # This serverPool is finished but there are segments pending in the
+            # queue for other serverPools (not completely done)
             return
 
-        # Check if we're completely done
-        totalActiveClients = 0
+        # Completely finished downloading the NZB?
         for nsf in Hellanzb.nsfs:
-            totalActiveClients += len(nsf.activeClients)
-            
-        if totalActiveClients == 0:
-            endDownload()
+            if nsf.activated:
+                # Not yet
+                return
+
+        # No more active factories, finished downloading
+        endDownload()
 
     def getCurrentRate():
         """ Return the current download rate in KB/s """
@@ -353,6 +353,7 @@ class NZBLeecher(NNTPClient, TimeoutMixin):
 
         if (not self.factory.activated or Hellanzb.downloadPaused) and \
                 self.antiIdleTimeout == 0:
+            debug(str(self) + ' CONNECTION LOST continueTrying=False')
             self.factory.continueTrying = False
             self.factory.idledOut = True
 

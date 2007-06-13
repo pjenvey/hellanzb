@@ -1,5 +1,16 @@
 v0.14:
 
+
+o Fixed a stall towards the end of a download situation when using
+multiple servers pools:
+
+When one server pool couldn't establish any connections to the server
+and had queued segments particular to that pool (either during
+automatic failover or due to being a fill server), and the other
+server pools finished their queues, the download would mistakenly be
+considered 'finished'. However decoding would never finish, causing
+the stall.
+
 o New remote call: log
   (From hellanzb.py --help)
 

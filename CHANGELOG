@@ -1,5 +1,7 @@
 v0.14:
 
+o .cbr files are no longer treated as normal rars (extracted)
+
 o Fixed defunct post processor processes on Solaris (Thanks andy at
   stormsail)
 

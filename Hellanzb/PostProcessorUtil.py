@@ -255,6 +255,10 @@ def isRar(fileName):
         return False
     
     ext = getFileExtension(fileName)
+    if ext and ext.lower() == 'cbr':
+        # cbr is a Comic Book Archive -- they're intended to be rared for
+        # viewing by special readers so shouldn't be extracted
+        return False
     if ext and ext.lower() == 'rar':
         return True
 

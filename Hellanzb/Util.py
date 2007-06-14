@@ -173,7 +173,7 @@ class Topen(protocol.ProcessProtocol):
         # particular, SIGINT, rendering our first CTRL-C ignoring code useless, as it ends
         # up killing our sub processes)
         reactor.callFromThread(reactor.spawnProcess, self, self.cmd[0], self.cmd, os.environ,
-                               usePTY = not isWindows() and 1 or 0)
+                               usePTY = (not isWindows() and not isSolaris()) and 1 or 0)
 
         self.finished.wait()
         self.finished.release()
@@ -755,6 +755,10 @@ def isPy2App():
 def isWindows():
     """ Whether or not this process is running in Windows (not cygwin) """
     return sys.platform.startswith('win')
+
+def isSolaris():
+    """ Whether or not this process is running in Solaris """
+    return sys.platform == 'solaris'
 
 ONE_MB = float(1024*3)
 try:

@@ -1,5 +1,7 @@
 v0.14:
 
+o Fixed defunct post processor processes on Solaris (Thanks andy at
+  stormsail)
 
 o Fixed a stall towards the end of a download situation when using
 multiple servers pools:

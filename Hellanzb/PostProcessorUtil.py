@@ -27,7 +27,7 @@ PAR2_LEFTOVER_SUFFIX = re.compile(r'\.\d$')
 class Archive(object):
     """ Representation of an archive that can be post processed """
     def __init__(self, archiveDir, id = None, rarPassword = None, deleteProcessed = None,
-                 skipUnrar = None):
+                 skipUnrar = None, **kwargs):
         self.archiveDir, self.rarPassword = archiveDir, rarPassword
         
         if id is None:
@@ -89,7 +89,10 @@ class Archive(object):
         if recoveredDict == None:
             recoveredDict = Hellanzb.recoveredState.getRecoveredDict('processing', archiveDir)
         if recoveredDict:
-            return Archive(archiveDir, recoveredDict['id'])
+            strDict = {}
+            for key, value in recoveredDict.iteritems():
+                strDict[key.encode('ascii', 'ignore')] = value
+            return Archive(archiveDir, **strDict)
         else:
             return Archive(archiveDir)
     fromStateXML = staticmethod(fromStateXML)
@@ -613,7 +616,7 @@ def unrar(postProcessor, fileName, pathToExtract = None):
                       os.path.basename(fileName)))
 
     if isPassworded:
-        cmd = [Hellanzb.UNRAR_CMD, 'x', '-y', '-idp', '-p%s', postProcessor.rarPassword,
+        cmd = [Hellanzb.UNRAR_CMD, 'x', '-y', '-idp', '-p%s' % postProcessor.rarPassword,
                '--', fileName, pathToExtract]
     else:
         cmd = [Hellanzb.UNRAR_CMD, 'x', '-y', '-idp', '-p-', '--', fileName,

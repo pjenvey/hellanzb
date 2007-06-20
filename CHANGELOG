@@ -1,5 +1,7 @@
 v0.14:
 
+o Fixed download rate > 0 after downloads were finished (broken in 0.13)
+
 o Fixed rar password support (-P option)
 
 o .cbr files are no longer treated as normal rars (extracted)

@@ -292,10 +292,7 @@ class HellaXMLRPCServer(XMLRPC):
         from Hellanzb.NZBQueue import listQueue
         s = {}
 
-        if Hellanzb.downloadPaused:
-            totalSpeed = 0
-        else:
-            totalSpeed = Hellanzb.getCurrentRate()
+        totalSpeed = Hellanzb.getCurrentRate()
 
         s['time'] = DateTime()
         s['uptime'] = secondsToUptime(time.time() - Hellanzb.BEGIN_TIME)

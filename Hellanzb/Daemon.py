@@ -276,6 +276,7 @@ def beginDownload(nzb=None):
 
 def endDownload():
     """ Finished downloading """
+    Hellanzb.ht.rate = 0
     sessionStartTime = None
     sessionReadBytes = 0
     for nsf in Hellanzb.nsfs:

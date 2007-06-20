@@ -212,7 +212,10 @@ class NZBLeecherFactory(ReconnectingClientFactory):
 
     def getCurrentRate():
         """ Return the current download rate in KB/s """
-        return Hellanzb.ht.rate / 1024
+        if Hellanzb.downloadPaused:
+            return 0
+        else:
+            return Hellanzb.ht.rate / 1024
     getCurrentRate = staticmethod(getCurrentRate)
             
 

@@ -42,6 +42,8 @@ o Fixed a potential lockup with multiple defineServers that occurs
   when an article does not exist on one server and failed the CRC
   check on another server (thanks jon at sd - 6, others)
 
+o Added optional support for the optcomplete library
+
 
 v0.13:
 

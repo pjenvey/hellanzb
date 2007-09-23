@@ -10,6 +10,11 @@ from Hellanzb.HellaReactor import HellaReactor
 HellaReactor.install()
 
 import optparse, os, signal, sys, time, thread, threading, Hellanzb, Hellanzb.PostProcessor
+try:
+    # optional lib provides automatic shell completion
+    import optcomplete
+except ImportError:
+    optcomplete = None
 from distutils import spawn
 from shutil import rmtree
 from socket import gethostname
@@ -520,6 +525,8 @@ def parseArgs():
                       help='specify the rpc server password (overwrites Hellanzb.XMLRPC_PASSWORD config file setting)')
     parser.add_option('-t', '--rpc-port', type='int', dest='rpcPort',
                       help='specify the rpc server port (overwrites Hellanzb.XMLRPC_PORT config file setting)')
+    if optcomplete:
+        optcomplete.autocomplete(parser)
     return parser.parse_args()
 
 def processArgs(options, args):

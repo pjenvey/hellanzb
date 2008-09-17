@@ -659,7 +659,7 @@ class NZBLeecher(NNTPClient, TimeoutMixin):
         reactor.callInThread(decode, segment)
 
     def gotGroup(self, group):
-        group = group[3]
+        group = self.gettingGroup
         self.activeGroups.append(group)
         self.gettingGroup = None
         debug(str(self) + ' got GROUP: ' + group)

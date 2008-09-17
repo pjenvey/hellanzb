@@ -1,5 +1,8 @@
 v0.14:
 
+o Fixed hellanzb recursively sending NNTP GROUP commands with a group
+  value with extra whitespace
+
 o Fixed download rate > 0 after downloads were finished (broken in
   0.12)
 

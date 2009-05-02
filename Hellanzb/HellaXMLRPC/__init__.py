@@ -275,7 +275,7 @@ class HellaXMLRPCServer(XMLRPC):
         return self.xmlrpc_status()
 
     xmlrpc_setrarpass.signature = [ ['struct', 'int', 'string'],
-                                        ['struct', 'string', 'string'] ]
+                                    ['struct', 'string', 'string'] ]
     
     def xmlrpc_shutdown(self):
         """ Shutdown hellanzb. Will quietly kill any post processing threads that may exist """

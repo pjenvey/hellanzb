@@ -183,8 +183,8 @@ class NZBParser(ContentHandler):
 
     def parseUnicode(self, unicodeOrStr):
         if isinstance(unicodeOrStr, unicode):
-            return unicodeOrStr.encode('latin-1')
-        return unicodeOrStr
+            unicodeOrStr = unicodeOrStr.encode('latin-1')
+        return unicodeOrStr.strip()
 
 class NZBTotalBytesParser(ContentHandler):
     """ Parse only the byte count from an NZB file """

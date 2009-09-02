@@ -757,7 +757,7 @@ def isSolaris():
     """ Whether or not this process is running in Solaris """
     return sys.platform.startswith('sunos')
 
-ONE_MB = float(1024*3)
+ONE_MB = float(1024 ** 2)
 try:
     import statvfs
     def diskFree(dirName):

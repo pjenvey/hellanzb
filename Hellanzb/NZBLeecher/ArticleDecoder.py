@@ -749,7 +749,8 @@ def assembleNZBFile(nzbFile, autoFinish = True):
             # postponement might have moved the file we just wrote to:
             # exceptions.OSError: [Errno 2] No such file or directory: 
             if ose.errno != 2:
-                debug('Unexpected ERROR while removing segmentFile: ' + segmentFile)
+                debug('Unexpected ERROR while removing segmentFile: ' +
+                      nzbSegment.getDestination())
 
     Hellanzb.queue.fileDone(nzbFile)
     nzbFile.nzb.assembleLock.release()

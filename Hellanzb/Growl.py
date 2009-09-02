@@ -7,7 +7,10 @@ __copyright__ = "(C) 2004 Rui Carmo. Code under BSD License."
 __contributors__ = "Ingmar J Stein (Growl Team)"
 
 import struct
-import md5
+try:
+    from hashlib import md5
+except ImportError:
+    from md5 import md5
 from socket import AF_INET, SOCK_DGRAM, socket
 
 GROWL_UDP_PORT=9887
@@ -51,7 +54,7 @@ class GrowlRegistrationPacket:
             self.data += encoded
         for default in self.defaults:
             self.data += struct.pack("B", default)
-        self.checksum = md5.new()
+        self.checksum = md5()
         self.checksum.update(self.data)
         if self.password:
             self.checksum.update(self.password)
@@ -89,7 +92,7 @@ class GrowlNotificationPacket:
         self.data += self.title
         self.data += self.description
         self.data += self.application
-        self.checksum = md5.new()
+        self.checksum = md5()
         self.checksum.update(self.data)
         if password:
             self.checksum.update(password)

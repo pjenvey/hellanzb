@@ -30,7 +30,12 @@ from twisted.internet import defer
 from twisted.enterprise import adbapi
 from twisted.persisted import dirdbm
 
-import getpass, pickle, time, socket, md5
+import getpass, pickle, time, socket
+
+try:
+    from hashlib import md5
+except ImportError:
+    from md5 import md5
 import os
 import StringIO
 from zope.interface import implements, Interface
@@ -62,7 +67,7 @@ class Article:
 
         if not self.getHeader('Message-ID'):
             s = str(time.time()) + self.body
-            id = hexdigest(md5.md5(s)) + '@' + socket.gethostname()
+            id = hexdigest(md5(s)) + '@' + socket.gethostname()
             self.putHeader('Message-ID', '<%s>' % id)
 
         if not self.getHeader('Bytes'):

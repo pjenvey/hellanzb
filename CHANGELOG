@@ -1,5 +1,7 @@
 v0.14:
 
+o Quiet warnings on Python 2.6.
+
 o Now strips whitespace from NZB data, fixes slow downloads on some
   servers
 

@@ -8,7 +8,12 @@ HTTP auth
 (c) Copyright 2005 Philip Jenvey
 [See end of file]
 """
-import md5
+
+try:
+    from hashlib import md5
+except ImportError:
+    from md5 import md5
+
 from twisted.web import static
 from twisted.web.resource import Resource
 
@@ -70,7 +75,7 @@ class HtPasswdWrapper(Resource):
         
         self.user = user
         
-        m = md5.new()
+        m = md5()
         m.update(password)
         del password
         self.passwordDigest = m.digest()
@@ -90,7 +95,7 @@ class HtPasswdWrapper(Resource):
     def authenticateUser(self, request):
         username, password = request.getUser(), request.getPassword()
         
-        m = md5.new()
+        m = md5()
         m.update(password)
         
         authenticated = username == self.user and self.passwordDigest == m.digest()

@@ -28,9 +28,6 @@ BUF_SIZE = 16 * 1024
 
 class FatalError(Exception):
     """ An error that will cause the program to exit """
-    def __init__(self, message):
-        self.args = [message]
-        self.message = message
 
 class EmptyForThisPool(Empty):
     """ The queue is empty in terms of our current serverPool, but there are still segments to

@@ -6,7 +6,12 @@ build_util.py - Build related functions
 (c) Copyright 2005 Philip Jenvey
 [See end of file]
 """
-import distutils.util, distutils.spawn, md5, os, re, setup, shutil, sys, tarfile
+import distutils.util, distutils.spawn, os, re, setup, shutil, sys, tarfile
+try:
+    from hashlib import md5
+except ImportError:
+    from md5 import md5
+
 if sys.version >= '2.5':
     from hashlib import sha256
 
@@ -314,7 +319,7 @@ def getRepository():
 
 def md5File(fileName):
     """ Return the md5 checksum of the specified file """
-    m = md5.new()
+    m = md5()
     file = open(fileName)
     for line in file.readlines():
         m.update(line)

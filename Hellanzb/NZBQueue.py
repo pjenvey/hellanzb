@@ -245,7 +245,7 @@ def nzbZipSearch(file):
 
     try:
         z = zipfile.ZipFile(filepath)
-    except zipfile.BadZipFile, bzf:
+    except zipfile.BadZipfile, bzf:
         error('Error reading ZipFile: "%s"' % file, bzf)
         return False
 

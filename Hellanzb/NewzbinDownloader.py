@@ -27,7 +27,7 @@ class NewzbinDownloader(NZBDownloader):
         'Accept-Encoding': 'gzip',
         'Accept': 'text/plain'
         }
-    url = 'http://v3.newzbin.com/dnzb/'
+    url = 'http://www.newzbin.com/api/dnzb/'
     
     def __init__(self, msgId):
         """ Initialize the downloader with the specified msgId string """

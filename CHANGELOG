@@ -1,5 +1,8 @@
 v0.14:
 
+o Fix NZB archives containing their own NZB file (with the same name)
+  hanging hellanzb
+
 o Quiet warnings on Python 2.6.
 
 o Now strips whitespace from NZB data, fixes slow downloads on some
@@ -19,7 +22,7 @@ o Fixed defunct post processor processes on Solaris (Thanks andy at
   stormsail)
 
 o Fixed a stall towards the end of a download situation when using
-multiple servers pools:
+  multiple servers pools:
 
 When one server pool couldn't establish any connections to the server
 and had queued segments particular to that pool (either during

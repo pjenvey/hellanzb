@@ -353,9 +353,13 @@ def handleNZBDone(nzb):
     move(Hellanzb.WORKING_DIR, processingDir)
     nzb.destDir = processingDir
     nzb.archiveDir = processingDir
-    
-    move(nzb.nzbFileName, processingDir)
-    nzb.nzbFileName = os.path.join(processingDir, nzb.nzbFileName)
+
+    nzbFileName = os.path.join(processingDir, os.path.basename(nzb.nzbFileName))
+    # We may have downloaded an NZB file of the same name:
+    # http://hellanzb.com/trac/hellanzb/ticket/425
+    hellaRename(nzbFileName)
+    move(nzb.nzbFileName, nzbFileName)
+    nzb.nzbFileName = nzbFileName
 
     os.mkdir(Hellanzb.WORKING_DIR)
 
